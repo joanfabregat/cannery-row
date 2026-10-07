@@ -1,0 +1,1 @@
+INSERT INTO service_accounts(project_id,kind,name,description,created_by) VALUES($1,$2,$3,$4,$5) RETURNING id AS "id: _",project_id AS "project_id: _",kind,name,description,created_by AS "created_by: _",created_at AS "created_at: _",disabled_at AS "disabled_at: _"

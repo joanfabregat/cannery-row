@@ -1,0 +1,29 @@
+[package]
+name = "cannery-sqlx-cli"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[[bin]]
+name = "cargo-sqlx"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "=4.6.7", features = ["derive"] }
+sqlx-cli = { version = "=0.9.0", default-features = false, features = ["postgres", "rustls"] }
+sqlx = { version = "=0.9.0", default-features = false, features = ["any", "postgres", "runtime-tokio", "tls-rustls-ring-webpki"] }
+tokio = { version = "=1.53.1", features = ["macros", "rt-multi-thread"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"

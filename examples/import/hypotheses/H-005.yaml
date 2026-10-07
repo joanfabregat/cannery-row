@@ -1,0 +1,15 @@
+id: H-005
+track: lexical
+title: Index document titles twice
+kind: diagnostic
+claim: Doubling title weight shows whether titles carry the relevance signal.
+created_at: 2025-02-17
+state: declined
+decision:
+  action: decline
+  decided_at: 2025-02-18
+  decided_by: ana@example.org
+  reason: Covered by the field-weight sweep already planned.
+  source: notebook/2025-02.md:55@3f9c2ab
+sources:
+  - notebook/2025-02.md:50-55@3f9c2ab

@@ -1,0 +1,365 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SQLX_OFFLINE: "true"
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  NODE_BUILD_IMAGE: docker.io/library/node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
+  DOMAIN_TEST_FEATURES: cannery-core/conformance-testing,cannery-server/conformance-testing,cannery-identity/conformance-testing,cannery-projects/conformance-testing
+  DOMAIN_TEST_CRATES: -p cannery-core -p cannery-identity -p cannery-projects -p cannery-server -p cannery-research -p cannery-tracks -p cannery-metrics -p cannery-jobs -p cannery-hypotheses -p cannery-search -p cannery-reviews -p cannery-attention -p cannery-comments-reports -p cannery-attempts -p cannery-imports
+
+jobs:
+  rust:
+    name: lint and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unpack the frozen references
+        run: tests/references/unpack.sh
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - name: Fetch and audit the web dependencies
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts --no-fund
+          npm audit --audit-level=high
+      - name: Build the embedded web distribution offline
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" --network none --cap-drop ALL \
+            --security-opt no-new-privileges --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=512m --memory 4g --cpus 2 \
+            -v "$PWD/web:/web" -w /web \
+            -e npm_config_nodedir=/usr/local -e npm_config_cache=/tmp/npm-cache \
+            "$NODE_BUILD_IMAGE" /bin/sh -c \
+            'npm rebuild --offline && npm run lint && npm run typecheck && npm run test && npm run api:types:check && npm run build'
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: "1.99.0"
+          components: rustfmt, clippy
+      - name: Fetch and audit the frozen graph
+        run: |
+          cargo fetch --locked
+          cargo install cargo-audit --version 0.22.2 --locked
+          cargo audit
+      - uses: EmbarkStudios/cargo-deny-action@9c67a826e39827395bfa619cd85cb2aaeb43cfaa
+        with:
+          command: check
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Lint and test with every feature
+        run: |
+          cargo clippy --locked --offline --workspace --all-targets --all-features -- -D warnings
+          cargo test --locked --offline --workspace --all-features
+      - name: Free the all-feature build
+        run: cargo clean --profile dev
+      - name: Lint and test with default features
+        run: |
+          cargo clippy --locked --offline --workspace --all-targets -- -D warnings
+          cargo test --locked --offline --workspace
+      - name: Native runner processes, leases and artifact transfers
+        run: |
+          set -euo pipefail
+          cargo build --locked --offline -p cannery --bin cannery
+          cargo build --locked --offline -p cannery-test-launcher
+          cargo test --locked --offline -p cannery-runner \
+            --test config_check --test policy_evaluator_http --test policy_evaluator_cli \
+            --no-run --message-format=json > "$RUNNER_TEMP/runner-tests.json"
+          executable() {
+            jq -ser --arg name "$1" '[.[] | select(.reason == "compiler-artifact" and .profile.test == true
+              and .target.kind == ["test"] and .target.name == $name
+              and (.manifest_path | endswith("/crates/runner/Cargo.toml")))] | unique_by(.executable)
+              | if length == 1 then .[0].executable else error("one \($name) artifact required") end' \
+              "$RUNNER_TEMP/runner-tests.json"
+          }
+          export CANNERY_NATIVE_CLI="$PWD/target/debug/cannery"
+          launch=target/debug/cannery-test-launcher
+          "$launch" selected -- "$(executable config_check)" --ignored --exact installed_runner_check_config_is_offline --nocapture
+          "$launch" selected -- "$(executable policy_evaluator_http)" --ignored --exact policy_evaluator_http_and_owned_process_lifecycle --nocapture --test-threads=1
+          "$launch" selected -- "$(executable policy_evaluator_cli)" --ignored --exact installed_runner_policy_success_failure_and_retry --nocapture --test-threads=1
+          cargo test --locked --offline -p cannery-runner --test experiment_http -- --ignored
+          CANNERY_RUNNER_BINARY="$PWD/target/debug/cannery" cargo test --locked --offline \
+            -p cannery-runner --test container_backends -- --ignored --exact \
+            installed_container_factories_start_clients_and_claim_with_separate_credentials
+          CANNERY_EVALUATOR_BINARY="$PWD/target/debug/cannery" cargo test --locked --offline \
+            -p cannery-runner --test evaluator_http -- --ignored --exact \
+            stock_commands_use_http_without_installation_or_launcher_settings
+
+  managed-postgres:
+    name: managed PostgreSQL ${{ matrix.bundle }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux bundles build natively per architecture in the pinned
+          # buildpack-deps:bookworm manifest for it (same pins as
+          # dev/build-postgres-bundle.sh).
+          - runner: ubuntu-24.04
+            bundle: linux-x86_64
+            build-image: docker.io/library/buildpack-deps:bookworm@sha256:672aaedcfec98774308e902ae592697bc34b05d58f62104015cf3511f58e318a
+          - runner: ubuntu-24.04-arm
+            bundle: linux-aarch64
+            build-image: docker.io/library/buildpack-deps:bookworm@sha256:713468e310395862392894a4dea5996eb8f6f76498c74dcbd37613e0f740096f
+          # Same runner as the release workflow's native macOS job.
+          - runner: macos-15
+            bundle: macos-aarch64
+            build-image: ""
+    env:
+      CARGO_INCREMENTAL: "0"
+      POSTGRES_BUILD_IMAGE: ${{ matrix.build-image }}
+      BUNDLE: ${{ matrix.bundle }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: runner.os == 'Linux'
+        with:
+          node-version: "22"
+      - name: Fetch and audit the web dependencies
+        if: runner.os == 'Linux'
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts --no-fund
+          npm audit --audit-level=high
+      - name: Placeholder web distribution (macOS)
+        if: runner.os == 'macOS'
+        # No container runtime for the offline web build on macOS runners.
+        # These checks use only the API, so a minimal SPA is embedded.
+        run: |
+          mkdir -p web/dist
+          printf '%s\n' '<!doctype html><title>Cannery Row</title><div id="root"></div>' > web/dist/index.html
+      - name: Build the embedded web distribution offline
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" --network none --cap-drop ALL \
+            --security-opt no-new-privileges --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=512m --memory 4g --cpus 2 \
+            -v "$PWD/web:/web" -w /web \
+            -e npm_config_nodedir=/usr/local -e npm_config_cache=/tmp/npm-cache \
+            "$NODE_BUILD_IMAGE" /bin/sh -c \
+            'npm rebuild --offline && npm run build'
+      - name: Fetch the pinned PostgreSQL source
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^PG_VERSION=//p' dev/postgres-bundle-build.sh)
+          digest=$(sed -n 's/^PG_SHA256=//p' dev/postgres-bundle-build.sh)
+          mkdir -p "$RUNNER_TEMP/pg/debs" "$RUNNER_TEMP/pg/build" "$RUNNER_TEMP/pg/out"
+          curl -sfL -o "$RUNNER_TEMP/pg/postgresql.tar.bz2" \
+            "https://ftp.postgresql.org/pub/source/v$version/postgresql-$version.tar.bz2"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            echo "$digest  $RUNNER_TEMP/pg/postgresql.tar.bz2" | sha256sum -c -
+          else
+            echo "$digest  $RUNNER_TEMP/pg/postgresql.tar.bz2" | shasum -a 256 -c -
+          fi
+      - name: Fetch the signed build tools
+        if: runner.os == 'Linux'
+        run: |
+          # apt verifies the packages against the signed Debian archive.
+          docker run --rm -v "$RUNNER_TEMP/pg/debs:/debs" -w /debs "$POSTGRES_BUILD_IMAGE" \
+            /bin/sh -c 'apt-get update -qq && apt-get download -qq bison flex zstd'
+      - name: Build the PostgreSQL bundle offline
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          docker run --rm --user "$(id -u):$(id -g)" --network none --cap-drop ALL \
+            --security-opt no-new-privileges --read-only \
+            --tmpfs /tmp:rw,exec,nosuid,nodev,size=512m --memory 4g --cpus 2 \
+            -v "$RUNNER_TEMP/pg:/pg" -v "$PWD/dev/postgres-bundle-build.sh:/build.sh:ro" \
+            "$POSTGRES_BUILD_IMAGE" /bin/sh -c '
+              set -eu
+              for deb in /pg/debs/*.deb; do dpkg -x "$deb" /tmp/tools; done
+              export PATH=/tmp/tools/usr/bin:$PATH BISON_PKGDATADIR=/tmp/tools/usr/share/bison
+              bash /build.sh /pg/postgresql.tar.bz2 /pg/out /pg/build/work'
+          cat "$RUNNER_TEMP"/pg/out/*.sizes.txt
+          # Only glibc and the bundle's own libpq may be loaded at run time.
+          if grep NEEDED "$RUNNER_TEMP"/pg/out/*.dynamic.txt | grep -Ev '\[(libc|libm|libpq)\.so\.[0-9]+\]'; then
+            exit 1
+          fi
+          bundle=$(echo "$RUNNER_TEMP"/pg/out/postgresql-*-"$BUNDLE".tar.zst)
+          mkdir "$RUNNER_TEMP/pg/unpacked"
+          tar --zstd -xf "$bundle" -C "$RUNNER_TEMP/pg/unpacked"
+          printf '%s\n' "CANNERY_POSTGRES_BUNDLE=$bundle" \
+            "CANNERY_MANAGED_POSTGRES_BIN_DIR=$RUNNER_TEMP/pg/unpacked/bin" >> "$GITHUB_ENV"
+      - name: Build the PostgreSQL bundle natively (macOS)
+        if: runner.os == 'macOS'
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+        run: |
+          set -euo pipefail
+          # Xcode command line tools (bison 2.3 is enough for PostgreSQL 17)
+          # and the runner image's GNU tar, zstd and xz; nothing is installed.
+          for tool in cc make perl bison flex otool install_name_tool codesign gtar zstd xz; do
+            command -v "$tool"
+          done
+          bison --version | head -n 1
+          bash dev/postgres-bundle-build.sh "$RUNNER_TEMP/pg/postgresql.tar.bz2" \
+            "$RUNNER_TEMP/pg/out" "$RUNNER_TEMP/pg/build/work"
+          cat "$RUNNER_TEMP"/pg/out/*.dynamic.txt
+          # Only libSystem and the bundle's own libpq, by a loader-relative
+          # name, may be loaded at run time; no LC_RPATH.
+          if grep -Ev ': (/usr/lib/libSystem\.B\.dylib|@loader_path/(\.\./lib/)?libpq\.5\.dylib|@rpath/libpq\.5\.dylib)$' \
+            "$RUNNER_TEMP"/pg/out/*.dynamic.txt; then
+            exit 1
+          fi
+          bundle=$(echo "$RUNNER_TEMP"/pg/out/postgresql-*-"$BUNDLE".tar.zst)
+          mkdir "$RUNNER_TEMP/pg/unpacked"
+          zstd -dc "$bundle" | tar -xf - -C "$RUNNER_TEMP/pg/unpacked"
+          for binary in "$RUNNER_TEMP"/pg/unpacked/bin/* "$RUNNER_TEMP"/pg/unpacked/lib/*.dylib; do
+            file "$binary" | grep -q arm64
+            codesign --verify "$binary"
+          done
+          "$RUNNER_TEMP/pg/unpacked/bin/pg_isready" --version
+          printf '%s\n' "CANNERY_POSTGRES_BUNDLE=$bundle" \
+            "CANNERY_MANAGED_POSTGRES_BIN_DIR=$RUNNER_TEMP/pg/unpacked/bin" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: postgresql-bundle-${{ matrix.bundle }}
+          path: |
+            ${{ runner.temp }}/pg/out/*.tar.zst
+            ${{ runner.temp }}/pg/out/*.tar.zst.sha256
+            ${{ runner.temp }}/pg/out/*.dynamic.txt
+            ${{ runner.temp }}/pg/out/*.sizes.txt
+          if-no-files-found: error
+          retention-days: 7
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: "1.99.0"
+      - name: Fetch the frozen graph
+        run: cargo fetch --locked
+      - name: Supervisor and CLI against the built PostgreSQL
+        run: |
+          cargo test --locked --offline -p cannery-managed-postgres --all-targets
+          cargo test --locked --offline -p cannery-managed-postgres --test server -- --ignored --nocapture
+          cargo test --locked --offline -p cannery --test managed_database -- --ignored --nocapture
+          cargo test --locked --offline -p cannery --test db_commands -- --ignored --nocapture
+      - name: A cannery with the bundled PostgreSQL
+        run: |
+          set -euo pipefail
+          cargo build --locked --offline -p cannery --bin cannery --features bundled-postgres
+          root=$(mktemp -d "$RUNNER_TEMP/managed.XXXXXX")
+          export CANNERY_DATABASE_PROVIDER=managed \
+            CANNERY_DATABASE_DATA_DIR="$root/db" \
+            CANNERY_DATABASE_POSTGRES_CACHE_DIR="$root/cache"
+          first=$(target/debug/cannery migrate)
+          [[ "$first" == "applied "* && "$first" != "applied 0 migration(s)" ]]
+          ls -d "$root"/cache/*-*/bin/postgres
+          [[ "$(target/debug/cannery migrate)" == "applied 0 migration(s)" ]]
+          target/debug/cannery db dump "$root/backup.dump"
+          [[ "$(ls -l "$root/backup.dump" | cut -c1-10)" == -rw------- ]]
+
+
+  database:
+    name: database tests on PostgreSQL 17
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CANNERY_TEST_DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unpack the frozen references
+        run: tests/references/unpack.sh
+      - &placeholder-web
+        name: Placeholder web distribution
+        # These tests use only the API; the rust job checks the real build.
+        run: |
+          mkdir -p web/dist
+          printf '%s\n' '<!doctype html><html><head><title>Cannery Row</title></head><body><div id="root"></div></body></html>' > web/dist/index.html
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: "1.99.0"
+      - &build-database-tests
+        name: Build offline
+        run: |
+          cargo fetch --locked
+          cargo build --locked --offline --workspace --bins --features cannery/conformance-testing
+          # shellcheck disable=SC2086
+          cargo test --locked --offline --no-run --message-format=json \
+            --features "$DOMAIN_TEST_FEATURES" $DOMAIN_TEST_CRATES > "$RUNNER_TEMP/domain-tests.json"
+      - name: Native attempt rows
+        run: cargo test --locked --offline -p cannery-attempts --test native_attempt_rows -- --ignored
+      - name: Repositories, HTTP operations and storage effects
+        run: ci/database-tests.sh "$RUNNER_TEMP/domain-tests.json"
+
+  managed-database:
+    name: database tests on the managed PostgreSQL
+    needs: managed-postgres
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CANNERY_TEST_DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unpack the frozen references
+        run: |
+          tests/references/unpack.sh
+          # One cursor case orders differently under the builtin C.UTF-8 locale.
+          cp crates/tracks/tests/fixtures/tracks_repository_reference.builtin-locale.json \
+            crates/tracks/tests/fixtures/tracks_repository_reference.json
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: postgresql-bundle-linux-x86_64
+          path: ${{ runner.temp }}/pg-bundle
+      - name: Start the bundled PostgreSQL
+        run: |
+          set -euo pipefail
+          (cd "$RUNNER_TEMP/pg-bundle" && sha256sum -c postgresql-*-linux-x86_64.tar.zst.sha256)
+          mkdir "$RUNNER_TEMP/pg" "$RUNNER_TEMP/pg-socket"
+          tar --zstd -xf "$RUNNER_TEMP"/pg-bundle/postgresql-*-linux-x86_64.tar.zst -C "$RUNNER_TEMP/pg"
+          bin=$RUNNER_TEMP/pg/bin
+          # initdb exactly as crates/managed-postgres does (builtin C.UTF-8
+          # locale, no ICU), except test-only trust authentication.
+          env -i LC_ALL=C PATH=/usr/bin:/bin "$bin/initdb" -D "$RUNNER_TEMP/pgdata" \
+            --username=postgres --auth=trust --encoding=UTF8 --locale-provider=builtin \
+            --builtin-locale=C.UTF-8 --locale=C --lc-ctype=C.UTF-8 --no-instructions
+          # Test-only loopback TCP; the product listens on a private Unix socket only.
+          env -i LC_ALL=C PATH=/usr/bin:/bin "$bin/pg_ctl" -D "$RUNNER_TEMP/pgdata" \
+            -l "$RUNNER_TEMP/postgres.log" -w \
+            -o "-c listen_addresses=localhost -c port=5432 -c max_connections=200 -c unix_socket_directories=$RUNNER_TEMP/pg-socket" start
+          "$bin/pg_isready" -h localhost -p 5432 -U postgres
+      - *placeholder-web
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: "1.99.0"
+      - *build-database-tests
+      - name: Native attempt rows
+        run: cargo test --locked --offline -p cannery-attempts --test native_attempt_rows -- --ignored
+      - name: Repositories, HTTP operations and storage effects
+        run: ci/database-tests.sh "$RUNNER_TEMP/domain-tests.json"
+      - name: PostgreSQL log
+        if: failure()
+        run: cat "$RUNNER_TEMP/postgres.log"

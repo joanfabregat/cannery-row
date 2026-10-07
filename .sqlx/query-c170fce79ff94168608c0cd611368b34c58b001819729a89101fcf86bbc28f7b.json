@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO experiment_manifests (project_id, name, revision, content, created_by)\nSELECT $1, $2, coalesce(max(revision), 0) + 1, $3::text::jsonb, $4\nFROM experiment_manifests WHERE project_id = $1 AND name = $2\nRETURNING name, revision, content::text AS \"content!\", created_by AS \"created_by!: UserId\", created_at AS \"created_at!: Timestamp\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "content!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_by!: UserId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at!: Timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "c170fce79ff94168608c0cd611368b34c58b001819729a89101fcf86bbc28f7b"
+}

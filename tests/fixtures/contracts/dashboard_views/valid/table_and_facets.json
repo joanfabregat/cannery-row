@@ -1,0 +1,6 @@
+{
+  "views": [
+    {"id": "latest-table", "title": "Latest verified results", "chart": "table", "metric": "ndcg_at_10", "split": "fresh-held-out"},
+    {"id": "by-architecture", "title": "Latency by architecture", "chart": "scatter", "metric": "latency_ms", "split": "dev", "x": "hypothesis.number", "group_by": ["hypothesis.architecture", "language"], "baseline": "base-camp", "filters": {"track": ["compact-sparse"]}}
+  ]
+}

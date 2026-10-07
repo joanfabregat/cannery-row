@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO projects(slug,title,created_by) VALUES('identity-fixture','Identity fixture',$1) RETURNING id AS \"id: ProjectId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ProjectId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f11507d58a4a5acee53829a4da7c4a912f0f9f23f4d1ab8f7e5f240e377a5ccf"
+}

@@ -1,0 +1,369 @@
+name: Rust release builds
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  SQLX_OFFLINE: "true"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  MUSL_BUILD_IMAGE: docker.io/library/rust:1.99.0-alpine3.24@sha256:a96ea6d18d4062e38f16cfbadd8b4541d622f2527dd0a5eca1fb36d301da4e88
+  NODE_BUILD_IMAGE: docker.io/library/node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
+
+jobs:
+  prepare:
+    name: Audit and build web distribution
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: "1.99.0"
+      - name: Fetch and audit both frozen Rust graphs
+        run: |
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/sqlx-cli/Cargo.toml
+          cargo install cargo-audit --version 0.22.2 --locked
+          cargo audit
+          cargo audit --file tools/sqlx-cli/Cargo.lock
+      - uses: EmbarkStudios/cargo-deny-action@9c67a826e39827395bfa619cd85cb2aaeb43cfaa
+        with:
+          command: check
+      - name: Standalone SQLx helper dependency policy
+        uses: EmbarkStudios/cargo-deny-action@9c67a826e39827395bfa619cd85cb2aaeb43cfaa
+        with:
+          manifest-path: tools/sqlx-cli/Cargo.toml
+          command: check
+          arguments: --all-features --config tools/sqlx-cli/deny.toml
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "22"
+      - name: Fetch and audit the web dependencies
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts --no-fund
+          npm audit --audit-level=high
+      - name: Build the web distribution with no network
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" --network none --cap-drop ALL \
+            --security-opt no-new-privileges --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=512m --memory 4g --cpus 2 \
+            -v "$PWD/web:/web" -w /web \
+            -e npm_config_nodedir=/usr/local -e npm_config_cache=/tmp/npm-cache \
+            "$NODE_BUILD_IMAGE" /bin/sh -c \
+            'npm rebuild --offline && npm run api:types:check && npm run build'
+          test -s web/dist/index.html
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: rust-release-web
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Static Linux ${{ matrix.arch }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+            target: x86_64-unknown-linux-musl
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            target: aarch64-unknown-linux-musl
+    services:
+      postgres:
+        image: postgres:17-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CANNERY_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/postgres
+      CANNERY_SERVER_PUBLIC_BASE_URL: http://127.0.0.1:8000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rust-release-web
+          path: web/dist
+      - name: Fetch only for the native musl target
+        env:
+          CANNERY_BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/musl-cargo"
+          docker run --rm --user "$(id -u):$(id -g)" --cap-drop ALL --security-opt no-new-privileges \
+            -v "$PWD:/workspace:ro" -w /workspace \
+            -v "$RUNNER_TEMP/musl-cargo:/cargo" -e CARGO_HOME=/cargo \
+            "$MUSL_BUILD_IMAGE" /usr/local/cargo/bin/cargo fetch \
+            --locked --target "$CANNERY_BUILD_TARGET"
+      - name: Build the production binary offline
+        env:
+          CANNERY_BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/musl-build-cargo"
+          cp -a "$RUNNER_TEMP/musl-cargo/." "$RUNNER_TEMP/musl-build-cargo/"
+          docker run --rm --user "$(id -u):$(id -g)" --network none --cap-drop ALL \
+            --security-opt no-new-privileges --read-only \
+            --tmpfs /tmp:rw,nosuid,nodev,size=1g --memory 6g --cpus 2 \
+            -v "$PWD:/workspace" -w /workspace \
+            -v "$RUNNER_TEMP/musl-cargo:/fetch:ro" \
+            -v "$RUNNER_TEMP/musl-build-cargo:/build-cargo" \
+            -e CARGO_HOME=/build-cargo -e CANNERY_BUILD_TARGET \
+            -e SQLX_OFFLINE=true -e CARGO_NET_OFFLINE=true \
+            "$MUSL_BUILD_IMAGE" /bin/sh -c '
+              set -eu
+              test "$(/usr/local/cargo/bin/rustc -V | cut -d" " -f2)" = 1.99.0
+              /usr/local/cargo/bin/cargo build --locked --offline --release \
+                --no-default-features -p cannery --bin cannery --target "$CANNERY_BUILD_TARGET"
+              /usr/local/cargo/bin/cargo tree --locked --offline -p cannery \
+                --target "$CANNERY_BUILD_TARGET" -e features > "target/$CANNERY_BUILD_TARGET/features.txt"
+            '
+      - name: Validate the ELF and migration command
+        env:
+          CANNERY_BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          binary="target/$CANNERY_BUILD_TARGET/release/cannery"
+          file "$binary"
+          readelf -l "$binary" > "$RUNNER_TEMP/program-headers"
+          readelf -d "$binary" > "$RUNNER_TEMP/dynamic-entries"
+          ! grep -q INTERP "$RUNNER_TEMP/program-headers"
+          ! grep -q NEEDED "$RUNNER_TEMP/dynamic-entries"
+          "$binary" --help > /dev/null
+          "$binary" openapi > "$RUNNER_TEMP/openapi.json"
+          cmp web/openapi.json "$RUNNER_TEMP/openapi.json"
+          "$binary" migrate
+          test "$("$binary" migrate)" = 'applied 0 migration(s)'
+      - name: Prepare the small image context and release bundle
+        env:
+          CANNERY_BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          context="$RUNNER_TEMP/rust-image"
+          package="$RUNNER_TEMP/rust-package"
+          mkdir -p "$context/empty-data/objects" "$context/licenses" "$package/licenses"
+          cp "target/$CANNERY_BUILD_TARGET/release/cannery" "$context/cannery"
+          cp Containerfile.rust "$context/Containerfile"
+          cp crates/server/licenses/*.txt "$context/licenses/"
+          cp "$context/cannery" "$package/cannery"
+          cp "$context/licenses/"*.txt "$package/licenses/"
+          cp Cargo.lock "$package/Cargo.lock"
+          cp "target/$CANNERY_BUILD_TARGET/features.txt" "$package/features.txt"
+          (cd "$package" && sha256sum cannery > checksums.txt)
+          tar -C "$package" -czf "target/cannery-$CANNERY_BUILD_TARGET.tar.gz" .
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Assemble the native Rust image without publishing
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ runner.temp }}/rust-image
+          file: ${{ runner.temp }}/rust-image/Containerfile
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: false
+          provenance: false
+          sbom: false
+          tags: cannery-rust:smoke
+      - name: Smoke the minimal image and embedded web
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format '{{.Config.User}}' cannery-rust:smoke)" = 10001:10001
+          docker run --rm cannery-rust:smoke --help > /dev/null
+          docker run --rm cannery-rust:smoke openapi > "$RUNNER_TEMP/image-openapi.json"
+          cmp web/openapi.json "$RUNNER_TEMP/image-openapi.json"
+          status=0
+          timeout 30s docker run --rm \
+            -e CANNERY_DATABASE_URL=postgresql://unused \
+            -e CANNERY_SERVER_PUBLIC_BASE_URL=http://127.0.0.1:8000 \
+            -e CANNERY_TESTING_ENABLED=true cannery-rust:smoke serve \
+            > "$RUNNER_TEMP/production-controls.log" 2>&1 || status=$?
+          test "$status" = 1
+          grep -Fq 'conformance hooks are unavailable in the production package' "$RUNNER_TEMP/production-controls.log"
+          trap 'docker logs cannery-rust-smoke > "$RUNNER_TEMP/rust-server.log" 2>&1 || true; docker rm -f cannery-rust-smoke > /dev/null 2>&1 || true' EXIT
+          docker run -d --name cannery-rust-smoke --network host \
+            -e CANNERY_DATABASE_URL -e CANNERY_SERVER_PUBLIC_BASE_URL cannery-rust:smoke
+          base=http://127.0.0.1:8000
+          for _ in $(seq 30); do
+            if curl -fsS --max-time 2 "$base/api/health" -o "$RUNNER_TEMP/health.json"; then break; fi
+            sleep 1
+          done
+          jq -e '.status == "ok" and .database == "ok"' "$RUNNER_TEMP/health.json"
+          curl -fsS --max-time 5 -D "$RUNNER_TEMP/web-headers" -o "$RUNNER_TEMP/index.html" "$base/"
+          grep -qi '^content-type: text/html' "$RUNNER_TEMP/web-headers"
+          grep -qi '^cache-control: no-cache' "$RUNNER_TEMP/web-headers"
+          grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/web-headers"
+          grep -qi '^x-frame-options: DENY' "$RUNNER_TEMP/web-headers"
+          grep -qi "^content-security-policy: frame-ancestors 'none'" "$RUNNER_TEMP/web-headers"
+          grep -qi '^referrer-policy: strict-origin-when-cross-origin' "$RUNNER_TEMP/web-headers"
+          curl -fsS --max-time 5 "$base/projects/embedded-release" -o "$RUNNER_TEMP/spa.html"
+          cmp "$RUNNER_TEMP/index.html" "$RUNNER_TEMP/spa.html"
+          curl -fsSI --max-time 5 "$base/" > "$RUNNER_TEMP/head-headers"
+          length=$(awk 'tolower($1)=="content-length:" {gsub("\r", "", $2); print $2}' "$RUNNER_TEMP/head-headers")
+          test "$length" = "$(wc -c < "$RUNNER_TEMP/index.html" | tr -d ' ')"
+          asset=$(grep -o '/assets/[^"]*\.js' "$RUNNER_TEMP/index.html" | head -n1)
+          test -n "$asset"
+          curl -fsS --max-time 5 -D "$RUNNER_TEMP/asset-headers" "$base$asset" -o "$RUNNER_TEMP/asset.js"
+          grep -qi '^content-type: text/javascript' "$RUNNER_TEMP/asset-headers"
+          grep -qi '^cache-control: .*immutable' "$RUNNER_TEMP/asset-headers"
+          test "$(curl -sS --max-time 5 -H 'Range: bytes=0-31' -o "$RUNNER_TEMP/asset-part" -w '%{http_code}' "$base$asset")" = 206
+          test "$(wc -c < "$RUNNER_TEMP/asset-part" | tr -d ' ')" = 32
+          for path in /api/missing /__conformance/sweep /__conformance/audit /assets/missing.js /missing.ico; do
+            test "$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$base$path")" = 404
+          done
+          test "$(curl -sS --max-time 5 -X POST -o /dev/null -w '%{http_code}' "$base/projects/demo")" = 404
+          test "$(curl -sS --max-time 5 -X PUT -o /dev/null -w '%{http_code}' "$base/mcp")" = 405
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cannery-${{ matrix.target }}
+          path: target/cannery-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    name: Native macOS arm64
+    needs: prepare
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rust-release-web
+          path: web/dist
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: "1.99.0"
+          targets: aarch64-apple-darwin
+      - name: Fetch for the native Apple target
+        run: cargo fetch --locked --target aarch64-apple-darwin
+      - name: Build production offline
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+        run: |
+          cargo build --locked --offline --release --no-default-features \
+            -p cannery --bin cannery --target aarch64-apple-darwin
+          cargo tree --locked --offline -p cannery --target aarch64-apple-darwin \
+            -e features > target/aarch64-apple-darwin/features.txt
+      - name: Smoke native CLI and embedded web without PostgreSQL
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          binary="$PWD/target/aarch64-apple-darwin/release/cannery"
+          file "$binary" | grep -q arm64
+          otool -L "$binary" > "$RUNNER_TEMP/mac-libraries"
+          ! grep -Ei 'libssl|libcrypto|libpq' "$RUNNER_TEMP/mac-libraries"
+          "$binary" --help > /dev/null
+          "$binary" openapi > "$RUNNER_TEMP/mac-openapi.json"
+          cmp web/openapi.json "$RUNNER_TEMP/mac-openapi.json"
+          export CANNERY_DATABASE_URL=postgresql://127.0.0.1:9/unavailable
+          export CANNERY_DATABASE_POOL_MIN_SIZE=0
+          export CANNERY_SERVER_PUBLIC_BASE_URL=http://127.0.0.1:9010
+          mkdir -p "$RUNNER_TEMP/mac-run"
+          cd "$RUNNER_TEMP/mac-run"
+          "$binary" serve --host 127.0.0.1 --port 9010 > "$RUNNER_TEMP/mac-server.log" 2>&1 &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true; wait "$server" 2>/dev/null || true' EXIT
+          base=http://127.0.0.1:9010
+          for _ in $(seq 30); do
+            if curl -fsS --max-time 2 "$base/" -o "$RUNNER_TEMP/mac-index.html"; then break; fi
+            sleep 1
+          done
+          grep -q '<div id="root">' "$RUNNER_TEMP/mac-index.html"
+          asset=$(grep -o '/assets/[^"]*\.js' "$RUNNER_TEMP/mac-index.html" | head -n1)
+          test -n "$asset"
+          curl -fsS --max-time 5 "$base$asset" -o "$RUNNER_TEMP/mac-asset.js"
+          test -s "$RUNNER_TEMP/mac-asset.js"
+          test "$(curl -sS --max-time 6 -o "$RUNNER_TEMP/mac-health.json" -w '%{http_code}' "$base/api/health")" = 503
+          grep -q '"database":"unavailable"' "$RUNNER_TEMP/mac-health.json"
+          test "$(curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "$base/__conformance/sweep")" = 404
+      - name: Bundle binary and documentation notices
+        run: |
+          package="$RUNNER_TEMP/mac-package"
+          mkdir -p "$package/licenses"
+          cp target/aarch64-apple-darwin/release/cannery "$package/cannery"
+          cp crates/server/licenses/*.txt "$package/licenses/"
+          cp Cargo.lock "$package/Cargo.lock"
+          cp target/aarch64-apple-darwin/features.txt "$package/features.txt"
+          (cd "$package" && shasum -a 256 cannery > checksums.txt)
+          tar -C "$package" -czf target/cannery-aarch64-apple-darwin.tar.gz .
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cannery-aarch64-apple-darwin
+          path: target/cannery-aarch64-apple-darwin.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  metadata:
+    name: SQLx metadata matches PostgreSQL
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CANNERY_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: rust-release-web
+          path: web/dist
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
+        with:
+          toolchain: "1.99.0"
+          components: rustfmt, clippy
+      - name: Fetch the already audited graphs
+        run: |
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/sqlx-cli/Cargo.toml
+      - name: Check the standalone metadata helper offline
+        env:
+          CARGO_NET_OFFLINE: "true"
+        run: |
+          cargo fmt --manifest-path tools/sqlx-cli/Cargo.toml --all --check
+          cargo clippy --locked --offline --manifest-path tools/sqlx-cli/Cargo.toml \
+            --all-targets -- -D warnings
+          cargo test --locked --offline --manifest-path tools/sqlx-cli/Cargo.toml
+      - name: Build the production CLI and metadata helper offline
+        run: |
+          cargo build --locked --offline --no-default-features -p cannery --bin cannery
+          cargo build --locked --offline --manifest-path tools/sqlx-cli/Cargo.toml
+      - name: Check genuine query descriptions against migrated PostgreSQL
+        run: |
+          target/debug/cannery migrate
+          PATH="$PWD/tools/sqlx-cli/target/debug:$PATH" \
+            CARGO_NET_OFFLINE=true SQLX_OFFLINE=false DATABASE_URL="$CANNERY_DATABASE_URL" \
+            cargo sqlx prepare --check --workspace -- --locked --all-targets --all-features

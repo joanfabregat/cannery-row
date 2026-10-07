@@ -1,0 +1,27 @@
+{
+  "reason": "'expr' was unexpected",
+  "document": {
+    "gates": [
+      {
+        "id": "primary-beats-control",
+        "metric": "ndcg_at_10",
+        "split": "fresh-held-out",
+        "statistic": "uncertainty.lower",
+        "compare": "control",
+        "op": ">",
+        "min_delta": 0.0,
+        "expr": "value > 0.4"
+      },
+      {
+        "id": "no-language-regression",
+        "metric": "ndcg_at_10",
+        "split": "fresh-held-out",
+        "per_dimension": "language",
+        "statistic": "value",
+        "compare": "control",
+        "op": ">=",
+        "min_delta": -0.01
+      }
+    ]
+  }
+}

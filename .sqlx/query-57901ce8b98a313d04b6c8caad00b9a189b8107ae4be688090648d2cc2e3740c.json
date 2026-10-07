@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT content::text AS \"content!\" FROM producer_manifests WHERE project_id=$1 AND name=$2 AND revision=$3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "content!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "57901ce8b98a313d04b6c8caad00b9a189b8107ae4be688090648d2cc2e3740c"
+}

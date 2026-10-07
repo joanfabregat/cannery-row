@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/evidence_envelope.schema.json",
+  "title": "Evidence envelope",
+  "description": "Versioned evidence published by the agent (claimed result sheet), the tester (verified measurements) or the evaluator (assessment). Producer identity, timestamps and authority are also checked by the server against authentication.",
+  "type": "object",
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
+    "attempt_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "stage": {"enum": ["agent", "tester", "evaluator"]},
+    "status": {
+      "description": "Stage completion or failure; not the promotion decision.",
+      "enum": ["completed", "failed"]
+    },
+    "producer": {
+      "type": "object",
+      "properties": {
+        "kind": {"enum": ["agent", "service", "builtin"]},
+        "id": {"$ref": "common.schema.json#/$defs/identifier"}
+      },
+      "required": ["kind", "id"],
+      "additionalProperties": false,
+      "if": {"properties": {"kind": {"const": "builtin"}}, "required": ["kind"]},
+      "then": {
+        "description": "The built-in evaluator has one fixed identity.",
+        "properties": {"id": {"const": "builtin-evaluator"}}
+      }
+    },
+    "started_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "finished_at": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "source_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "tester_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "dataset_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "control_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "science_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "seed": {"type": "integer", "minimum": 0}
+      },
+      "required": ["source_revision", "science_revision"],
+      "additionalProperties": false
+    },
+    "observations": {"$ref": "common.schema.json#/$defs/text"},
+    "measurements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/measurement"}
+    },
+    "discrepancies": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/discrepancy"}
+    },
+    "artifact_roles": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "common.schema.json#/$defs/name"}
+    },
+    "report": {"$ref": "#/$defs/report"},
+    "manifest": {
+      "description": "The verified input artifact manifest the claimed result sheet links.",
+      "$ref": "common.schema.json#/$defs/content_ref"
+    },
+    "assessment": {"$ref": "#/$defs/assessment"},
+    "extensions": {"$ref": "common.schema.json#/$defs/open_object"}
+  },
+  "required": [
+    "schema_version",
+    "attempt_id",
+    "stage",
+    "status",
+    "producer",
+    "started_at",
+    "finished_at",
+    "provenance"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"stage": {"const": "agent"}}, "required": ["stage"]},
+      "then": {
+        "description": "Claimed result sheet: report and input manifest required, measurements are claims only.",
+        "required": ["report", "manifest"],
+        "properties": {
+          "producer": {"properties": {"kind": {"const": "agent"}}},
+          "measurements": {
+            "items": {"properties": {"authority": {"const": "agent_claim"}}}
+          },
+          "discrepancies": {"maxItems": 0},
+          "assessment": {"not": {}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"stage": {"const": "tester"}}, "required": ["stage"]},
+      "then": {
+        "description": "Tester evidence: verified measurements with full provenance.",
+        "required": ["observations"],
+        "properties": {
+          "producer": {"properties": {"kind": {"const": "service"}}},
+          "provenance": {
+            "required": ["tester_revision", "dataset_revision"]
+          },
+          "measurements": {
+            "items": {"properties": {"authority": {"const": "tester_verified"}}}
+          },
+          "report": {"not": {}},
+          "assessment": {"not": {}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"stage": {"const": "evaluator"}}, "required": ["stage"]},
+      "then": {
+        "description": "Evaluator record: an assessment of verified evidence, no new measurements.",
+        "properties": {
+          "producer": {"properties": {"kind": {"enum": ["service", "builtin"]}}},
+          "measurements": {"maxItems": 0},
+          "discrepancies": {"maxItems": 0},
+          "report": {"not": {}}
+        },
+        "if": {"properties": {"status": {"const": "failed"}}, "required": ["status"]},
+        "then": {
+          "description": "A failure before a valid verdict carries no assessment; it opens a failure review case.",
+          "properties": {"assessment": {"not": {}}}
+        },
+        "else": {"required": ["assessment"]}
+      }
+    }
+  ],
+  "$defs": {
+    "measurement": {
+      "description": "One metric value for a split and slice, or an explicit reason it is missing.",
+      "type": "object",
+      "properties": {
+        "metric": {"$ref": "common.schema.json#/$defs/name"},
+        "value": {"type": "number"},
+        "missing_reason": {
+          "description": "Why the metric is missing or unsupported; never a zero value.",
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "authority": {"enum": ["agent_claim", "tester_verified"]},
+        "unit": {"$ref": "common.schema.json#/$defs/text"},
+        "direction": {"enum": ["higher", "lower"]},
+        "split": {"$ref": "common.schema.json#/$defs/slug"},
+        "dimensions": {"$ref": "common.schema.json#/$defs/dimensions"},
+        "sample_count": {"type": "integer", "minimum": 0},
+        "control_value": {"type": "number"},
+        "uncertainty": {
+          "type": "object",
+          "properties": {
+            "method": {"$ref": "common.schema.json#/$defs/text"},
+            "lower": {"type": "number"},
+            "upper": {"type": "number"}
+          },
+          "required": ["method", "lower", "upper"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["metric", "authority", "unit", "direction", "split"],
+      "oneOf": [
+        {"required": ["value"], "not": {"required": ["missing_reason"]}},
+        {"required": ["missing_reason"], "not": {"required": ["value"]}}
+      ],
+      "additionalProperties": false
+    },
+    "discrepancy": {
+      "description": "A tester finding that the claimed sheet disagrees with the verified evidence.",
+      "type": "object",
+      "properties": {
+        "metric": {"$ref": "common.schema.json#/$defs/name"},
+        "split": {"$ref": "common.schema.json#/$defs/slug"},
+        "dimensions": {"$ref": "common.schema.json#/$defs/dimensions"},
+        "claimed_value": {"type": "number"},
+        "verified_value": {"type": "number"},
+        "description": {"$ref": "common.schema.json#/$defs/text"}
+      },
+      "required": ["description"],
+      "additionalProperties": false
+    },
+    "report": {
+      "description": "Structured report of the claimed result sheet, stored in the database and indexed.",
+      "type": "object",
+      "properties": {
+        "what_was_tried": {"$ref": "common.schema.json#/$defs/text"},
+        "configuration": {
+          "description": "Code/data/model identities; inherited quality versus changes learned in this attempt.",
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "observations": {"$ref": "common.schema.json#/$defs/text"},
+        "findings": {"$ref": "common.schema.json#/$defs/text"},
+        "limitations": {"$ref": "common.schema.json#/$defs/text"},
+        "next_question": {"$ref": "common.schema.json#/$defs/text"},
+        "elapsed_seconds": {
+          "description": "Agent-reported duration; the server measures its own.",
+          "type": "number",
+          "minimum": 0
+        },
+        "body_markdown": {"$ref": "common.schema.json#/$defs/text"}
+      },
+      "required": [
+        "what_was_tried",
+        "configuration",
+        "observations",
+        "findings",
+        "limitations",
+        "next_question",
+        "elapsed_seconds",
+        "body_markdown"
+      ],
+      "additionalProperties": false
+    },
+    "comparison": {
+      "description": "One compared value: a tester-verified measurement the record assesses (`source: tester`) or a value the evaluator derived (`source: evaluator`), and the reference it was compared against.",
+      "type": "object",
+      "properties": {
+        "metric": {"$ref": "common.schema.json#/$defs/name"},
+        "split": {"$ref": "common.schema.json#/$defs/slug"},
+        "dimensions": {"$ref": "common.schema.json#/$defs/dimensions"},
+        "value": {"type": "number"},
+        "source": {"enum": ["tester", "evaluator"]},
+        "reference": {
+          "type": "object",
+          "properties": {
+            "value": {"type": "number"},
+            "label": {"$ref": "common.schema.json#/$defs/text"},
+            "kind": {"enum": ["paper", "benchmark", "promoted_attempt", "baseline", "manual", "other"]},
+            "ref": {
+              "description": "What the reference points at: a hypothesis or attempt reference (`#12`, `#12.3`, `project#12.3`), a baseline id, a URL or a DOI.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "pattern": "^\\S+$"
+            }
+          },
+          "required": ["value", "label", "kind"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["metric", "split", "dimensions", "value", "source", "reference"],
+      "additionalProperties": false
+    },
+    "assessment": {
+      "description": "Evaluator judgment against the pinned policy; an auditable gate, not the final decision.",
+      "type": "object",
+      "properties": {
+        "policy_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "gates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"$ref": "common.schema.json#/$defs/slug"},
+              "result": {"enum": ["pass", "fail", "unknown"]},
+              "detail": {
+                "description": "Values used and, per dimension, each result.",
+                "$ref": "common.schema.json#/$defs/text"
+              }
+            },
+            "required": ["id", "result"],
+            "additionalProperties": false
+          }
+        },
+        "comparisons": {
+          "description": "What the evaluator compared, one entry per metric, split and slice at most: the value and the reference it was compared against. Cannery Row stores them for charts and history, and checks a `tester` value against the verified measurement it cites.",
+          "type": "array",
+          "items": {"$ref": "#/$defs/comparison"}
+        },
+        "evidence": {
+          "description": "The verified evidence records assessed.",
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "common.schema.json#/$defs/content_ref"}
+        },
+        "verdict": {"enum": ["pass", "fail", "inconclusive"]},
+        "reason": {"$ref": "common.schema.json#/$defs/text"}
+      },
+      "required": ["policy_revision", "gates", "evidence", "verdict", "reason"],
+      "additionalProperties": false,
+      "if": {"properties": {"verdict": {"const": "pass"}}, "required": ["verdict"]},
+      "then": {
+        "description": "A pass verdict requires every gate to pass; unknown never passes.",
+        "properties": {"gates": {"items": {"properties": {"result": {"const": "pass"}}}}}
+      }
+    }
+  }
+}

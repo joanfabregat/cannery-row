@@ -1,0 +1,1 @@
+{"gates": [{"id": "latency-not-worse", "metric": "latency_ms", "split": "dev", "statistic": "uncertainty.upper", "compare": "control", "op": "<=", "min_delta": 5}]}

@@ -1,0 +1,151 @@
+{
+  "schema_version": "0.2",
+  "tester": {"id": "cannery-runner", "revision": "runner-fixture-1"},
+  "hypothesis_fields": {
+    "type": "object",
+    "properties": {
+      "top_k": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10,
+        "description": "How many documents a run keeps per query: the fixture workflow's parameter."
+      }
+    },
+    "additionalProperties": false
+  },
+  "metrics": [
+    {
+      "key": "mrr",
+      "unit": "ratio",
+      "direction": "higher",
+      "aggregation": "mean",
+      "dimensions": [{"name": "language", "values": ["en", "fr"]}],
+      "splits": ["dev"],
+      "required_slices": [{"dimension": "language", "values": ["en", "fr"]}]
+    }
+  ],
+  "datasets": [
+    {"id": "queries", "revision": "queries-r1", "held_out_labels": false, "description": "Queries and documents; every step may read them."},
+    {"id": "qrels", "revision": "qrels-r1", "held_out_labels": true, "description": "Relevance labels; only the scorer receives them."}
+  ],
+  "baselines": [
+    {
+      "id": "base-camp",
+      "revision": "fixture-r1",
+      "description": "Fixture control: the scores it stands for live in the stock evaluator's configuration (evaluator.json)."
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "ranked-run",
+      "version": 1,
+      "encoding": "json",
+      "media_type": "application/json",
+      "max_bytes": 1048576,
+      "validator": "run-validator",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["queries"],
+        "properties": {
+          "queries": {
+            "type": "object",
+            "additionalProperties": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      }
+    },
+    {
+      "name": "per-query-results",
+      "version": 1,
+      "encoding": "jsonl",
+      "media_type": "application/jsonl",
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["query", "language", "reciprocal_rank"],
+        "properties": {
+          "query": {"type": "string"},
+          "language": {"type": "string"},
+          "reciprocal_rank": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "fixture-candidate",
+      "version": 1,
+      "encoding": "json",
+      "media_type": "application/json",
+      "max_bytes": 65536,
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["top_k"],
+        "properties": {"top_k": {"type": "integer", "minimum": 1}}
+      }
+    }
+  ],
+  "validators": [
+    {
+      "apiVersion": "cannery-row/v1",
+      "kind": "Step",
+      "metadata": {"name": "run-validator"},
+      "spec": {
+        "role": "validator",
+        "container": {
+          "image": "fixture.invalid/cannery-row/run-validator@sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+          "command": ["python3", "validate_run.py"],
+          "resources": {"limits": {"cpu": "1", "memory": "256Mi"}}
+        },
+        "activeDeadlineSeconds": 60,
+        "network": "none",
+        "sandbox": "Runs no candidate code; reads only the output it checks, read-only.",
+        "inputs": {
+          "artifacts": [{"name": "run", "from": "step", "interface": "ranked-run/v1", "path": "/cr/inputs/run"}]
+        },
+        "outputs": {"artifacts": []}
+      }
+    }
+  ],
+  "scorer": {
+    "apiVersion": "cannery-row/v1",
+    "kind": "Step",
+    "metadata": {"name": "fixture-scorer"},
+    "spec": {
+      "role": "scorer",
+      "container": {
+        "image": "fixture.invalid/cannery-row/fixture-scorer@sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+        "command": ["python3", "score.py"],
+        "resources": {"limits": {"cpu": "1", "memory": "256Mi"}}
+      },
+      "activeDeadlineSeconds": 120,
+      "network": "none",
+      "sandbox": "Runs no candidate code; reads only its declared inputs.",
+      "inputs": {
+        "artifacts": [
+          {"name": "run", "from": "step", "interface": "ranked-run/v1", "path": "/cr/inputs/run"},
+          {"name": "qrels", "from": "dataset", "path": "/cr/inputs/qrels"},
+          {"name": "claimed_sheet", "from": "attempt", "path": "/cr/inputs/claimed_sheet"}
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {"name": "evidence", "interface": "cr-evidence/v0.2", "path": "/cr/outputs/evidence"},
+          {"name": "per_query_results", "interface": "per-query-results/v1", "path": "/cr/outputs/per_query_results"}
+        ]
+      }
+    }
+  },
+  "default_producer": {"name": "overlap-producer", "revision": 1},
+  "code_repositories": {"candidate": ["joanfabregat/cannery-row"]},
+  "evaluator": {"id": "stock-evaluator", "revision": "fixture-policy-1"},
+  "required_artifact_roles": {"attempt": ["candidate"], "tester": ["evidence", "step_log"]},
+  "limits": {
+    "resource_ceilings": {"cpu": "2", "memory": "1Gi"},
+    "max_deadline_seconds": 600,
+    "report_max_bytes": 65536,
+    "max_output_bytes": 10485760
+  },
+  "max_auto_retries": 1
+}

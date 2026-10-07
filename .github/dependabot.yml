@@ -1,0 +1,14 @@
+version: 2
+updates:
+  # Base images of the Containerfile, pinned by digest. Only the digests of
+  # the pinned tags move: Node 22 and Python 3.13 change by hand, and the uv
+  # and runtime images must keep the same Python for the venv to work.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor

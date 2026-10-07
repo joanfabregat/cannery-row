@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id: Uuid\" FROM uploads WHERE id=$1 AND key=$2 AND backend=$3 AND bucket=$4 AND state='failed' AND object_pending_delete AND (urls_expire_at IS NULL OR urls_expire_at<=now()) FOR UPDATE SKIP LOCKED",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "78ae5fd508e98e1de9c845d4c3b1c4139469a6cdb52c937a85bc672e475c1c89"
+}

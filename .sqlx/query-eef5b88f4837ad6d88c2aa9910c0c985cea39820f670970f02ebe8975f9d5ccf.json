@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT '8f26d098-107e-48f2-a9bc-68c8f6232498'::uuid AS \"user_id!: _\",\n                  '2026-10-03 08:12:34.123456+05:30'::timestamptz AS \"created_at!: _\"\n           WHERE '8f26d098-107e-48f2-a9bc-68c8f6232498'::uuid = $1::uuid\n             AND '2026-10-03 08:12:34.123456+05:30'::timestamptz = $2::timestamptz",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at!: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "eef5b88f4837ad6d88c2aa9910c0c985cea39820f670970f02ebe8975f9d5ccf"
+}

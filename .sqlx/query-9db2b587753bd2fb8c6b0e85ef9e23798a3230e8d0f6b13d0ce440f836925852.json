@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT code AS \"code!\" FROM attempt_failures WHERE attempt_id = $1\n            ORDER BY created_at DESC LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9db2b587753bd2fb8c6b0e85ef9e23798a3230e8d0f6b13d0ce440f836925852"
+}

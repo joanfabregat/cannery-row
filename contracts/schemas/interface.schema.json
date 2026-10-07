@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/interface.schema.json",
+  "title": "Interface",
+  "description": "A registered intermediate output: a JSON Schema (optionally with a media type), or a format identifier and media type for other content. The runner checks every step output against its interface before the next step receives it: presence, emptiness, size, leading bytes and, for JSON and JSON Lines, the content against the schema.",
+  "type": "object",
+  "properties": {
+    "name": {"$ref": "common.schema.json#/$defs/slug"},
+    "version": {"type": "integer", "minimum": 1},
+    "schema": {
+      "description": "JSON Schema of a JSON document, or of each line of a JSON Lines file.",
+      "$ref": "common.schema.json#/$defs/json_schema"
+    },
+    "format": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.+_-]{0,62}$"
+    },
+    "media_type": {"$ref": "common.schema.json#/$defs/media_type"},
+    "encoding": {
+      "description": "json: one document; jsonl: one document per line, validated line by line; binary: not parsed. Inferred from the media type or format when absent (json when only a schema is given, else binary).",
+      "enum": ["json", "jsonl", "binary"]
+    },
+    "max_bytes": {
+      "description": "Largest file accepted, in bytes. Also the largest JSON document parsed (64 MiB when absent).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "allow_empty": {
+      "description": "Whether a file may be empty (zero bytes).",
+      "type": "boolean",
+      "default": false
+    },
+    "magic": {
+      "description": "What a file must start with: a known format (gzip, parquet, zip, json) or a prefix in lowercase hexadecimal. Inferred from the encoding or media type when absent.",
+      "anyOf": [
+        {"enum": ["gzip", "parquet", "zip", "json"]},
+        {"type": "string", "pattern": "^([0-9a-f]{2}){1,32}$"}
+      ]
+    },
+    "validate": {
+      "description": "False skips parsing and validating JSON and JSON Lines content; the other checks still apply.",
+      "type": "boolean",
+      "default": true
+    },
+    "validator": {
+      "description": "Name of a validator step of the science revision (validators) that the runner runs on each output of this interface.",
+      "$ref": "common.schema.json#/$defs/slug"
+    }
+  },
+  "required": ["name", "version"],
+  "oneOf": [
+    {
+      "required": ["schema"],
+      "not": {"required": ["format"]}
+    },
+    {
+      "required": ["format", "media_type"],
+      "not": {"required": ["schema"]}
+    }
+  ],
+  "if": {"required": ["schema"]},
+  "then": {
+    "description": "A schema describes JSON or JSON Lines content.",
+    "properties": {"encoding": {"enum": ["json", "jsonl"]}}
+  },
+  "additionalProperties": false
+}

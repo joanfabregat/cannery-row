@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/job_failure.schema.json",
+  "title": "Job failure",
+  "description": "What a tester or external evaluator posts when a job fails, with the current lease token in the request. Never carries metrics.",
+  "type": "object",
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
+    "job_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "step": {
+      "description": "The failing step, when the runner executed the job.",
+      "$ref": "common.schema.json#/$defs/slug"
+    },
+    "error_code": {"$ref": "common.schema.json#/$defs/name"},
+    "reason": {
+      "description": "Sanitized, human-readable reason.",
+      "$ref": "common.schema.json#/$defs/text"
+    },
+    "logs": {
+      "description": "Logs uploaded under the job's output prefix.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {"$ref": "common.schema.json#/$defs/object_key"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "sha256": {"$ref": "common.schema.json#/$defs/sha256"}
+        },
+        "required": ["key", "size_bytes", "sha256"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "job_id", "error_code", "reason", "logs"],
+  "additionalProperties": false
+}

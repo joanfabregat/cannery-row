@@ -1,0 +1,23 @@
+{
+  "reason": "/producer/revision",
+  "document": {
+    "slug": "compact-sparse",
+    "title": "Compact sparse",
+    "description": "Markdown: the approach this track explores and why it competes with the others.",
+    "producer": {
+      "name": "sparse-producer",
+      "revision": "3"
+    },
+    "gates": [
+      {
+        "id": "track-latency",
+        "metric": "latency_ms",
+        "split": "dev",
+        "statistic": "value",
+        "compare": "control",
+        "op": "<=",
+        "min_delta": 0
+      }
+    ]
+  }
+}

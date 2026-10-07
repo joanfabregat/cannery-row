@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.2",
+  "track": "dense-hybrid",
+  "title": "Hybrid fusion weight sweep",
+  "question": "Does a learned fusion weight beat the fixed 0.5 weight?",
+  "rationale": "Fixed fusion ignores per-query confidence.",
+  "intervention": "Learn the fusion weight on the dev split.",
+  "control": {"kind": "baseline", "id": "base-camp", "revision": "base-camp-r1"},
+  "plan": {
+    "selection_splits": ["dev"],
+    "confirmation_splits": ["fresh-held-out"],
+    "primary_metric": "ndcg_at_10",
+    "required_slices": [],
+    "success_criteria": "Primary gate passes.",
+    "falsification_criteria": "Primary gate fails.",
+    "regression_gates": [],
+    "compute_budget": {"cpu_hours_max": 2}
+  }
+}

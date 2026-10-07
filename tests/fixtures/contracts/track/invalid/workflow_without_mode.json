@@ -1,0 +1,8 @@
+{
+  "reason": "is not allowed in this document",
+  "document": {
+    "slug": "scripted-search",
+    "title": "Scripted search",
+    "workflow": {"steps": [{"name": "fixture-experiment", "revision": 1}]}
+  }
+}

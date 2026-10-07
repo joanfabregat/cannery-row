@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO comment_revisions(comment_id,revision,body_markdown,via_channel,via_client) VALUES($1,$2,$3,$4,$5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e81b9999aca479ffd3f4bdebb8b0ec94198ddfec7169158513ea83278c04206f"
+}

@@ -1,0 +1,51 @@
+id: H-006
+track: lexical
+title: Tune BM25 b on top of the new k1
+kind: experiment
+claim: With k1 at 0.9, b at 0.6 raises dev MRR further.
+control: {hypothesis: H-001}
+relations:
+  - {type: derived_from, to: H-001}
+created_at: 2025-03-03
+state: awaiting_human_review
+attempts:
+  - label: seed-1
+    started_at: 2025-03-04T08:00:00Z
+    finished_at: 2025-03-04T08:50:00Z
+    status: completed
+    artifacts:
+      - role: metrics
+        uri: gs://retrieval-history/runs/h006-seed-1/metrics.json
+        sha256: 9e94844d75a69554cf00689e0031bf404a46b5b38046c70238670562d27e1187
+        size: 420
+        media_type: application/json
+    measurements:
+      - metric: mrr
+        split: dev
+        value: 0.73
+        authority: imported_artifact
+        source: gs://retrieval-history/runs/h006-seed-1/metrics.json#/mrr/overall
+      - metric: mrr
+        split: dev
+        dimensions: {language: en}
+        value: 0.75
+        authority: imported_artifact
+        source: gs://retrieval-history/runs/h006-seed-1/metrics.json#/mrr/en
+      - metric: mrr
+        split: dev
+        dimensions: {language: fr}
+        value: 0.7
+        authority: imported_artifact
+        source: gs://retrieval-history/runs/h006-seed-1/metrics.json#/mrr/fr
+    verdict:
+      policy: release-gate
+      result: pass
+      gates:
+        - {id: mrr-holds, result: pass}
+        - {id: no-language-regression, result: pass}
+      reason: Both gates pass; the gain over H-001 is 0.02.
+      evaluated_at: 2025-03-05
+      source: notebook/2025-03.md:10-14@3f9c2ab
+sources:
+  - notebook/2025-03.md:1-14@3f9c2ab
+notes: Never reviewed before the notebook was retired; decide it in Cannery Row.

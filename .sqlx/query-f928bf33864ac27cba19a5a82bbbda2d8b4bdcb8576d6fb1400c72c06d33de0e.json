@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id AS \"id!: ManifestId\", attempt_id AS \"attempt_id!: AttemptId\", stage AS \"stage!\", content AS \"content!: JsonbText\", sha256 AS \"sha256!\", created_at AS \"created_at!: Timestamp\" FROM manifests\n            WHERE attempt_id = $1 AND id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: ManifestId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "attempt_id!: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "stage!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "content!: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "sha256!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at!: Timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f928bf33864ac27cba19a5a82bbbda2d8b4bdcb8576d6fb1400c72c06d33de0e"
+}

@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT t.slug AS \"slug!\", t.state AS \"state!\", t.producer AS \"producer?: JsonbText\", t.mode AS \"mode!\", t.workflow AS \"workflow?: JsonbText\"\n            FROM hypotheses h JOIN tracks t ON t.id = h.track_id\n            WHERE h.id = $1\n            FOR SHARE OF t\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "producer?: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 3,
+        "name": "mode!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "workflow?: JsonbText",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "27325dd37da93a105368d22fea4cd37ca563ae5fd0aad49abb79cc1dea5d071c"
+}

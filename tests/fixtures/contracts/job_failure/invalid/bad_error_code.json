@@ -1,0 +1,10 @@
+{
+  "reason": "/error_code",
+  "document": {
+    "schema_version": "0.2",
+    "job_id": "test-run-2",
+    "error_code": "Input Checksum",
+    "reason": "The candidate checkpoint did not match its manifest SHA-256.",
+    "logs": []
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id: _\",project_id AS \"project_id: _\",kind,name,description,created_by AS \"created_by: _\",\n        created_at AS \"created_at: _\",disabled_at AS \"disabled_at: _\" FROM service_accounts WHERE id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_by: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "disabled_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "b2978ea47b8fba6254dcd2fcff3a40f68e593e4b009e1379c67d29541fe006cd"
+}

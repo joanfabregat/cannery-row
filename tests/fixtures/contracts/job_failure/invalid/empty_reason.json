@@ -1,0 +1,17 @@
+{
+  "reason": "/reason",
+  "document": {
+    "schema_version": "0.2",
+    "job_id": "test-run-id",
+    "step": "sparse-producer",
+    "error_code": "oom_killed",
+    "reason": "",
+    "logs": [
+      {
+        "key": "projects/pilchards/attempts/attempt-id/test-runs/test-run-id/logs/sparse-producer.log",
+        "size_bytes": 4096,
+        "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+      }
+    ]
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT request_hash,result_id FROM idempotency_keys WHERE scope='review.decide' AND actor=$1 AND key=$2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "result_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b350868196a9a3fb1a45dd9e485943383352d25d85257ad089b262781c5e10f4"
+}

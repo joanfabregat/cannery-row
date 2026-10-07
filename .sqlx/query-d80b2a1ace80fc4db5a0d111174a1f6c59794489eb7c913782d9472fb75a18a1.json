@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", j.spec -> 'evaluator' ->> 'id' AS \"evaluator?\", j.spec -> 'evaluator' ->> 'revision' AS \"revision?\", j.created_at AS \"waiting_since!: _\" FROM jobs j\n            JOIN attempts a ON a.id = j.attempt_id\n            JOIN hypotheses h ON h.id = a.hypothesis_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE \n        j.project_id = $1 AND j.stage = 'evaluator' AND j.state = 'pending'\n        AND j.created_at < now() - make_interval(secs => $2)\n    \n            ORDER BY j.created_at, j.id\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hypothesis_number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "hypothesis_title!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "track_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "attempt_sequence!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "evaluator?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "revision?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "waiting_since!: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "d80b2a1ace80fc4db5a0d111174a1f6c59794489eb7c913782d9472fb75a18a1"
+}

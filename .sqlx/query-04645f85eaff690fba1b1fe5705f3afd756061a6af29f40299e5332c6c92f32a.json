@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT uploads.state,attempts.project_id AS \"project_id: Uuid\",uploads.multipart_upload_id FROM uploads JOIN attempts ON attempts.id=uploads.attempt_id WHERE uploads.id=$1 AND uploads.key=$2 AND uploads.state IN ('pending','receiving') AND uploads.backend=$3 AND uploads.bucket=$4 AND uploads.expires_at<=now() AND (uploads.state='pending' OR uploads.receiving_since<=now()-($5::float8*interval '1 second')) FOR UPDATE OF uploads SKIP LOCKED",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "multipart_upload_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "04645f85eaff690fba1b1fe5705f3afd756061a6af29f40299e5332c6c92f32a"
+}

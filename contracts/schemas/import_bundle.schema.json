@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/import_bundle.schema.json",
+  "title": "Import bundle",
+  "description": "A reviewed research history loaded by `cannery import` (docs/import.md). On disk it is a directory: project.yaml, policies/<id>.yaml, tracks/<slug>.yaml and hypotheses/<id>.yaml (YAML or JSON), and reports/ (the attempts' Markdown reports). This schema describes the assembled bundle: each YAML or JSON file is one item under its key. Cross-references, the metric registry and the users named are checked by the importer.",
+  "type": "object",
+  "properties": {
+    "project": {"$ref": "#/$defs/project"},
+    "policies": {"type": "array", "items": {"$ref": "#/$defs/policy"}},
+    "tracks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/track"}},
+    "hypotheses": {"type": "array", "items": {"$ref": "#/$defs/hypothesis"}}
+  },
+  "required": ["project", "policies", "tracks", "hypotheses"],
+  "additionalProperties": false,
+  "$defs": {
+    "when": {
+      "description": "A calendar date (YYYY-MM-DD, read as midnight UTC) or an RFC 3339 instant with an offset. Never guessed: give only what the source states.",
+      "anyOf": [
+        {"type": "string", "format": "date"},
+        {"type": "string", "format": "date-time"}
+      ]
+    },
+    "external_id": {
+      "description": "A hypothesis's id in the source history, kept as its external id.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/+@-]{0,127}$"
+    },
+    "label": {
+      "description": "An attempt's label, unique within its hypothesis (a seed, a run id).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "email": {
+      "description": "The email of an existing Cannery Row user.",
+      "type": "string",
+      "maxLength": 320,
+      "pattern": "^[^@\\s]+@[^@\\s]+$"
+    },
+    "source": {
+      "description": "Where a record comes from: a document location `<path>:<line>[-<line>]@<commit>`, or an artifact URI with an optional `#<JSON Pointer>`.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "^\\S+$"
+    },
+    "project": {
+      "description": "project.yaml. The project is created when missing; an existing project keeps its title and description.",
+      "type": "object",
+      "properties": {
+        "slug": {"$ref": "common.schema.json#/$defs/slug"},
+        "title": {"$ref": "common.schema.json#/$defs/text"},
+        "description": {"type": "string"},
+        "created_by": {
+          "description": "The user who creates the project and is recorded as the author of the imported records.",
+          "$ref": "#/$defs/email"
+        }
+      },
+      "required": ["slug", "title", "created_by"],
+      "additionalProperties": false
+    },
+    "policy": {
+      "description": "policies/<id>.yaml: a historical evaluator policy, recorded as written and never run.",
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/slug"},
+        "revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "title": {"$ref": "common.schema.json#/$defs/text"},
+        "description": {"type": "string"},
+        "gates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"$ref": "common.schema.json#/$defs/slug"},
+              "description": {"$ref": "common.schema.json#/$defs/text"},
+              "definition": {
+                "description": "The gate as written in its source, in any structure.",
+                "$ref": "common.schema.json#/$defs/open_object"
+              }
+            },
+            "required": ["id", "description"],
+            "additionalProperties": false
+          }
+        },
+        "source": {"$ref": "#/$defs/source"},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/source"}}
+      },
+      "required": ["id", "revision", "title", "gates", "source"],
+      "additionalProperties": false
+    },
+    "track": {
+      "description": "tracks/<slug>.yaml.",
+      "type": "object",
+      "properties": {
+        "slug": {"$ref": "common.schema.json#/$defs/slug"},
+        "title": {"$ref": "common.schema.json#/$defs/text"},
+        "description": {"type": "string"},
+        "state": {"enum": ["active", "paused", "archived"]},
+        "created_at": {"$ref": "#/$defs/when"},
+        "archived_at": {"$ref": "#/$defs/when"}
+      },
+      "required": ["slug", "title", "state", "created_at"],
+      "additionalProperties": false,
+      "if": {"required": ["archived_at"]},
+      "then": {"properties": {"state": {"const": "archived"}}}
+    },
+    "hypothesis": {
+      "description": "hypotheses/<id>.yaml: one hypothesis with its attempts and the human decision on it, if any.",
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/$defs/external_id"},
+        "track": {"$ref": "common.schema.json#/$defs/slug"},
+        "title": {"$ref": "common.schema.json#/$defs/text"},
+        "kind": {"enum": ["experiment", "diagnostic", "infrastructure"]},
+        "claim": {
+          "description": "The hypothesis as stated before it ran.",
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "control": {
+          "description": "What it was compared against: a baseline id, or another hypothesis of the bundle.",
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {"baseline": {"$ref": "common.schema.json#/$defs/slug"}},
+              "required": ["baseline"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {"hypothesis": {"$ref": "#/$defs/external_id"}},
+              "required": ["hypothesis"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"enum": ["derived_from", "supersedes", "related_to"]},
+              "to": {"$ref": "#/$defs/external_id"}
+            },
+            "required": ["type", "to"],
+            "additionalProperties": false
+          }
+        },
+        "created_at": {"$ref": "#/$defs/when"},
+        "state": {
+          "enum": [
+            "draft",
+            "awaiting_human_review",
+            "promoted",
+            "rejected",
+            "inconclusive",
+            "declined",
+            "failed"
+          ]
+        },
+        "document": {
+          "description": "The full hypothesis draft (question, rationale, intervention, plan, optional control and project fields), required for a draft: a researcher reviews it and an agent runs it.",
+          "type": "object",
+          "properties": {
+            "question": {"$ref": "hypothesis.schema.json#/properties/question"},
+            "rationale": {"$ref": "hypothesis.schema.json#/properties/rationale"},
+            "intervention": {"$ref": "hypothesis.schema.json#/properties/intervention"},
+            "control": {"$ref": "hypothesis.schema.json#/properties/control"},
+            "plan": {"$ref": "hypothesis.schema.json#/properties/plan"},
+            "project_fields": {"$ref": "common.schema.json#/$defs/open_object"}
+          },
+          "required": ["question", "rationale", "intervention", "plan"],
+          "additionalProperties": false
+        },
+        "attempts": {"type": "array", "items": {"$ref": "#/$defs/attempt"}},
+        "decision": {"$ref": "#/$defs/decision"},
+        "sources": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/source"}},
+        "notes": {"type": "string"}
+      },
+      "required": ["id", "track", "title", "kind", "claim", "created_at", "state", "sources"],
+      "additionalProperties": false
+    },
+    "attempt": {
+      "description": "One run, in the order the runs happened.",
+      "type": "object",
+      "properties": {
+        "label": {"$ref": "#/$defs/label"},
+        "started_at": {"$ref": "#/$defs/when"},
+        "finished_at": {"$ref": "#/$defs/when"},
+        "source_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "config": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "status": {"enum": ["completed", "failed"]},
+        "failure": {
+          "type": "object",
+          "properties": {
+            "stage": {
+              "description": "Who failed: the run itself (`agent`, the default), its scoring (`tester`) or its evaluation (`evaluator`).",
+              "enum": ["agent", "tester", "evaluator"]
+            },
+            "code": {"$ref": "common.schema.json#/$defs/name"},
+            "reason": {"$ref": "common.schema.json#/$defs/text"}
+          },
+          "required": ["code", "reason"],
+          "additionalProperties": false
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "description": "An object outside the store, referenced and never copied.",
+            "type": "object",
+            "properties": {
+              "role": {"$ref": "common.schema.json#/$defs/name"},
+              "uri": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^[a-z][a-z0-9+.-]*://[^\\s#]+$"
+              },
+              "sha256": {"$ref": "common.schema.json#/$defs/sha256"},
+              "size": {"type": "integer", "minimum": 0},
+              "media_type": {"$ref": "common.schema.json#/$defs/media_type"}
+            },
+            "required": ["role", "uri", "sha256", "size"],
+            "additionalProperties": false
+          }
+        },
+        "measurements": {"type": "array", "items": {"$ref": "#/$defs/measurement"}},
+        "verdict": {"$ref": "#/$defs/verdict"},
+        "report": {"$ref": "#/$defs/report"},
+        "source": {"$ref": "#/$defs/source"},
+        "notes": {"type": "string"}
+      },
+      "required": ["label", "started_at", "status"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "failed"}}, "required": ["status"]},
+          "then": {"required": ["failure"]}
+        },
+        {
+          "if": {"required": ["failure"]},
+          "then": {"properties": {"status": {"const": "failed"}}}
+        }
+      ]
+    },
+    "report": {
+      "description": "The attempt's report, a UTF-8 Markdown file of the bundle under reports/ (at most 256 KiB), referenced by one attempt only. Its content is part of the hypothesis entry, by digest.",
+      "type": "object",
+      "properties": {
+        "path": {
+          "description": "The file, relative to the bundle: under reports/, ending in .md, with no hidden or parent segment.",
+          "type": "string",
+          "maxLength": 1024,
+          "pattern": "^reports(/[A-Za-z0-9_@+:-][A-Za-z0-9._@+:-]*)+\\.md$"
+        },
+        "kind": {
+          "description": "`retrospective`: written after the fact, from the run's sources.",
+          "enum": ["retrospective"]
+        },
+        "author": {
+          "description": "Who wrote it (an agent, a person) and who reviewed it, as free text.",
+          "$ref": "common.schema.json#/$defs/text",
+          "maxLength": 1024
+        },
+        "written_at": {
+          "description": "When it was written; not before the attempt finished.",
+          "$ref": "#/$defs/when"
+        }
+      },
+      "required": ["path", "kind", "author", "written_at"],
+      "additionalProperties": false
+    },
+    "measurement": {
+      "description": "One historical value. Unit and direction come from the project's metric registry.",
+      "type": "object",
+      "properties": {
+        "metric": {"$ref": "common.schema.json#/$defs/name"},
+        "split": {"$ref": "common.schema.json#/$defs/slug"},
+        "dimensions": {"$ref": "common.schema.json#/$defs/dimensions"},
+        "value": {"type": "number"},
+        "missing_reason": {"$ref": "common.schema.json#/$defs/text"},
+        "control_value": {"type": "number"},
+        "uncertainty": {"$ref": "evidence_envelope.schema.json#/$defs/measurement/properties/uncertainty"},
+        "sample_count": {"type": "integer", "minimum": 0},
+        "authority": {
+          "description": "`imported_artifact`: read from a run artifact, `source` is `<artifact uri>#<JSON Pointer>`. `imported_transcribed`: copied from a document, `source` is `<path>:<line>@<commit>`.",
+          "enum": ["imported_artifact", "imported_transcribed"]
+        },
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "required": ["metric", "split", "authority", "source"],
+      "oneOf": [
+        {"required": ["value"], "not": {"required": ["missing_reason"]}},
+        {"required": ["missing_reason"], "not": {"required": ["value"]}}
+      ],
+      "additionalProperties": false
+    },
+    "verdict": {
+      "description": "The historical evaluator verdict on the attempt, under a policy of the bundle.",
+      "type": "object",
+      "properties": {
+        "policy": {"$ref": "common.schema.json#/$defs/slug"},
+        "result": {"enum": ["pass", "fail", "inconclusive"]},
+        "gates": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {"$ref": "common.schema.json#/$defs/slug"},
+              "result": {"enum": ["pass", "fail", "unknown"]},
+              "detail": {"$ref": "common.schema.json#/$defs/text"}
+            },
+            "required": ["id", "result"],
+            "additionalProperties": false
+          }
+        },
+        "comparisons": {
+          "description": "What the verdict compared, as on a live evaluator record; `source: tester` cites one of the attempt's measurements.",
+          "type": "array",
+          "items": {"$ref": "evidence_envelope.schema.json#/$defs/comparison"}
+        },
+        "reason": {"$ref": "common.schema.json#/$defs/text"},
+        "evaluated_at": {"$ref": "#/$defs/when"},
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "required": ["policy", "result", "gates", "reason", "source"],
+      "additionalProperties": false,
+      "if": {"properties": {"result": {"const": "pass"}}, "required": ["result"]},
+      "then": {
+        "description": "A pass requires every gate to pass.",
+        "properties": {"gates": {"items": {"properties": {"result": {"const": "pass"}}}}}
+      }
+    },
+    "decision": {
+      "description": "The human decision recorded in the history, by a named user, about the last attempt (or the draft, for decline). Never invented.",
+      "type": "object",
+      "properties": {
+        "action": {"enum": ["promote", "reject", "inconclusive", "close_failed", "decline"]},
+        "decided_at": {"$ref": "#/$defs/when"},
+        "decided_by": {"$ref": "#/$defs/email"},
+        "reason": {
+          "description": "Quoted or closely summarized from the source.",
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "source": {"$ref": "#/$defs/source"}
+      },
+      "required": ["action", "decided_at", "decided_by", "reason", "source"],
+      "additionalProperties": false
+    }
+  }
+}

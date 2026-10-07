@@ -1,0 +1,1 @@
+SELECT id AS "id: _",display_prefix,kind,user_id AS "user_id: _",service_account_id AS "service_account_id: _",name,scopes AS "scopes: _",created_at AS "created_at: _",expires_at AS "expires_at: _",last_used_at AS "last_used_at: _",revoked_at AS "revoked_at: _" FROM api_tokens WHERE id=$1

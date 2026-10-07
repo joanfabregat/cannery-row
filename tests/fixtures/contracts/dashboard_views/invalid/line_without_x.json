@@ -1,0 +1,24 @@
+{
+  "reason": "'x' is a required property",
+  "document": {
+    "views": [
+      {
+        "id": "tracks-vs-control",
+        "title": "nDCG@10 by track vs control",
+        "chart": "line",
+        "metric": "ndcg_at_10",
+        "split": "dev",
+        "group_by": [
+          "track"
+        ],
+        "baseline": "control",
+        "filters": {
+          "language": [
+            "fr",
+            "en"
+          ]
+        }
+      }
+    ]
+  }
+}

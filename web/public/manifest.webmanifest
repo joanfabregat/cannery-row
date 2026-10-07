@@ -1,0 +1,13 @@
+{
+  "name": "Cannery Row",
+  "short_name": "Cannery Row",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbf5e3",
+  "theme_color": "#022b3b",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

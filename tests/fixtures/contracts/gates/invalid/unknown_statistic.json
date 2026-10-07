@@ -1,0 +1,26 @@
+{
+  "reason": "/gates/1/statistic",
+  "document": {
+    "gates": [
+      {
+        "id": "primary-beats-control",
+        "metric": "ndcg_at_10",
+        "split": "fresh-held-out",
+        "statistic": "uncertainty.lower",
+        "compare": "control",
+        "op": ">",
+        "min_delta": 0.0
+      },
+      {
+        "id": "no-language-regression",
+        "metric": "ndcg_at_10",
+        "split": "fresh-held-out",
+        "per_dimension": "language",
+        "statistic": "p95",
+        "compare": "control",
+        "op": ">=",
+        "min_delta": -0.01
+      }
+    ]
+  }
+}

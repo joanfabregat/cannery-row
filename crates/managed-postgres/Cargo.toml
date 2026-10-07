@@ -1,0 +1,24 @@
+[package]
+name = "cannery-managed-postgres"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+getrandom.workspace = true
+percent-encoding.workspace = true
+ruzstd = { version = "=0.9.0", default-features = false, features = ["std"] }
+rustix = { workspace = true, features = ["process"] }
+sha2.workspace = true
+sqlx.workspace = true
+tar = { version = "=0.4.46", default-features = false }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["process"] }
+tracing.workspace = true
+
+[dev-dependencies]
+cannery-core = { path = "../core", version = "=0.1.0" }

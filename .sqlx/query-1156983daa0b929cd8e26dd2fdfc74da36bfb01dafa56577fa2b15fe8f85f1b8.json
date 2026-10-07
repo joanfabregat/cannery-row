@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM mentions WHERE source_type=$1 AND source_id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1156983daa0b929cd8e26dd2fdfc74da36bfb01dafa56577fa2b15fe8f85f1b8"
+}

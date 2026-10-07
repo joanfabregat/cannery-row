@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO idempotency_keys(scope,actor,key,request_hash,result_id) VALUES('hypothesis.create',$1,$2,$3,$4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9281b8703e62801afaac2dc70360b9c1822e44492801f30462d69fa20a23963e"
+}

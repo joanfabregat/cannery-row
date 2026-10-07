@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT count(*) AS \"count!\" FROM uploads\n            WHERE attempt_id = $1 AND job_id IS NOT DISTINCT FROM $2\n              AND state IN ('pending', 'receiving') AND expires_at > now()\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c2145e27fb98301f79e0e6066133df1e17a011b1abdef18a51f6acbc4df58a36"
+}

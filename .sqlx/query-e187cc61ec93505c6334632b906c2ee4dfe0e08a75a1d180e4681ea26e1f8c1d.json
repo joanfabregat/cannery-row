@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id AS \"id!: UploadId\", role AS \"role!\", key AS \"key!\", interface AS \"interface?\", refusal AS \"refusal!: JsonbText\" FROM uploads\n            WHERE job_id = $1 AND state = 'failed' AND refusal IS NOT NULL\n            ORDER BY completed_at, id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: UploadId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "role!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "interface?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "refusal!: JsonbText",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "e187cc61ec93505c6334632b906c2ee4dfe0e08a75a1d180e4681ea26e1f8c1d"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE uploads SET state = $1, completed_at = now(), refusal = $2,\n                           object_pending_delete = $3\n        WHERE id = $4\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Jsonb",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3e453e9918f40d4f11cd994cf225a442e007fc251c2f2e69cbf1a7f8aec81798"
+}

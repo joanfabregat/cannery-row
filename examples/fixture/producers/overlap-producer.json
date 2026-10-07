@@ -1,0 +1,26 @@
+{
+  "apiVersion": "cannery-row/v1",
+  "kind": "Step",
+  "metadata": {"name": "overlap-producer"},
+  "spec": {
+    "role": "producer",
+    "container": {
+      "image": "fixture.invalid/cannery-row/overlap-producer@sha256:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+      "command": ["python3", "produce_overlap.py"],
+      "env": [{"name": "FIXTURE_SPLITTER", "value": "whitespace"}],
+      "resources": {"limits": {"cpu": "1", "memory": "256Mi"}}
+    },
+    "activeDeadlineSeconds": 120,
+    "network": "none",
+    "sandbox": "Fixture only: the local-process backend does not isolate the step.",
+    "inputs": {
+      "artifacts": [
+        {"name": "candidate", "from": "attempt", "path": "/cr/inputs/candidate"},
+        {"name": "queries", "from": "dataset", "path": "/cr/inputs/queries"}
+      ]
+    },
+    "outputs": {
+      "artifacts": [{"name": "run", "interface": "ranked-run/v1", "path": "/cr/outputs/run"}]
+    }
+  }
+}

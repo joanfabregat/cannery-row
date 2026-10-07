@@ -1,0 +1,9 @@
+{
+  "reason": "/version",
+  "document": {
+    "name": "per-query-results",
+    "version": 0,
+    "format": "parquet",
+    "media_type": "application/vnd.apache.parquet"
+  }
+}

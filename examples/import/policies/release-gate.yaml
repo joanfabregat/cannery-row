@@ -1,0 +1,12 @@
+id: release-gate
+revision: v1
+title: Release gate used in early 2025
+description: MRR must hold the base camp overall and on each language.
+gates:
+  - id: mrr-holds
+    description: Overall dev MRR at least the base camp's.
+    definition: {metric: mrr, split: dev, compare: ">=", reference: base-camp}
+  - id: no-language-regression
+    description: No language loses more than 0.01 MRR against the base camp.
+    definition: {metric: mrr, split: dev, slices: language, max_drop: 0.01}
+source: notebook/policies.md:12-30@3f9c2ab

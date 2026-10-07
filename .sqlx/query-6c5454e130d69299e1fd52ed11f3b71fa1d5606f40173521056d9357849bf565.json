@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE oidc_login_requests SET created_at=now()-interval '16 minutes' WHERE state=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6c5454e130d69299e1fd52ed11f3b71fa1d5606f40173521056d9357849bf565"
+}

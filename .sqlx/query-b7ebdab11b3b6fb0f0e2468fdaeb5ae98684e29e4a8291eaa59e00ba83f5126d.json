@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT project_id AS \"project_id!: _\", kind, revision,\n            content::text AS \"content!\", science_revision,\n            created_by AS \"created_by!: _\", created_at AS \"created_at!: _\"\n        FROM config_revisions\n        WHERE project_id = $1 AND kind = $2\n            AND ($3::text::bigint IS NULL OR revision = $3::text::bigint)\n        ORDER BY revision DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "content!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "science_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_by!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at!: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "b7ebdab11b3b6fb0f0e2468fdaeb5ae98684e29e4a8291eaa59e00ba83f5126d"
+}

@@ -1,0 +1,142 @@
+# The runner, with the Kubernetes launcher: each step in its own Pod, in this
+# namespace. Configure it through the cannery-runner ConfigMap
+# (kustomization.yaml); the tester token comes from the cannery-runner-token
+# Secret, which you create (README.md). One replica per runner id, replaced
+# with Recreate: a new runner deletes the Pods and volumes its id left behind,
+# so two runners of one id must never overlap.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cannery-runner
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: cannery-runner}
+  template:
+    metadata:
+      # Never a cannery.role label: the NetworkPolicy and the leftover
+      # cleanup select step and transfer Pods by it.
+      labels: {app.kubernetes.io/name: cannery-runner}
+    spec:
+      serviceAccountName: cannery-runner
+      # Only the credential utilities see the projected Kubernetes identity.
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      # SIGTERM cancels the running job, whose Pods are deleted before exit.
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        # Secret files are owned by root; with fsGroup they are group-readable,
+        # which the runner refuses for its token file. Copy it, owner-only, to
+        # a memory volume.
+        - name: token
+          image: docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          command: [/bin/sh, /scripts/token-copy.sh]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: token-secret, mountPath: /secret, readOnly: true}
+            - {name: token, mountPath: /run/cannery}
+            - {name: kubernetes-identity, mountPath: /identity, readOnly: true}
+            - {name: token-script, mountPath: /scripts, readOnly: true}
+      containers:
+        - name: runner
+          image: ghcr.io/joanfabregat/cannery-row
+          args:
+            - runner
+            - --launcher
+            - kubernetes
+            - --runner-id
+            - $(RUNNER_ID)
+            - --token-file
+            - /run/cannery/tester.token
+            - --api-url
+            - $(API_URL)
+            - --project
+            - $(PROJECT)
+            - --data-root
+            - /data/runner
+            - --work-root
+            - /work
+            - --cache-root
+            - /work/code-cache
+            - --k8s-namespace
+            - $(POD_NAMESPACE)
+            - --k8s-api-url
+            - https://kubernetes.default.svc
+            - --k8s-token-file
+            - /run/cannery/kubernetes.token
+            - --k8s-ca-file
+            - /run/cannery/kubernetes-ca.crt
+            - --k8s-namespace-policy-acknowledged
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef: {fieldPath: metadata.namespace}
+          envFrom:
+            # RUNNER_ID, API_URL and PROJECT (kustomization.yaml).
+            - configMapRef: {name: cannery-runner}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 2Gi}
+          volumeMounts:
+            - {name: token, mountPath: /run/cannery, readOnly: true}
+            - {name: data, mountPath: /data/runner, readOnly: true}
+            - {name: work, mountPath: /work}
+            - {name: tmp, mountPath: /tmp}
+        - name: token-refresh
+          image: docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          command: [/bin/sh, /scripts/token-copy.sh, --loop]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: token-secret, mountPath: /secret, readOnly: true}
+            - {name: token, mountPath: /run/cannery}
+            - {name: kubernetes-identity, mountPath: /identity, readOnly: true}
+            - {name: token-script, mountPath: /scripts, readOnly: true}
+      volumes:
+        - name: token-script
+          configMap: {name: cannery-token-copy, defaultMode: 0444}
+        - name: kubernetes-identity
+          projected:
+            defaultMode: 0440
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - {key: ca.crt, path: ca.crt}
+        - name: token-secret
+          secret: {secretName: cannery-runner-token, defaultMode: 0440}
+        - name: token
+          emptyDir: {medium: Memory, sizeLimit: 1Mi}
+        # datasets/<id>/<revision>/ and baselines/<id>/<revision>/ (README.md).
+        - name: data
+          persistentVolumeClaim: {claimName: cannery-runner-data, readOnly: true}
+        # Job directories: a step's inputs, twice while they are copied.
+        - name: work
+          emptyDir: {sizeLimit: 50Gi}
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 64Mi}

@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT attempt_id AS \"attempt_id!: AttemptId\", id AS \"id!: FailureId\", stage AS \"stage!\", code AS \"code!\", reason AS \"reason!\", details AS \"details!: JsonbText\", created_at AS \"created_at!: Timestamp\", requeued AS \"requeued!\", log_refs AS \"log_refs!: JsonbText\"\n            FROM attempt_failures WHERE attempt_id = ANY($1) ORDER BY created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempt_id!: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "id!: FailureId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "stage!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "code!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "details!: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at!: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "requeued!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "log_refs!: JsonbText",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e6ef8f33b8b5580263f8a3bfb83ae1d7674a28ba5b6cac64507cd97dbe98dc6e"
+}

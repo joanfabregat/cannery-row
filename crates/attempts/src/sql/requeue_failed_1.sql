@@ -1,0 +1,1 @@
+UPDATE hypotheses SET state = 'queued', updated_at = now() WHERE id = $1

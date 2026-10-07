@@ -1,0 +1,14 @@
+[
+  {
+    "slug": "lexical",
+    "title": "Lexical overlap",
+    "description": "Ranks documents by shared words with the query.",
+    "producer": {"name": "overlap-producer", "revision": 1}
+  },
+  {
+    "slug": "character",
+    "title": "Character trigrams",
+    "description": "Ranks documents by shared character trigrams with the query.",
+    "producer": {"name": "trigram-producer", "revision": 1}
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "reason": "/schema/type",
+  "document": {
+    "name": "ranked-run",
+    "version": 1,
+    "schema": {
+      "type": "nope",
+      "properties": {
+        "queries": {
+          "type": "array"
+        }
+      },
+      "required": [
+        "queries"
+      ]
+    }
+  }
+}

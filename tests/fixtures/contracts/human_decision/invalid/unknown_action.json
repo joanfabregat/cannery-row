@@ -1,0 +1,9 @@
+{
+  "reason": "/action",
+  "document": {
+    "review_case_id": "rc-0193",
+    "evidence_revision": 1,
+    "action": "promoted",
+    "reason": "All gates pass and the per-language breakdown is convincing."
+  }
+}

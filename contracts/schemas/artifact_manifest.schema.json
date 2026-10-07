@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/artifact_manifest.schema.json",
+  "title": "Artifact manifest",
+  "description": "Objects uploaded for an attempt or job. The server verifies key ownership, existence, bytes and SHA-256; the verified manifest is immutable.",
+  "type": "object",
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
+    "attempt_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "objects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/object"}
+    }
+  },
+  "required": ["schema_version", "attempt_id", "objects"],
+  "additionalProperties": false,
+  "$defs": {
+    "object": {
+      "type": "object",
+      "properties": {
+        "role": {"$ref": "common.schema.json#/$defs/name"},
+        "storage": {
+          "description": "Structured internal reference, never a public URL.",
+          "type": "object",
+          "properties": {
+            "backend": {"enum": ["local", "s3", "gcs"]},
+            "bucket": {"$ref": "common.schema.json#/$defs/identifier"},
+            "key": {"$ref": "common.schema.json#/$defs/object_key"},
+            "generation": {"$ref": "common.schema.json#/$defs/identifier"}
+          },
+          "required": ["backend", "bucket", "key"],
+          "additionalProperties": false
+        },
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"$ref": "common.schema.json#/$defs/sha256"},
+        "media_type": {"$ref": "common.schema.json#/$defs/media_type"}
+      },
+      "required": ["role", "storage", "size_bytes", "sha256", "media_type"],
+      "additionalProperties": false
+    }
+  }
+}

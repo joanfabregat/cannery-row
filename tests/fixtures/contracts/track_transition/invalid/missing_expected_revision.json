@@ -1,0 +1,7 @@
+{
+  "reason": "'expected_revision' is a required property",
+  "document": {
+    "to_state": "paused",
+    "reason": "Waiting for the new held-out split."
+  }
+}

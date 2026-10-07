@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE review_cases SET state='resolved',resolved_at=now() WHERE id=$1 AND state='pending'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "161182b18a8b7f42a474151a4079bbccbe45ff6c56756ebcdd95e29c98d0d203"
+}

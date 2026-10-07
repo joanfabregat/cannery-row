@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.2",
+  "job_id": "eval-run-id",
+  "stage": "evaluator",
+  "attempt_id": "attempt-id",
+  "evaluator": {"id": "external-evaluator", "revision": "evaluator-r5"},
+  "track": "compact-sparse",
+  "science_revision": "science-revision",
+  "inputs": {
+    "evidence": [{"ref": "evidence-42", "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"}],
+    "baselines": [{"id": "base-camp", "revision": "immutable-revision"}],
+    "datasets": []
+  },
+  "output_prefix": "projects/pilchards/attempts/attempt-id/evaluation-runs/eval-run-id/",
+  "deadline": "2026-09-29T06:00:00Z",
+  "limits": {"max_output_bytes": 1048576},
+  "lease": {"token": "opaque", "generation": 1, "expires_at": "2026-09-29T00:10:00Z"}
+}

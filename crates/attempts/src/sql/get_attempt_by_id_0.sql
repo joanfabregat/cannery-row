@@ -1,0 +1,1 @@
+SELECT 1 AS "value!" FROM attempts WHERE id = $1 FOR UPDATE

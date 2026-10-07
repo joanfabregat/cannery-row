@@ -1,0 +1,151 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO uploads (attempt_id, job_id, lease_generation, token_hash, role, backend,\n                                 bucket, key, slot, declared_size, declared_sha256, media_type,\n                                 interface, transfer, multipart_upload_id, part_size, expires_at)\n            SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,\n                   now() + make_interval(mins => $17)\n            WHERE NOT EXISTS (\n                SELECT 1 FROM artifacts\n                WHERE backend = $18 AND bucket = $19 AND key IN ($20, $21)\n            )\n            ON CONFLICT (backend, bucket, slot) DO UPDATE SET\n                id = gen_random_uuid(), attempt_id = EXCLUDED.attempt_id, job_id = EXCLUDED.job_id,\n                lease_generation = EXCLUDED.lease_generation, token_hash = EXCLUDED.token_hash,\n                role = EXCLUDED.role, key = EXCLUDED.key,\n                declared_size = EXCLUDED.declared_size,\n                declared_sha256 = EXCLUDED.declared_sha256, media_type = EXCLUDED.media_type,\n                interface = EXCLUDED.interface, transfer = EXCLUDED.transfer,\n                multipart_upload_id = EXCLUDED.multipart_upload_id,\n                part_size = EXCLUDED.part_size, urls_expire_at = NULL,\n                state = 'pending', expires_at = EXCLUDED.expires_at, created_at = now(),\n                completed_at = NULL, receiving_since = NULL\n            WHERE uploads.transfer = 'stream' AND uploads.expires_at <= now()\n              AND (uploads.state IN ('pending', 'expired') OR (\n    uploads.state = 'receiving'\n    AND (uploads.receiving_since IS NULL\n         OR uploads.receiving_since <= now() - make_interval(secs => $22))\n))\n            RETURNING id AS \"id!: UploadId\", attempt_id AS \"attempt_id!: AttemptId\", lease_generation AS \"lease_generation!\", token_hash AS \"token_hash!\", role AS \"role!\", backend AS \"backend!\", bucket AS \"bucket!\", key AS \"key!\", declared_size AS \"declared_size!\", declared_sha256 AS \"declared_sha256!\", media_type AS \"media_type!\", state AS \"state!\", expires_at AS \"expires_at!: Timestamp\", job_id AS \"job_id?: JobId\", interface AS \"interface?\", transfer AS \"transfer!\", multipart_upload_id AS \"multipart_upload_id?\", part_size AS \"part_size?\", urls_expire_at AS \"urls_expire_at?: Timestamp\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: UploadId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "attempt_id!: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "lease_generation!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "token_hash!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "role!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "backend!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "bucket!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "declared_size!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "declared_sha256!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "media_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "expires_at!: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "job_id?: JobId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "interface?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "transfer!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "multipart_upload_id?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "part_size?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "urls_expire_at?: Timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Bytea",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "b2d27952f2a6f5d49e62ea403a689adbbe424faf610225d5f1c331f2c1c82a0e"
+}

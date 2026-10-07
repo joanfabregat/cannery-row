@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pg_try_advisory_lock($1::bigint) AS \"acquired!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "acquired!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d435a1096e38e417683b0de1ac59f5b4cab35db73753b93adc00ff25e049755c"
+}

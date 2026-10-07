@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO idempotency_keys(scope,actor,key,request_hash,result_id) VALUES('review.decide',$1,$2,$3,$4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2e8e41e4ef7d44e7ceb93d75d64cd4e56efbafb19efb522347d72ab1b3bb2946"
+}

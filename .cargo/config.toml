@@ -1,0 +1,3 @@
+[env]
+# Preparation explicitly overrides this while checking queries against PostgreSQL.
+SQLX_OFFLINE = { value = "true", force = false }

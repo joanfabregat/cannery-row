@@ -1,0 +1,23 @@
+{
+  "reason": "/spec/outputs/artifacts",
+  "document": {
+    "apiVersion": "cannery-row/v1",
+    "kind": "Step",
+    "metadata": {"name": "run-validator"},
+    "spec": {
+      "role": "validator",
+      "container": {
+        "image": "registry.example/pilchards/run-validator@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "command": ["/app/validate"],
+        "resources": {"limits": {"cpu": "1", "memory": "1Gi"}}
+      },
+      "activeDeadlineSeconds": 600,
+      "network": "none",
+      "sandbox": "Reads only the output it checks, read-only.",
+      "inputs": {
+        "artifacts": [{"name": "run", "from": "step", "interface": "ranked-run/v1", "path": "/cr/inputs/run"}]
+      },
+      "outputs": {"artifacts": [{"name": "verdict", "path": "/cr/outputs/verdict"}]}
+    }
+  }
+}

@@ -1,0 +1,1 @@
+UPDATE api_tokens SET last_used_at=now() WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now() RETURNING id AS "id: _",display_prefix,kind,user_id AS "user_id: _",service_account_id AS "service_account_id: _",name,scopes AS "scopes: _",created_at AS "created_at: _",expires_at AS "expires_at: _",last_used_at AS "last_used_at: _",revoked_at AS "revoked_at: _"

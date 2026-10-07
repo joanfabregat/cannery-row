@@ -1,0 +1,1 @@
+UPDATE service_accounts SET disabled_at=now() WHERE id=$1 AND disabled_at IS NULL RETURNING id AS "id: _",project_id AS "project_id: _",kind,name,description,created_by AS "created_by: _",created_at AS "created_at: _",disabled_at AS "disabled_at: _"

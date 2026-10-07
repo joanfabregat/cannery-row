@@ -1,0 +1,9 @@
+{
+  "reason": "/encoding 'binary' is not one of ['json', 'jsonl']",
+  "document": {
+    "name": "ranked-run",
+    "version": 1,
+    "encoding": "binary",
+    "schema": {"type": "object"}
+  }
+}

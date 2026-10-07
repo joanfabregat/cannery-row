@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT seq,occurred_at AS \"occurred_at!: _\",action,actor_kind,actor_user_id AS \"actor_user_id?: _\",actor_service_id AS \"actor_service_id?: _\",via_channel,via_client,prior_state::text AS prior_state,new_state::text AS new_state,reason FROM audit_events WHERE subject_type='track' AND subject_id=$1 AND ($2::bigint IS NULL OR seq>$2) ORDER BY seq LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "occurred_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "action",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "actor_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "actor_user_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "actor_service_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "via_channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "via_client",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "prior_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "new_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "reason",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      null,
+      null,
+      true
+    ]
+  },
+  "hash": "fc2e22ed03e57db8a0b5366738d2377fc08b7b6a5b2f90b0bd1f58966815c0aa"
+}

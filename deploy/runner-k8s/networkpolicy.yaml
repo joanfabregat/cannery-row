@@ -1,0 +1,57 @@
+# Step and transfer Pods of the Kubernetes launcher: no traffic in or out.
+# Selected by label, once per namespace: every Pod with a cannery.role
+# (step or transfer) unless the launcher labelled it cannery.network=egress
+# (a step whose manifest declares egress). The egress allowlist itself is not
+# enforced: such a step reaches any destination the namespace allows.
+# Exec and the Pod log go through the kubelet, not the Pod network, so the
+# launcher's transfers and logs are not affected.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cannery-steps-deny-all
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: cannery.role, operator: Exists}
+      - {key: cannery.network, operator: NotIn, values: [egress]}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+---
+# Step Pods labelled cannery.network=egress (declared egress, or a setup run
+# with network): out to the Internet and the cluster's DNS only, never in.
+# Blocked: the cloud metadata server, and the cluster's Pod and Service
+# ranges (other Pods, the API server's Service, anything in the cluster).
+# The ranges are k3s's defaults; set yours in kustomization.yaml (the
+# cannery-network ConfigMap). The node and LAN addresses stay reachable:
+# add them to the except list if they must not be.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cannery-steps-egress
+spec:
+  podSelector:
+    matchLabels:
+      cannery.network: egress
+    matchExpressions:
+      - {key: cannery.role, operator: Exists}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32
+              - 10.42.0.0/16
+              - 10.43.0.0/16
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}

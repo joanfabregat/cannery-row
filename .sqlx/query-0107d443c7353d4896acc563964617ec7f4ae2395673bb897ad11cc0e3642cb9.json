@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO mentions(source_type,source_id,target_id) SELECT $1,$2,target FROM unnest($3::uuid[]) AS m(target)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0107d443c7353d4896acc563964617ec7f4ae2395673bb897ad11cc0e3642cb9"
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Interim favicon (issue #2 owns the final artwork): a navy sardine tin with the
+       label's coral band, readable at 16x16. -->
+  <rect x="2" y="7" width="28" height="18" rx="5" fill="#022b3b"/>
+  <rect x="4.5" y="9.5" width="23" height="13" rx="3" fill="none" stroke="#a4a39b" stroke-width="1"/>
+  <rect x="2" y="13" width="28" height="6" fill="#f45b3c"/>
+  <rect x="8" y="15.25" width="16" height="1.5" rx="0.75" fill="#fceac4"/>
+</svg>

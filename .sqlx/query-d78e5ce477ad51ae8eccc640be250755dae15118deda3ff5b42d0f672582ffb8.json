@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE uploads SET object_pending_delete = false\n        WHERE id = $1 AND (urls_expire_at IS NULL OR urls_expire_at <= now())\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d78e5ce477ad51ae8eccc640be250755dae15118deda3ff5b42d0f672582ffb8"
+}

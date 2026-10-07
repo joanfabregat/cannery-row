@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO historical_policies(project_id,id,revision,content,source_ref) VALUES($1,$2,$3,$4,$5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3b24f6bb70f0e9d3ce4ba60a66f6ff36e062e35064f27fc7f2142e0ef12ebd87"
+}

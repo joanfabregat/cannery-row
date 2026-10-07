@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id: _\",display_prefix,kind,user_id AS \"user_id: _\",service_account_id AS \"service_account_id: _\",name,scopes AS \"scopes: _\",created_at AS \"created_at: _\",expires_at AS \"expires_at: _\",last_used_at AS \"last_used_at: _\",revoked_at AS \"revoked_at: _\" FROM api_tokens WHERE user_id=$1 AND ($2::uuid IS NULL OR (created_at,id)<(SELECT created_at,id FROM api_tokens WHERE id=$2 AND user_id=$1)) ORDER BY created_at DESC,id DESC LIMIT $3::text::bigint",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "service_account_id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "scopes: _",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "expires_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "last_used_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "revoked_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "a5055f29ce8146da8cad43f5e630efe30c700e40424b541e4a8bb8ae981b5ef0"
+}

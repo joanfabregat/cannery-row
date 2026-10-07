@@ -1,0 +1,81 @@
+{
+  "reason": "/spec/setup/cache/key_files/0",
+  "document": {
+    "apiVersion": "cannery-row/v1",
+    "kind": "Step",
+    "metadata": {
+      "name": "scripted-producer"
+    },
+    "spec": {
+      "role": "producer",
+      "code": {
+        "repo": "pilchards/retrieval-scripts",
+        "commit": "4f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39",
+        "path": "producers/sparse"
+      },
+      "setup": {
+        "run": "pip install --require-hashes --no-deps --no-cache-dir --target /cr/cache/site -r requirements.txt",
+        "cache": {
+          "key_files": [
+            "/etc/passwd"
+          ],
+          "paths": [
+            "site"
+          ]
+        },
+        "network": {
+          "egress": [
+            "pypi.org:443",
+            "files.pythonhosted.org:443"
+          ]
+        },
+        "activeDeadlineSeconds": 900
+      },
+      "container": {
+        "image": "docker.io/library/python@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "command": [
+          "python",
+          "produce.py"
+        ],
+        "env": [
+          {
+            "name": "PYTHONPATH",
+            "value": "/cr/cache/site"
+          }
+        ],
+        "resources": {
+          "limits": {
+            "cpu": "2",
+            "memory": "4Gi"
+          }
+        }
+      },
+      "activeDeadlineSeconds": 3600,
+      "network": "none",
+      "sandbox": "Stock Python image; code and dependencies read-only, no network.",
+      "inputs": {
+        "artifacts": [
+          {
+            "name": "candidate_checkpoint",
+            "from": "attempt",
+            "path": "/cr/inputs/candidate_checkpoint"
+          },
+          {
+            "name": "queries",
+            "from": "dataset",
+            "path": "/cr/inputs/queries"
+          }
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {
+            "name": "run",
+            "interface": "ranked-run/v1",
+            "path": "/cr/outputs/run"
+          }
+        ]
+      }
+    }
+  }
+}

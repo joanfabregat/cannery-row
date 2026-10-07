@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/dashboard_views.schema.json",
+  "title": "Dashboard revision",
+  "description": "Declarative views. Metric and dimension references are checked by the service against the current science revision's metric registry.",
+  "type": "object",
+  "properties": {
+    "views": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/view"}
+    }
+  },
+  "required": ["views"],
+  "additionalProperties": false,
+  "$defs": {
+    "view": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/slug"},
+        "title": {"$ref": "common.schema.json#/$defs/text"},
+        "chart": {"enum": ["line", "scatter", "bar", "table"]},
+        "metric": {"$ref": "common.schema.json#/$defs/name"},
+        "split": {"$ref": "common.schema.json#/$defs/slug"},
+        "x": {
+          "description": "Record field on the x axis, e.g. attempt.finished_at or hypothesis.number.",
+          "type": "string",
+          "pattern": "^(attempt|hypothesis|track)\\.[a-z][a-z0-9_]{0,63}$"
+        },
+        "group_by": {
+          "description": "Registered dimensions, track, or hypothesis.<facet> for project-declared facets.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(hypothesis\\.)?[a-z][a-z0-9_]{0,63}$"
+          }
+        },
+        "baseline": {
+          "description": "Overlay: control, or a baseline id.",
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "filters": {
+          "description": "Default filters: dimension (or track) to allowed values.",
+          "type": "object",
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,63}$": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"$ref": "common.schema.json#/$defs/text"}
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["id", "title", "chart", "metric", "split"],
+      "additionalProperties": false,
+      "if": {
+        "properties": {"chart": {"enum": ["line", "scatter", "bar"]}},
+        "required": ["chart"]
+      },
+      "then": {"required": ["x"]}
+    }
+  }
+}

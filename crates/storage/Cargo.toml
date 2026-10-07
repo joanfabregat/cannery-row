@@ -1,0 +1,30 @@
+[package]
+name = "cannery-storage"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[dependencies]
+nix.workspace = true
+aws-sdk-s3.workspace = true
+aws-config.workspace = true
+cannery-core = { path = "../core", version = "=0.1.0" }
+num-bigint.workspace = true
+num-traits.workspace = true
+aws-smithy-http-client.workspace = true
+aws-smithy-runtime-api.workspace = true
+aws-smithy-types.workspace = true
+base64.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+md-5.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+getrandom.workspace = true
+serde_json.workspace = true
+url.workspace = true
+[dev-dependencies]
+reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls"] }
+[lints]
+workspace = true

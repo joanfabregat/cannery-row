@@ -1,0 +1,49 @@
+# Cannery Row runner with the Kubernetes launcher, in one namespace of its own.
+# Copy this directory (or use it as a base), set the namespace, the image tag
+# and the ConfigMap's values, create the Secret and the data volume, then
+# `kubectl apply -k .`. See README.md and docs/deploy.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cannery-runner
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: cannery-row
+    includeSelectors: false
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - networkpolicy.yaml
+  - runner.yaml
+images:
+  - name: ghcr.io/joanfabregat/cannery-row
+    # Deliberately unpullable until the operator supplies the candidate digest.
+    newName: invalid.example/replace-with-reviewed-cannery-rust
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+configMapGenerator:
+  - name: cannery-token-copy
+    files:
+      - token-copy.sh
+  - name: cannery-runner
+    literals:
+      - RUNNER_ID=k8s-1
+      - API_URL=https://cannery.example.org
+      - PROJECT=example
+  # The cluster's Pod and Service ranges, which steps with egress may not
+  # reach (networkpolicy.yaml). k3s defaults; on GKE, see docs/deploy.md.
+  # Not deployed (local-config): only copied into the NetworkPolicy.
+  - name: cannery-network
+    options:
+      annotations:
+        config.kubernetes.io/local-config: "true"
+    literals:
+      - POD_CIDR=10.42.0.0/16
+      - SERVICE_CIDR=10.43.0.0/16
+replacements:
+  - source: {kind: ConfigMap, name: cannery-network, fieldPath: data.POD_CIDR}
+    targets:
+      - select: {kind: NetworkPolicy, name: cannery-steps-egress}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.except.1]
+  - source: {kind: ConfigMap, name: cannery-network, fieldPath: data.SERVICE_CIDR}
+    targets:
+      - select: {kind: NetworkPolicy, name: cannery-steps-egress}
+        fieldPaths: [spec.egress.0.to.0.ipBlock.except.2]

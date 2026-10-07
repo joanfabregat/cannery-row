@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/common.schema.json",
+  "title": "Shared definitions",
+  "description": "Building blocks referenced by every core document schema. Not a document kind itself.",
+  "$defs": {
+    "schema_version": {
+      "description": "Immutable core schema version.",
+      "const": "0.2"
+    },
+    "text": {
+      "description": "Required free text: non-empty and not whitespace-only.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "slug": {
+      "description": "Lowercase slug, unique within its scope.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "name": {
+      "description": "Snake-case key: metric keys, dimension names, artifact roles, error codes.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$"
+    },
+    "identifier": {
+      "description": "Opaque identifier or immutable revision (ids, digests, commit hashes). No whitespace.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/+@-]{0,255}$"
+    },
+    "revision_number": {
+      "description": "Server-assigned monotonically increasing revision.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "sha256": {
+      "description": "SHA-256 digest computed by the application: 64 lowercase hexadecimal characters.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "description": "RFC 3339 instant with an explicit offset.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "media_type": {
+      "description": "IANA media type without parameters.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$"
+    },
+    "object_key": {
+      "description": "Object storage key: relative, slash-separated, no empty, '.' or '..' segments.",
+      "type": "string",
+      "maxLength": 1024,
+      "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_.-]*(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*$"
+    },
+    "object_prefix": {
+      "description": "Object storage prefix: like an object key, ending with '/'.",
+      "type": "string",
+      "maxLength": 1024,
+      "pattern": "^([A-Za-z0-9_-][A-Za-z0-9_.-]*/)+$"
+    },
+    "interface_ref": {
+      "description": "Interface name and version, e.g. ranked-run/v1 or cr-evidence/v0.2.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}/v[0-9]+(\\.[0-9]+)?$"
+    },
+    "quantity": {
+      "description": "Kubernetes-style resource quantity, as a string.",
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]+)?(m|k|Ki|Mi|Gi|Ti|Pi|M|G|T|P)?$"
+    },
+    "resource_map": {
+      "description": "Resource name to quantity, e.g. cpu, memory, nvidia.com/gpu.",
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^([a-z0-9]([a-z0-9.-]*[a-z0-9])?/)?[a-z0-9]([a-z0-9._-]*[a-z0-9])?$"
+      },
+      "additionalProperties": {"$ref": "#/$defs/quantity"}
+    },
+    "dimensions": {
+      "description": "Dimension name to value for one measurement slice.",
+      "type": "object",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]{0,63}$": {"$ref": "#/$defs/text"}
+      },
+      "additionalProperties": false
+    },
+    "content_ref": {
+      "description": "Reference to an immutable stored record with its content digest.",
+      "type": "object",
+      "properties": {
+        "ref": {"$ref": "#/$defs/identifier"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "required": ["ref", "sha256"],
+      "additionalProperties": false
+    },
+    "pinned_ref": {
+      "description": "Immutable identity of a dataset, baseline or control.",
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "#/$defs/slug"},
+        "revision": {"$ref": "#/$defs/identifier"}
+      },
+      "required": ["id", "revision"],
+      "additionalProperties": false
+    },
+    "producer_ref": {
+      "description": "A registered step manifest revision (a producer, or an experiment step of a workflow).",
+      "type": "object",
+      "properties": {
+        "name": {"$ref": "#/$defs/slug"},
+        "revision": {"$ref": "#/$defs/revision_number"}
+      },
+      "required": ["name", "revision"],
+      "additionalProperties": false
+    },
+    "open_object": {
+      "description": "Project-defined content, checked against the pinned project schema.",
+      "type": "object"
+    },
+    "json_schema": {
+      "description": "A project-supplied Draft 2020-12 JSON Schema, checked against the metaschema at load.",
+      "type": "object"
+    }
+  }
+}

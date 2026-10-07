@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pg_advisory_unlock($1::bigint) AS \"released!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "released!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "05c554796aadcdf2d6c3c7a2cff94a9f469d7a623044d3766bb124e11f230541"
+}

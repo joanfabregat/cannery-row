@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sessions(secret_hash,user_id,csrf_token,expires_at)\n        VALUES($1,$2,$3,now()+make_interval(hours=>$4))\n        RETURNING id AS \"id: _\",user_id AS \"user_id: _\",csrf_token,expires_at AS \"expires_at: _\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "csrf_token",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e36485faf1d5cdf9d46240aa99e1b5eff8eb6d3557e36a2e62832ffc89243d48"
+}

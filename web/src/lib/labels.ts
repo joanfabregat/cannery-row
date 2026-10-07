@@ -1,0 +1,288 @@
+/**
+ * Plain language: internal names never reach the screen raw. Each state or
+ * code the API returns maps to a short label, a tone (the chip's colors) and an
+ * icon, so a status is always readable by its word and its icon, not only its
+ * color.
+ */
+
+export type Tone = "neutral" | "info" | "attention" | "success" | "danger";
+
+export type StatusIcon =
+  | "draft"
+  | "waiting"
+  | "progress"
+  | "review"
+  | "success"
+  | "failure"
+  | "inconclusive"
+  | "stopped"
+  | "archived"
+  | "verified"
+  | "claimed"
+  | "paused"
+  | "imported";
+
+export interface StatusMeta {
+  label: string;
+  tone: Tone;
+  icon: StatusIcon;
+}
+
+const s = (label: string, tone: Tone, icon: StatusIcon): StatusMeta => ({ label, tone, icon });
+
+const hypothesisState = {
+  draft: s("Draft", "neutral", "draft"),
+  queued: s("Waiting to start", "neutral", "waiting"),
+  active: s("In progress", "info", "progress"),
+  awaiting_human_review: s("Needs review", "attention", "review"),
+  promoted: s("Accepted", "success", "success"),
+  rejected: s("Rejected", "danger", "failure"),
+  inconclusive: s("Inconclusive", "neutral", "inconclusive"),
+  declined: s("Declined", "neutral", "stopped"),
+  failed: s("Failed", "danger", "failure"),
+  cancelled: s("Cancelled", "neutral", "stopped"),
+};
+
+const attemptState = {
+  claimed: s("Started", "info", "progress"),
+  running: s("Running", "info", "progress"),
+  submitted: s("Submitted", "info", "waiting"),
+  validating: s("Checking submission", "info", "progress"),
+  testing: s("Testing", "info", "progress"),
+  evaluating: s("Evaluating", "info", "progress"),
+  awaiting_human_review: s("Needs review", "attention", "review"),
+  promoted: s("Accepted", "success", "success"),
+  rejected: s("Rejected", "danger", "failure"),
+  inconclusive: s("Inconclusive", "neutral", "inconclusive"),
+  failed: s("Failed", "danger", "failure"),
+  cancelled: s("Cancelled", "neutral", "stopped"),
+  // An imported run with no decision of its own (docs/import.md).
+  unreviewed: s("Not reviewed", "neutral", "inconclusive"),
+};
+
+const trackState = {
+  active: s("Active", "success", "progress"),
+  paused: s("Paused", "attention", "paused"),
+  archived: s("Archived", "neutral", "archived"),
+};
+
+/** Where a metric value comes from. */
+const authority = {
+  agent_claim: s("Reported by agent", "neutral", "claimed"),
+  tester_verified: s("Verified", "success", "verified"),
+  // An imported history's values: never measured by this project's tester.
+  imported_artifact: s("Imported from a run file", "info", "imported"),
+  imported_transcribed: s("Imported from a document", "attention", "imported"),
+};
+
+const verdict = {
+  pass: s("Passed", "success", "success"),
+  fail: s("Did not pass", "danger", "failure"),
+  inconclusive: s("Inconclusive", "neutral", "inconclusive"),
+  unknown: s("Not measured", "neutral", "inconclusive"),
+};
+
+/** A compared value against its reference, in the metric's own direction. */
+const standing = {
+  better: s("Better", "success", "success"),
+  worse: s("Worse", "danger", "failure"),
+  same: s("Same", "neutral", "inconclusive"),
+  unknown: s("Can't tell", "neutral", "inconclusive"),
+};
+
+const reviewState = {
+  pending: s("Waiting for a decision", "attention", "review"),
+  resolved: s("Decided", "success", "success"),
+};
+
+const jobState = {
+  pending: s("Waiting", "neutral", "waiting"),
+  claimed: s("In progress", "info", "progress"),
+  completed: s("Done", "success", "success"),
+  failed: s("Failed", "danger", "failure"),
+};
+
+/** The effect of a decision, as a past-tense status: "Accepted", "Changes requested". */
+const decision = {
+  approve: s("Approved", "success", "success"),
+  request_revision: s("Changes requested", "attention", "draft"),
+  decline: s("Declined", "neutral", "stopped"),
+  promote: s("Accepted", "success", "success"),
+  reject: s("Rejected", "danger", "failure"),
+  inconclusive: s("Inconclusive", "neutral", "inconclusive"),
+  retry: s("Tried again", "info", "progress"),
+  close_failed: s("Closed as failed", "danger", "failure"),
+};
+
+const token = {
+  active: s("Active", "success", "success"),
+  expired: s("Expired", "neutral", "stopped"),
+  revoked: s("Revoked", "neutral", "stopped"),
+};
+
+const account = {
+  active: s("Active", "success", "success"),
+  disabled: s("Disabled", "neutral", "stopped"),
+};
+
+export const statusDomains = {
+  hypothesis: hypothesisState,
+  attempt: attemptState,
+  track: trackState,
+  authority,
+  verdict,
+  standing,
+  review: reviewState,
+  job: jobState,
+  decision,
+  token,
+  account,
+} satisfies Record<string, Record<string, StatusMeta>>;
+
+export type StatusDomain = keyof typeof statusDomains;
+
+/** Labels that are not statuses: roles, decisions, review kinds, channels. */
+export const labels = {
+  role: {
+    viewer: "Viewer",
+    member: "Member",
+    researcher: "Researcher",
+    admin: "Administrator",
+  },
+  reviewKind: {
+    draft: "Draft review",
+    result: "Result review",
+    failure: "Failure review",
+  },
+  decision: {
+    approve: "Approve",
+    request_revision: "Ask for changes",
+    decline: "Decline",
+    promote: "Accept",
+    reject: "Reject",
+    inconclusive: "Inconclusive",
+    retry: "Try again",
+    close_failed: "Close as failed",
+  },
+  channel: {
+    ui: "Web app",
+    api: "API",
+    mcp: "Agent (MCP)",
+    cli: "Command line",
+    system: "Cannery Row",
+  },
+  /** Who produced a piece of evidence, or where a failure happened. */
+  stage: {
+    agent: "Experiment",
+    tester: "Testing",
+    evaluator: "Evaluation",
+  },
+  searchKind: {
+    track: "Track",
+    hypothesis: "Hypothesis",
+    attempt: "Attempt",
+    report: "Report",
+    tester_observation: "Tester observation",
+    evaluator_reason: "Evaluator reason",
+    decision_reason: "Decision reason",
+    comment: "Comment",
+  },
+  searchFacet: {
+    kind: "Type",
+    project: "Project",
+    track: "Track",
+    hypothesis_state: "Hypothesis status",
+    attempt_state: "Attempt status",
+    verdict: "Evaluator verdict",
+    decision: "Decision",
+    actor: "Person or agent",
+  },
+  scope: {
+    read: "Read",
+    write: "Write",
+  },
+  serviceKind: {
+    agent: "Agent",
+    experimenter: "Experimenter (workflow runner)",
+    tester: "Tester",
+    evaluator: "Evaluator",
+  },
+  relation: {
+    derived_from: "Derived from",
+    supersedes: "Supersedes",
+    related_to: "Related to",
+  },
+  direction: {
+    higher: "Higher is better",
+    lower: "Lower is better",
+  },
+  /** What an evaluator compared a value against. */
+  referenceKind: {
+    paper: "Paper",
+    benchmark: "Benchmark",
+    promoted_attempt: "Best promoted result",
+    baseline: "Baseline",
+    manual: "Set by hand",
+    other: "Other",
+  },
+  /** Where a compared value came from. */
+  comparisonSource: {
+    tester: "Verified by the tester",
+    evaluator: "Computed by the evaluator",
+  },
+  artifactRole: {
+    report_asset: "Report image",
+    candidate: "Candidate",
+    log: "Log",
+    step_log: "Step log",
+    setup_log: "Setup log",
+    validator_log: "Validator log",
+  },
+  /** Who runs a track's experiments. */
+  trackMode: {
+    agent: "Agent",
+    workflow: "Workflow",
+  },
+  /** Why a test or evaluation run exists. */
+  jobOrigin: {
+    submission: "First run",
+    auto_retry: "Automatic rerun",
+    human_retry: "Rerun a researcher asked for",
+  },
+  chart: {
+    line: "Line chart",
+    scatter: "Scatter chart",
+    bar: "Bar chart",
+    table: "Table",
+  },
+} satisfies Record<string, Record<string, string>>;
+
+export type LabelGroup = keyof typeof labels;
+
+/** `some_internal_name` → "Some internal name": the fallback for a value we do not know yet. */
+export function humanize(value: string): string {
+  const words = value.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Unknown";
+}
+
+function lookup<T>(table: Record<string, T>, value: string): T | undefined {
+  return Object.hasOwn(table, value) ? table[value] : undefined;
+}
+
+export function statusMeta(domain: StatusDomain, value: string): StatusMeta {
+  return (
+    lookup<StatusMeta>(statusDomains[domain], value) ?? {
+      label: humanize(value),
+      tone: "neutral",
+      icon: "inconclusive",
+    }
+  );
+}
+
+export function statusLabel(domain: StatusDomain, value: string): string {
+  return statusMeta(domain, value).label;
+}
+
+export function label(group: LabelGroup, value: string): string {
+  return lookup<string>(labels[group], value) ?? humanize(value);
+}

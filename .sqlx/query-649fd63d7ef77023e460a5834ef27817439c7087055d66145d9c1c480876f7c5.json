@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!: AttemptId\" FROM attempts WHERE hypothesis_id=$1 AND sequence=$2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "649fd63d7ef77023e460a5834ef27817439c7087055d66145d9c1c480876f7c5"
+}

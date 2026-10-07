@@ -1,0 +1,13 @@
+[package]
+name = "cannery-attention"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+[dependencies]
+cannery-core = { path = "../core", version = "=0.1.0" }
+cannery-reviews = { path = "../reviews", version = "=0.1.0" }
+num-bigint.workspace = true
+sqlx.workspace = true

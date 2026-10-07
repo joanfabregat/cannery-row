@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, revision, content::text AS \"content!\", created_by AS \"created_by!: UserId\", created_at AS \"created_at!: Timestamp\"\nFROM experiment_manifests\nWHERE project_id = $1 AND ($2::text IS NULL OR name = $2)\nAND ($3::text IS NULL OR name > $3 OR (name = $3 AND revision < $4::int))\nORDER BY name, revision DESC LIMIT $5\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "content!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "created_by!: UserId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at!: Timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "283655cbd16def756e1aefd6ccc8c8b84ab6228aaa445d725dabba677e0eae0e"
+}

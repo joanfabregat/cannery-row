@@ -1,0 +1,122 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT c.id AS \"id!: _\", c.project_id AS \"project_id!: _\", c.hypothesis_id AS \"hypothesis_id!: _\", h.number AS \"hypothesis_number!\", h.state AS \"hypothesis_state!\", c.attempt_id AS \"attempt_id?: _\", a.sequence AS \"attempt_sequence?\", a.state AS \"attempt_state?\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.state AS \"state!\", c.opened_at AS \"opened_at!: _\", c.resolved_at AS \"resolved_at?: _\", c.failure_id AS \"failure_id?: _\", c.evidence_id AS \"evidence_id?: _\", c.origin AS \"origin!\", c.source_ref AS \"source_ref?\" FROM \n    review_cases c JOIN hypotheses h ON h.id = c.hypothesis_id\n    LEFT JOIN attempts a ON a.id = c.attempt_id\n\n            WHERE c.project_id = $1\n              AND ($2::text IS NULL OR c.kind = $2)\n              AND ($3::text IS NULL OR c.state = $3)\n              AND ($4::uuid IS NULL OR (c.opened_at, c.id) < (\n                  SELECT opened_at, id FROM review_cases\n                  WHERE id = $4 AND project_id = $1))\n            ORDER BY c.opened_at DESC, c.id DESC\n            LIMIT $5\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "hypothesis_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "hypothesis_number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "hypothesis_state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "attempt_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "attempt_sequence?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "attempt_state?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "subject_revision!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "opened_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "resolved_at?: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "failure_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "evidence_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "origin!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "source_ref?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "2f662d2d4d5f35579dc09538e8ce15d7602b17f597f4c5a7bdb4c787fd27e755"
+}

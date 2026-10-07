@@ -1,0 +1,52 @@
+# Ignored database tests, each run by cannery-test-launcher against its own
+# freshly migrated database. Columns: crate directory, test target, then
+# cannery-test-launcher options (--prefix, --env, --set), then optionally
+# -- and extra libtest arguments. ci/database-tests.sh reads this file.
+#
+# Repository and shared database checks
+core audit
+core native_sql_types
+identity repo_semantics
+projects repository_and_authorization
+server identity_http
+server identity_mutations_http
+server project_http
+server health
+server browser_http
+research config_repository_reference
+tracks repository_reference
+server config_http
+server cannery_server -- --exact conformance_hooks::storage::tests::storage_snapshot_bounds_and_settlement
+# Domain repositories against the frozen references
+metrics repository_reference --set CANNERY_METRICS_REFERENCE=crates/metrics/tests/fixtures/metrics_repository_reference.json
+attempts repository_reference
+jobs repository_reference
+hypotheses repository_reference --prefix hypotheses_fixture_native_ --env HYPOTHESES_NATIVE_DATABASE_URL
+search repository_reference
+reviews repository_reference --prefix ra_fixture_ --env RA_NATIVE_DATABASE_URL
+comments-reports repository_reference --set CANNERY_COMMENTS_REPORTS_REFERENCE=crates/comments-reports/tests/fixtures/repository_reference.json
+# HTTP operations and their storage effects against the frozen references
+server hypotheses_http
+server hypothesis_mutations_http
+server review_attention_http
+server review_decisions_http
+server metrics_http
+server search_http
+server attempt_reads_http
+server comment_reads
+server comment_mutations_http
+server report_reads_http
+server artifact_download_http
+server attempt_leases_http
+server job_reads_http
+server job_inputs_http
+server predecessor_input_http
+server job_claims_http
+server attempt_claims_http
+server attempt_release_http
+server tracks_http
+server step_binding
+server uploads_http
+server attempt_workflow --prefix preparation_owner_ --set CANNERY_WORKFLOW_REFERENCE=crates/server/tests/fixtures/attempt_workflow/reference.json
+server job_lifecycle_http
+server comparisons_http --prefix preparation_owner_ --env COMPARISON_DATABASE_URL

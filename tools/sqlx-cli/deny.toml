@@ -1,0 +1,52 @@
+# Standalone SQLx CLI 0.9.0 policy; duplicate skips match this frozen helper graph.
+[advisories]
+version = 2
+ignore = [
+    { id = "RUSTSEC-2025-0012", reason = "INFO unmaintained backoff required by maintained upstream sqlx-cli 0.9; metadata-only helper, absent from release graph" },
+    { id = "RUSTSEC-2024-0384", reason = "INFO unmaintained instant via upstream sqlx-cli/backoff; metadata-only helper, absent from release graph" },
+]
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+deny = [{ name = "openssl-sys" }, { name = "aws-lc-sys" }]
+
+skip = [
+    { crate = "block-buffer@0.10.4", reason = "SQLx CLI 0.9 retains sha2 0.10 alongside SQLx sha2 0.11" },
+    { crate = "cpufeatures@0.2.17", reason = "sha2 0.10 and 0.11 use different cpufeatures APIs" },
+    { crate = "crypto-common@0.1.6", reason = "sha2 0.10 and 0.11 require different digest APIs" },
+    { crate = "digest@0.10.7", reason = "SQLx CLI sha2 0.10 and PostgreSQL driver sha2 0.11" },
+    { crate = "sha2@0.10.9", reason = "SQLx CLI 0.9 retains sha2 0.10; SQLx core requires 0.11" },
+    { crate = "getrandom@0.2.17", reason = "ring and backoff require 0.2; SQLx uses 0.4" },
+    { crate = "rand@0.8.8", reason = "backoff requires rand 0.8; SQLx core uses 0.10" },
+    { crate = "rand_core@0.6.4", reason = "backoff rand 0.8 and SQLx rand 0.10" },
+    { crate = "hashbrown@0.16.1", reason = "SQLx core/hashlink require 0.16; indexmap requires 0.17" },
+    { crate = "syn@2.0.119", reason = "clap and SQLx macros use syn 2; serde/Tokio use syn 3" },
+    { crate = "thiserror@1.0.69", reason = "dialoguer requires thiserror 1; SQLx requires 2" },
+    { crate = "thiserror-impl@1.0.69", reason = "dialoguer thiserror 1 derives versus SQLx thiserror 2" },
+    { crate = "windows-sys@0.52.0", reason = "ring requires 0.52; console uses 0.59 and Tokio 0.61" },
+    { crate = "windows-sys@0.59.0", reason = "console requires 0.59; Tokio uses 0.61" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

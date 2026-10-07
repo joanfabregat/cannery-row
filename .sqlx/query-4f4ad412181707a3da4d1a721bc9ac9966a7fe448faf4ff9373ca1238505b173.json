@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_user_id,via_channel,via_client,decided_at,origin,source_ref) VALUES($1,$2,1,$3,$4,'cli','cannery import',$5,'imported',$6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4f4ad412181707a3da4d1a721bc9ac9966a7fe448faf4ff9373ca1238505b173"
+}

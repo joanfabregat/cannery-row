@@ -1,0 +1,21 @@
+id: H-004
+track: lexical
+title: Add a query-expansion step
+kind: infrastructure
+claim: Expanding queries with synonyms raises dev MRR.
+created_at: 2025-02-10
+state: failed
+attempts:
+  - label: seed-1
+    started_at: 2025-02-11
+    finished_at: 2025-02-11
+    status: failed
+    failure: {code: missing_dependency, reason: The synonym list was not available on the cluster.}
+decision:
+  action: close_failed
+  decided_at: 2025-02-12
+  decided_by: ben@example.org
+  reason: Closed; the synonym list was retired.
+  source: notebook/2025-02.md:40@3f9c2ab
+sources:
+  - notebook/2025-02.md:30-40@3f9c2ab

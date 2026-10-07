@@ -1,0 +1,10 @@
+# The runner's namespace: the runner and its step Pods only. Pod Security
+# Admission enforces the restricted profile, which every Pod here meets: the
+# runner's ServiceAccount can create Pods, and this keeps them unprivileged.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cannery-runner
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest

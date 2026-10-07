@@ -1,0 +1,26 @@
+{
+  "reason": "'sql' was unexpected",
+  "document": {
+    "views": [
+      {
+        "id": "tracks-vs-control",
+        "title": "nDCG@10 by track vs control",
+        "chart": "line",
+        "metric": "ndcg_at_10",
+        "split": "dev",
+        "x": "attempt.finished_at",
+        "group_by": [
+          "track"
+        ],
+        "baseline": "control",
+        "filters": {
+          "language": [
+            "fr",
+            "en"
+          ]
+        },
+        "sql": "select 1"
+      }
+    ]
+  }
+}

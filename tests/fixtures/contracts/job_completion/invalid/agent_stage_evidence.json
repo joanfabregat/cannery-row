@@ -1,0 +1,95 @@
+{
+  "reason": "/evidence/stage",
+  "document": {
+    "schema_version": "0.2",
+    "job_id": "test-run-id",
+    "evidence": {
+      "schema_version": "0.2",
+      "attempt_id": "attempt-id",
+      "stage": "agent",
+      "status": "completed",
+      "producer": {
+        "kind": "service",
+        "id": "tester-identity"
+      },
+      "started_at": "2026-09-29T00:00:00Z",
+      "finished_at": "2026-09-29T01:00:00.250+00:00",
+      "provenance": {
+        "source_revision": "git-commit-or-content-digest",
+        "tester_revision": "immutable-tester-digest",
+        "dataset_revision": "immutable-dataset-id",
+        "control_revision": "immutable-control-id",
+        "science_revision": "science-revision",
+        "seed": 1
+      },
+      "observations": "Full test completed with no missing query rows.",
+      "measurements": [
+        {
+          "metric": "ndcg_at_10",
+          "value": 0.42,
+          "authority": "tester_verified",
+          "unit": "ratio",
+          "direction": "higher",
+          "split": "dev",
+          "dimensions": {
+            "language": "fr",
+            "task": "retrieval"
+          },
+          "sample_count": 100,
+          "control_value": 0.40,
+          "uncertainty": {
+            "method": "cluster-bootstrap",
+            "lower": 0.39,
+            "upper": 0.45
+          }
+        },
+        {
+          "metric": "ndcg_at_10",
+          "missing_reason": "No English queries in this dataset revision.",
+          "authority": "tester_verified",
+          "unit": "ratio",
+          "direction": "higher",
+          "split": "dev",
+          "dimensions": {
+            "language": "en"
+          }
+        }
+      ],
+      "artifact_roles": [
+        "raw_results",
+        "test_log"
+      ],
+      "extensions": {
+        "gpu_seconds": 3400
+      }
+    },
+    "manifest": {
+      "schema_version": "0.2",
+      "attempt_id": "attempt-id",
+      "objects": [
+        {
+          "role": "raw_results",
+          "storage": {
+            "backend": "local",
+            "bucket": "fixtures",
+            "key": "projects/pilchards/attempts/attempt-id/test-runs/test-run-id/per_query_results/results.jsonl"
+          },
+          "size_bytes": 2048,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "media_type": "application/jsonl"
+        },
+        {
+          "role": "step_log",
+          "storage": {
+            "backend": "local",
+            "bucket": "fixtures",
+            "key": "projects/pilchards/attempts/attempt-id/test-runs/test-run-id/logs/scorer.log"
+          },
+          "size_bytes": 512,
+          "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+          "media_type": "text/plain"
+        }
+      ]
+    }
+  }
+}

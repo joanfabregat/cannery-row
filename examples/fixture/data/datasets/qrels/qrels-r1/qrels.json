@@ -1,0 +1,9 @@
+{
+  "marker": "cannery-fixture-held-out-labels",
+  "queries": {
+    "q1": {"language": "en", "relevant": ["d1"]},
+    "q2": {"language": "en", "relevant": ["d2"]},
+    "q3": {"language": "fr", "relevant": ["d3"]},
+    "q4": {"language": "fr", "relevant": ["d4"]}
+  }
+}

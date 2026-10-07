@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!: HypothesisId\" FROM hypotheses WHERE project_id=$1 AND number=$2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: HypothesisId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bc1cc9a03666d15c221009390aa3ba2b0a85ff7ea9152275ecf8c2db87e8ef4e"
+}

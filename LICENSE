@@ -1,0 +1,20 @@
+Cannery Row is licensed in two parts.
+
+1. The contracts (the JSON Schemas under contracts/ and the runner protocol
+   they define) are licensed under the Apache License, Version 2.0
+   (LICENSES/Apache-2.0.txt), so that anyone can implement and integrate
+   with them, including in proprietary software. A client SDK, when one is
+   published under sdk/, is covered by the same licence.
+
+2. Everything else in this repository, including the server, the runner, the
+   command line and the web application, is licensed under the GNU Affero
+   General Public License, version 3 only (LICENSES/AGPL-3.0.txt).
+
+A file may state a different licence in an SPDX-License-Identifier header;
+that header takes precedence for that file. Third-party components keep their
+own licences; their notices are under crates/server/licenses/.
+
+Commercial licences for the parts under the AGPL are available from
+Joan Fabrégat.
+
+Copyright (C) 2026 Joan Fabrégat

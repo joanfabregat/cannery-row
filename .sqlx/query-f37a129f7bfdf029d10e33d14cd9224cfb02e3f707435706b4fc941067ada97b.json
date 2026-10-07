@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT content AS \"content!: JsonbText\", sha256 AS \"sha256!\" FROM evidence_records WHERE attempt_id = $1 AND id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "content!: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 1,
+        "name": "sha256!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "f37a129f7bfdf029d10e33d14cd9224cfb02e3f707435706b4fc941067ada97b"
+}

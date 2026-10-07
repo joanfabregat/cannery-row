@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/gates.schema.json",
+  "title": "Stock evaluator gates",
+  "description": "The gate grammar of the stock evaluator (`cannery evaluator`), evaluated against tester-verified measurements. No expressions, scripts or queries. Cannery Row itself evaluates no gate.",
+  "type": "object",
+  "properties": {
+    "gates": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/gate"}
+    }
+  },
+  "required": ["gates"],
+  "additionalProperties": false,
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/slug"},
+        "metric": {"$ref": "common.schema.json#/$defs/name"},
+        "split": {"$ref": "common.schema.json#/$defs/slug"},
+        "per_dimension": {
+          "description": "Evaluate for every value of this dimension; passes only if all pass.",
+          "$ref": "common.schema.json#/$defs/name"
+        },
+        "statistic": {
+          "description": "Which number of the measurement is compared.",
+          "enum": ["value", "uncertainty.lower", "uncertainty.upper"]
+        },
+        "compare": {
+          "description": "What the statistic is compared against.",
+          "enum": ["control"]
+        },
+        "op": {"enum": [">", ">=", "<", "<="]},
+        "min_delta": {
+          "description": "Required difference statistic - reference, in the direction of op.",
+          "type": "number"
+        }
+      },
+      "required": ["id", "metric", "split", "statistic", "compare", "op", "min_delta"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"name": "ranked-run", "version": 1, "schema": {"type": "object", "properties": {"queries": {"type": "array"}}, "required": ["queries"]}}

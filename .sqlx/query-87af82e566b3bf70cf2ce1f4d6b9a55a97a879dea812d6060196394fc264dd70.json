@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT seq, occurred_at AS \"occurred_at!: _\", actor_kind,\n                  actor_user_id AS \"actor_user_id?: _\",\n                  actor_service_id AS \"actor_service_id?: _\", via_channel,\n                  via_client, action, prior_state AS \"prior_state?: _\",\n                  new_state AS \"new_state?: _\", reason\n           FROM audit_events\n           WHERE subject_type = $1 AND subject_id = $2\n             AND ($3::bigint IS NULL OR seq > $3)\n           ORDER BY seq LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "occurred_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "actor_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "actor_user_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "actor_service_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "via_channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "via_client",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "action",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "prior_state?: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "new_state?: _",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "reason",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "87af82e566b3bf70cf2ce1f4d6b9a55a97a879dea812d6060196394fc264dd70"
+}

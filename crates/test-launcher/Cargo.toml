@@ -1,0 +1,16 @@
+[package]
+name = "cannery-test-launcher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap.workspace = true
+getrandom.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+url.workspace = true

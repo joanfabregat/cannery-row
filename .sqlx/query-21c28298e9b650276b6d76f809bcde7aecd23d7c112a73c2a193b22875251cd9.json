@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE uploads SET state = 'receiving', receiving_since = now()\n        WHERE id = $1 AND state = 'pending' AND expires_at > now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "21c28298e9b650276b6d76f809bcde7aecd23d7c112a73c2a193b22875251cd9"
+}

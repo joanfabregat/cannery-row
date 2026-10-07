@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/step_manifest.schema.json",
+  "title": "Step manifest",
+  "description": "One container run. Field names follow Argo Workflows templates; role, from, interface, network, sandbox, code and setup are Cannery Row extensions. Name uniqueness, resource ceilings, held-out labels and interface matching are checked by the service. A validator step checks one step output: it reads it as its only input and outputs nothing. A step runs code baked into its image, or names code (a GitHub repository at a pinned commit, mounted read-only at /cr/code) and optionally a setup command that fills a dependency cache mounted at /cr/cache.",
+  "type": "object",
+  "$defs": {
+    "repository": {
+      "description": "GitHub repository, owner/name.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\\.\\.?$)[A-Za-z0-9._-]{1,100}$"
+    },
+    "relative_path": {
+      "description": "A relative, slash-separated path: no leading slash, no empty, '.' or '..' segments.",
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^(?!\\.\\.?(/|$))[A-Za-z0-9_.@+-]+(/(?!\\.\\.?(/|$))[A-Za-z0-9_.@+-]+)*$"
+    },
+    "network": {
+      "oneOf": [
+        {"const": "none"},
+        {
+          "description": "Declared egress allowlist.",
+          "type": "object",
+          "properties": {
+            "egress": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "description": "Host name, optionally with a port.",
+                "type": "string",
+                "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:[0-9]{1,5})?$"
+              }
+            }
+          },
+          "required": ["egress"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "properties": {
+    "apiVersion": {"const": "cannery-row/v1"},
+    "kind": {"const": "Step"},
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "name": {"$ref": "common.schema.json#/$defs/slug"}
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "spec": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "description": "An experiment step runs in a workflow track's experiments and is registered with the experiment-steps endpoint; an evaluator step is an evaluation policy run as a step by the runner's eval kind, never registered. Producers, scorers and validators are bound to tracks and science revisions.",
+          "enum": ["producer", "scorer", "validator", "experiment", "evaluator"]
+        },
+        "code": {
+          "description": "The step runs a script from this repository at this commit instead of code baked into its image. The repository must be in the science revision's code_repositories for the step's trust class. The runner fetches the tree with its own read-only GitHub credential, checks the commit is on a branch of repo itself (not only of a fork), and mounts the tree (only path, when given) read-only at /cr/code, the step's working directory.",
+          "type": "object",
+          "properties": {
+            "repo": {"$ref": "#/$defs/repository"},
+            "commit": {
+              "description": "Full commit SHA, 40 lowercase hexadecimal characters; never a branch or tag.",
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "path": {
+              "description": "Subdirectory of the repository mounted at /cr/code; the whole tree when absent.",
+              "$ref": "#/$defs/relative_path"
+            }
+          },
+          "required": ["repo", "commit"],
+          "additionalProperties": false
+        },
+        "setup": {
+          "description": "Install phase, run before the step in the same image and env unless the cache already holds its key (image digest, run, code repo and path, env, setup network, trust class and the key files' content; not the commit): /bin/sh -c <run> in /cr/code, which holds only the key files (read-only), with a fresh writable /cr/cache, no inputs, no job.json, and network unless setup.network is none. Published to the cache only if it exits 0; the step then sees /cr/cache read-only. Requires code.",
+          "type": "object",
+          "properties": {
+            "run": {
+              "description": "Shell command.",
+              "$ref": "common.schema.json#/$defs/text"
+            },
+            "cache": {
+              "type": "object",
+              "properties": {
+                "key_files": {
+                  "description": "Files under /cr/code (lockfiles, a setup script) whose content is part of the cache key; the only files of the code tree setup sees.",
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {"$ref": "#/$defs/relative_path"}
+                },
+                "paths": {
+                  "description": "Paths under /cr/cache that setup must create; a setup that leaves one missing fails.",
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {"$ref": "#/$defs/relative_path"}
+                }
+              },
+              "required": ["key_files"],
+              "additionalProperties": false
+            },
+            "network": {
+              "description": "Setup's network: unrestricted egress when absent; none; or a declared allowlist.",
+              "$ref": "#/$defs/network"
+            },
+            "activeDeadlineSeconds": {
+              "description": "Setup's own deadline; 600 when absent.",
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": ["run", "cache"],
+          "additionalProperties": false
+        },
+        "container": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "description": "Image pinned by digest.",
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^[a-z0-9][a-z0-9._/:-]*@sha256:[0-9a-f]{64}$"
+            },
+            "command": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"$ref": "common.schema.json#/$defs/text"}
+            },
+            "args": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "env": {
+              "description": "Plain configuration only; never secrets.",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[A-Z_][A-Z0-9_]{0,127}$",
+                    "not": {
+                      "pattern": "(SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL|API_KEY|APIKEY|PRIVATE_KEY|ACCESS_KEY)"
+                    }
+                  },
+                  "value": {"type": "string"}
+                },
+                "required": ["name", "value"],
+                "additionalProperties": false
+              }
+            },
+            "resources": {
+              "type": "object",
+              "properties": {
+                "requests": {"$ref": "common.schema.json#/$defs/resource_map"},
+                "limits": {"$ref": "common.schema.json#/$defs/resource_map"}
+              },
+              "required": ["limits"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["image", "command", "resources"],
+          "additionalProperties": false
+        },
+        "activeDeadlineSeconds": {"type": "integer", "minimum": 1},
+        "network": {"$ref": "#/$defs/network"},
+        "sandbox": {
+          "description": "Declared sandbox and capability policy.",
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "inputs": {
+          "type": "object",
+          "properties": {
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"$ref": "common.schema.json#/$defs/name"},
+                  "from": {"enum": ["attempt", "dataset", "baseline", "step"]},
+                  "id": {
+                    "description": "The registered dataset or baseline id the input reads; the input's name when absent. Only for from: dataset and from: baseline.",
+                    "$ref": "common.schema.json#/$defs/slug"
+                  },
+                  "interface": {"$ref": "common.schema.json#/$defs/interface_ref"},
+                  "path": {
+                    "type": "string",
+                    "pattern": "^/cr/inputs/[A-Za-z0-9_-][A-Za-z0-9_.-]*(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*$"
+                  }
+                },
+                "required": ["name", "from", "path"],
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {"properties": {"from": {"const": "step"}}, "required": ["from"]},
+                    "then": {
+                      "description": "A step input names the interface the producer output must match.",
+                      "required": ["interface"]
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {"from": {"enum": ["dataset", "baseline"]}},
+                      "required": ["from"]
+                    },
+                    "else": {
+                      "description": "Only a dataset or baseline input names a registered id.",
+                      "not": {"required": ["id"]}
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": ["artifacts"],
+          "additionalProperties": false
+        },
+        "outputs": {
+          "type": "object",
+          "properties": {
+            "artifacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {"$ref": "common.schema.json#/$defs/name"},
+                  "interface": {"$ref": "common.schema.json#/$defs/interface_ref"},
+                  "path": {
+                    "type": "string",
+                    "pattern": "^/cr/outputs/[A-Za-z0-9_-][A-Za-z0-9_.-]*(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*$"
+                  }
+                },
+                "required": ["name", "path"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["artifacts"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "role",
+        "container",
+        "activeDeadlineSeconds",
+        "network",
+        "sandbox",
+        "inputs",
+        "outputs"
+      ],
+      "additionalProperties": false,
+      "dependentRequired": {"setup": ["code"]},
+      "allOf": [
+        {
+          "if": {"properties": {"role": {"const": "scorer"}}, "required": ["role"]},
+          "then": {
+            "description": "A scorer must output the tester envelope as evidence.",
+            "properties": {
+              "outputs": {
+                "properties": {
+                  "artifacts": {
+                    "contains": {
+                      "properties": {
+                        "name": {"const": "evidence"},
+                        "interface": {"const": "cr-evidence/v0.2"}
+                      },
+                      "required": ["name", "interface"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"role": {"const": "producer"}}, "required": ["role"]},
+          "then": {
+            "description": "A producer outputs something, and every output names its interface, so it can be matched to the scorer input.",
+            "properties": {
+              "outputs": {
+                "properties": {"artifacts": {"minItems": 1, "items": {"required": ["interface"]}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"role": {"const": "validator"}}, "required": ["role"]},
+          "then": {
+            "description": "A validator reads one step output, which names its interface, has no network and outputs nothing: its exit code is its verdict.",
+            "properties": {
+              "network": {"const": "none"},
+              "inputs": {
+                "properties": {
+                  "artifacts": {
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {"properties": {"from": {"const": "step"}}}
+                  }
+                }
+              },
+              "outputs": {"properties": {"artifacts": {"maxItems": 0}}}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"role": {"const": "experiment"}}, "required": ["role"]},
+          "then": {
+            "description": "An experiment step (#48) outputs something, and every output names its interface.",
+            "properties": {
+              "outputs": {
+                "properties": {"artifacts": {"minItems": 1, "items": {"required": ["interface"]}}}
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"role": {"const": "evaluator"}}, "required": ["role"]},
+          "then": {
+            "description": "An evaluator step (#47) has no network and outputs exactly its verdict.",
+            "properties": {
+              "network": {"const": "none"},
+              "outputs": {
+                "properties": {
+                  "artifacts": {
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {"properties": {"name": {"const": "verdict"}}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false
+}

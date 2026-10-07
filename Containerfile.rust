@@ -1,0 +1,17 @@
+# Build with the small context prepared by rust-release.yml: cannery, licenses/
+# and empty-data/objects/. Cargo and Node never run during image assembly.
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
+
+LABEL org.opencontainers.image.source="https://github.com/joanfabregat/cannery-row" \
+      org.opencontainers.image.title="Cannery Row Rust" \
+      org.opencontainers.image.description="Static Cannery Row executable with the production web distribution embedded."
+
+COPY --chmod=0755 cannery /cannery
+COPY --chown=10001:10001 empty-data/ /data/
+COPY licenses/ /licenses/
+
+ENV CANNERY_STORAGE_LOCAL_ROOT=/data/objects
+USER 10001:10001
+EXPOSE 8000
+ENTRYPOINT ["/cannery"]
+CMD ["serve"]

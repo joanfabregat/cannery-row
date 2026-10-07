@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE idempotency_keys SET result_id=$1 WHERE scope=$2 AND actor=$3 AND key=$4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2311edeced28a9bbcbc2983d342436788c46aee3d12a017a7c49d41b2da5701e"
+}

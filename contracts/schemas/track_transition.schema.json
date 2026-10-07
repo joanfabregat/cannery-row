@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/track_transition.schema.json",
+  "title": "Track state change",
+  "description": "A researcher's track lifecycle transition. Allowed transitions are enforced by the service.",
+  "type": "object",
+  "properties": {
+    "to_state": {"enum": ["active", "paused", "archived"]},
+    "expected_revision": {"$ref": "common.schema.json#/$defs/revision_number"},
+    "reason": {"$ref": "common.schema.json#/$defs/text"}
+  },
+  "required": ["to_state", "expected_revision", "reason"],
+  "additionalProperties": false
+}

@@ -1,0 +1,41 @@
+{
+  "reason": "/assessment/gates/1/result",
+  "document": {
+    "schema_version": "0.2",
+    "attempt_id": "attempt-id",
+    "stage": "evaluator",
+    "status": "completed",
+    "producer": {
+      "kind": "builtin",
+      "id": "builtin-evaluator"
+    },
+    "started_at": "2026-09-29T01:00:01Z",
+    "finished_at": "2026-09-29T01:00:02Z",
+    "provenance": {
+      "source_revision": "4f2a9c1",
+      "science_revision": "science-revision"
+    },
+    "assessment": {
+      "policy_revision": "science-revision",
+      "gates": [
+        {
+          "id": "primary-beats-control",
+          "result": "pass",
+          "detail": "uncertainty.lower 0.41 > control 0.40 + 0.0"
+        },
+        {
+          "id": "no-language-regression",
+          "result": "unknown"
+        }
+      ],
+      "evidence": [
+        {
+          "ref": "evidence-42",
+          "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+        }
+      ],
+      "verdict": "pass",
+      "reason": "Every gate passes on tester-verified measurements."
+    }
+  }
+}

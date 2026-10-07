@@ -1,0 +1,25 @@
+[package]
+name = "cannery-identity"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+conformance-testing = ["cannery-core/conformance-testing"]
+
+[lints]
+workspace = true
+
+[dependencies]
+base64.workspace = true
+cannery-core = { path = "../core", version = "=0.1.0" }
+getrandom.workspace = true
+num-bigint.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tokio.workspace = true

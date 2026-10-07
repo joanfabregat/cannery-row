@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/job_completion.schema.json",
+  "title": "Job completion",
+  "description": "What a tester or external evaluator posts to complete a job, with the current lease token in the request. A second completion of the same job is idempotent.",
+  "type": "object",
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
+    "job_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "evidence": {
+      "allOf": [{"$ref": "evidence_envelope.schema.json"}],
+      "properties": {"stage": {"enum": ["tester", "evaluator"]}}
+    },
+    "manifest": {"$ref": "artifact_manifest.schema.json"}
+  },
+  "required": ["schema_version", "job_id", "evidence"],
+  "additionalProperties": false,
+  "if": {
+    "properties": {"evidence": {"properties": {"stage": {"const": "tester"}}, "required": ["stage"]}},
+    "required": ["evidence"]
+  },
+  "then": {
+    "description": "A tester completes with its envelope plus an output artifact manifest.",
+    "required": ["manifest"]
+  }
+}

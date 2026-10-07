@@ -1,0 +1,14 @@
+{
+  "name": "per-query-results",
+  "version": 2,
+  "encoding": "jsonl",
+  "media_type": "application/jsonl",
+  "max_bytes": 104857600,
+  "allow_empty": true,
+  "validator": "results-validator",
+  "schema": {
+    "type": "object",
+    "required": ["query", "reciprocal_rank"],
+    "properties": {"query": {"type": "string"}, "reciprocal_rank": {"type": "number"}}
+  }
+}

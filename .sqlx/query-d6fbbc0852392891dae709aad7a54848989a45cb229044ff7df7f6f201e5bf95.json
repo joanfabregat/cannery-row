@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO idempotency_keys(scope,actor,key,request_hash,result_id) VALUES('job.claim',$1,$2,$3,$4)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d6fbbc0852392891dae709aad7a54848989a45cb229044ff7df7f6f201e5bf95"
+}

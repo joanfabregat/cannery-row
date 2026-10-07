@@ -1,0 +1,134 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT h.id AS \"id!: _\", h.project_id AS \"project_id!: _\", h.number AS \"number!\", h.track_id AS \"track_id!: _\", t.slug AS \"track_slug\", t.mode AS \"track_mode\", h.state AS \"state!\", h.revision AS \"revision\", h.approved_revision AS \"approved_revision\", h.title AS \"title!\", h.created_by_user AS \"created_by_user: _\", h.created_by_service AS \"created_by_service: _\", h.created_at AS \"created_at!: _\", h.updated_at AS \"updated_at!: _\", h.approved_at AS \"approved_at: _\", h.origin AS \"origin\", h.source_ref AS \"source_ref\", h.external_id AS \"external_id\", h.imported::text AS \"imported\" FROM hypotheses h JOIN tracks t ON t.id=h.track_id WHERE h.project_id=$1 AND ($2::text[] IS NULL OR h.state=ANY($2)) AND ($3::text IS NULL OR t.slug=$3) AND ($4::bigint IS NULL OR h.number<$4) ORDER BY h.number DESC LIMIT $5::bigint",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "track_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "track_slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "track_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "approved_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "title!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_by_user: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_by_service: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "approved_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "origin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "source_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "external_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "imported",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "822fdf97e357ede343a77526e1f28616f7131b2f227c3174e8ff3709857f0778"
+}

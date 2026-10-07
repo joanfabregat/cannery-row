@@ -1,0 +1,16 @@
+# Local settings and development state
+settings.toml
+.dev/
+/dev/local.env
+
+# Web app
+node_modules/
+web/dist/
+
+# Rust workspace build output
+target/
+
+# Frozen references, unpacked by tests/references/unpack.sh
+/crates/*/tests/fixtures/**/*.json
+/crates/*/tests/fixtures/*.json
+!/crates/server/tests/fixtures/tracks_http/experiment.json

@@ -1,0 +1,8 @@
+{
+  "reason": "'evidence_revision' is a required property",
+  "document": {
+    "review_case_id": "rc-0193",
+    "action": "promote",
+    "reason": "All gates pass and the per-language breakdown is convincing."
+  }
+}

@@ -1,0 +1,81 @@
+# Cannery Row installation settings.
+# Copy to settings.toml (git-ignored) and pass it with --settings or CANNERY_SETTINGS.
+# Every field can be overridden by CANNERY_<SECTION>_<FIELD>, e.g.
+# CANNERY_DATABASE_URL. Put secrets in environment variables, not here.
+
+[database]
+# "url" (an external server at url) or "managed" (cannery runs a private
+# PostgreSQL under data_dir; url is then ignored). See docs/deploy.md.
+# provider = "managed"
+url = "postgresql://cannery@localhost:5432/cannery"
+pool_min_size = 1
+pool_max_size = 10
+# Managed only. Defaults: ~/.local/share/cannery/postgres (macOS:
+# ~/Library/Application Support/Cannery/postgres) and ~/.cache/cannery/postgresql.
+# data_dir = "/var/lib/cannery/postgres"
+# postgres_cache_dir = "/var/cache/cannery/postgresql"
+# Existing PostgreSQL 17 binaries instead of the bundled ones (with "url",
+# only where `cannery db dump` finds pg_dump; default: PATH).
+# postgres_bin_dir = "/usr/lib/postgresql/17/bin"
+
+[server]
+public_base_url = "http://localhost:8000"
+
+[auth]
+# OIDC login for the web app (any standard issuer). Leave unset to allow only
+# bearer tokens. Supply the client secret through CANNERY_AUTH_OIDC_CLIENT_SECRET.
+# oidc_issuer = "https://issuer.example/oidc"
+# oidc_client_id = "client-id"
+oidc_scopes = "openid email profile"
+# Restrict logins to these email domains (empty: any verified email).
+allowed_email_domains = []
+# Verified emails that become installation admins on login.
+bootstrap_admin_emails = []
+session_ttl_hours = 168
+cookie_secure = true
+personal_token_max_days = 365
+
+[storage]
+# "local" (files under local_root) or "s3" (an S3-compatible bucket, with
+# direct presigned uploads and downloads). With "s3", unset S3 fields fall
+# back to AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL,
+# AWS_REGION, S3_BUCKET and S3_FORCE_PATH_STYLE.
+backend = "local"
+local_root = ".dev/objects"
+# The local directory under local_root, or the S3 bucket (which then wins
+# over S3_BUCKET).
+bucket = "local"
+upload_ttl_minutes = 60
+max_object_bytes = 53687091200
+max_stream_seconds = 21600
+# A job output uploaded against a JSON or JSON Lines interface is validated
+# while it streams in, up to this size; a larger one is stored as not
+# content-validated (its size and leading bytes are still checked).
+validate_json_max_bytes = 67108864
+# Content validations of job uploads the API runs at once (each holds up to
+# validate_json_max_bytes in memory); further uploads wait for a slot.
+max_concurrent_validations = 2
+
+# S3-compatible store (backend = "s3"). Supply the credentials through
+# CANNERY_STORAGE_S3_ACCESS_KEY_ID and CANNERY_STORAGE_S3_SECRET_ACCESS_KEY
+# (or the AWS_* variables), never here.
+# s3_endpoint = "https://s3.example.org"
+# s3_public_endpoint = "https://s3.example.org"  # the name presigned URLs use
+# s3_region = "garage"
+# s3_path_style = true
+# s3_prefix = ""
+s3_presign_ttl_seconds = 900
+s3_multipart_threshold_bytes = 268435456
+s3_part_size_bytes = 67108864
+
+[mcp]
+# Largest /mcp request body read (larger: 413) and largest serialized tool
+# result returned (larger: a tool error asking for a smaller page).
+max_request_bytes = 1048576
+max_result_bytes = 1048576
+
+[web]
+# The web app is embedded in the binary and served for any GET outside /api,
+# /auth and /mcp. dist_dir serves another build (a directory with index.html,
+# from `npm run build` in web/) instead. Unset: the embedded build.
+# dist_dir = "web/dist"

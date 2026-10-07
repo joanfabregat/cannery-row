@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO evidence_records(project_id,attempt_id,stage,status,revision,content,sha256,via_channel,via_client,created_at,origin,source_ref) VALUES($1,$2,$3,'completed',1,$4,$5,'cli','cannery import',$6,'imported',$7) RETURNING id AS \"id: uuid::Uuid\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: uuid::Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ec145c808ebe3a597481b826a2e07f1ed63a5c1932ce79103fc06aae6fd03926"
+}

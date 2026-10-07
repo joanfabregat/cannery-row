@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE api_tokens SET last_used_at=now()\n        WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now()\n        RETURNING id AS \"id: _\",display_prefix,kind,user_id AS \"user_id: _\",service_account_id AS \"service_account_id: _\",\n        name,scopes,created_at AS \"created_at: _\",expires_at AS \"expires_at: _\",last_used_at AS \"last_used_at: _\",revoked_at AS \"revoked_at: _\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "display_prefix",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "user_id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "service_account_id: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "scopes",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "expires_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "last_used_at: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "revoked_at: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "5aeb66737e7de21d8469c5c1fa216bb7d73928c53acb668001e8598951aa99cd"
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.2",
+  "attempt_id": "attempt-id-2",
+  "stage": "agent",
+  "status": "failed",
+  "producer": {"kind": "agent", "id": "claude-session-3"},
+  "started_at": "2026-09-28T20:00:00Z",
+  "finished_at": "2026-09-28T20:05:00Z",
+  "provenance": {"source_revision": "4f2a9c1", "science_revision": "science-revision"},
+  "manifest": {"ref": "input-manifest-id-2", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+  "report": {
+    "what_was_tried": "Attempted to load the pinned initialization.",
+    "configuration": "Code 4f2a9c1; initialization base-camp-r1.",
+    "observations": "The checkpoint did not fit in memory.",
+    "findings": "None.",
+    "limitations": "The attempt stopped before training.",
+    "next_question": "Can the model be sharded under the ceiling?",
+    "elapsed_seconds": 300,
+    "body_markdown": "Out of memory while loading the initialization."
+  }
+}

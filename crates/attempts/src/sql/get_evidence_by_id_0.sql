@@ -1,0 +1,1 @@
+SELECT content AS "content!: JsonbText", sha256 AS "sha256!" FROM evidence_records WHERE attempt_id = $1 AND id = $2

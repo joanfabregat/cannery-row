@@ -1,0 +1,118 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id AS \"id!: ArtifactId\", attempt_id AS \"attempt_id!: AttemptId\", role AS \"role!\", backend AS \"backend!\", bucket AS \"bucket!\", key AS \"key!\", generation AS \"generation?\", size_bytes AS \"size_bytes!\", sha256 AS \"sha256!\", media_type AS \"media_type!\", verified_at AS \"verified_at!: Timestamp\", job_id AS \"job_id?: JobId\", interface AS \"interface?\", content_validated AS \"content_validated?\", origin AS \"origin!\", source_ref AS \"source_ref?\", uri AS \"uri?\" FROM artifacts\n            WHERE attempt_id = $1 AND job_id IS NULL ORDER BY role, key\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: ArtifactId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "attempt_id!: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "role!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "backend!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "bucket!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "key!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "generation?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "size_bytes!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "sha256!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "media_type!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "verified_at!: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "job_id?: JobId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "interface?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "content_validated?",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "origin!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "source_ref?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "uri?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "a0c66bcdd778e9e46354a6ea3b3520cec455b20f6ed714f7aa238443523616f6"
+}

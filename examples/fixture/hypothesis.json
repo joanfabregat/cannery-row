@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.2",
+  "track": "lexical",
+  "title": "Keep the three best documents",
+  "question": "Does a top-3 cut keep the relevant document first on every query?",
+  "rationale": "The fixture corpus is tiny; a shorter run should not lose the first hit.",
+  "intervention": "Rank with the track's producer and keep the top three documents.",
+  "control": {"kind": "baseline", "id": "base-camp", "revision": "fixture-r1"},
+  "plan": {
+    "selection_splits": ["dev"],
+    "confirmation_splits": ["dev"],
+    "primary_metric": "mrr",
+    "required_slices": [],
+    "success_criteria": "MRR holds the control on both languages.",
+    "falsification_criteria": "MRR drops below the control.",
+    "regression_gates": [],
+    "compute_budget": {"cpu_hours_max": 1}
+  }
+}

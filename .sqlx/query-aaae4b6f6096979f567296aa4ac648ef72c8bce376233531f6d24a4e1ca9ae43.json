@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO audit_events(project_id,actor_kind,actor_user_id,actor_service_id,via_channel,via_client,action,subject_type,subject_id,prior_state,new_state,reason,idempotency_key) VALUES($1,'user',$2,NULL,$3,$4,$5,'track',$6,$7,$8,$9,NULL) RETURNING seq",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "aaae4b6f6096979f567296aa4ac648ef72c8bce376233531f6d24a4e1ca9ae43"
+}

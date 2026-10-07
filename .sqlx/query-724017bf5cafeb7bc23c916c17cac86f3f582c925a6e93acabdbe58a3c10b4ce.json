@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"rows!\",count(m.value) AS \"measured!\",coalesce(sum(m.sample_count),0) AS \"sample_count!: _\",\ncoalesce(array_agg(DISTINCT a.science_revision ORDER BY a.science_revision),'{}') AS \"science_revisions!\",\ncoalesce(jsonb_agg(DISTINCT hr.content->'control')FILTER(WHERE hr.content?'control'),'[]')::text AS \"controls!\"\nFROM measurements m\nJOIN attempts a ON a.id=m.attempt_id\nJOIN hypotheses h ON h.id=a.hypothesis_id\nJOIN tracks t ON t.id=a.track_id\nJOIN hypothesis_revisions hr ON hr.hypothesis_id=h.id AND hr.revision=a.hypothesis_revision\nWHERE m.project_id=$1 AND m.metric=$2\nAND m.authority=ANY($3::text[])\nAND m.evidence_id=(SELECT e.id FROM evidence_records e WHERE e.attempt_id=m.attempt_id AND e.stage=$4 ORDER BY e.revision DESC LIMIT 1)\nAND ($5::text IS NULL OR m.split=$5)\nAND ($6 OR m.dimension_keys=$7::text[])\nAND ($8::text::jsonb IS NULL OR NOT EXISTS(SELECT 1 FROM jsonb_each($8::text::jsonb) AS f(name,allowed) WHERE NOT coalesce(f.allowed ? (m.dimensions->>f.name),false)))\nAND ($9::text[] IS NULL OR t.slug=ANY($9::text[]))\nAND ($10::text[] IS NULL OR a.state=ANY($10))\nAND ($11::text::bigint IS NULL OR a.science_revision=$11::text::bigint)\nAND (coalesce($12::timestamptz,$13::timestamp::timestamptz) IS NULL OR m.recorded_at>=coalesce($12::timestamptz,$13::timestamp::timestamptz))\nAND (coalesce($14::timestamptz,$15::timestamp::timestamptz) IS NULL OR m.recorded_at<coalesce($14::timestamptz,$15::timestamp::timestamptz))\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "rows!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "measured!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "sample_count!: _",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 3,
+        "name": "science_revisions!",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 4,
+        "name": "controls!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "TextArray",
+        "Text",
+        "Text",
+        "Bool",
+        "TextArray",
+        "Text",
+        "TextArray",
+        "TextArray",
+        "Text",
+        "Timestamptz",
+        "Timestamp",
+        "Timestamptz",
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "724017bf5cafeb7bc23c916c17cac86f3f582c925a6e93acabdbe58a3c10b4ce"
+}

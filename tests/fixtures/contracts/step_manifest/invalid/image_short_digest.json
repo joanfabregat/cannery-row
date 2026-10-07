@@ -1,0 +1,59 @@
+{
+  "reason": "/spec/container/image",
+  "document": {
+    "apiVersion": "cannery-row/v1",
+    "kind": "Step",
+    "metadata": {
+      "name": "sparse-producer"
+    },
+    "spec": {
+      "role": "producer",
+      "container": {
+        "image": "registry.example/p@sha256:abc123",
+        "command": [
+          "/app/produce"
+        ],
+        "args": [],
+        "env": [
+          {
+            "name": "BATCH_SIZE",
+            "value": "64"
+          }
+        ],
+        "resources": {
+          "limits": {
+            "cpu": "8",
+            "memory": "32Gi",
+            "nvidia.com/gpu": "1"
+          }
+        }
+      },
+      "activeDeadlineSeconds": 14400,
+      "network": "none",
+      "sandbox": "Declared sandbox and capability policy for candidate code.",
+      "inputs": {
+        "artifacts": [
+          {
+            "name": "candidate_checkpoint",
+            "from": "attempt",
+            "path": "/cr/inputs/candidate_checkpoint"
+          },
+          {
+            "name": "queries",
+            "from": "dataset",
+            "path": "/cr/inputs/queries"
+          }
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {
+            "name": "run",
+            "interface": "ranked-run/v1",
+            "path": "/cr/outputs/run"
+          }
+        ]
+      }
+    }
+  }
+}

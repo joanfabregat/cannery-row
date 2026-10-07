@@ -1,0 +1,21 @@
+{
+  "apiVersion": "cannery-row/v1",
+  "kind": "Step",
+  "metadata": {"name": "hybrid-producer"},
+  "spec": {
+    "role": "producer",
+    "container": {
+      "image": "registry.example/pilchards/hybrid-producer:1.4@sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+      "command": ["/app/produce", "--mode", "hybrid"],
+      "args": ["--batch", "32"],
+      "resources": {"limits": {"cpu": "500m", "memory": "2Gi"}}
+    },
+    "activeDeadlineSeconds": 600,
+    "network": {"egress": ["huggingface.co:443", "pypi.org"]},
+    "sandbox": "gVisor runtime, no capabilities, egress limited to the declared hosts.",
+    "inputs": {"artifacts": []},
+    "outputs": {
+      "artifacts": [{"name": "run", "interface": "ranked-run/v1", "path": "/cr/outputs/run/ranked.jsonl"}]
+    }
+  }
+}

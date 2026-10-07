@@ -1,0 +1,8 @@
+{
+  "reason": "'media_type' is a required property",
+  "document": {
+    "name": "per-query-results",
+    "version": 2,
+    "format": "parquet"
+  }
+}

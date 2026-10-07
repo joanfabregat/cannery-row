@@ -1,0 +1,13 @@
+{
+  "reason": "'id' was unexpected",
+  "document": {
+    "slug": "compact-sparse",
+    "title": "Compact sparse",
+    "description": "Markdown: the approach this track explores and why it competes with the others.",
+    "producer": {
+      "name": "sparse-producer",
+      "revision": 3
+    },
+    "id": "trk-1"
+  }
+}

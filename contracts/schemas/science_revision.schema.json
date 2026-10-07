@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/science_revision.schema.json",
+  "title": "Science revision",
+  "description": "Immutable project science configuration pinned by every attempt. Secrets and live credentials are never embedded. Cannery Row keeps the metric registry and the registered evaluator, which owns what a good result is. Cross-references (datasets and baselines in manifests) are checked by the service.",
+  "type": "object",
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
+    "hypothesis_fields": {
+      "description": "Project JSON Schema for hypothesis project_fields.",
+      "$ref": "common.schema.json#/$defs/json_schema"
+    },
+    "result_extensions": {
+      "description": "Project JSON Schema for evidence extensions.",
+      "$ref": "common.schema.json#/$defs/json_schema"
+    },
+    "tester": {
+      "description": "Registered tester identity; a self-hosted tester also pins its implementation revision.",
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "metrics": {
+      "description": "Metric registry.",
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/metric"}
+    },
+    "datasets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/slug"},
+          "revision": {"$ref": "common.schema.json#/$defs/identifier"},
+          "held_out_labels": {
+            "description": "True when the dataset holds labels only trusted steps that judge (the scorer, an evaluator policy step) may receive; a producer or experiment step never does.",
+            "type": "boolean"
+          },
+          "description": {"$ref": "common.schema.json#/$defs/text"}
+        },
+        "required": ["id", "revision", "held_out_labels"],
+        "additionalProperties": false
+      }
+    },
+    "baselines": {
+      "description": "Immutable baseline data references that steps may take as input (`from: baseline`). Baseline values belong to the evaluator's own configuration.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/slug"},
+          "revision": {"$ref": "common.schema.json#/$defs/identifier"},
+          "description": {"$ref": "common.schema.json#/$defs/text"}
+        },
+        "required": ["id", "revision"],
+        "additionalProperties": false
+      }
+    },
+    "interfaces": {
+      "type": "array",
+      "items": {"$ref": "interface.schema.json"}
+    },
+    "validators": {
+      "description": "Project validator steps. An interface names one (validator) to have the runner run it on each output of that interface; a non-zero exit fails the step that wrote the output.",
+      "type": "array",
+      "items": {
+        "allOf": [{"$ref": "step_manifest.schema.json"}],
+        "properties": {
+          "spec": {"properties": {"role": {"const": "validator"}}}
+        }
+      }
+    },
+    "scorer": {
+      "description": "The project scorer step manifest.",
+      "allOf": [{"$ref": "step_manifest.schema.json"}],
+      "properties": {
+        "spec": {"properties": {"role": {"const": "scorer"}}}
+      }
+    },
+    "default_producer": {"$ref": "common.schema.json#/$defs/producer_ref"},
+    "code_repositories": {
+      "description": "GitHub repositories (owner/name, any case) whose code steps may run (a step manifest's code.repo), per trust class: candidate for producer and experiment steps, trusted for the scorer, validators and evaluators. A class not listed runs no code from any repository.",
+      "type": "object",
+      "properties": {
+        "candidate": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "step_manifest.schema.json#/$defs/repository"}
+        },
+        "trusted": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "step_manifest.schema.json#/$defs/repository"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "evaluator": {
+      "description": "The registered evaluator: the evaluator service account name and the policy revision its verdicts must report. It owns promotion thresholds and baseline values.",
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+      },
+      "required": ["id", "revision"],
+      "additionalProperties": false
+    },
+    "required_artifact_roles": {
+      "type": "object",
+      "properties": {
+        "attempt": {
+          "description": "Roles a submission's artifact manifest must include.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/name"}
+        },
+        "tester": {
+          "description": "Roles a tester's output manifest must include.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/name"}
+        }
+      },
+      "required": ["attempt", "tester"],
+      "additionalProperties": false
+    },
+    "retention": {
+      "description": "Per-role retention; roles not listed are kept indefinitely.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {"$ref": "common.schema.json#/$defs/name"},
+          "days": {"type": "integer", "minimum": 1}
+        },
+        "required": ["role", "days"],
+        "additionalProperties": false
+      }
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "resource_ceilings": {
+          "description": "Per-step resource limit ceilings.",
+          "$ref": "common.schema.json#/$defs/resource_map"
+        },
+        "max_deadline_seconds": {"type": "integer", "minimum": 1},
+        "report_max_bytes": {
+          "description": "Cap on a report's body_markdown, in bytes; at most 1 MiB.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "max_output_bytes": {"type": "integer", "minimum": 1}
+      },
+      "required": ["resource_ceilings", "report_max_bytes", "max_output_bytes"],
+      "additionalProperties": false
+    },
+    "max_auto_retries": {
+      "description": "Automatic reruns of a failed test or evaluation stage.",
+      "type": "integer",
+      "minimum": 0,
+      "default": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "tester",
+    "metrics",
+    "datasets",
+    "baselines",
+    "interfaces",
+    "scorer",
+    "default_producer",
+    "required_artifact_roles",
+    "limits",
+    "evaluator"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "metric": {
+      "type": "object",
+      "properties": {
+        "key": {"$ref": "common.schema.json#/$defs/name"},
+        "unit": {"$ref": "common.schema.json#/$defs/text"},
+        "direction": {"enum": ["higher", "lower"]},
+        "aggregation": {"enum": ["mean", "median", "sum", "min", "max", "count"]},
+        "dimensions": {
+          "description": "Permitted dimensions, optionally with their allowed values.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {"$ref": "common.schema.json#/$defs/name"},
+              "values": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {"$ref": "common.schema.json#/$defs/text"}
+              }
+            },
+            "required": ["name"],
+            "additionalProperties": false
+          }
+        },
+        "splits": {
+          "description": "Splits this metric applies to.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/slug"}
+        },
+        "required_slices": {
+          "description": "Each value of the dimension must be reported (or explicitly missing) on each listed split, default all splits.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "dimension": {"$ref": "common.schema.json#/$defs/name"},
+              "values": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {"$ref": "common.schema.json#/$defs/text"}
+              },
+              "splits": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {"$ref": "common.schema.json#/$defs/slug"}
+              }
+            },
+            "required": ["dimension", "values"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["key", "unit", "direction", "aggregation", "dimensions", "splits", "required_slices"],
+      "additionalProperties": false
+    }
+  }
+}

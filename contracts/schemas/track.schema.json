@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/track.schema.json",
+  "title": "Track (create)",
+  "description": "A line of research within a project. The server assigns id, state, actor, via, timestamps and revision.",
+  "type": "object",
+  "properties": {
+    "slug": {"$ref": "common.schema.json#/$defs/slug"},
+    "title": {"$ref": "common.schema.json#/$defs/text"},
+    "description": {
+      "description": "Markdown: the approach this track explores.",
+      "$ref": "common.schema.json#/$defs/text"
+    },
+    "producer": {
+      "description": "Producer step manifest revision; omitted, the project default applies.",
+      "$ref": "common.schema.json#/$defs/producer_ref"
+    },
+    "mode": {
+      "description": "Who runs the track's experiments: `agent` (outside agents claim them, the default) or `workflow` (a Cannery Row runner claims them and runs `workflow`).",
+      "enum": ["agent", "workflow"]
+    },
+    "workflow": {
+      "description": "The experiment workflow a `workflow` track runs: registered experiment step manifest revisions, run in order. The last step outputs the claimed result sheet as `claimed_sheet`.",
+      "type": "object",
+      "properties": {
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {"$ref": "common.schema.json#/$defs/producer_ref"}
+        }
+      },
+      "required": ["steps"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["slug", "title"],
+  "additionalProperties": false,
+  "if": {"properties": {"mode": {"const": "workflow"}}, "required": ["mode"]},
+  "then": {"required": ["workflow"]},
+  "else": {"properties": {"workflow": false}}
+}

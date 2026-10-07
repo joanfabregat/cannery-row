@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO attempt_failures(attempt_id,stage,code,reason,created_at) VALUES($1,$2,$3,$4,$5) RETURNING id AS \"id: uuid::Uuid\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: uuid::Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "92068ad725dc5c154ef6bddf1270cd4e7ba57990d2c2c6322936a334392c873d"
+}

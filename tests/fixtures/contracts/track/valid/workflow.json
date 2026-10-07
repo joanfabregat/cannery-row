@@ -1,0 +1,8 @@
+{
+  "slug": "scripted-search",
+  "title": "Scripted search",
+  "description": "A Cannery Row runner claims these hypotheses and runs the workflow.",
+  "producer": {"name": "overlap-producer", "revision": 1},
+  "mode": "workflow",
+  "workflow": {"steps": [{"name": "fixture-experiment", "revision": 1}]}
+}

@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM oidc_login_requests WHERE state=$1 RETURNING nonce,code_verifier,return_to,browser_hash",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nonce",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "code_verifier",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "return_to",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "browser_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "439deab5f61fae2cb830cec50f4d4ea5c04918f54e3efe6d7f9a52ace6e8a088"
+}

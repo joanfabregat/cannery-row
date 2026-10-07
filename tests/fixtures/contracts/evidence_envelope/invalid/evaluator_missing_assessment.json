@@ -1,0 +1,19 @@
+{
+  "reason": "'assessment' is a required property",
+  "document": {
+    "schema_version": "0.2",
+    "attempt_id": "attempt-id",
+    "stage": "evaluator",
+    "status": "completed",
+    "producer": {
+      "kind": "builtin",
+      "id": "builtin-evaluator"
+    },
+    "started_at": "2026-09-29T01:00:01Z",
+    "finished_at": "2026-09-29T01:00:02Z",
+    "provenance": {
+      "source_revision": "4f2a9c1",
+      "science_revision": "science-revision"
+    }
+  }
+}

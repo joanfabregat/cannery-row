@@ -1,0 +1,12 @@
+{
+  "reason": "/schema/properties/queries/$ref unresolvable reference",
+  "document": {
+    "name": "ranked-run",
+    "version": 1,
+    "schema": {
+      "type": "object",
+      "properties": {"queries": {"$ref": "https://example.invalid/queries.json"}},
+      "required": ["queries"]
+    }
+  }
+}

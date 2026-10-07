@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/job.schema.json",
+  "title": "Test or evaluation job",
+  "description": "The job document a tester or external evaluator receives when it claims work. The lease token authorizes only reading the listed inputs and writing under output_prefix.",
+  "type": "object",
+  "properties": {
+    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
+    "job_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "stage": {"enum": ["tester", "evaluator"]},
+    "attempt_id": {"$ref": "common.schema.json#/$defs/identifier"},
+    "tester": {"$ref": "#/$defs/service_ref"},
+    "evaluator": {"$ref": "#/$defs/service_ref"},
+    "track": {"$ref": "common.schema.json#/$defs/slug"},
+    "control": {
+      "description": "The control the hypothesis names, pinned only when it names one. The tester's control_revision must equal its revision.",
+      "$ref": "common.schema.json#/$defs/pinned_ref"
+    },
+    "parameters": {
+      "description": "An evaluation job's hypothesis parameters: the project_fields of the hypothesis revision the attempt pinned ({} without any), frozen when the job was created.",
+      "$ref": "common.schema.json#/$defs/open_object"
+    },
+    "steps": {
+      "description": "Present when the Cannery Row runner executes the job; a self-hosted tester ignores it.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"$ref": "common.schema.json#/$defs/slug"},
+          "revision": {
+            "description": "Producer manifest revision, or the science revision for the scorer.",
+            "oneOf": [
+              {"$ref": "common.schema.json#/$defs/revision_number"},
+              {"$ref": "common.schema.json#/$defs/identifier"}
+            ]
+          },
+          "manifest": {"$ref": "step_manifest.schema.json"}
+        },
+        "required": ["name", "revision", "manifest"],
+        "additionalProperties": false
+      }
+    },
+    "science_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "claimed_sheet": {"$ref": "common.schema.json#/$defs/content_ref"},
+        "manifest": {"$ref": "common.schema.json#/$defs/content_ref"},
+        "evidence": {
+          "description": "Tester-verified evidence records, for an evaluation job.",
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "common.schema.json#/$defs/content_ref"}
+        },
+        "baselines": {
+          "description": "Baselines the job's steps may stage: the control, and each baseline a step takes as input, by id from the science revision.",
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/pinned_ref"}
+        },
+        "datasets": {
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/pinned_ref"}
+        }
+      },
+      "required": ["baselines", "datasets"],
+      "additionalProperties": false
+    },
+    "output_prefix": {"$ref": "common.schema.json#/$defs/object_prefix"},
+    "deadline": {"$ref": "common.schema.json#/$defs/timestamp"},
+    "limits": {
+      "type": "object",
+      "properties": {
+        "max_output_bytes": {"type": "integer", "minimum": 1}
+      },
+      "required": ["max_output_bytes"],
+      "additionalProperties": false
+    },
+    "lease": {
+      "type": "object",
+      "properties": {
+        "token": {"$ref": "common.schema.json#/$defs/text"},
+        "generation": {"type": "integer", "minimum": 1},
+        "expires_at": {"$ref": "common.schema.json#/$defs/timestamp"}
+      },
+      "required": ["token", "generation", "expires_at"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "job_id",
+    "stage",
+    "attempt_id",
+    "track",
+    "science_revision",
+    "inputs",
+    "output_prefix",
+    "deadline",
+    "limits",
+    "lease"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"stage": {"const": "tester"}}, "required": ["stage"]},
+      "then": {
+        "required": ["tester"],
+        "properties": {
+          "evaluator": {"not": {}},
+          "parameters": {"not": {}},
+          "inputs": {"required": ["claimed_sheet", "manifest"], "properties": {"evidence": {"not": {}}}}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"stage": {"const": "evaluator"}}, "required": ["stage"]},
+      "then": {
+        "required": ["evaluator"],
+        "properties": {
+          "tester": {"not": {}},
+          "steps": {"not": {}},
+          "inputs": {"required": ["evidence"]}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "service_ref": {
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    }
+  }
+}

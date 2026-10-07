@@ -1,0 +1,8 @@
+{
+  "slug": "scripted",
+  "title": "Scripted top-k search",
+  "description": "A Cannery Row runner claims these hypotheses and runs the fixture experiment workflow; the lexical producer tests its candidate.",
+  "producer": {"name": "overlap-producer", "revision": 1},
+  "mode": "workflow",
+  "workflow": {"steps": [{"name": "fixture-experiment", "revision": 1}]}
+}

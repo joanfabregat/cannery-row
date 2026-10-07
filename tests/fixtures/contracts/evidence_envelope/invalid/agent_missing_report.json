@@ -1,0 +1,42 @@
+{
+  "reason": "'report' is a required property",
+  "document": {
+    "schema_version": "0.2",
+    "attempt_id": "attempt-id",
+    "stage": "agent",
+    "status": "completed",
+    "producer": {
+      "kind": "agent",
+      "id": "codex-session-17"
+    },
+    "started_at": "2026-09-28T20:00:00Z",
+    "finished_at": "2026-09-28T23:30:00-07:00",
+    "provenance": {
+      "source_revision": "4f2a9c1",
+      "science_revision": "science-revision",
+      "seed": 0
+    },
+    "measurements": [
+      {
+        "metric": "ndcg_at_10",
+        "value": 0.47,
+        "authority": "agent_claim",
+        "unit": "ratio",
+        "direction": "higher",
+        "split": "dev",
+        "dimensions": {
+          "language": "fr"
+        },
+        "sample_count": 80
+      }
+    ],
+    "artifact_roles": [
+      "candidate_checkpoint"
+    ],
+    "manifest": {
+      "ref": "input-manifest-id",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "extensions": {}
+  }
+}

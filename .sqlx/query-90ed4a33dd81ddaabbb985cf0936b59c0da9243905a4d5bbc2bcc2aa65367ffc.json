@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM attempts a JOIN tracks t ON t.id=a.track_id\nWHERE a.project_id=$1 AND a.state='failed' AND a.origin=$2\nAND ($3::text[] IS NULL OR t.slug=ANY($3::text[]))\nAND ($4::text[] IS NULL OR 'failed'=ANY($4))\nAND ($5::text::bigint IS NULL OR a.science_revision=$5::text::bigint)\nAND (coalesce($6::timestamptz,$7::timestamp::timestamptz) IS NULL OR coalesce(a.finished_at,a.claimed_at)>=coalesce($6::timestamptz,$7::timestamp::timestamptz))\nAND (coalesce($8::timestamptz,$9::timestamp::timestamptz) IS NULL OR coalesce(a.finished_at,a.claimed_at)<coalesce($8::timestamptz,$9::timestamp::timestamptz))\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "TextArray",
+        "TextArray",
+        "Text",
+        "Timestamptz",
+        "Timestamp",
+        "Timestamptz",
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "90ed4a33dd81ddaabbb985cf0936b59c0da9243905a4d5bbc2bcc2aa65367ffc"
+}

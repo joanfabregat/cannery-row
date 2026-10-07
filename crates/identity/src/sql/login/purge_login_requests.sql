@@ -1,0 +1,1 @@
+DELETE FROM oidc_login_requests WHERE created_at < now() - make_interval(mins => $1::text::integer)

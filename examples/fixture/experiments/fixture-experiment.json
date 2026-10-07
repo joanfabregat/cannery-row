@@ -1,0 +1,28 @@
+{
+  "apiVersion": "cannery-row/v1",
+  "kind": "Step",
+  "metadata": {"name": "fixture-experiment"},
+  "spec": {
+    "role": "experiment",
+    "container": {
+      "image": "fixture.invalid/cannery-row/fixture-experiment@sha256:e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+      "command": ["python3", "experiment.py"],
+      "resources": {"limits": {"cpu": "1", "memory": "256Mi"}}
+    },
+    "activeDeadlineSeconds": 120,
+    "network": "none",
+    "sandbox": "Fixture only: the local-process backend does not isolate the step.",
+    "inputs": {
+      "artifacts": [
+        {"name": "candidate", "from": "attempt", "path": "/cr/inputs/candidate"},
+        {"name": "queries", "from": "dataset", "path": "/cr/inputs/queries"}
+      ]
+    },
+    "outputs": {
+      "artifacts": [
+        {"name": "candidate", "interface": "fixture-candidate/v1", "path": "/cr/outputs/candidate"},
+        {"name": "claimed_sheet", "interface": "cr-evidence/v0.2", "path": "/cr/outputs/claimed_sheet"}
+      ]
+    }
+  }
+}

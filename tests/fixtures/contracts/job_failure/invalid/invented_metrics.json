@@ -1,0 +1,11 @@
+{
+  "reason": "'measurements' was unexpected",
+  "document": {
+    "schema_version": "0.2",
+    "job_id": "test-run-2",
+    "error_code": "input_checksum_mismatch",
+    "reason": "The candidate checkpoint did not match its manifest SHA-256.",
+    "logs": [],
+    "measurements": []
+  }
+}

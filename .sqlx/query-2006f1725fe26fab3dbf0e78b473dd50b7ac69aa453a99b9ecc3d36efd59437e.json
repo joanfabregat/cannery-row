@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE hypotheses SET state = 'awaiting_human_review', updated_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2006f1725fe26fab3dbf0e78b473dd50b7ac69aa453a99b9ecc3d36efd59437e"
+}

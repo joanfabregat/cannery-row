@@ -1,0 +1,47 @@
+id: H-002
+track: dense
+title: Distil the dual encoder to six layers
+kind: experiment
+claim: A six-layer student keeps dev MRR within 0.01 of the base camp.
+control: {baseline: base-camp}
+created_at: 2025-01-21
+state: rejected
+attempts:
+  - label: run-a
+    started_at: 2025-01-22
+    status: failed
+    failure: {code: out_of_memory, reason: The training job ran out of GPU memory at step 1200.}
+    source: notebook/2025-01.md:88@3f9c2ab
+  - label: run-b
+    started_at: 2025-01-24
+    finished_at: 2025-01-25
+    status: completed
+    measurements:
+      - metric: mrr
+        split: dev
+        value: 0.61
+        authority: imported_transcribed
+        source: notebook/2025-01.md:95@3f9c2ab
+      - metric: mrr
+        split: dev
+        dimensions: {language: fr}
+        value: 0.55
+        authority: imported_transcribed
+        source: notebook/2025-01.md:96@3f9c2ab
+    verdict:
+      policy: release-gate
+      result: fail
+      gates:
+        - {id: mrr-holds, result: fail}
+        - {id: no-language-regression, result: fail}
+      reason: The student loses 0.07 MRR overall.
+      source: notebook/2025-01.md:97-99@3f9c2ab
+decision:
+  action: reject
+  decided_at: 2025-01-27
+  decided_by: ben@example.org
+  reason: Too large a loss to be worth the latency gain.
+  source: notebook/2025-01.md:101@3f9c2ab
+sources:
+  - notebook/2025-01.md:80-101@3f9c2ab
+notes: The first run is kept as the failed attempt it was.

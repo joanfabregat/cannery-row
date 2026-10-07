@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO manifests (attempt_id, stage, content, sha256) VALUES ($1, $2, $3, $4)\n            RETURNING id AS \"id!: ManifestId\", attempt_id AS \"attempt_id!: AttemptId\", stage AS \"stage!\", content AS \"content!: JsonbText\", sha256 AS \"sha256!\", created_at AS \"created_at!: Timestamp\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: ManifestId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "attempt_id!: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "stage!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "content!: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "sha256!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at!: Timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c0aaac757f8490da747c9594b92e829c4360d65db5fcd05983d52aec465f4fd4"
+}

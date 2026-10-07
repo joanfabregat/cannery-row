@@ -1,0 +1,46 @@
+id: H-003
+track: lexical
+title: Stem French queries
+kind: experiment
+claim: A French stemmer raises French dev MRR.
+created_at: 2025-02-03
+state: inconclusive
+attempts:
+  - label: seed-1
+    started_at: 2025-02-04T09:30:00+01:00
+    finished_at: 2025-02-04T10:05:00+01:00
+    status: completed
+    artifacts:
+      - role: metrics
+        uri: s3://retrieval-history/runs/h003-seed-1/metrics.json
+        sha256: 90e0c6a5bf21cfe7192c94408d1e8212ed4b6ef5ed0186539fa64e6b3492f481
+        size: 288
+    measurements:
+      - metric: mrr
+        split: dev
+        dimensions: {language: fr}
+        value: 0.69
+        authority: imported_artifact
+        source: s3://retrieval-history/runs/h003-seed-1/metrics.json#/mrr/fr
+      - metric: mrr
+        split: dev
+        dimensions: {language: en}
+        missing_reason: The English slice was not scored in this run.
+        authority: imported_transcribed
+        source: notebook/2025-02.md:14@3f9c2ab
+    verdict:
+      policy: release-gate
+      result: inconclusive
+      gates:
+        - {id: mrr-holds, result: unknown, detail: No overall value was recorded.}
+        - {id: no-language-regression, result: unknown}
+      reason: Only the French slice was measured.
+      source: notebook/2025-02.md:15-18@3f9c2ab
+decision:
+  action: inconclusive
+  decided_at: 2025-02-05
+  decided_by: ana@example.org
+  reason: Not enough measured to decide; rerun with every slice.
+  source: notebook/2025-02.md:20@3f9c2ab
+sources:
+  - notebook/2025-02.md:1-20@3f9c2ab

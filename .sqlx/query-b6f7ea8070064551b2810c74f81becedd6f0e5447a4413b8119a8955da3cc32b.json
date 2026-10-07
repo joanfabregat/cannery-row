@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM oidc_login_requests WHERE created_at < now()-make_interval(mins=>$1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b6f7ea8070064551b2810c74f81becedd6f0e5447a4413b8119a8955da3cc32b"
+}

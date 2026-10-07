@@ -1,0 +1,1206 @@
+{
+  "version": 1,
+  "operations": [
+    {
+      "method": "POST",
+      "path": "/auth/logout",
+      "required_statuses": [
+        200,
+        401,
+        403
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/me",
+      "required_statuses": [
+        200,
+        401
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/tokens",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tokens",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tokens/{token_id}",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/service-accounts",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/service-accounts",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/service-accounts/{name}/disable",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/service-accounts/{name}/tokens",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/service-accounts/{name}/tokens",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects",
+      "required_statuses": [
+        200,
+        401,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}",
+      "required_statuses": [
+        200,
+        401,
+        404
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/members",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/{slug}/members/{user_id}",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/projects/{slug}/members/{user_id}",
+      "required_statuses": [
+        204,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/config/{kind}",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/config/{kind}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/config/{kind}/latest",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/config/{kind}/{revision}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/tracks",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/tracks",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/tracks/{track_slug}",
+      "required_statuses": [
+        200,
+        401,
+        404
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/projects/{slug}/tracks/{track_slug}",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/tracks/{track_slug}/transitions",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/tracks/{track_slug}/history",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/{slug}/hypotheses/{number}",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/revisions",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/revisions/{revision}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/draft-review",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/claims",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/attempts",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/heartbeat",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/release",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/uploads",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/uploads/{upload_id}",
+      "required_statuses": [
+        201,
+        404,
+        409,
+        422
+      ],
+      "auth": "upload_capability_hidden_as_404"
+    },
+    {
+      "method": "POST",
+      "path": "/api/uploads/{upload_id}/presign",
+      "required_statuses": [
+        200,
+        404,
+        409,
+        422
+      ],
+      "auth": "upload_capability_hidden_as_404"
+    },
+    {
+      "method": "POST",
+      "path": "/api/uploads/{upload_id}/finish",
+      "required_statuses": [
+        201,
+        404,
+        409,
+        422
+      ],
+      "auth": "upload_capability_hidden_as_404"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/manifest",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/submission",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/producers",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/producers",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/producers/{name}/{revision}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/experiment-steps",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/experiment-steps",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/experiment-steps/{name}/{revision}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/jobs/claims",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/jobs/{job_id}/heartbeat",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/jobs/{job_id}/inputs/claimed-sheet",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/jobs/{job_id}/inputs/evidence",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/jobs/{job_id}/inputs/manifest",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/jobs/{job_id}/inputs/object",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/jobs/{job_id}/uploads",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/job-uploads/{upload_id}",
+      "required_statuses": [
+        201,
+        404,
+        409,
+        422
+      ],
+      "auth": "upload_capability_hidden_as_404"
+    },
+    {
+      "method": "POST",
+      "path": "/api/job-uploads/{upload_id}/presign",
+      "required_statuses": [
+        200,
+        404,
+        409,
+        422
+      ],
+      "auth": "upload_capability_hidden_as_404"
+    },
+    {
+      "method": "POST",
+      "path": "/api/job-uploads/{upload_id}/finish",
+      "required_statuses": [
+        201,
+        404,
+        409,
+        422
+      ],
+      "auth": "upload_capability_hidden_as_404"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/jobs/{job_id}/completion",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/jobs/{job_id}/failure",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/jobs/{job_id}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/jobs",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/review-cases",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/review-cases/{case_id}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/review-cases/{case_id}/decisions",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        409,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/reports",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/report",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/artifacts/{artifact_id}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/comments",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/comments",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "POST",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments",
+      "required_statuses": [
+        201,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/comments/{comment_id}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/projects/{slug}/comments/{comment_id}",
+      "required_statuses": [
+        200,
+        401,
+        403,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/comments/{comment_id}/revisions",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/search",
+      "required_statuses": [
+        200,
+        401,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/metrics",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/metrics/query",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/dashboard",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/dashboard/views/{view_id}",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/comparisons",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/projects/{slug}/attention",
+      "required_statuses": [
+        200,
+        401,
+        404,
+        422
+      ],
+      "auth": "session_or_bearer"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "required_statuses": [
+        200
+      ],
+      "auth": "public"
+    }
+  ],
+  "tools": [
+    "claim_hypothesis",
+    "claim_job",
+    "comment",
+    "complete_job",
+    "create_draft",
+    "create_job_upload",
+    "create_track",
+    "create_upload",
+    "edit_comment",
+    "fail_job",
+    "get_artifact",
+    "get_attempt",
+    "get_hypothesis",
+    "get_job",
+    "get_job_input",
+    "get_report",
+    "get_review_case",
+    "get_track",
+    "heartbeat_attempt",
+    "heartbeat_job",
+    "list_attempt_jobs",
+    "list_attempts",
+    "list_comments",
+    "list_hypotheses",
+    "list_hypothesis_revisions",
+    "list_projects",
+    "list_reports",
+    "list_review_cases",
+    "list_tracks",
+    "metric_catalog",
+    "post_manifest",
+    "query_comparisons",
+    "query_metrics",
+    "record_decision",
+    "release_attempt",
+    "review_draft",
+    "revise_draft",
+    "search",
+    "submit_attempt",
+    "track_history",
+    "transition_track",
+    "update_track"
+  ],
+  "audit_actions": [
+    "artifact.refused",
+    "artifact.verified",
+    "attempt.claimed",
+    "attempt.decided",
+    "attempt.decision_corrected",
+    "attempt.evaluated",
+    "attempt.evaluation_restarted",
+    "attempt.failed",
+    "attempt.retried",
+    "attempt.submitted",
+    "attempt.tested",
+    "comment.created",
+    "comment.edited",
+    "config.dashboard_created",
+    "config.science_created",
+    "experiment_step.registered",
+    "hypothesis.draft_approved",
+    "hypothesis.draft_created",
+    "hypothesis.draft_declined",
+    "hypothesis.draft_revised",
+    "hypothesis.failure_closed",
+    "hypothesis.requeued",
+    "hypothesis.retried",
+    "hypothesis.revision_requested",
+    "import.completed",
+    "import.hypothesis",
+    "import.membership",
+    "import.policy",
+    "import.project_created",
+    "import.science_registered",
+    "import.track",
+    "job.claimed",
+    "job.completed",
+    "job.created",
+    "job.failed",
+    "job.lease_reissued",
+    "manifest.verified",
+    "membership.removed",
+    "membership.set",
+    "producer.registered",
+    "project.created",
+    "review.close_failed",
+    "review.inconclusive",
+    "review.promote",
+    "review.reject",
+    "review.retry",
+    "service_account.created",
+    "service_account.disabled",
+    "session.created",
+    "session.ended",
+    "token.created",
+    "token.revoked",
+    "track.created",
+    "track.mode_changed",
+    "track.state_changed",
+    "track.updated",
+    "upload.expired",
+    "upload.failed",
+    "user.admin_granted",
+    "user.created"
+  ],
+  "status_policy": "Only runtime observations satisfy requirements. Reachability is reviewed from handlers; errors use code and violation path, not message text.",
+  "extra_operations": [
+    {
+      "method": "GET",
+      "path": "/auth/login",
+      "success_status": 302
+    },
+    {
+      "method": "GET",
+      "path": "/auth/callback",
+      "success_status": 302
+    },
+    {
+      "method": "POST",
+      "path": "/mcp",
+      "success_statuses": [
+        200,
+        202
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/mcp",
+      "required_statuses": [
+        405
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/mcp",
+      "required_statuses": [
+        405
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/openapi.json",
+      "success_status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/docs",
+      "success_status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/docs/oauth2-redirect",
+      "success_status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/redoc",
+      "success_status": 200
+    }
+  ],
+  "opaque_response_requirements": {
+    "GET /api/projects/{slug}/artifacts/{artifact_id}": [
+      200,
+      302,
+      304
+    ],
+    "GET /api/projects/{slug}/jobs/{job_id}/inputs/object": [
+      200,
+      302
+    ],
+    "GET /api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}": [
+      200,
+      302
+    ]
+  }
+}

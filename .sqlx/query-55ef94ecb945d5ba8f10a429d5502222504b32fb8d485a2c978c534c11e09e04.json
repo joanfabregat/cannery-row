@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT coalesce(sum(declared_size), 0)::text AS \"bytes!\" FROM uploads\n            WHERE job_id = $1\n              AND (state = 'verified' OR (state IN ('pending', 'receiving') AND expires_at > now()))\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bytes!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "55ef94ecb945d5ba8f10a429d5502222504b32fb8d485a2c978c534c11e09e04"
+}

@@ -1,0 +1,65 @@
+{
+  "reason": "/spec/inputs/artifacts/0 'interface' is a required property",
+  "document": {
+    "apiVersion": "cannery-row/v1",
+    "kind": "Step",
+    "metadata": {
+      "name": "scorer"
+    },
+    "spec": {
+      "role": "scorer",
+      "container": {
+        "image": "registry.example:5000/pilchards/scorer@sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "command": [
+          "/app/score"
+        ],
+        "resources": {
+          "requests": {
+            "cpu": "2",
+            "memory": "4Gi"
+          },
+          "limits": {
+            "cpu": "4",
+            "memory": "8Gi"
+          }
+        }
+      },
+      "activeDeadlineSeconds": 3600,
+      "network": "none",
+      "sandbox": "Runs no candidate code; read-only root filesystem.",
+      "inputs": {
+        "artifacts": [
+          {
+            "name": "run",
+            "from": "step",
+            "path": "/cr/inputs/run"
+          },
+          {
+            "name": "qrels",
+            "from": "dataset",
+            "path": "/cr/inputs/qrels"
+          },
+          {
+            "name": "claimed_sheet",
+            "from": "attempt",
+            "path": "/cr/inputs/claimed_sheet"
+          }
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {
+            "name": "evidence",
+            "interface": "cr-evidence/v0.2",
+            "path": "/cr/outputs/evidence"
+          },
+          {
+            "name": "per_query_results",
+            "interface": "per-query-results/v1",
+            "path": "/cr/outputs/per_query_results"
+          }
+        ]
+      }
+    }
+  }
+}

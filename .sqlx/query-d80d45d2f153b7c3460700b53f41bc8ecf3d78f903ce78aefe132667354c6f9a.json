@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO attempts(project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,via_client,predecessor_id,lease_generation,claimed_at,started_at,finished_at,origin,source_ref,imported) VALUES($1,$2,$3,$4,1,$5,$6,$7,'cli','cannery import',$8,0,$9,$9,$10,'imported',$11,$12) RETURNING id AS \"id: uuid::Uuid\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: uuid::Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Text",
+        "Int4",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d80d45d2f153b7c3460700b53f41bc8ecf3d78f903ce78aefe132667354c6f9a"
+}

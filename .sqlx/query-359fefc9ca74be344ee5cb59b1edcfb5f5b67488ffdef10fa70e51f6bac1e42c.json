@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO config_revisions\n            (project_id, kind, revision, content, science_revision, created_by)\n        SELECT $1, $2, coalesce(max(revision), 0) + 1, $3,\n            $4::text::integer, $5\n        FROM config_revisions WHERE project_id = $1 AND kind = $2\n        RETURNING project_id AS \"project_id!: _\", kind, revision,\n            content::text AS \"content!\", science_revision,\n            created_by AS \"created_by!: _\", created_at AS \"created_at!: _\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "content!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "science_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_by!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at!: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "359fefc9ca74be344ee5cb59b1edcfb5f5b67488ffdef10fa70e51f6bac1e42c"
+}

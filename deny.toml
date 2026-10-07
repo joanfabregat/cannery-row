@@ -1,0 +1,64 @@
+[advisories]
+version = 2
+
+[licenses]
+version = 2
+allow = [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Zlib",
+]
+confidence-threshold = 0.9
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+deny = [{ name = "openssl-sys" }, { name = "aws-lc-sys" }]
+skip = [
+    { crate = "rand@0.8.8", reason = "Existing SQLx uses rand 0.8; kube 4.2 websocket tungstenite requires rand 0.9" },
+    { crate = "rand_chacha@0.3.1", reason = "Existing SQLx rand 0.8 uses ChaCha 0.3; kube websocket rand 0.9 uses ChaCha 0.9" },
+    { crate = "rand_core@0.6.4", reason = "Existing SQLx rand 0.8 uses rand_core 0.6; kube websocket rand 0.9 uses rand_core 0.9" },
+    { crate = "strum@0.27.2", reason = "Exact frozen Pydantic speedate 0.17 uses strum 0.27; existing workspace uses 0.28" },
+    { crate = "strum_macros@0.27.2", reason = "Exact frozen Pydantic speedate 0.17 uses strum_macros 0.27; existing workspace uses 0.28" },
+    { crate = "sha1@0.10.7", reason = "AWS config SSO cache uses digest 0.10; AWS checksums use digest 0.11" },
+    { crate = "hmac@0.12.1", reason = "SQLx 0.8 requires hmac 0.12; AWS SigV4 uses 0.13" },
+    { crate = "md-5@0.10.6", reason = "SQLx 0.8 requires digest 0.10; AWS checksums use digest 0.11" },
+    { crate = "base64@0.22.1", reason = "reqwest 0.12 uses 0.22; hyper-util uses 0.23" },
+    { crate = "getrandom@0.2.17", reason = "ring uses 0.2; jsonschema uses 0.3" },
+    { crate = "syn@2.0.119", reason = "strum_macros uses syn 2; serde and Tokio use syn 3" },
+    { crate = "windows-sys@0.52.0", reason = "ring uses 0.52; Tokio uses 0.61" },
+    { crate = "block-buffer@0.10.4", reason = "SQLx 0.8 uses digest 0.10; rust-embed 8.12 uses digest 0.11" },
+    { crate = "cpufeatures@0.2.17", reason = "SQLx 0.8 uses sha2 0.10; rust-embed 8.12 uses sha2 0.11" },
+    { crate = "crypto-common@0.1.7", reason = "SQLx 0.8 uses digest 0.10; rust-embed 8.12 uses digest 0.11" },
+    { crate = "digest@0.10.7", reason = "SQLx 0.8 uses digest 0.10; rust-embed 8.12 uses digest 0.11" },
+    { crate = "sha2@0.10.9", reason = "SQLx 0.8 requires sha2 0.10; rust-embed 8.12 uses sha2 0.11" },
+    { crate = "foldhash@0.1.5", reason = "SQLx hashlink uses hashbrown 0.15; indexmap uses 0.17" },
+    { crate = "hashbrown@0.15.5", reason = "SQLx hashlink requires 0.15; indexmap requires 0.17" },
+    { crate = "getrandom@0.3.4", reason = "jsonschema requires 0.3; tower-http request IDs use uuid with 0.4" },
+    { crate = "r-efi@5.3.0", reason = "getrandom 0.3 uses r-efi 5; getrandom 0.4 uses r-efi 6" },
+    { crate = "redox_syscall@0.5.18", reason = "parking_lot uses 0.5; SQLx whoami uses libredox with 0.9" },
+    { crate = "webpki-roots@0.26.11", reason = "SQLx 0.8 uses the 0.26 compatibility wrapper over roots 1; reqwest uses 1 directly" },
+    { crate = "windows-sys@0.48.0", reason = "SQLx etcetera uses 0.48; ring and Tokio use later Windows APIs" },
+    { crate = "windows-targets@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+    { crate = "windows_aarch64_gnullvm@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+    { crate = "windows_aarch64_msvc@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+    { crate = "windows_i686_gnu@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+    { crate = "windows_i686_msvc@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+    { crate = "windows_x86_64_gnu@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+    { crate = "windows_x86_64_gnullvm@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+    { crate = "windows_x86_64_msvc@0.48.5", reason = "SQLx etcetera uses Windows targets 0.48; ring uses 0.52" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

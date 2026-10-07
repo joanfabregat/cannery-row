@@ -1,0 +1,32 @@
+[package]
+name = "cannery"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+conformance-testing = ["cannery-server/conformance-testing"]
+# Embed the PostgreSQL bundle named by CANNERY_POSTGRES_BUNDLE (see build.rs).
+bundled-postgres = []
+
+[dependencies]
+cannery-core = { path = "../core", version = "=0.1.0" }
+cannery-imports = { path = "../imports", version = "=0.1.0" }
+cannery-managed-postgres = { path = "../managed-postgres", version = "=0.1.0" }
+cannery-runner = { path = "../runner", version = "=0.1.0" }
+cannery-server = { path = "../server", version = "=0.1.0" }
+clap.workspace = true
+mimalloc.workspace = true
+percent-encoding.workspace = true
+rustls.workspace = true
+rustix.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true

@@ -1,0 +1,3288 @@
+[
+  {
+    "name": "list_projects",
+    "title": "List projects",
+    "description": "Projects the caller can read, by slug. Every other tool takes a project slug.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this project slug.",
+          "title": "Before"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "title": "ListProjects",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List projects",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_tracks",
+    "title": "List tracks",
+    "description": "A project's research tracks, by slug, optionally filtered by state.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "active",
+                "paused",
+                "archived"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this track slug.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ListTracks",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List tracks",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_track",
+    "title": "Get a track",
+    "description": "One track: its state, mode (agent or workflow), producer binding, workflow and revision.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "TrackArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a track",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "track_history",
+    "title": "List a track's events",
+    "description": "A track's audit events (creation, updates, transitions), oldest first, with actor, via and reason.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this event sequence number.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "TrackHistory",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List a track's events",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_track",
+    "title": "Create a track",
+    "description": "Create a track from a track contract document (researchers).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "document": {
+          "additionalProperties": true,
+          "description": "The contract document.",
+          "title": "Document",
+          "type": "object"
+        }
+      },
+      "required": [
+        "project",
+        "document"
+      ],
+      "title": "CreateTrack",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create a track",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "update_track",
+    "title": "Update a track",
+    "description": "Change a track's title, description, producer binding, mode or workflow at an expected revision (researchers). Omitted fields keep their value; a producer, mode or workflow change needs a reason.",
+    "inputSchema": {
+      "$defs": {
+        "TrackMode": {
+          "enum": [
+            "agent",
+            "workflow"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "producer": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Producer"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "workflow": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required when the producer binding, the mode or the workflow changes.",
+          "title": "Reason"
+        },
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "project",
+        "track"
+      ],
+      "title": "UpdateTrack",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Update a track",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "transition_track",
+    "title": "Pause, resume or archive a track",
+    "description": "Move a track to another state with a track_transition contract document (researchers).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "document": {
+          "additionalProperties": true,
+          "description": "The contract document.",
+          "title": "Document",
+          "type": "object"
+        }
+      },
+      "required": [
+        "project",
+        "track",
+        "document"
+      ],
+      "title": "TransitionTrack",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Pause, resume or archive a track",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_draft",
+    "title": "Create a hypothesis draft",
+    "description": "Create a hypothesis draft (researchers and the project's agents). Search for prior related work first. The draft waits for a researcher's review.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "document": {
+          "additionalProperties": true,
+          "description": "A hypothesis contract document.",
+          "title": "Document",
+          "type": "object"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project",
+        "document"
+      ],
+      "title": "CreateDraft",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Create a hypothesis draft",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "revise_draft",
+    "title": "Revise a hypothesis draft",
+    "description": "Replace a draft's document at its expected current revision. An agent may only revise the drafts it created.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "document": {
+          "additionalProperties": true,
+          "title": "Document",
+          "type": "object"
+        },
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "document",
+        "project",
+        "number"
+      ],
+      "title": "ReviseDraft",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Revise a hypothesis draft",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_hypotheses",
+    "title": "List hypotheses",
+    "description": "A project's hypotheses, newest first, filtered by state or track.",
+    "inputSchema": {
+      "$defs": {
+        "HypothesisState": {
+          "enum": [
+            "draft",
+            "queued",
+            "active",
+            "awaiting_human_review",
+            "promoted",
+            "rejected",
+            "inconclusive",
+            "declined",
+            "failed",
+            "cancelled"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/HypothesisState"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "archived": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "true: only archived states; false: hide them. Ignored with `state`.",
+          "title": "Archived"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Track slug.",
+          "title": "Track"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this number.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ListHypotheses",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List hypotheses",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_hypothesis",
+    "title": "Get a hypothesis",
+    "description": "One hypothesis: its current document, relations, backlinks and reviews.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "_HypothesisArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a hypothesis",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_hypothesis_revisions",
+    "title": "List a hypothesis's revisions",
+    "description": "A hypothesis's draft revisions, oldest first, each with its document, author and via.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this revision.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "ListRevisions",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List a hypothesis's revisions",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "review_draft",
+    "title": "Review a hypothesis draft",
+    "description": "Approve, request a revision of, or decline a draft's exact revision, with a reason (researchers only; agents and other service accounts cannot).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "draft_revision": {
+          "description": "The exact revision reviewed.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Draft Revision",
+          "type": "integer"
+        },
+        "action": {
+          "enum": [
+            "approve",
+            "request_revision",
+            "decline"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why; never empty.",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "draft_revision",
+        "action",
+        "reason"
+      ],
+      "title": "ReviewDraft",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Review a hypothesis draft",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "claim_hypothesis",
+    "title": "Claim a queued hypothesis",
+    "description": "Claim a queued hypothesis (a given number, or the next one, optionally in a track) and receive an attempt with a lease token and generation. Heartbeat before the lease expires. Agents and researchers claim only hypotheses of `agent`-mode tracks; `workflow` tracks are claimed only by an experimenter (a Cannery Row runner).",
+    "inputSchema": {
+      "$defs": {
+        "TrackMode": {
+          "enum": [
+            "agent",
+            "workflow"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "hypothesis": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hypothesis"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Track"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrackMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Claim only in tracks of this mode. Only an `experimenter` service account (a Cannery Row runner) claims in `workflow` mode, and only there; agents and researchers claim in `agent` mode. Omitted, the caller's mode applies."
+        },
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Claim a queued hypothesis",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_attempts",
+    "title": "List attempts",
+    "description": "A project's attempts, most recently claimed first.",
+    "inputSchema": {
+      "$defs": {
+        "AttemptState": {
+          "enum": [
+            "claimed",
+            "running",
+            "submitted",
+            "validating",
+            "testing",
+            "evaluating",
+            "awaiting_human_review",
+            "promoted",
+            "rejected",
+            "inconclusive",
+            "failed",
+            "cancelled",
+            "unreviewed"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/AttemptState"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Track slug.",
+          "title": "Track"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this attempt id.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ListAttempts",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List attempts",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_attempt",
+    "title": "Get an attempt",
+    "description": "One attempt: state, artifacts, failures and its claimed result sheet.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence"
+      ],
+      "title": "_AttemptArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get an attempt",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "heartbeat_attempt",
+    "title": "Extend an attempt's lease",
+    "description": "Extend the claimed attempt's lease.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "lease_token": {
+          "description": "The lease token the claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The lease generation the claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "lease_token",
+        "lease_generation"
+      ],
+      "title": "_AttemptLeaseArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Extend an attempt's lease",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "release_attempt",
+    "title": "Give up an attempt",
+    "description": "Give up the claimed attempt with a reason. It fails and a researcher decides whether to retry. Only an experimenter sends a failure `code`, `step` and `logs`.",
+    "inputSchema": {
+      "$defs": {
+        "LogRef": {
+          "additionalProperties": false,
+          "properties": {
+            "key": {
+              "maxLength": 1024,
+              "minLength": 1,
+              "title": "Key",
+              "type": "string"
+            },
+            "size_bytes": {
+              "minimum": 0,
+              "title": "Size Bytes",
+              "type": "integer"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "size_bytes",
+            "sha256"
+          ],
+          "title": "LogRef",
+          "type": "object"
+        },
+        "RunnerFailureCode": {
+          "enum": [
+            "step_failed",
+            "deadline_exceeded",
+            "runner_error",
+            "setup_failed",
+            "invalid_step_output",
+            "invalid_output",
+            "missing_output",
+            "invalid_code",
+            "code_not_allowed",
+            "invalid_input",
+            "missing_input",
+            "input_verification_failed",
+            "upload_expired",
+            "invalid_job",
+            "held_out_labels_to_experiment"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "lease_token": {
+          "description": "The lease token the claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The lease generation the claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "code": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunnerFailureCode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An experimenter only, and required from it: why the run failed. Every code is a failure of the run, retried automatically while the science revision's `max_auto_retries` allows, then reviewed (docs/contracts.md)."
+        },
+        "step": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An experimenter only: the failing step of the workflow.",
+          "title": "Step"
+        },
+        "logs": {
+          "description": "An experimenter only: the failing run's logs, verified uploads of this attempt, kept as the failure's log references.",
+          "items": {
+            "$ref": "#/$defs/LogRef"
+          },
+          "maxItems": 64,
+          "title": "Logs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "lease_token",
+        "lease_generation",
+        "reason"
+      ],
+      "title": "Release",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Give up an attempt",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_upload",
+    "title": "Get an upload grant",
+    "description": "Get a one-time upload grant for one file of the attempt. PUT the exact bytes to upload_url with the returned headers (outside MCP), or, when the grant has `direct`, send them to its presigned URLs and POST its finish_url; then list the verified object in the manifest.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "lease_token": {
+          "description": "The lease token the claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The lease generation the claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "role": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "media_type": {
+          "maxLength": 200,
+          "pattern": "^[a-z]+/[A-Za-z0-9.+_-]+$",
+          "title": "Media Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "lease_token",
+        "lease_generation",
+        "role",
+        "name",
+        "size_bytes",
+        "sha256",
+        "media_type"
+      ],
+      "title": "CreateUpload",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get an upload grant",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "post_manifest",
+    "title": "Record the artifact manifest",
+    "description": "Record the attempt's artifact manifest; every object must be a verified upload. Returns the manifest reference the claimed result sheet cites.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "lease_token": {
+          "description": "The lease token the claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The lease generation the claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "document": {
+          "additionalProperties": true,
+          "description": "An artifact_manifest contract document.",
+          "title": "Document",
+          "type": "object"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "lease_token",
+        "lease_generation",
+        "document"
+      ],
+      "title": "PostManifest",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Record the artifact manifest",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "submit_attempt",
+    "title": "Submit the claimed result sheet",
+    "description": "Submit the claimed result sheet and freeze the attempt for independent testing. Agent-reported metrics stay unverified claims.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "lease_token": {
+          "description": "The lease token the claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The lease generation the claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "document": {
+          "additionalProperties": true,
+          "description": "The claimed result sheet (an evidence_envelope).",
+          "title": "Document",
+          "type": "object"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "lease_token",
+        "lease_generation",
+        "document"
+      ],
+      "title": "Submit",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Submit the claimed result sheet",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "claim_job",
+    "title": "Claim a test or evaluation job",
+    "description": "Claim the oldest waiting job of the caller's stage (tester and evaluator service accounts only). The job document carries its lease token once.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "anyOf": [
+            {
+              "enum": [
+                "tester",
+                "evaluator"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Defaults to the stage of the caller's service account kind.",
+          "title": "Stage"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The policy revision the evaluator applies; required for evaluation claims, refused for test claims. Only evaluation jobs pinned to this revision are handed out, so an evaluator never receives a job it would have to fail.",
+          "title": "Revision"
+        },
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ClaimJob",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Claim a test or evaluation job",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "heartbeat_job",
+    "title": "Extend a job's lease",
+    "description": "Extend the claimed job's lease.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "description": "The job lease token the job claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The job lease generation the job claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "job_id",
+        "lease_token",
+        "lease_generation"
+      ],
+      "title": "_JobLeaseArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Extend a job's lease",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_job_input",
+    "title": "Read a claimed job's input",
+    "description": "Read one input document of the claimed job. Object bytes are read over REST.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "description": "The job lease token the job claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The job lease generation the job claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "input": {
+          "description": "claimed_sheet (test jobs), evidence (evaluation jobs) or manifest.",
+          "enum": [
+            "claimed_sheet",
+            "evidence",
+            "manifest"
+          ],
+          "title": "Input",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "job_id",
+        "lease_token",
+        "lease_generation",
+        "input"
+      ],
+      "title": "JobInput",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Read a claimed job's input",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "create_job_upload",
+    "title": "Get a job upload grant",
+    "description": "Get a one-time upload grant under the job's output prefix. PUT the bytes to upload_url with the returned headers (outside MCP), or, when the grant has `direct`, send them to its presigned URLs and POST its finish_url.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "description": "The job lease token the job claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The job lease generation the job claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "role": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "title": "Role",
+          "type": "string"
+        },
+        "path": {
+          "description": "Relative to the job's output prefix.",
+          "maxLength": 512,
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_.-]*(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*$",
+          "title": "Path",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "media_type": {
+          "maxLength": 200,
+          "pattern": "^[a-z]+/[A-Za-z0-9.+_-]+$",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "interface": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9-]{0,62}/v[0-9]+(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The interface of the step output this file belongs to, registered in the job's science revision. Its size and leading bytes are checked, and JSON or JSON Lines content up to the server's cap is validated while it streams in; a file that does not match is refused with `invalid_content`.",
+          "title": "Interface"
+        }
+      },
+      "required": [
+        "project",
+        "job_id",
+        "lease_token",
+        "lease_generation",
+        "role",
+        "path",
+        "size_bytes",
+        "sha256",
+        "media_type"
+      ],
+      "title": "CreateJobUpload",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a job upload grant",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "complete_job",
+    "title": "Complete a job",
+    "description": "Complete the claimed job with its evidence (tester or evaluator).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "description": "The job lease token the job claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The job lease generation the job claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "document": {
+          "additionalProperties": true,
+          "description": "A job_completion contract document.",
+          "title": "Document",
+          "type": "object"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project",
+        "job_id",
+        "lease_token",
+        "lease_generation",
+        "document"
+      ],
+      "title": "CompleteJob",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Complete a job",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "fail_job",
+    "title": "Report a job failure",
+    "description": "Report that the claimed job failed (tester or evaluator).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "description": "The job lease token the job claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The job lease generation the job claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "document": {
+          "additionalProperties": true,
+          "description": "A job_failure contract document.",
+          "title": "Document",
+          "type": "object"
+        }
+      },
+      "required": [
+        "project",
+        "job_id",
+        "lease_token",
+        "lease_generation",
+        "document"
+      ],
+      "title": "FailJob",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Report a job failure",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_job",
+    "title": "Get a job",
+    "description": "One test or evaluation job and its state.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "job_id"
+      ],
+      "title": "_JobArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a job",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_attempt_jobs",
+    "title": "List an attempt's jobs",
+    "description": "An attempt's test and evaluation runs (its evidence trail), by stage and run number, with their states and failures.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this job id.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence"
+      ],
+      "title": "ListAttemptJobs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List an attempt's jobs",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_review_cases",
+    "title": "List review cases",
+    "description": "Draft, result and failure review cases, filtered by kind and state.",
+    "inputSchema": {
+      "$defs": {
+        "CaseKind": {
+          "enum": [
+            "draft",
+            "result",
+            "failure"
+          ],
+          "type": "string"
+        },
+        "CaseState": {
+          "enum": [
+            "pending",
+            "resolved"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaseKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CaseState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "before": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this case id.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ListReviewCases",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List review cases",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_review_case",
+    "title": "Get a review case",
+    "description": "One review case with the evidence it decides on and its decisions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "case_id": {
+          "format": "uuid",
+          "title": "Case Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "case_id"
+      ],
+      "title": "ReviewCaseArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a review case",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "record_decision",
+    "title": "Record a human decision",
+    "description": "Record a researcher's reasoned decision on a pending result or failure review case; a draft case is decided with review_draft instead. Only people with the researcher role may; agent, tester and evaluator tokens are refused.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "case_id": {
+          "format": "uuid",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "evidence_revision": {
+          "description": "The exact evidence revision decided on.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Evidence Revision",
+          "type": "integer"
+        },
+        "action": {
+          "description": "promote, reject or inconclusive on a result case; retry or close_failed on a failure case. Draft cases are decided with review_draft.",
+          "enum": [
+            "promote",
+            "reject",
+            "inconclusive",
+            "retry",
+            "close_failed"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why; never empty.",
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "supersedes": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An earlier decision this one corrects.",
+          "title": "Supersedes"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project",
+        "case_id",
+        "evidence_revision",
+        "action",
+        "reason"
+      ],
+      "title": "RecordDecision",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Record a human decision",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_reports",
+    "title": "List reports",
+    "description": "Attempt reports (claimed result sheets), newest first.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "hypothesis": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hypothesis"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Track slug.",
+          "title": "Track"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this report id.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ListReports",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List reports",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_report",
+    "title": "Get an attempt's report",
+    "description": "An attempt's report: claimed and verified measurements, discrepancies, the evaluator verdict and reason, gate results, decisions and artifacts.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the hypothesis (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence"
+      ],
+      "title": "_AttemptArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get an attempt's report",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_artifact",
+    "title": "Get an artifact download reference",
+    "description": "An artifact's metadata and its REST download URL, if the caller may download it (report assets: every reader; other roles: members and up). Fetch the bytes with the same bearer token (an S3-backed API redirects to a presigned URL: follow it without the token); MCP never carries them.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "artifact_id": {
+          "format": "uuid",
+          "title": "Artifact Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "artifact_id"
+      ],
+      "title": "ArtifactArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get an artifact download reference",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "comment",
+    "title": "Comment on a hypothesis or attempt",
+    "description": "Add a Markdown comment to a hypothesis, or to one of its attempts (people with the member role and up).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "body_markdown": {
+          "maxLength": 65536,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Body Markdown",
+          "type": "string"
+        },
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Comment on this attempt of the hypothesis.",
+          "title": "Sequence"
+        }
+      },
+      "required": [
+        "body_markdown",
+        "project",
+        "number"
+      ],
+      "title": "Comment",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Comment on a hypothesis or attempt",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_comments",
+    "title": "List comments",
+    "description": "Comments on a hypothesis, or on one of its attempts, oldest first.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Only this attempt's comments.",
+          "title": "Sequence"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this comment id.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "ListComments",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List comments",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "edit_comment",
+    "title": "Edit a comment",
+    "description": "Edit one of your comments at its expected revision; earlier revisions are kept.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "description": "The revision being edited.",
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "body_markdown": {
+          "maxLength": 65536,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Body Markdown",
+          "type": "string"
+        },
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "comment_id": {
+          "format": "uuid",
+          "title": "Comment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "body_markdown",
+        "project",
+        "comment_id"
+      ],
+      "title": "EditComment",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Edit a comment",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "search",
+    "title": "Search",
+    "description": "Search tracks, hypotheses, attempts, reports, tester observations, evaluator and decision reasons, and comments across the projects the caller can read. Use it to find prior related work before drafting.",
+    "inputSchema": {
+      "$defs": {
+        "AttemptState": {
+          "enum": [
+            "claimed",
+            "running",
+            "submitted",
+            "validating",
+            "testing",
+            "evaluating",
+            "awaiting_human_review",
+            "promoted",
+            "rejected",
+            "inconclusive",
+            "failed",
+            "cancelled",
+            "unreviewed"
+          ],
+          "type": "string"
+        },
+        "HypothesisState": {
+          "enum": [
+            "draft",
+            "queued",
+            "active",
+            "awaiting_human_review",
+            "promoted",
+            "rejected",
+            "inconclusive",
+            "declined",
+            "failed",
+            "cancelled"
+          ],
+          "type": "string"
+        },
+        "Kind": {
+          "enum": [
+            "track",
+            "hypothesis",
+            "attempt",
+            "report",
+            "tester_observation",
+            "evaluator_reason",
+            "decision_reason",
+            "comment"
+          ],
+          "type": "string"
+        },
+        "ResultDecision": {
+          "enum": [
+            "promote",
+            "reject",
+            "inconclusive"
+          ],
+          "type": "string"
+        },
+        "Verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "q": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Words (web-search syntax), or #12 / slug#12.3.",
+          "title": "Q"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Project slugs.",
+          "title": "Project"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Kind"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Track slugs.",
+          "title": "Track"
+        },
+        "hypothesis_state": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/HypothesisState"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hypothesis State"
+        },
+        "attempt_state": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/AttemptState"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt State"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Verdict"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verdict"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/ResultDecision"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision"
+        },
+        "actor": {
+          "anyOf": [
+            {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "User or service account ids.",
+          "title": "Actor"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Records from this instant.",
+          "title": "Since"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Records before this instant.",
+          "title": "Until"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The next_before of the previous page.",
+          "title": "Before"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "title": "Search",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Search",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "metric_catalog",
+    "title": "List metrics",
+    "description": "The project's registered metrics, splits and dimensions.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "science_revision": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Science Revision"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "MetricCatalog",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List metrics",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "query_metrics",
+    "title": "Query metrics",
+    "description": "Measurements of one metric across attempts, for charts and comparisons; tester-verified by default, or the agents' unverified claims.",
+    "inputSchema": {
+      "$defs": {
+        "AttemptState": {
+          "enum": [
+            "claimed",
+            "running",
+            "submitted",
+            "validating",
+            "testing",
+            "evaluating",
+            "awaiting_human_review",
+            "promoted",
+            "rejected",
+            "inconclusive",
+            "failed",
+            "cancelled",
+            "unreviewed"
+          ],
+          "type": "string"
+        },
+        "Authority": {
+          "enum": [
+            "tester_verified",
+            "agent_claim",
+            "imported_artifact",
+            "imported_transcribed",
+            "imported"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "metric": {
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "title": "Metric",
+          "type": "string"
+        },
+        "split": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Split"
+        },
+        "authority": {
+          "$ref": "#/$defs/Authority",
+          "default": "tester_verified"
+        },
+        "dimensions": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The exact slice: rows with exactly these dimensions.",
+          "title": "Dimensions"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "dimension:value; repeat for several values.",
+          "title": "Filter"
+        },
+        "all_slices": {
+          "default": false,
+          "description": "Rows of every slice.",
+          "title": "All Slices",
+          "type": "boolean"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Track"
+        },
+        "attempt_state": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/AttemptState"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt State"
+        },
+        "science_revision": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Science Revision"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded from this instant.",
+          "title": "Since"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded before this instant.",
+          "title": "Until"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this measurement id.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project",
+        "metric"
+      ],
+      "title": "QueryMetrics",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Query metrics",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "query_comparisons",
+    "title": "Query evaluator comparisons",
+    "description": "What evaluators compared across attempts: per metric, split and slice, the value, the reference it was compared against, and the record's verdict.",
+    "inputSchema": {
+      "$defs": {
+        "AttemptState": {
+          "enum": [
+            "claimed",
+            "running",
+            "submitted",
+            "validating",
+            "testing",
+            "evaluating",
+            "awaiting_human_review",
+            "promoted",
+            "rejected",
+            "inconclusive",
+            "failed",
+            "cancelled",
+            "unreviewed"
+          ],
+          "type": "string"
+        },
+        "OriginFilter": {
+          "enum": [
+            "live",
+            "imported",
+            "all"
+          ],
+          "type": "string"
+        },
+        "Verdict": {
+          "enum": [
+            "pass",
+            "fail",
+            "inconclusive"
+          ],
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items per page.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]{0,63}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric"
+        },
+        "split": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Split"
+        },
+        "dimensions": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The exact slice: rows with exactly these dimensions.",
+          "title": "Dimensions"
+        },
+        "filter": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "dimension:value; repeat for several values.",
+          "title": "Filter"
+        },
+        "overall": {
+          "default": false,
+          "description": "Only the overall slice (no dimensions).",
+          "title": "Overall",
+          "type": "boolean"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Track"
+        },
+        "attempt_state": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/AttemptState"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt State"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Verdict"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verdict"
+        },
+        "since": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded from this instant.",
+          "title": "Since"
+        },
+        "until": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recorded before this instant.",
+          "title": "Until"
+        },
+        "origin": {
+          "$ref": "#/$defs/OriginFilter",
+          "default": "live",
+          "description": "`live` (the default), `imported` for an imported history, `all` for both."
+        },
+        "before": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this comparison id.",
+          "title": "Before"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "QueryComparisons",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Query evaluator comparisons",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  }
+]

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE uploads SET state = 'pending', receiving_since = NULL\n        WHERE id = $1 AND state = 'receiving'\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "046d64ceb28bc540be3db3f0998b3a172fc5be6cbcc37680e87c3ebc1a9bec61"
+}

@@ -1,0 +1,15 @@
+{
+  "queries": [
+    {"id": "q1", "language": "en", "text": "cat on a mat"},
+    {"id": "q2", "language": "en", "text": "dogs running"},
+    {"id": "q3", "language": "fr", "text": "chat sur le tapis"},
+    {"id": "q4", "language": "fr", "text": "chiens au parc"}
+  ],
+  "documents": [
+    {"id": "d1", "text": "the cat sat on the mat"},
+    {"id": "d2", "text": "dogs chase the cat"},
+    {"id": "d3", "text": "le chat dort sur le tapis"},
+    {"id": "d4", "text": "les chiens courent dans le parc"},
+    {"id": "d5", "text": "a quick brown fox"}
+  ]
+}

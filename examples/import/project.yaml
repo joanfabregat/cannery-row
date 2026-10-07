@@ -1,0 +1,6 @@
+# The project the history is imported into. An existing project keeps its
+# title and description; a missing one is created by this user.
+slug: retrieval-history
+title: Retrieval research history
+description: Experiments run before Cannery Row, imported from the lab notebook.
+created_by: ana@example.org

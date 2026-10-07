@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id: Uuid\",attempt_id AS \"attempt_id: Uuid\" FROM jobs WHERE state='claimed' AND (lease_expires_at<=now() OR deadline<=now()) AND id<>ALL($1::uuid[]) ORDER BY lease_expires_at,id LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "attempt_id: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "6cfb3cf02c9086130bd87751572cb4b75333f4c2152dfe09609d828f2a7fbe2b"
+}

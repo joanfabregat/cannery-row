@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE idempotency_keys SET result_id=$1 WHERE scope='job.claim' AND actor=$2 AND key=$3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0b5a3e8f78a3c96d5ead0b25cdfd979355e5e486904b245de5c22db8a0c0a273"
+}

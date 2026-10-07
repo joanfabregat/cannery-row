@@ -1,0 +1,70 @@
+id: H-001
+track: lexical
+title: Tune BM25 k1 for short queries
+kind: experiment
+claim: Lowering k1 to 0.9 raises dev MRR over the base camp on both languages.
+control: {baseline: base-camp}
+created_at: 2025-01-08
+state: promoted
+attempts:
+  - label: seed-1
+    started_at: 2025-01-09T14:00:00Z
+    finished_at: 2025-01-09T15:12:00Z
+    source_revision: 8d1e0f4
+    config: configs/bm25-k1-0.9.yaml
+    status: completed
+    artifacts:
+      - role: metrics
+        uri: gs://retrieval-history/runs/h001-seed-1/metrics.json
+        sha256: ee873b450d0893fe1cda5dcd5804ffd2b7260b2bb503af5cd9c9d4874e30a628
+        size: 412
+        media_type: application/json
+    measurements:
+      - metric: mrr
+        split: dev
+        value: 0.71
+        control_value: 0.68
+        sample_count: 200
+        authority: imported_artifact
+        source: gs://retrieval-history/runs/h001-seed-1/metrics.json#/mrr/overall
+      - metric: mrr
+        split: dev
+        dimensions: {language: en}
+        value: 0.74
+        authority: imported_artifact
+        source: gs://retrieval-history/runs/h001-seed-1/metrics.json#/mrr/en
+      - metric: mrr
+        split: dev
+        dimensions: {language: fr}
+        value: 0.68
+        authority: imported_artifact
+        source: gs://retrieval-history/runs/h001-seed-1/metrics.json#/mrr/fr
+    verdict:
+      policy: release-gate
+      result: pass
+      gates:
+        - {id: mrr-holds, result: pass, detail: 0.71 >= 0.68}
+        - {id: no-language-regression, result: pass}
+      comparisons:
+        - metric: mrr
+          split: dev
+          dimensions: {}
+          value: 0.71
+          source: tester
+          reference: {value: 0.68, label: base camp, kind: baseline, ref: base-camp}
+      reason: Both gates pass.
+      evaluated_at: 2025-01-10
+      source: notebook/2025-01.md:40-52@3f9c2ab
+    report:
+      path: reports/H-001/seed-1.md
+      kind: retrospective
+      author: "A research agent, from the notebook and the run metrics; reviewed by ana@example.org"
+      written_at: 2026-09-28
+decision:
+  action: promote
+  decided_at: 2025-01-11
+  decided_by: ana@example.org
+  reason: Promoted as the new lexical default after the weekly review.
+  source: notebook/2025-01.md:60@3f9c2ab
+sources:
+  - notebook/2025-01.md:1-60@3f9c2ab

@@ -1,0 +1,11 @@
+{
+  "reason": "/schema/properties/contact/format format 'email' is not enforced",
+  "document": {
+    "name": "ranked-run",
+    "version": 1,
+    "schema": {
+      "type": "object",
+      "properties": {"contact": {"type": "string", "format": "email"}}
+    }
+  }
+}
