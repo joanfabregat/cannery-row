@@ -17,6 +17,9 @@ research config_repository_reference
 tracks repository_reference
 server config_http
 server cannery_server -- --exact conformance_hooks::storage::tests::storage_snapshot_bounds_and_settlement
+server cannery_server -- --exact mcp::live::mcp_stateless_http
+server cannery_server -- --exact review_decision_routes::tests::cleanup_failure_retains_original_error
+imports history --env IMPORT_TEST_DATABASE_URL
 # Domain repositories against the frozen references
 metrics repository_reference --set CANNERY_METRICS_REFERENCE=crates/metrics/tests/fixtures/metrics_repository_reference.json
 attempts repository_reference

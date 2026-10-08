@@ -26,9 +26,8 @@ One Cargo workspace (`Cargo.toml`, edition 2024, minimum Rust 1.94.1, built with
 | `crates/runner` | The runner and stock evaluator: worker scheduler, HTTP client, code and setup caches, archive extraction, output checking, local/Docker/Kubernetes launchers, gate arithmetic. |
 | `crates/managed-postgres` | The managed database (`[database] provider = "managed"`): a private PostgreSQL supervised as a child process, and the unpacking of the bundled PostgreSQL distribution. |
 | `crates/imports` | Historical research bundle import ([crates/imports/README.md](../../crates/imports/README.md), [import.md](../import.md)). |
-| `crates/conformance` | The public black-box scenario suite and its `conformance`, `coverage` and `oidc-stub` programs. Test tooling only. |
 
-Code needed only by the conformance suite (the storage observation route, `POST /__conformance/sweep`, fixture modes) is compiled behind the `conformance-testing` Cargo feature in `core`, `identity`, `projects`, `server` and `cannery`. Release builds use `--no-default-features` and do not contain it.
+Test-only code (the storage observation route, `POST /__conformance/sweep`, fixture modes) is compiled behind the `conformance-testing` Cargo feature in `core`, `identity`, `projects`, `server` and `cannery`. Release builds use `--no-default-features` and do not contain it.
 
 ## Request flow
 

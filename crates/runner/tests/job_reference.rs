@@ -14,7 +14,7 @@ use std::{
 };
 const BUDGET: usize = 128;
 static REFERENCE: std::sync::LazyLock<&str> = std::sync::LazyLock::new(|| {
-    runtime_reference!("/../../crates/conformance/tests/fixtures/runner_job_reference.json")
+    runtime_reference!("/../../crates/runner/tests/fixtures/runner_job_reference.json")
 });
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 struct Scratch(PathBuf);

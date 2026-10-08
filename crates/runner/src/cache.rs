@@ -250,11 +250,14 @@ fn lookup(state: &mut State, path: &Path) -> Result<bool, CacheError> {
     entry.used = touch(path)?;
     Ok(true)
 }
+// Sorted, so entries with equal timestamps evict in a stable order.
 fn children(path: &Path) -> Result<Vec<PathBuf>, CacheError> {
-    fs::read_dir(path)
+    let mut found = fs::read_dir(path)
         .map_err(|error| io(&error))?
         .map(|entry| entry.map(|entry| entry.path()).map_err(|error| io(&error)))
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    found.sort();
+    Ok(found)
 }
 impl CacheRoot {
     /// No default logging sink: callers explicitly choose their frontend.

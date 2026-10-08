@@ -1,5 +1,6 @@
 //! `provider = "managed"` through the installed CLI: `migrate`, `serve` with
-//! a healthy database, and the server stopping when `cannery` is killed.
+//! a healthy database, the server stopping when `cannery` is killed, and a
+//! clean exit when PostgreSQL finishes a clean shutdown before `cannery`.
 //!
 //! Run with `CANNERY_MANAGED_POSTGRES_BIN_DIR` naming a directory with
 //! PostgreSQL 17 `postgres` and `initdb`, as a non-root user:
@@ -144,6 +145,42 @@ fn managed_database_through_the_cli() -> Result {
     // Without a parent-death signal (macOS) the leftover server was found
     // through postmaster.pid and stopped by that start.
     assert!(!alive(pid), "the leftover postmaster was not reclaimed");
+
+    // A container stop signals the whole group, and PostgreSQL can finish
+    // its clean shutdown before cannery does: cannery still exits 0.
+    let mut server = Killed(
+        cannery(&data_dir)?
+            .args(["serve", "--host", "127.0.0.1", "--port", &port.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()?,
+    );
+    assert!(
+        wait_until(Duration::from_secs(60), || {
+            health(port).is_some_and(|response| response.starts_with("HTTP/1.1 200"))
+        }),
+        "serve did not become healthy again"
+    );
+    let pid = postmaster_pid(&data_dir).ok_or("no postmaster.pid")?;
+    let postmaster = rustix::process::Pid::from_raw(pid).ok_or("invalid pid")?;
+    rustix::process::kill_process(postmaster, rustix::process::Signal::INT)?;
+    assert!(
+        wait_until(Duration::from_secs(30), || !alive(pid)),
+        "the postmaster did not stop"
+    );
+    let cannery_pid = i32::try_from(server.0.id())?;
+    let cannery_pid = rustix::process::Pid::from_raw(cannery_pid).ok_or("invalid pid")?;
+    // Already gone if it treated the stop as a failure; the status says so.
+    let _ = rustix::process::kill_process(cannery_pid, rustix::process::Signal::TERM);
+    let mut stderr = String::new();
+    server
+        .0
+        .stderr
+        .take()
+        .ok_or("no stderr")?
+        .read_to_string(&mut stderr)?;
+    let status = server.0.wait()?;
+    assert!(status.success(), "serve exited with {status}: {stderr}");
     std::fs::remove_dir_all(&data_dir)?;
     Ok(())
 }

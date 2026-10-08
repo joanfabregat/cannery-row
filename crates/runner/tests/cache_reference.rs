@@ -266,6 +266,22 @@ fn io_failure(errno: Option<i32>) -> Value {
     };
     json!({"error":name,"errno":errno})
 }
+// Entries with equal timestamps are listed and evicted in directory listing
+// order, which the file system decides: compare those lists as sets.
+fn unordered(mut observations: Value) -> Value {
+    for observation in observations.as_array_mut().into_iter().flatten() {
+        if let Some(entries) = observation
+            .pointer_mut("/state/entries")
+            .and_then(Value::as_array_mut)
+        {
+            entries.sort_by_key(|item| item["path"].to_string());
+        }
+        if let Some(evicted) = observation.get_mut("result").and_then(Value::as_array_mut) {
+            evicted.sort_by_key(ToString::to_string);
+        }
+    }
+    observations
+}
 fn logs(log: &Log) -> Value {
     let events = std::mem::take(&mut *log.0.lock().expect("synthetic log"));
     json!(
@@ -482,7 +498,12 @@ fn all_actual_cache_recipes_match_complete_effects() {
             outcome["state"] = snapshot(&cache, &root.0, &aliases);
             actual.push(outcome);
         }
-        assert_eq!(json!(actual), case["observations"], "case {}", case["name"]);
+        assert_eq!(
+            unordered(json!(actual)),
+            unordered(case["observations"].clone()),
+            "case {}",
+            case["name"]
+        );
         cache.close().expect("close test cache");
     }
 }

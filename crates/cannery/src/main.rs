@@ -12,8 +12,13 @@ use std::{
     io::Write,
     path::PathBuf,
     process::ExitCode,
+    time::Duration,
 };
 mod db_command;
+
+/// How long a command may take to finish its own shutdown after the managed
+/// PostgreSQL stopped cleanly.
+const MANAGED_STOP_GRACE: Duration = Duration::from_secs(30);
 mod import_command;
 mod managed_database;
 
@@ -158,14 +163,27 @@ async fn run(arguments: Arguments) -> Result<(), Box<dyn Error + Send + Sync>> {
         return Box::pin(run_command(arguments.command, settings, &environment)).await;
     };
     settings.database.url = managed.url();
+    let mut command = Box::pin(run_command(arguments.command, settings, &environment));
     let result = tokio::select! {
-        result = Box::pin(run_command(arguments.command, settings, &environment)) => result,
-        status = managed.exited() => Err(format!(
-            "managed PostgreSQL exited unexpectedly ({}); see {}",
-            status.map_or_else(|error| error.to_string(), |status| status.to_string()),
-            managed.log_path().display()
-        ).into()),
+        result = &mut command => result,
+        status = managed.exited() => match status {
+            // A clean exit means PostgreSQL was asked to stop, typically by a
+            // signal sent to the whole container or process group: the
+            // command got it too, so let it finish its own shutdown.
+            Ok(status) if status.success() => {
+                tracing::info!("managed PostgreSQL stopped");
+                tokio::time::timeout(MANAGED_STOP_GRACE, &mut command)
+                    .await
+                    .unwrap_or_else(|_| Err("managed PostgreSQL stopped while the command was running".into()))
+            }
+            status => Err(format!(
+                "managed PostgreSQL exited unexpectedly ({}); see {}",
+                status.map_or_else(|error| error.to_string(), |status| status.to_string()),
+                managed.log_path().display()
+            ).into()),
+        },
     };
+    drop(command);
     let stopped = managed.shutdown().await;
     result?;
     Ok(stopped?)

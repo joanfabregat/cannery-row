@@ -638,7 +638,7 @@ policy = "examples/fixture/evaluator.json"
 cannery runner --config runner.toml
 ```
 
-The experiment kind claims the hypothesis, runs `experiment.py` with `parameters: {"top_k": 2}`, uploads `candidate.json` (role `candidate`) and the step log, and submits the sheet; the test runner then runs `overlap-producer` on that candidate and the fixture scorer, and the evaluator gives its verdict, which waits for a researcher's decision. The conformance test `native_experiment_worker_submits_and_tester_consumes` (`crates/conformance/tests/native_workers.rs`) runs this end to end with the local launcher.
+The experiment kind claims the hypothesis, runs `experiment.py` with `parameters: {"top_k": 2}`, uploads `candidate.json` (role `candidate`) and the step log, and submits the sheet; the test runner then runs `overlap-producer` on that candidate and the fixture scorer, and the evaluator gives its verdict, which waits for a researcher's decision.
 
 ## Evaluation policy and the stock evaluator
 

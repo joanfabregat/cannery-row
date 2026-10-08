@@ -60,7 +60,7 @@ Sign-in to the web app uses any standard OIDC provider (`[auth]` in `settings.to
 | [docs/rust/operations.md](docs/rust/operations.md) | Building, releases, the bundled PostgreSQL, the image and CI. |
 | [docs/rust/limits.md](docs/rust/limits.md) | Request budgets, accepted encodings, schema and OIDC support, and runner policies. |
 
-`examples/fixture/` is a complete small project that the test suite runs end to end, and `examples/import/` a complete historical import bundle.
+`examples/fixture/` is a complete small project that the tests use, and `examples/import/` a complete historical import bundle.
 
 ## Development
 
