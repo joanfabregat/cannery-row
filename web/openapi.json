@@ -10548,6 +10548,53 @@
         }
       }
     },
+    "/api/schemas/{phase}": {
+      "get": {
+        "summary": "Phase Schema",
+        "description": "The JSON Schema of a phase output's front matter, as one self-contained\ndocument: the published schemas it references are embedded under `$defs`.\nNo authentication.",
+        "operationId": "phase_schema_api_schemas__phase__get",
+        "parameters": [
+          {
+            "name": "phase",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DocumentPhase"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/schema+json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/search": {
       "get": {
         "summary": "Search",
@@ -12107,7 +12154,6 @@
           "claimed",
           "running",
           "submitted",
-          "validating",
           "testing",
           "evaluating",
           "awaiting_human_review",
@@ -13641,6 +13687,15 @@
           }
         },
         "additionalProperties": false
+      },
+      "DocumentPhase": {
+        "type": "string",
+        "description": "A phase whose output documents have a published front matter schema.",
+        "enum": [
+          "run",
+          "verification",
+          "writeup"
+        ]
       },
       "DraftReviewRequest": {
         "type": "object",

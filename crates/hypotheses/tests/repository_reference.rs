@@ -424,7 +424,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     replace_mentions(c, MentionSource::Hypothesis(first), [first]).await?;
     sqlx::query("INSERT INTO comments(id,project_id,hypothesis_id,author_user,body_markdown) VALUES($1,$2,$3,$4,'Fixture')").bind(Uuid::from_u128(5)).bind(PROJECT).bind(second).bind(USER).execute(&mut *c).await?;
     sqlx::query("INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,lease_generation) VALUES($1,$2,$3,1,'cancelled',1,1,$4,$5,'api',0)").bind(Uuid::from_u128(6)).bind(PROJECT).bind(second).bind(TRACK).bind(USER).execute(&mut *c).await?;
-    sqlx::query("INSERT INTO evidence_records(id,project_id,attempt_id,stage,status,content,sha256,producer_user,via_channel) VALUES($1,$2,$3,'agent','completed','{}','fixture',$4,'api')").bind(Uuid::from_u128(7)).bind(PROJECT).bind(Uuid::from_u128(6)).bind(USER).execute(&mut *c).await?;
+    sqlx::query("INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_user,via_channel) VALUES($1,$2,$3,'agent','completed','{}','fixture',$4,'api')").bind(Uuid::from_u128(7)).bind(PROJECT).bind(Uuid::from_u128(6)).bind(USER).execute(&mut *c).await?;
     for source in [
         MentionSource::Comment(CommentId(Uuid::from_u128(5))),
         MentionSource::Report(EvidenceId(Uuid::from_u128(7))),

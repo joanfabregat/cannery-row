@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id: Uuid\" FROM attempts WHERE state='evaluating' AND lease_token_hash IS NULL AND NOT EXISTS(SELECT 1 FROM jobs WHERE jobs.attempt_id=attempts.id AND stage='evaluator' AND state IN ('pending','claimed')) AND NOT EXISTS(SELECT 1 FROM phase_outputs WHERE phase_outputs.attempt_id=attempts.id AND stage='evaluator') AND id<>ALL($1::uuid[]) ORDER BY submitted_at,id LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "50a7ebd87563b8da7894d208460b9734a5f95189d7ba5bd41f4107fd6e0ca8d6"
+}

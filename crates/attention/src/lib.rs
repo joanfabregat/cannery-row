@@ -223,7 +223,7 @@ pub async fn pending_reviews(
     limit: Option<&BigInt>,
 ) -> Result<Vec<PendingReview>, Error> {
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.content -> 'assessment' ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\" FROM review_cases c\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN evidence_records e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.front_matter -> 'assessment' ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\" FROM review_cases c\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN phase_outputs e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_pendingreview).collect()
 }
 /// Execute the source SQL on the caller-owned connection.
@@ -285,7 +285,6 @@ pub async fn running_attempts(
         "claimed".to_owned(),
         "running".to_owned(),
         "submitted".to_owned(),
-        "validating".to_owned(),
         "testing".to_owned(),
         "evaluating".to_owned(),
     ];

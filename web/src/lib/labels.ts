@@ -47,7 +47,6 @@ const attemptState = {
   claimed: s("Started", "info", "progress"),
   running: s("Running", "info", "progress"),
   submitted: s("Submitted", "info", "waiting"),
-  validating: s("Checking submission", "info", "progress"),
   testing: s("Testing", "info", "progress"),
   evaluating: s("Evaluating", "info", "progress"),
   awaiting_human_review: s("Needs review", "attention", "review"),

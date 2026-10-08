@@ -2,6 +2,7 @@
 pub mod comparison;
 mod formats;
 pub mod instance;
+pub mod phases;
 mod policy;
 use crate::json::{self, Document};
 use jsonschema::{Registry, Validator};
@@ -295,7 +296,7 @@ fn embedded_schemas(kind: ContractKind, value: &Value, errors: &mut Vec<Contract
         _ => {}
     }
 }
-const PUBLISHED_SOURCES: [(&str, &str); 18] = [
+const PUBLISHED_SOURCES: [(&str, &str); 21] = [
     (
         "track",
         include_str!("../../../contracts/schemas/track.schema.json"),
@@ -367,5 +368,17 @@ const PUBLISHED_SOURCES: [(&str, &str); 18] = [
     (
         "dashboard_views",
         include_str!("../../../contracts/schemas/dashboard_views.schema.json"),
+    ),
+    (
+        "run",
+        include_str!("../../../contracts/schemas/run.schema.json"),
+    ),
+    (
+        "verification",
+        include_str!("../../../contracts/schemas/verification.schema.json"),
+    ),
+    (
+        "writeup",
+        include_str!("../../../contracts/schemas/writeup.schema.json"),
     ),
 ];

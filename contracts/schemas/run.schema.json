@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/run.schema.json",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
+  "title": "Run document front matter",
+  "description": "The front matter of a run's output document: the claimed result sheet, an evidence envelope of the agent stage. Its Markdown body is empty for now.",
+  "$ref": "evidence_envelope.schema.json",
+  "properties": {
+    "stage": {"const": "agent"}
+  },
+  "required": ["stage"]
+}

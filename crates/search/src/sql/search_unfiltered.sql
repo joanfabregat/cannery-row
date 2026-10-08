@@ -54,10 +54,10 @@ WITH q AS (
     SELECT x.attempt_id, v.verdict, dec.action AS decision
     FROM (SELECT DISTINCT attempt_id FROM page WHERE attempt_id IS NOT NULL) x
     LEFT JOIN LATERAL (
-        SELECT e.content #>> '{assessment,verdict}' AS verdict
-        FROM evidence_records e
+        SELECT e.front_matter #>> '{assessment,verdict}' AS verdict
+        FROM phase_outputs e
         WHERE e.attempt_id = x.attempt_id AND e.stage = 'evaluator'
-          AND e.status = 'completed' AND e.content ? 'assessment'
+          AND e.status = 'completed' AND e.front_matter ? 'assessment'
         ORDER BY e.revision DESC LIMIT 1
     ) v ON true
     LEFT JOIN LATERAL (

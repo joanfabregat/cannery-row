@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/writeup.schema.json",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
+  "title": "Write-up front matter",
+  "description": "The front matter of a write-up, the narrative of a run whose Markdown is the document's body. Only imported write-ups exist for now: the retrospective report of an imported attempt, with who wrote it and when.",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "description": "`retrospective`: written after the fact, from the run's sources.",
+      "enum": ["retrospective"]
+    },
+    "author": {"$ref": "common.schema.json#/$defs/text"},
+    "written_on": {
+      "description": "The day it was written, when the source gives a day.",
+      "type": "string",
+      "format": "date"
+    },
+    "written_at": {
+      "description": "The instant it was written, when the source gives an instant.",
+      "$ref": "common.schema.json#/$defs/timestamp"
+    }
+  },
+  "required": ["kind", "author"],
+  "oneOf": [
+    {"required": ["written_on"], "not": {"required": ["written_at"]}},
+    {"required": ["written_at"], "not": {"required": ["written_on"]}}
+  ],
+  "additionalProperties": false
+}

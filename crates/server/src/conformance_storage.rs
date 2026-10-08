@@ -150,14 +150,14 @@ const PROJECTIONS: &[Projection] = &[
         query: r"SELECT ARRAY[h.external_id,
                h.number::text,
                a.sequence::text] AS key,
-               r.written_on::text AS written_on,
-               r.written_at::text AS written_at,
-               r.body_markdown::text AS body_markdown,
+               (r.front_matter ->> 'written_on')::date::text AS written_on,
+               (r.front_matter ->> 'written_at')::timestamptz::text AS written_at,
+               r.body AS body_markdown,
                r.sha256::text AS sha256,
                r.source_ref::text AS source_ref,
                r.created_at::text AS created_at
-           FROM imported_reports r JOIN attempts a ON a.id = r.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id
-           WHERE a.project_id = $1
+           FROM phase_outputs r JOIN attempts a ON a.id = r.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id
+           WHERE a.project_id = $1 AND r.stage = 'writeup'
            ORDER BY key LIMIT $2",
         comparable: &[
             "written_on",
@@ -228,7 +228,7 @@ const PROJECTIONS: &[Projection] = &[
                m.control_value::text AS control_value,
                m.uncertainty_lower::text AS uncertainty_lower,
                m.uncertainty_upper::text AS uncertainty_upper
-           FROM measurements m JOIN attempts a ON a.id = m.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id JOIN evidence_records e ON e.id = m.evidence_id
+           FROM measurements m JOIN attempts a ON a.id = m.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id JOIN phase_outputs e ON e.id = m.evidence_id
            WHERE m.project_id = $1 AND e.origin = 'imported'
            ORDER BY key LIMIT $2",
         comparable: &[
@@ -258,7 +258,7 @@ const PROJECTIONS: &[Projection] = &[
                c.policy_revision::text AS policy_revision,
                c.value::text AS value,
                c.reference_value::text AS reference_value
-           FROM comparisons c JOIN attempts a ON a.id = c.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id JOIN evidence_records e ON e.id = c.evidence_id
+           FROM comparisons c JOIN attempts a ON a.id = c.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id JOIN phase_outputs e ON e.id = c.evidence_id
            WHERE c.project_id = $1 AND e.origin = 'imported'
            ORDER BY key LIMIT $2",
         comparable: &[
@@ -277,11 +277,11 @@ const PROJECTIONS: &[Projection] = &[
                a.sequence::text,
                e.stage,
                e.revision::text] AS key,
-               e.content::text AS content,
+               e.front_matter::text AS content,
                e.sha256::text AS sha256,
                e.created_at::text AS created_at
-           FROM evidence_records e JOIN attempts a ON a.id = e.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id
-           WHERE e.project_id = $1 AND e.origin = 'imported'
+           FROM phase_outputs e JOIN attempts a ON a.id = e.attempt_id JOIN hypotheses h ON h.id = a.hypothesis_id
+           WHERE e.project_id = $1 AND e.origin = 'imported' AND e.stage <> 'writeup'
            ORDER BY key LIMIT $2",
         comparable: &["created_at"],
         captured: &["content", "sha256"],

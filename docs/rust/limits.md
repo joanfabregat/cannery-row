@@ -33,6 +33,7 @@ Artifact byte streams and MCP requests use their own adapters and limits; the RE
 - Read responses keep opaque producer/workflow references and metric control objects, because stored rows can include empty and arbitrary objects. Creation and PATCH use strict producer/workflow DTOs.
 - Frozen job parameters stay dynamic project values, including scalar values.
 - Agent reports, imported reports and absent reports are distinct typed variants.
+- Phase output documents are at most 1 MiB, with front matter nested at most 64 deep and at most 100,000 nodes (`front_matter::Limits`), read by the same strict YAML rules as import bundles. A number that YAML would read as NaN or infinity is never turned into JSON null.
 - Historical imports have explicit read models for normalized hypothesis headers, imported evidence with provenance and measurement authority, and science revisions written before the evaluator field existed. The historical science variant has no evaluator field in serde or OpenAPI. These read models do not relax creation or update contracts.
 - Stored artifact MIME values must be strings; malformed values fail before object-store access.
 - Human decision evidence revisions are checked signed 64-bit integers.

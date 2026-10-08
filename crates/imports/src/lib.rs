@@ -3,7 +3,6 @@
 mod bundle;
 mod error;
 mod importer;
-mod scalars;
 mod semantic;
 mod time;
 mod writer;

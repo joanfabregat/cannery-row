@@ -407,13 +407,11 @@ async fn publish(
             .await
             .map_err(|_| internal(r, "tested attempt transition"))?;
     } else {
-        let revision: i32 = sqlx::query_scalar!(
-            "SELECT revision FROM evidence_records WHERE id=$1",
-            id.0 as _
-        )
-        .fetch_one(&mut *c)
-        .await
-        .map_err(|_| internal(r, "evaluator evidence revision"))?;
+        let revision: i32 =
+            sqlx::query_scalar!("SELECT revision FROM phase_outputs WHERE id=$1", id.0 as _)
+                .fetch_one(&mut *c)
+                .await
+                .map_err(|_| internal(r, "evaluator evidence revision"))?;
         Repository::new(c, s.flow.attempts)
             .move_attempt(a.id, "evaluating", "awaiting_human_review")
             .await

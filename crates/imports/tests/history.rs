@@ -19,12 +19,11 @@ async fn snapshot(pool: &PgPool) -> Result<BTreeMap<String, Vec<String>>> {
         "hypothesis_relations",
         "attempts",
         "artifacts",
-        "evidence_records",
+        "phase_outputs",
         "measurements",
         "attempt_failures",
         "review_cases",
         "decisions",
-        "imported_reports",
         "audit_events",
     ] {
         let query =
@@ -156,7 +155,6 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         ("hypotheses", 7),
         ("attempts", 6),
         ("decisions", 5),
-        ("imported_reports", 1),
         ("measurements", 10),
         ("jobs", 0),
         ("uploads", 0),
@@ -171,6 +169,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         .await?,
         15
     );
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM phase_outputs WHERE stage='writeup' AND origin='imported' AND body<>'' AND front_matter->>'kind'='retrospective'").fetch_one(&pool).await?,1);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM hypotheses WHERE origin='imported' AND source_ref IS NOT NULL AND external_id IS NOT NULL").fetch_one(&pool).await?,7);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM measurements WHERE authority IN ('imported_artifact','imported_transcribed')").fetch_one(&pool).await?,10);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM artifacts WHERE backend='external' AND bucket='' AND origin='imported' AND job_id IS NULL").fetch_one(&pool).await?,3);

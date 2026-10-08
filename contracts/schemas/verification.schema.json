@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/verification.schema.json",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
+  "title": "Verification document front matter",
+  "description": "The front matter of a verification output document: the tester's verified evidence or the evaluator's assessment, an evidence envelope of the tester or evaluator stage. Its Markdown body is empty for now.",
+  "$ref": "evidence_envelope.schema.json",
+  "properties": {
+    "stage": {"enum": ["tester", "evaluator"]}
+  },
+  "required": ["stage"]
+}

@@ -351,4 +351,18 @@ const PACKAGED: &[(&str, &str)] = &[
             "/migrations/0015_imported_reports.sql"
         )),
     ),
+    (
+        "0016_remove_validating.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/migrations/0016_remove_validating.sql"
+        )),
+    ),
+    (
+        "0017_phase_outputs.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/migrations/0017_phase_outputs.sql"
+        )),
+    ),
 ];

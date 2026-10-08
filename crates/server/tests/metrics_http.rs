@@ -226,7 +226,7 @@ async fn storage(pool: &PgPool) -> Result<Value> {
         ("hypotheses", "project_id,number"),
         ("hypothesis_revisions", "hypothesis_id,revision"),
         ("attempts", "id"),
-        ("evidence_records", "id"),
+        ("phase_outputs", "id"),
         ("measurements", "id"),
         ("comparisons", "id"),
         ("audit_events", "seq"),

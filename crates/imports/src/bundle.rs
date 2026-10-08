@@ -258,15 +258,11 @@ fn parse(path: &str, data: &[u8], limits: BundleLimits, total_nodes: &mut usize)
     if text.contains('\0') {
         return Err(Error::problem(path, "", "NUL characters are forbidden"));
     }
-    let options = serde_saphyr::options! {
-            strict_booleans:true,
-            with_snippet:false,
-            merge_keys:serde_saphyr::options::MergeKeyPolicy::Error,
-            duplicate_keys:serde_saphyr::options::DuplicateKeyPolicy::Error,
-            alias_limits:serde_saphyr::alias_limits! { max_total_replayed_events:0, max_replay_stack_depth:0, max_alias_expansions_per_anchor:0 },
-            budget:serde_saphyr::budget! { max_depth:limits.max_depth, max_nodes:limits.max_nodes.saturating_sub(*total_nodes), max_documents:1 },
-    };
-    crate::scalars::validate(text, options.clone())
+    let options = cannery_core::yaml::strict_options(
+        limits.max_depth,
+        limits.max_nodes.saturating_sub(*total_nodes),
+    );
+    cannery_core::yaml::validate_scalars(text, options.clone())
         .map_err(|_| Error::problem(path, "", "invalid, nonfinite or resource-limited scalar"))?;
     // JSON is a YAML subset: this pass supplies duplicate and parser-budget checks.
     let checked: Value = serde_saphyr::from_str_with_options(text, options)

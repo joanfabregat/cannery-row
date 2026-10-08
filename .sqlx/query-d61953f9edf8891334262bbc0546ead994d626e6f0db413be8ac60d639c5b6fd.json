@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id AS \"id!: EvidenceId\", front_matter AS \"content!: JsonbText\", sha256 AS \"sha256!\" FROM phase_outputs\n            WHERE attempt_id = $1 AND stage = $2 ORDER BY revision DESC LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: EvidenceId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "content!: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "sha256!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d61953f9edf8891334262bbc0546ead994d626e6f0db413be8ac60d639c5b6fd"
+}

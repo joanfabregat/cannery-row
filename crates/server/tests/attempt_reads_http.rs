@@ -81,7 +81,7 @@ async fn storage(pool: &PgPool) -> Result<Value> {
         ("attempts", "id"),
         ("artifacts", "id"),
         ("attempt_failures", "id"),
-        ("evidence_records", "id"),
+        ("phase_outputs", "id"),
         ("manifests", "id"),
         ("uploads", "id"),
         ("jobs", "id"),

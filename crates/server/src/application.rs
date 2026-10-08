@@ -233,6 +233,7 @@ fn application_with_proxy(
         .route("/api/health", get(health).head(health_method_not_allowed))
         .with_state(health_state)
         .merge(documentation::routes())
+        .merge(crate::schema_routes::routes()?)
         .merge(crate::identity_routes::routes(state.clone()))
         .merge(crate::browser_routes::routes(state.clone()))
         .merge(crate::project_routes::routes(state.clone()))

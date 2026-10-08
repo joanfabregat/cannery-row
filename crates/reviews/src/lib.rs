@@ -85,7 +85,7 @@ labels!(CaseState{Pending=>"pending",Resolved=>"resolved"});
 labels!(Origin{Live=>"live",Imported=>"imported"});
 labels!(Stage{Agent=>"agent",Tester=>"tester",Evaluator=>"evaluator"});
 labels!(HypothesisState{Draft=>"draft",Queued=>"queued",Active=>"active",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Declined=>"declined",Failed=>"failed",Cancelled=>"cancelled"});
-labels!(AttemptState{Claimed=>"claimed",Running=>"running",Submitted=>"submitted",Validating=>"validating",Testing=>"testing",Evaluating=>"evaluating",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+labels!(AttemptState{Claimed=>"claimed",Running=>"running",Submitted=>"submitted",Testing=>"testing",Evaluating=>"evaluating",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 labels!(Action{Approve=>"approve",RequestRevision=>"request_revision",Decline=>"decline",Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Retry=>"retry",CloseFailed=>"close_failed"});
 #[derive(Clone, Copy, Debug, Eq, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]

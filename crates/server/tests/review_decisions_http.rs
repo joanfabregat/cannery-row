@@ -187,7 +187,7 @@ async fn raw_storage(pool: &PgPool) -> Result<Vec<String>> {
         "hypothesis_revisions",
         "attempts",
         "attempt_failures",
-        "evidence_records",
+        "phase_outputs",
         "review_cases",
         "decisions",
         "jobs",
@@ -219,7 +219,7 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
         ("hypothesis_revisions", "hypothesis_id,revision"),
         ("attempts", "id"),
         ("attempt_failures", "id"),
-        ("evidence_records", "id"),
+        ("phase_outputs", "id"),
         ("review_cases", "id"),
         ("decisions", "review_case_id,decided_at,id"),
         ("jobs", "attempt_id,stage,run_number"),
@@ -282,7 +282,7 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
         "hypothesis_revisions",
         "attempts",
         "attempt_failures",
-        "evidence_records",
+        "phase_outputs",
         "review_cases",
         "decisions",
         "jobs",
@@ -899,7 +899,7 @@ async fn serialization_failure_rolls_back_and_allows_retry(
         });
         let mut requests = BTreeMap::new();
         let corrupt: Value =
-            sqlx::query_scalar("SELECT content FROM evidence_records WHERE id=$1::uuid")
+            sqlx::query_scalar("SELECT front_matter FROM phase_outputs WHERE id=$1::uuid")
                 .bind(format!("00000000-0000-0000-0000-{:012}", 3000 + number))
                 .fetch_one(pool)
                 .await?;
@@ -931,15 +931,15 @@ async fn serialization_failure_rolls_back_and_allows_retry(
         // back idempotency entry must not reserve the key or replay a failed write.
         envelope["attempt_id"] = json!(format!("00000000-0000-0000-0000-{:012}", 2000 + number));
         let mut tx = pool.begin().await?;
-        sqlx::query("ALTER TABLE evidence_records DISABLE TRIGGER evidence_records_immutable")
+        sqlx::query("ALTER TABLE phase_outputs DISABLE TRIGGER phase_outputs_immutable")
             .execute(&mut *tx)
             .await?;
-        sqlx::query("UPDATE evidence_records SET content=$1 WHERE id=$2::uuid")
+        sqlx::query("UPDATE phase_outputs SET front_matter=$1 WHERE id=$2::uuid")
             .bind(&envelope)
             .bind(format!("00000000-0000-0000-0000-{:012}", 3000 + number))
             .execute(&mut *tx)
             .await?;
-        sqlx::query("ALTER TABLE evidence_records ENABLE TRIGGER evidence_records_immutable")
+        sqlx::query("ALTER TABLE phase_outputs ENABLE TRIGGER phase_outputs_immutable")
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;

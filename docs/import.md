@@ -159,7 +159,7 @@ report:
 - A report is UTF-8 text, at most 256 KiB, not empty.
 - Each file of `reports/` is the report of exactly one attempt: a path two attempts reference, a path with no file, and a file no attempt references are refused.
 - The report's content is part of its hypothesis entry, by its SHA-256: a re-run with the same file is a no-op, and a changed file is refused like any changed entry (see [Idempotency](#idempotency-and-updates)), with the attempt's `report` as the JSON Pointer.
-- It is stored on the imported attempt as history, with `origin: imported` and its path as `source_ref`. It is never a claimed result sheet, an agent report or evidence: it holds no measurement, it is not listed among the project's reports, and nothing is evaluated from it.
+- It is stored on the imported attempt as history, as an imported write-up (a phase output whose front matter holds `kind`, `author` and the date, and whose body is the Markdown; see [phase documents](contracts.md#phase-documents)), with `origin: imported` and its path as `source_ref`. It is never a claimed result sheet, an agent report or evidence: it holds no measurement, it is not listed among the project's reports, and nothing is evaluated from it.
 
 ### Measurements and their authority
 
