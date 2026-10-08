@@ -92,7 +92,7 @@ CANNERY_POSTGRES_BUNDLE=/abs/path/postgresql-17.11-linux-x86_64.tar.zst \
 
 ## Release workflow
 
-`.github/workflows/rust-release.yml` builds the release binaries and the image on pull requests and pushes. It checks:
+`.github/workflows/rust-release.yml` builds the release binaries and the image on every `v*` tag, and on pull requests and pushes to `main` unless they change only files the release cannot depend on (documentation, `ci/`, `dev/`, `deploy/`, the frozen test references, the other workflow). It checks:
 
 - Audit of the production and `tools/sqlx-cli` dependency graphs and of the frozen npm graph, then an offline build of `web/dist` in a pinned Node image.
 - Static Linux (amd64, arm64): offline static build; no interpreter or dynamic libraries; `--help`; `openapi` output equals `web/openapi.json`; `migrate` twice against PostgreSQL 17.11 (the second run applies 0). It assembles the image without pushing and smoke-tests it: nonroot user, CLI and OpenAPI output, migration-backed health, embedded web app and assets, security and cache headers, HEAD and byte ranges, reserved-prefix 404s, MCP method refusal, and absence of conformance routes.
@@ -116,13 +116,20 @@ Runner configuration, launchers, GitHub credentials, the cache and the Kubernete
 
 ## Continuous integration
 
-CI runs on every pull request:
+CI (`.github/workflows/rust.yml`) runs on every pull request and push to `main` that changes more than documentation; a newer push to the same branch cancels the run in progress. Its jobs run in parallel:
 
-- Formatting (`cargo fmt`), strict Clippy with and without all features, and the workspace tests.
-- Tests against real PostgreSQL databases, on the stock PostgreSQL 17 image and on the managed PostgreSQL bundle: the repository, HTTP and storage tests in `ci/database-tests.txt`, each against a fresh database created and migrated by `cannery-test-launcher`, compared with the frozen references in `tests/references/`.
+- Audits and formatting: `cargo audit`, `cargo deny check` and `cargo fmt`.
+- Strict Clippy and the workspace tests, once with all features and once with the default features, as two jobs.
+- Tests against real PostgreSQL databases, on the stock PostgreSQL 17 image and on the managed PostgreSQL bundle: the repository, HTTP and storage tests in `ci/database-tests.txt`, each against a fresh database created and migrated by `cannery-test-launcher`, compared with the frozen references in `tests/references/`. `ci/database-tests.sh` runs `DATABASE_TEST_JOBS` targets at once (3 in CI, 1 by default); each target still runs its tests one at a time against its own database.
 - The runner's process, lease, transfer and policy-evaluator tests through the installed CLI.
 - The web app: lint, type check, tests, `api:types:check` and production build.
 - The managed PostgreSQL bundles: each bundle (Linux x86_64, Linux aarch64, macOS arm64) is built from the pinned source and must link only glibc or libSystem; the managed-database supervisor tests (first start, migrations, `pg_trgm`, lock, restart, stale and orphaned servers), the CLI tests (`migrate`, `serve` health, server stopped when `cannery` is killed on Linux or reclaimed by the next start on macOS, `db` commands), and a `bundled-postgres` build that unpacks and migrates.
 - The release builds described [above](#release-workflow).
+
+Caching, in both workflows:
+
+- Compiled dependencies: Swatinem/rust-cache for the native builds, and the musl target directory for the static Linux builds, with the workspace crates removed so they are always rebuilt. Only runs on `main` save them; pull requests restore them. Tag builds use none. Every build still runs `cargo fetch --locked` and then builds `--offline`, so crates are checked against `Cargo.lock`.
+- The `cargo-audit` binary, keyed on its version and the toolchain; the npm download cache, keyed on `web/package-lock.json` (`npm ci` checks every package against the lockfile's integrity hashes).
+- The managed PostgreSQL bundles, built by `ci/postgres-bundle.sh` and keyed on the hash of that script, `dev/postgres-bundle-build.sh` and `dev/build-postgres-bundle.sh` (on macOS also the runner image version). Changing any of them rebuilds the bundles. The link checks, the digest check and the tests run on cached bundles as well. The managed-database job restores the same cache, or builds the bundle itself on a miss, so it does not wait for the bundle job.
 
 `tools/sqlx-cli` has its own `deny.toml` with the same license, advisory, ban and source rules; its duplicate-version exemptions are local to its graph. The CI step that runs a check is the authoritative recipe; read it in `.github/workflows/` when a local run disagrees.
