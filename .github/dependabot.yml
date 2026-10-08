@@ -1,8 +1,7 @@
 version: 2
 updates:
-  # Base images of the Containerfile, pinned by digest. Only the digests of
-  # the pinned tags move: Node 22 and Python 3.13 change by hand, and the uv
-  # and runtime images must keep the same Python for the venv to work.
+  # The runtime base of Containerfile.rust, pinned by digest. Only the
+  # digest of the pinned tag moves; a new Debian release changes by hand.
   - package-ecosystem: docker
     directory: /
     schedule:
@@ -12,3 +11,8 @@ updates:
         update-types:
           - version-update:semver-major
           - version-update:semver-minor
+  # Workflow actions, pinned by commit SHA.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
