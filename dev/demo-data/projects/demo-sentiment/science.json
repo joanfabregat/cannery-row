@@ -1,0 +1,106 @@
+{
+  "schema_version": "0.2",
+  "tester": {"id": "demo-tester", "revision": "sentiment-tester-r1"},
+  "hypothesis_fields": {
+    "type": "object",
+    "properties": {
+      "seed": {"type": "integer", "minimum": 0, "description": "Random seed of the training run."},
+      "max_features": {"type": "integer", "minimum": 1000, "description": "Vocabulary cap for the vectorizer."}
+    },
+    "additionalProperties": false
+  },
+  "metrics": [
+    {
+      "key": "macro_f1",
+      "unit": "ratio",
+      "direction": "higher",
+      "aggregation": "mean",
+      "dimensions": [{"name": "domain", "values": ["movies", "products"]}],
+      "splits": ["dev", "test"],
+      "required_slices": [{"dimension": "domain", "values": ["movies", "products"], "splits": ["dev"]}]
+    },
+    {
+      "key": "accuracy",
+      "unit": "ratio",
+      "direction": "higher",
+      "aggregation": "mean",
+      "dimensions": [{"name": "domain", "values": ["movies", "products"]}],
+      "splits": ["dev", "test"],
+      "required_slices": []
+    },
+    {
+      "key": "latency_p95_ms",
+      "unit": "ms",
+      "direction": "lower",
+      "aggregation": "mean",
+      "dimensions": [],
+      "splits": ["dev"],
+      "required_slices": []
+    }
+  ],
+  "datasets": [
+    {"id": "toy-reviews", "revision": "toy-reviews-v2", "held_out_labels": false, "description": "Demo data: 12,000 short English product and movie reviews from a public toy sentiment corpus, without labels."},
+    {"id": "toy-reviews-labels", "revision": "toy-reviews-v2", "held_out_labels": true, "description": "Demo data: the positive/negative labels of the dev and test splits; only the scorer reads them."}
+  ],
+  "baselines": [
+    {"id": "tfidf-unigram-lr", "revision": "r1", "description": "Demo control: TF-IDF unigrams with logistic regression, dev macro-F1 0.812."}
+  ],
+  "interfaces": [
+    {
+      "name": "predictions",
+      "version": 1,
+      "encoding": "jsonl",
+      "media_type": "application/jsonl",
+      "max_bytes": 1048576,
+      "schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["id", "label", "score"],
+        "properties": {
+          "id": {"type": "string"},
+          "label": {"enum": ["positive", "negative"]},
+          "score": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  ],
+  "scorer": {
+    "apiVersion": "cannery-row/v1",
+    "kind": "Step",
+    "metadata": {"name": "sentiment-scorer"},
+    "spec": {
+      "role": "scorer",
+      "container": {
+        "image": "registry.example/demo/sentiment-scorer@sha256:4b3c72f005aa8d2343efbe916e12093b7c43c869f5d8104b6b156ebaed851754",
+        "command": ["python3", "score.py"],
+        "resources": {"limits": {"cpu": "1", "memory": "512Mi"}}
+      },
+      "activeDeadlineSeconds": 300,
+      "network": "none",
+      "sandbox": "Demo data: runs no candidate code and reads only its declared inputs.",
+      "inputs": {
+        "artifacts": [
+          {"name": "run", "from": "step", "interface": "predictions/v1", "path": "/cr/inputs/run"},
+          {"name": "labels", "from": "dataset", "id": "toy-reviews-labels", "path": "/cr/inputs/labels"},
+          {"name": "claimed_sheet", "from": "attempt", "path": "/cr/inputs/claimed_sheet"}
+        ]
+      },
+      "outputs": {
+        "artifacts": [
+          {"name": "evidence", "interface": "cr-evidence/v0.2", "path": "/cr/outputs/evidence"}
+        ]
+      }
+    }
+  },
+  "default_producer": {"name": "sentiment-producer", "revision": 1},
+  "evaluator": {"id": "demo-evaluator", "revision": "sentiment-policy-1"},
+  "required_artifact_roles": {"attempt": ["candidate"], "tester": ["evidence", "step_log"]},
+  "limits": {
+    "resource_ceilings": {"cpu": "4", "memory": "8Gi"},
+    "max_deadline_seconds": 3600,
+    "report_max_bytes": 65536,
+    "max_output_bytes": 104857600
+  },
+  "max_auto_retries": 1
+}

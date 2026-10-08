@@ -1,0 +1,32 @@
+id: H-04
+track: classical-stats
+title: Holiday-aware four-week average
+kind: experiment
+claim: Dropping public holidays from the four-week window lowers MASE in holiday weeks without hurting other weeks.
+control: {baseline: seasonal-naive}
+relations:
+  - {type: derived_from, to: H-01}
+created_at: 2026-03-16
+state: awaiting_human_review
+attempts:
+  - label: run-2026-03-17
+    started_at: 2026-03-17T08:30:00Z
+    finished_at: 2026-03-17T08:52:00Z
+    source_revision: c03e1f8
+    status: completed
+    measurements:
+      - {metric: mase, split: backtest, value: 0.91, authority: imported_transcribed, source: "notebook/2026-03.md:40@c03e1f8"}
+      - {metric: mase, split: backtest, dimensions: {horizon: d1}, value: 0.88, authority: imported_transcribed, source: "notebook/2026-03.md:41@c03e1f8"}
+      - {metric: mase, split: backtest, dimensions: {horizon: d7}, value: 0.94, authority: imported_transcribed, source: "notebook/2026-03.md:42@c03e1f8"}
+    verdict:
+      policy: weekly-review
+      result: pass
+      gates:
+        - {id: beats-seasonal-naive, result: pass}
+        - {id: d7-holds, result: pass}
+      reason: Both gates pass; 0.02 better than the plain four-week average.
+      evaluated_at: 2026-03-18
+      source: notebook/2026-03.md:38-44@c03e1f8
+sources:
+  - notebook/2026-03.md:30-44@c03e1f8
+notes: Never reviewed before the notebook was retired; decide it in Cannery Row.

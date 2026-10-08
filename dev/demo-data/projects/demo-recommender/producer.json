@@ -1,0 +1,25 @@
+{
+  "apiVersion": "cannery-row/v1",
+  "kind": "Step",
+  "metadata": {"name": "recsys-producer"},
+  "spec": {
+    "role": "producer",
+    "container": {
+      "image": "registry.example/demo/recsys-producer@sha256:657e9b756e2f4d7e07040a02db8e614502e2823a7e74f259fd0d783c4965de58",
+      "command": ["python3", "recommend.py"],
+      "resources": {"limits": {"cpu": "2", "memory": "4Gi"}}
+    },
+    "activeDeadlineSeconds": 1200,
+    "network": "none",
+    "sandbox": "Demo data: loads the candidate model and writes ten items per validation user, without network.",
+    "inputs": {
+      "artifacts": [
+        {"name": "candidate", "from": "attempt", "path": "/cr/inputs/candidate"},
+        {"name": "events", "from": "dataset", "id": "toy-ratings", "path": "/cr/inputs/events"}
+      ]
+    },
+    "outputs": {
+      "artifacts": [{"name": "run", "interface": "recommendations/v1", "path": "/cr/outputs/run"}]
+    }
+  }
+}

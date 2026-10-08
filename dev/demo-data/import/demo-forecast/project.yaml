@@ -1,0 +1,11 @@
+# Demo data: the forecast project's history before Cannery Row, as a
+# reviewed import bundle (docs/import.md). dev/seed-demo.sh loads it with
+# `cannery import`, which creates the project; the live work in
+# dev/demo-data/projects/demo-forecast/project.yaml continues it.
+slug: demo-forecast
+title: "Demo: bakery demand forecast"
+description: >-
+  Demo data. Daily unit sales forecasts for the 40 products of a fictional
+  bakery chain's 12 shops, one and seven days ahead. The first months were
+  run from a notebook and imported.
+created_by: chloe.varga@example.com

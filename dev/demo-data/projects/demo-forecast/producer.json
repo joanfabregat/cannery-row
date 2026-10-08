@@ -1,0 +1,25 @@
+{
+  "apiVersion": "cannery-row/v1",
+  "kind": "Step",
+  "metadata": {"name": "forecast-producer"},
+  "spec": {
+    "role": "producer",
+    "container": {
+      "image": "registry.example/demo/forecast-producer@sha256:1a3431c2570644373b85df239d9d6f3f88dece1a780f96fc97efc6133f4382fd",
+      "command": ["python3", "forecast.py"],
+      "resources": {"limits": {"cpu": "2", "memory": "4Gi"}}
+    },
+    "activeDeadlineSeconds": 1800,
+    "network": "none",
+    "sandbox": "Demo data: refits the candidate model on each backtest window's history and writes forecasts, without network.",
+    "inputs": {
+      "artifacts": [
+        {"name": "candidate", "from": "attempt", "path": "/cr/inputs/candidate"},
+        {"name": "sales", "from": "dataset", "id": "bakery-sales", "path": "/cr/inputs/sales"}
+      ]
+    },
+    "outputs": {
+      "artifacts": [{"name": "run", "interface": "forecasts/v1", "path": "/cr/outputs/run"}]
+    }
+  }
+}

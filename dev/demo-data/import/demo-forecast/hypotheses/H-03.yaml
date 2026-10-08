@@ -1,0 +1,22 @@
+id: H-03
+track: classical-stats
+title: Auto-ARIMA per series
+kind: experiment
+claim: Auto-ARIMA with weekly seasonal terms beats the four-week average at both horizons.
+created_at: 2026-03-02
+state: failed
+attempts:
+  - label: run-2026-03-03
+    started_at: 2026-03-03
+    finished_at: 2026-03-03
+    status: failed
+    failure: {code: timeout, reason: The search over 480 series did not finish in the notebook's 6-hour limit.}
+decision:
+  action: close_failed
+  decided_at: 2026-03-04
+  decided_by: chloe.varga@example.com
+  reason: Too slow for 480 series; global models are the next step instead.
+  source: notebook/2026-03.md:12@c03e1f8
+sources:
+  - notebook/2026-03.md:1-12@c03e1f8
+notes: The run left no metrics; only the timeout is recorded.

@@ -1,0 +1,54 @@
+id: H-01
+track: notebook-baselines
+title: Weekday moving average over four weeks
+kind: experiment
+claim: The mean of the last four same-weekday sales beats the seasonal naive forecast on backtest MASE.
+control: {baseline: seasonal-naive}
+created_at: 2026-02-03
+state: promoted
+attempts:
+  - label: run-2026-02-04
+    started_at: 2026-02-04T09:10:00Z
+    finished_at: 2026-02-04T09:31:00Z
+    source_revision: 5be01c4
+    config: configs/weekday-ma4.yaml
+    status: completed
+    artifacts:
+      - role: metrics
+        uri: gs://demo-bakery-history/runs/h01/metrics.json
+        sha256: 7f904883e7437cfc0f211a81ca8d462b9c04d269dff1da10e7a1ea048d6b6d49
+        size: 118
+        media_type: application/json
+    measurements:
+      - {metric: mase, split: backtest, value: 0.93, control_value: 1.0, sample_count: 480, authority: imported_artifact, source: "gs://demo-bakery-history/runs/h01/metrics.json#/ma4/mase/overall"}
+      - {metric: mase, split: backtest, dimensions: {horizon: d1}, value: 0.9, authority: imported_artifact, source: "gs://demo-bakery-history/runs/h01/metrics.json#/ma4/mase/d1"}
+      - {metric: mase, split: backtest, dimensions: {horizon: d7}, value: 0.96, authority: imported_artifact, source: "gs://demo-bakery-history/runs/h01/metrics.json#/ma4/mase/d7"}
+    verdict:
+      policy: weekly-review
+      result: pass
+      gates:
+        - {id: beats-seasonal-naive, result: pass, detail: 0.93 < 0.95}
+        - {id: d7-holds, result: pass}
+      comparisons:
+        - metric: mase
+          split: backtest
+          dimensions: {}
+          value: 0.93
+          source: tester
+          reference: {value: 1.0, label: seasonal naive, kind: baseline, ref: seasonal-naive}
+      reason: Both gates pass.
+      evaluated_at: 2026-02-05
+      source: notebook/2026-02.md:20-31@5be01c4
+    report:
+      path: reports/H-01/run-2026-02-04.md
+      kind: retrospective
+      author: "A research agent, from the notebook and the run's metrics file; reviewed by chloe.varga@example.com"
+      written_at: 2026-06-10
+decision:
+  action: promote
+  decided_at: 2026-02-06
+  decided_by: chloe.varga@example.com
+  reason: Small but steady gain; the four-week average replaced seasonal naive as the notebook default.
+  source: notebook/2026-02.md:33@5be01c4
+sources:
+  - notebook/2026-02.md:1-33@5be01c4

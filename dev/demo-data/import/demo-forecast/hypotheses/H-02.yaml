@@ -1,0 +1,37 @@
+id: H-02
+track: classical-stats
+title: Holt-Winters per series
+kind: experiment
+claim: Additive Holt-Winters with weekly seasonality per series beats the four-week average.
+control: {baseline: seasonal-naive}
+relations:
+  - {type: derived_from, to: H-01}
+created_at: 2026-02-17
+state: rejected
+attempts:
+  - label: run-2026-02-18
+    started_at: 2026-02-18T10:00:00Z
+    finished_at: 2026-02-18T11:45:00Z
+    source_revision: 9a77d20
+    status: completed
+    measurements:
+      - {metric: mase, split: backtest, value: 0.95, authority: imported_transcribed, source: "notebook/2026-02.md:52@9a77d20"}
+      - {metric: mase, split: backtest, dimensions: {horizon: d1}, value: 0.88, authority: imported_transcribed, source: "notebook/2026-02.md:53@9a77d20"}
+      - {metric: mase, split: backtest, dimensions: {horizon: d7}, value: 1.04, authority: imported_transcribed, source: "notebook/2026-02.md:54@9a77d20"}
+    verdict:
+      policy: weekly-review
+      result: fail
+      gates:
+        - {id: beats-seasonal-naive, result: fail, detail: 0.95 is not below 0.95}
+        - {id: d7-holds, result: fail, detail: 1.04 > 1.0}
+      reason: Better one day ahead but worse at seven days, and no better overall.
+      evaluated_at: 2026-02-19
+      source: notebook/2026-02.md:50-56@9a77d20
+decision:
+  action: reject
+  decided_at: 2026-02-20
+  decided_by: ada.marlowe@example.com
+  reason: The seven-day forecast is worse than seasonal naive; trend extrapolation overshoots after promotions.
+  source: notebook/2026-02.md:58@9a77d20
+sources:
+  - notebook/2026-02.md:40-58@9a77d20

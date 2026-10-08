@@ -1,0 +1,561 @@
+# Demo project: sentiment classification of short reviews from a public toy
+# corpus. Everything here is fictional demo data for dev/seed-demo.sh; see
+# the header of that script for the format.
+slug: demo-sentiment
+title: "Demo: review sentiment"
+description: >-
+  Demo data. Binary sentiment classification of short movie and product
+  reviews from a public toy corpus, from linear baselines to a small
+  distilled encoder.
+dataset_revision: toy-reviews-v2
+members:
+  ada: researcher
+  ben: researcher
+  chloe: member
+  dev: member
+  eli: viewer
+
+tracks:
+  - slug: linear-baselines
+    title: Linear baselines
+    description: Bag-of-words and n-gram features with linear classifiers. Cheap, fast and the yardstick for everything else.
+  - slug: small-encoders
+    title: Small encoders
+    description: Fine-tuning distilled transformer encoders under a 2 GPU-hour budget per run.
+  - slug: augmentation
+    title: Data augmentation
+    description: Back-translation and synonym replacement to stretch the 9,600 training reviews.
+    final: {state: paused, by: ben, reason: "Paused until the small-encoders track settles which model to augment for; no GPU budget left this month."}
+  - slug: lexicon-rules
+    title: Lexicon rules
+    description: Hand-written polarity lexicons and negation rules, kept as an interpretable reference.
+    final: {state: archived, by: ada, reason: "Rules are far behind the linear baselines on both domains; archived after #3 was rejected."}
+
+hypotheses:
+  - key: bigrams
+    by: agent
+    doc:
+      track: linear-baselines
+      title: Add word bigrams to the TF-IDF features
+      question: Do word bigrams on top of unigrams raise dev macro-F1 over the unigram control on both domains?
+      rationale: Negations such as "not good" and "never again" are split by unigram features. Bigrams capture them at almost no inference cost.
+      intervention: TF-IDF over unigrams and bigrams (min_df 2, sublinear tf), logistic regression with C tuned on a 5-fold split of train.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 at least 0.01 above the control overall, and no domain below the control.
+        falsification_criteria: Overall dev macro-F1 within 0.005 of the control, or either domain below it.
+        regression_gates: [domain]
+        compute_budget: {cpu_hours_max: 2}
+      project_fields: {seed: 13, max_features: 200000}
+    review:
+      - {by: ada, action: approve, reason: "Cheap and well-motivated; this should become the new linear reference if it holds."}
+    attempts:
+      - by: agent
+        stop: evaluated
+        seconds: 1260
+        candidate: {model: logistic-regression, features: tfidf-1-2gram, C: 4.0, min_df: 2, vocabulary_size: 184211}
+        sheet:
+          tried: Unigram plus bigram TF-IDF features with a tuned logistic regression.
+          configuration: Code 7d41c2e; data toy-reviews-v2; control tfidf-unigram-lr r1. Inherited the tokenizer and the C grid; changed the n-gram range to (1, 2).
+          observations: C=4 was best on all five folds. The vocabulary grows from 31k to 184k features; prediction time stays under 2 ms per review.
+          findings: Dev macro-F1 rises from 0.812 to about 0.846, with the larger gain on product reviews.
+          limitations: One seed only; the test split was not looked at.
+          next_question: Does character n-gram information add anything on top of word bigrams?
+          body: |
+            # Word bigrams on TF-IDF
+
+            ## What was tried
+            The unigram control was extended with word bigrams (`ngram_range=(1, 2)`, `min_df=2`, sublinear tf). The logistic regression's `C` was tuned on a 5-fold split of train over `{0.5, 1, 2, 4, 8}`.
+
+            ## Results (dev, claimed)
+
+            | Slice | Control | This run |
+            | --- | --- | --- |
+            | overall | 0.812 | 0.847 |
+            | movies | 0.821 | 0.851 |
+            | products | 0.803 | 0.842 |
+
+            Most of the gain comes from negated phrases: the bigram weights with the largest magnitude are `not worth`, `not bad`, `no complaints` and `waste of`.
+
+            ## Caveats
+            Single seed. Test split untouched, as the plan requires.
+        results:
+          - {metric: macro_f1, split: dev, claimed: 0.847, verified: 0.846, n: 1200, control: 0.812, ci: [0.833, 0.859]}
+          - {metric: macro_f1, split: dev, dims: {domain: movies}, claimed: 0.851, verified: 0.851, n: 600, control: 0.821}
+          - {metric: macro_f1, split: dev, dims: {domain: products}, claimed: 0.842, verified: 0.840, n: 600, control: 0.803}
+          - {metric: accuracy, split: dev, claimed: 0.848, verified: 0.847, n: 1200}
+          - {metric: latency_p95_ms, split: dev, claimed: 1.8, verified: 1.9, n: 1200}
+        tester_notes: Re-ran prediction from the submitted model on all 1,200 dev reviews; values match the claim within rounding.
+        verdict:
+          result: pass
+          gates:
+            - {id: primary-gain, result: pass, detail: "0.846 >= 0.812 + 0.01"}
+            - {id: no-domain-regression, result: pass, detail: "movies 0.851 >= 0.821; products 0.840 >= 0.803"}
+            - {id: latency-budget, result: pass, detail: "1.9 ms <= 20 ms"}
+          reason: Every gate passes; dev macro-F1 is 0.034 above the control and both domains improve.
+          compare:
+            - {metric: macro_f1, split: dev, reference: {value: 0.812, label: "TF-IDF unigrams (control)", kind: baseline, ref: tfidf-unigram-lr}}
+            - {metric: macro_f1, split: dev, dims: {domain: products}, reference: {value: 0.803, label: "TF-IDF unigrams (control)", kind: baseline, ref: tfidf-unigram-lr}}
+        decision: {by: ada, action: promote, reason: "Clear gain on both domains with negligible cost. Bigram TF-IDF is now the linear reference for this project."}
+    comments:
+      - {by: ben, on: hypothesis, body: "Nice. The top bigram weights are almost all negations, which is exactly the failure mode we saw in the unigram error analysis."}
+      - {by: ada, on: 1, body: "Promoted. @ben can you register this as a baseline in the next science revision so the encoder track compares against it?", edit: "Promoted. Ben, can you register this as a baseline in the next science revision so the small-encoders track compares against it?"}
+
+  - key: char-ngrams
+    by: agent
+    doc:
+      track: linear-baselines
+      title: Character 3-5 grams instead of word n-grams
+      question: Do character 3-5 grams beat word unigram features on dev macro-F1?
+      rationale: Product reviews contain many misspellings and brand-like tokens that word features miss.
+      intervention: TF-IDF over character 3-5 grams within word boundaries, same classifier and tuning as the control.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 at least 0.01 above the control overall.
+        falsification_criteria: Dev macro-F1 not above the control.
+        regression_gates: [domain]
+        compute_budget: {cpu_hours_max: 4}
+      relations:
+        - {kind: related_to, hypothesis: bigrams}
+    review:
+      - {by: ben, action: approve, reason: "Worth knowing whether the misspellings matter; same budget as #1."}
+    attempts:
+      - by: agent
+        stop: evaluated
+        seconds: 3480
+        candidate: {model: logistic-regression, features: tfidf-char-3-5, C: 2.0, vocabulary_size: 612480}
+        sheet:
+          tried: Character 3-5 gram TF-IDF features, char_wb analyzer, tuned logistic regression.
+          configuration: Code 7d41c2e; data toy-reviews-v2; control tfidf-unigram-lr r1. Changed the analyzer only.
+          observations: Training took 20 times longer than the control and the model is 140 MB.
+          findings: Dev macro-F1 is about the same as the control; movie reviews get slightly worse.
+          limitations: No combination with word features was tried.
+          next_question: Would char n-grams help as an addition to the bigram model rather than a replacement?
+          body: |
+            # Character n-grams
+
+            Character 3-5 grams (`analyzer="char_wb"`) replaced the word features entirely.
+
+            Dev macro-F1 lands at the control's level: products gain a little from misspelled words, movies lose a little because long-range phrasing is lost. The model is 140 MB and p95 latency is 11 ms.
+
+            Not recommended as a replacement.
+        results:
+          - {metric: macro_f1, split: dev, claimed: 0.816, verified: 0.809, n: 1200, control: 0.812, ci: [0.795, 0.823]}
+          - {metric: macro_f1, split: dev, dims: {domain: movies}, claimed: 0.812, verified: 0.806, n: 600, control: 0.821}
+          - {metric: macro_f1, split: dev, dims: {domain: products}, claimed: 0.820, verified: 0.812, n: 600, control: 0.803}
+          - {metric: accuracy, split: dev, claimed: 0.817, verified: 0.810, n: 1200}
+          - {metric: latency_p95_ms, split: dev, claimed: 9.5, verified: 11.2, n: 1200}
+        discrepancies:
+          - {metric: macro_f1, split: dev, description: "The claimed 0.816 was computed with a different tie-break on equal scores; with the scorer's rule the value is 0.809."}
+        tester_notes: The submitted model reproduces 0.809, not the claimed 0.816; see the discrepancy.
+        verdict:
+          result: fail
+          gates:
+            - {id: primary-gain, result: fail, detail: "0.809 < 0.812 + 0.01"}
+            - {id: no-domain-regression, result: fail, detail: "movies 0.806 < 0.821"}
+            - {id: latency-budget, result: pass, detail: "11.2 ms <= 20 ms"}
+          reason: The primary gain gate fails and movie reviews regress against the control.
+          compare:
+            - {metric: macro_f1, split: dev, reference: {value: 0.812, label: "TF-IDF unigrams (control)", kind: baseline, ref: tfidf-unigram-lr}}
+        decision: {by: ben, action: reject, reason: "No gain overall, a movie regression, and a model 30 times larger. Not worth pursuing as a replacement."}
+    comments:
+      - {by: dev, on: 1, body: "The discrepancy is the tie-break thing again. Should the agent instructions mention the scorer's rule (ties go to negative)?"}
+      - {by: ben, on: 1, body: "Yes, added to the agent notes. Good catch."}
+
+  - key: negation-lexicon
+    by: ada
+    doc:
+      track: lexicon-rules
+      title: Polarity lexicon with negation scope
+      question: Can a polarity lexicon with a three-token negation scope reach the unigram control's dev macro-F1?
+      rationale: An interpretable rule set would help explain classifier errors to non-specialists.
+      intervention: Sum lexicon polarities, flip within three tokens after a negation cue, threshold tuned on train.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [dev]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 within 0.03 of the control.
+        falsification_criteria: Dev macro-F1 more than 0.03 below the control.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 1}
+    review:
+      - {by: ben, action: approve, reason: "Fine as a reference point; keep it to one attempt."}
+    attempts:
+      - by: ben
+        stop: evaluated
+        seconds: 900
+        candidate: {model: lexicon-rules, lexicon: demo-polarity-lexicon-v1, negation_scope: 3, threshold: 0.15}
+        sheet:
+          tried: Lexicon polarity sum with negation flipping, threshold tuned on train.
+          configuration: Demo polarity lexicon v1 (6,800 entries); negation cues "not", "no", "never", "n't".
+          observations: Sarcasm and comparisons ("better than the last one") are misclassified systematically.
+          findings: Dev macro-F1 about 0.71, far below the control.
+          limitations: No intensifiers or domain-specific terms.
+          next_question: None in this track; rules are too far behind.
+          body: |
+            # Lexicon rules
+
+            Dev macro-F1 is 0.712. Errors are dominated by sarcasm, comparisons and product jargon ("runs hot", "eats batteries") that the lexicon does not cover.
+        results:
+          - {metric: macro_f1, split: dev, claimed: 0.712, verified: 0.712, n: 1200, control: 0.812}
+          - {metric: macro_f1, split: dev, dims: {domain: movies}, claimed: 0.734, verified: 0.734, n: 600}
+          - {metric: macro_f1, split: dev, dims: {domain: products}, claimed: 0.690, verified: 0.690, n: 600}
+        tester_notes: Deterministic rules; reproduced exactly.
+        verdict:
+          result: fail
+          gates:
+            - {id: primary-gain, result: fail, detail: "0.712 < 0.812"}
+            - {id: no-domain-regression, result: fail, detail: "both domains below the control"}
+            - {id: latency-budget, result: pass}
+          reason: Far below the control on both domains.
+        decision: {by: ada, action: reject, reason: "As expected the rules are 0.10 behind. Keeping the error analysis, archiving the track."}
+
+  - key: distilbert-base
+    by: agent
+    doc:
+      track: small-encoders
+      title: Fine-tune a distilled encoder for three epochs
+      question: Does a fine-tuned distilled encoder beat the bigram TF-IDF model on dev macro-F1?
+      rationale: Contextual encoders handle negation and sarcasm far better than bag-of-words features, and a distilled one fits the latency budget on CPU.
+      intervention: Fine-tune a 66M-parameter distilled encoder, max length 256, 3 epochs, learning rate 3e-5, batch 32.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 at least 0.02 above the bigram model (0.846), no domain regression, p95 latency under 20 ms.
+        falsification_criteria: Dev macro-F1 below 0.846.
+        regression_gates: [domain, latency-budget]
+        compute_budget: {gpu_hours_max: 2}
+      project_fields: {seed: 7}
+      relations:
+        - {kind: derived_from, hypothesis: bigrams}
+    review:
+      - {by: ada, action: request_revision, reason: "Please state the latency budget explicitly in the success criteria; an encoder that is 30 ms at p95 is not usable for us."}
+      - revise:
+          plan:
+            selection_splits: [dev]
+            confirmation_splits: [test]
+            primary_metric: macro_f1
+            required_slices: [domain]
+            success_criteria: Dev macro-F1 at least 0.02 above the bigram model (0.846), no domain regression, and p95 CPU latency under 20 ms per review.
+            falsification_criteria: Dev macro-F1 below 0.846, or p95 latency above 20 ms.
+            regression_gates: [domain, latency-budget]
+            compute_budget: {gpu_hours_max: 2}
+      - {by: ada, action: approve, reason: "Latency budget is explicit now. Approved."}
+    attempts:
+      - by: agent
+        stop: released
+        seconds: 1500
+        release: "The GPU node was preempted twice during epoch 2 and the checkpoint was not saved; giving up this attempt."
+        failure_decision: {by: ada, action: retry, reason: "Infrastructure problem, not a result. Retry once checkpoints are written every 500 steps."}
+      - by: agent
+        stop: evaluated
+        seconds: 6900
+        candidate: {model: distilled-encoder-66m, max_length: 256, epochs: 3, learning_rate: 3.0e-5, batch_size: 32, checkpoint_every: 500}
+        sheet:
+          tried: Fine-tuned a distilled encoder for 3 epochs with checkpoints every 500 steps.
+          configuration: Code a19f03b; data toy-reviews-v2; seed 7. New in this attempt is checkpointing; everything else as in the approved plan.
+          observations: Dev loss bottoms out in epoch 2; epoch 3 slightly overfits but macro-F1 is still highest there.
+          findings: Dev macro-F1 about 0.90, well above the bigram model, with p95 CPU latency of 14 ms.
+          limitations: One seed; latency measured on a 4-core laptop CPU.
+          next_question: Does the gain hold with two more seeds and on the test split?
+          body: |
+            # Distilled encoder, 3 epochs
+
+            Second attempt after the first one lost its GPU node; checkpoints are now written every 500 steps.
+
+            | Slice | Bigram TF-IDF | Encoder |
+            | --- | --- | --- |
+            | overall | 0.846 | 0.902 |
+            | movies | 0.851 | 0.915 |
+            | products | 0.840 | 0.889 |
+
+            p95 latency on CPU (batch 1, 256 tokens max): 14 ms.
+
+            The largest gains are on sarcastic movie reviews, which the TF-IDF model labels positive almost every time.
+        results:
+          - {metric: macro_f1, split: dev, claimed: 0.902, verified: 0.901, n: 1200, control: 0.812, ci: [0.889, 0.912]}
+          - {metric: macro_f1, split: dev, dims: {domain: movies}, claimed: 0.915, verified: 0.914, n: 600}
+          - {metric: macro_f1, split: dev, dims: {domain: products}, claimed: 0.889, verified: 0.888, n: 600}
+          - {metric: accuracy, split: dev, claimed: 0.903, verified: 0.902, n: 1200}
+          - {metric: latency_p95_ms, split: dev, claimed: 14.0, verified: 15.2, n: 1200}
+        tester_notes: Latency re-measured on the tester's reference CPU, slightly slower than claimed but within budget.
+        verdict:
+          result: pass
+          gates:
+            - {id: primary-gain, result: pass, detail: "0.901 >= 0.846 + 0.02"}
+            - {id: no-domain-regression, result: pass}
+            - {id: latency-budget, result: pass, detail: "15.2 ms <= 20 ms"}
+          reason: All gates pass; a 0.055 gain over the bigram model within the latency budget.
+          compare:
+            - {metric: macro_f1, split: dev, reference: {value: 0.846, label: "Bigram TF-IDF (#1)", kind: promoted_attempt, ref: "demo-sentiment#1"}}
+            - {metric: latency_p95_ms, split: dev, reference: {value: 20, label: "Latency budget", kind: manual}}
+    comments:
+      - {by: ben, on: hypothesis, body: "Before promoting I'd like a second seed. 0.90 from one run on 1,200 reviews has a CI of about ±0.012."}
+      - {by: chloe, on: 2, body: "The 15 ms p95 is on the tester's CPU. Our serving boxes are a bit faster, so there is some headroom."}
+
+  - key: encoder-longer
+    by: agent
+    doc:
+      track: small-encoders
+      title: Train the distilled encoder for five epochs with early stopping
+      question: Does training up to five epochs with early stopping on dev loss improve on the three-epoch encoder?
+      rationale: The three-epoch run was still improving on products at the end of epoch 3.
+      intervention: Same setup as the three-epoch encoder, up to 5 epochs, early stopping with patience 1 on dev loss.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 above the three-epoch encoder by at least 0.005.
+        falsification_criteria: Dev macro-F1 not above the three-epoch encoder.
+        regression_gates: [domain, latency-budget]
+        compute_budget: {gpu_hours_max: 3}
+      project_fields: {seed: 7}
+      relations:
+        - {kind: derived_from, hypothesis: distilbert-base}
+    review:
+      - {by: ada, action: approve, reason: "Cheap follow-up; approve."}
+    attempts:
+      - by: agent
+        stop: tested
+        seconds: 9400
+        candidate: {model: distilled-encoder-66m, max_length: 256, max_epochs: 5, early_stopping_patience: 1, learning_rate: 3.0e-5}
+        sheet:
+          tried: Up to five epochs with early stopping on dev loss.
+          configuration: As the three-epoch encoder; changed max epochs and added early stopping.
+          observations: Early stopping triggered after epoch 4.
+          findings: Dev macro-F1 about 0.905, a marginal gain.
+          limitations: One seed.
+          next_question: Is the gain within seed noise?
+          body: |
+            # Encoder, early stopping
+
+            Stopped after epoch 4. Dev macro-F1 0.905 (claimed) against 0.901 for the three-epoch run. Likely within seed noise.
+        results:
+          - {metric: macro_f1, split: dev, claimed: 0.905, verified: 0.904, n: 1200, control: 0.812}
+          - {metric: macro_f1, split: dev, dims: {domain: movies}, claimed: 0.914, verified: 0.913, n: 600}
+          - {metric: macro_f1, split: dev, dims: {domain: products}, claimed: 0.896, verified: 0.895, n: 600}
+          - {metric: latency_p95_ms, split: dev, claimed: 14.0, verified: 15.1, n: 1200}
+        tester_notes: Reproduced within 0.001.
+
+  - key: encoder-seeds
+    by: ben
+    doc:
+      track: small-encoders
+      title: Three-seed check of the distilled encoder
+      question: Is the three-epoch encoder's dev macro-F1 stable across seeds 7, 21 and 42?
+      rationale: A single seed cannot tell a 0.005 difference from noise; we need the spread before comparing variants.
+      intervention: Re-run the three-epoch recipe with seeds 21 and 42 and report the mean and spread with seed 7.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [dev]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Mean dev macro-F1 above 0.89 with a seed range under 0.01.
+        falsification_criteria: Seed range above 0.02.
+        regression_gates: []
+        compute_budget: {gpu_hours_max: 4}
+      relations:
+        - {kind: related_to, hypothesis: distilbert-base}
+    review:
+      - {by: ada, action: approve, reason: "Exactly what is needed before deciding #4."}
+    attempts:
+      - by: agent
+        stop: submitted
+        seconds: 13200
+        candidate: {model: distilled-encoder-66m, seeds: [7, 21, 42], epochs: 3}
+        sheet:
+          tried: The three-epoch recipe with seeds 7, 21 and 42.
+          configuration: Unchanged recipe; seeds varied.
+          observations: Seed 21 converged slower but ended close to the others.
+          findings: Mean dev macro-F1 about 0.899, range 0.006.
+          limitations: Three seeds only.
+          next_question: Can #4 be promoted on this evidence?
+          body: |
+            # Three seeds
+
+            | Seed | Dev macro-F1 |
+            | --- | --- |
+            | 7 | 0.902 |
+            | 21 | 0.896 |
+            | 42 | 0.899 |
+
+            Mean 0.899, range 0.006.
+        results:
+          - {metric: macro_f1, split: dev, claimed: 0.899, n: 1200}
+          - {metric: macro_f1, split: dev, dims: {domain: movies}, claimed: 0.911, n: 600}
+          - {metric: macro_f1, split: dev, dims: {domain: products}, claimed: 0.887, n: 600}
+
+  - key: quantized-encoder
+    by: agent
+    doc:
+      track: small-encoders
+      title: 8-bit dynamic quantization of the encoder
+      question: Does 8-bit dynamic quantization keep dev macro-F1 within 0.005 of the float encoder while halving p95 latency?
+      rationale: Halving latency would leave room for a larger encoder within the budget.
+      intervention: Post-training dynamic int8 quantization of the linear layers of the three-epoch encoder.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Macro-F1 within 0.005 of the float encoder and p95 latency at most 8 ms.
+        falsification_criteria: Macro-F1 drops by more than 0.01.
+        regression_gates: [latency-budget]
+        compute_budget: {cpu_hours_max: 1}
+      relations:
+        - {kind: derived_from, hypothesis: distilbert-base}
+    review:
+      - {by: ben, action: approve, reason: "Approved; quick and useful for serving."}
+    attempts:
+      - by: agent
+        stop: running
+        candidate: {}
+
+  - key: tfidf-svm
+    by: agent
+    doc:
+      track: linear-baselines
+      title: Linear SVM on the bigram features
+      question: Does a linear SVM beat logistic regression on the same bigram TF-IDF features?
+      rationale: SVMs often edge out logistic regression on sparse text features.
+      intervention: Replace the logistic regression with a linear SVM (hinge loss), C tuned the same way, Platt scaling for scores.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 at least 0.005 above the bigram logistic regression.
+        falsification_criteria: Not above the bigram logistic regression.
+        regression_gates: [domain]
+        compute_budget: {cpu_hours_max: 1}
+      relations:
+        - {kind: related_to, hypothesis: bigrams}
+    review:
+      - {by: ada, action: approve, reason: "Fine, low priority; queue it."}
+
+  - key: backtranslation
+    by: agent
+    doc:
+      track: augmentation
+      title: Back-translation through French and German
+      question: Does doubling the training set with back-translated reviews raise the encoder's dev macro-F1?
+      rationale: Paraphrases add lexical variety without changing sentiment.
+      intervention: Translate each training review to French and German and back, keep paraphrases with a similarity above 0.8, fine-tune the encoder on the union.
+      control: {kind: baseline, id: tfidf-unigram-lr, revision: r1}
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 at least 0.005 above the encoder trained on the original data.
+        falsification_criteria: No gain over the original-data encoder.
+        regression_gates: [domain]
+        compute_budget: {gpu_hours_max: 6}
+    review:
+      - {by: ben, action: approve, reason: "Approved, but the track is about to be paused; it will wait in the queue."}
+
+  - key: synonym-swap
+    by: agent
+    doc:
+      track: augmentation
+      title: Synonym replacement for rare adjectives
+      question: Does replacing rare adjectives with frequent synonyms in training reviews help the bigram model?
+      rationale: Rare adjectives get almost no weight in the linear model.
+      intervention: Replace adjectives seen fewer than 5 times with a frequent synonym from a thesaurus, 1 augmented copy per review.
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Dev macro-F1 above the bigram model.
+        falsification_criteria: Not above the bigram model.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 1}
+    review:
+      - {by: ada, action: decline, reason: "Synonym swaps flip sentiment too often (\"decent\" for \"great\"); the paraphrase approach in back-translation covers this better."}
+
+  - key: label-noise
+    by: agent
+    doc:
+      track: linear-baselines
+      title: Estimate label noise with confident learning
+      question: What fraction of the training labels are likely wrong, and does removing them change dev macro-F1?
+      rationale: Some toy-corpus reviews look mislabeled (5-star text labeled negative). Knowing the noise rate sets a ceiling on what any model can reach.
+      intervention: Out-of-fold probabilities from the bigram model, flag examples whose given label has a probability under 0.1, retrain without them.
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [dev]
+        primary_metric: macro_f1
+        required_slices: []
+        success_criteria: A noise estimate with a manual check of 100 flagged reviews.
+        falsification_criteria: Fewer than half of the checked flags are real label errors.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 1}
+    review:
+      - {by: ada, action: request_revision, reason: "Who checks the 100 flagged reviews, and against which guideline? Please add that to the plan."}
+
+  - key: emoji-features
+    by: agent
+    doc:
+      track: linear-baselines
+      title: Keep emoji and emoticons as tokens
+      question: Does keeping emoji and emoticons as tokens raise dev macro-F1 on product reviews?
+      rationale: The default tokenizer drops them, but ":(" and thumbs-down are strong signals in product reviews.
+      intervention: Custom token pattern that keeps emoji and the 40 most common ASCII emoticons, bigram TF-IDF otherwise unchanged.
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [test]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Product-review macro-F1 at least 0.005 above the bigram model, movies unchanged.
+        falsification_criteria: No product gain.
+        regression_gates: [domain]
+        compute_budget: {cpu_hours_max: 1}
+      relations:
+        - {kind: derived_from, hypothesis: bigrams}
+
+  - key: stale-vocab
+    by: ben
+    doc:
+      track: linear-baselines
+      title: Rebuild the vocabulary on train plus unlabeled reviews
+      question: Does fitting the TF-IDF vocabulary on train plus the unlabeled pool change dev macro-F1?
+      rationale: The IDF weights come from 9,600 reviews only; the unlabeled pool has 20,000 more.
+      intervention: Fit the vectorizer on train plus the unlabeled pool, the classifier on train only.
+      plan:
+        selection_splits: [dev]
+        confirmation_splits: [dev]
+        primary_metric: macro_f1
+        required_slices: [domain]
+        success_criteria: Any gain above 0.003.
+        falsification_criteria: No gain.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 1}
+    review:
+      - {by: ada, action: approve, reason: "OK."}
+    attempts:
+      - by: ben
+        stop: released
+        seconds: 600
+        release: "The unlabeled pool in toy-reviews-v2 turned out to overlap the dev split (about 300 reviews), so the experiment would leak. Releasing until the dataset is fixed."
+        failure_decision: {by: ada, action: close_failed, reason: "Cannot run without leaking dev reviews; closing. Re-draft once toy-reviews-v3 removes the overlap."}
+    comments:
+      - {by: dev, on: hypothesis, body: "I counted 312 overlapping reviews between the unlabeled pool and dev. Opened a dataset ticket for v3."}
