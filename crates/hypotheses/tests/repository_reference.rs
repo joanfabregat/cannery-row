@@ -642,10 +642,6 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
             link(&p, r)
         })?,
     );
-    let version: String = sqlx::query_scalar("SHOW server_version")
-        .fetch_one(c)
-        .await?;
-    out.insert("server-version".into(), json!([version]));
     Ok(Value::Object(out))
 }
 // A single dispatch mirrors the frozen source recipes without changing failures.
@@ -927,6 +923,11 @@ async fn repository_matches_frozen_python() -> Result<()> {
         }
     }
     expected["warmup"] = f["native_warmup"].clone();
+    // The server version string depends on the PostgreSQL build, not on the code.
+    expected
+        .as_object_mut()
+        .ok_or("observations absent")?
+        .remove("server-version");
     source_float_tokens(&mut expected)?;
     let mut observed = scenario(&mut c, recipes).await?;
     observed["concurrency"] = concurrency(&url).await?;

@@ -24,7 +24,6 @@ uuid.workspace = true
 getrandom.workspace = true
 serde_json.workspace = true
 url.workspace = true
-[dev-dependencies]
-reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls"] }
+
 [lints]
 workspace = true

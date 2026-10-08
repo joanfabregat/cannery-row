@@ -31,6 +31,3 @@ url.workspace = true
 uuid.workspace = true
 whoami.workspace = true
 zmij.workspace = true
-
-[dev-dependencies]
-conformance = { path = "../conformance", version = "=0.1.0" }

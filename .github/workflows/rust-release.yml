@@ -1,10 +1,23 @@
 name: Rust release builds
 
 on:
+  # Path filters never skip a tag push.
   pull_request:
+    paths-ignore: &not-in-release
+      - "docs/**"
+      - "*.md"
+      - "LICENSE"
+      - "LICENSES/**"
+      - "ci/**"
+      - "dev/**"
+      - "deploy/**"
+      - "tests/references/**"
+      - ".github/dependabot.yml"
+      - ".github/workflows/rust.yml"
   push:
     branches: [main]
     tags: ["v*"]
+    paths-ignore: *not-in-release
 
 permissions:
   contents: read
@@ -19,6 +32,10 @@ env:
   CARGO_PROFILE_TEST_DEBUG: "0"
   MUSL_BUILD_IMAGE: docker.io/library/rust:1.99.0-alpine3.24@sha256:a96ea6d18d4062e38f16cfbadd8b4541d622f2527dd0a5eca1fb36d301da4e88
   NODE_BUILD_IMAGE: docker.io/library/node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
+  CARGO_AUDIT_VERSION: 0.22.2
+
+# Dependency build caches are saved only from main, restored on pull
+# requests and main, and never used for tag builds, which start clean.
 
 jobs:
   prepare:
@@ -32,11 +49,19 @@ jobs:
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067
         with:
           toolchain: "1.99.0"
+      - name: Restore cargo-audit
+        id: cargo-audit
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ env.CARGO_AUDIT_VERSION }}-rust-1.99.0-${{ runner.os }}-${{ runner.arch }}
+      - name: Install cargo-audit
+        if: steps.cargo-audit.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --version "$CARGO_AUDIT_VERSION" --locked
       - name: Fetch and audit both frozen Rust graphs
         run: |
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/sqlx-cli/Cargo.toml
-          cargo install cargo-audit --version 0.22.2 --locked
           cargo audit
           cargo audit --file tools/sqlx-cli/Cargo.lock
       - uses: EmbarkStudios/cargo-deny-action@9c67a826e39827395bfa619cd85cb2aaeb43cfaa
@@ -51,6 +76,8 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
       - name: Fetch and audit the web dependencies
         working-directory: web
         run: |
@@ -60,7 +87,7 @@ jobs:
         run: |
           docker run --rm --user "$(id -u):$(id -g)" --network none --cap-drop ALL \
             --security-opt no-new-privileges --read-only \
-            --tmpfs /tmp:rw,nosuid,nodev,size=512m --memory 4g --cpus 2 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=512m --memory 4g --cpus "$(nproc)" \
             -v "$PWD/web:/web" -w /web \
             -e npm_config_nodedir=/usr/local -e npm_config_cache=/tmp/npm-cache \
             "$NODE_BUILD_IMAGE" /bin/sh -c \
@@ -118,6 +145,23 @@ jobs:
             -v "$RUNNER_TEMP/musl-cargo:/cargo" -e CARGO_HOME=/cargo \
             "$MUSL_BUILD_IMAGE" /usr/local/cargo/bin/cargo fetch \
             --locked --target "$CANNERY_BUILD_TARGET"
+      # Dependencies compiled by an earlier main build for this target and
+      # image; the workspace crates are pruned before saving and always
+      # rebuilt.
+      - name: Restore the dependency build
+        id: musl-cache
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: &musl-cache-paths |
+            target/${{ matrix.target }}/release/build
+            target/${{ matrix.target }}/release/deps
+            target/${{ matrix.target }}/release/.fingerprint
+            target/release/build
+            target/release/deps
+            target/release/.fingerprint
+          key: musl-release-${{ matrix.target }}-${{ env.MUSL_BUILD_IMAGE }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: musl-release-${{ matrix.target }}-${{ env.MUSL_BUILD_IMAGE }}-
       - name: Build the production binary offline
         env:
           CANNERY_BUILD_TARGET: ${{ matrix.target }}
@@ -126,7 +170,7 @@ jobs:
           cp -a "$RUNNER_TEMP/musl-cargo/." "$RUNNER_TEMP/musl-build-cargo/"
           docker run --rm --user "$(id -u):$(id -g)" --network none --cap-drop ALL \
             --security-opt no-new-privileges --read-only \
-            --tmpfs /tmp:rw,nosuid,nodev,size=1g --memory 6g --cpus 2 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=1g --memory 12g --cpus "$(nproc)" \
             -v "$PWD:/workspace" -w /workspace \
             -v "$RUNNER_TEMP/musl-cargo:/fetch:ro" \
             -v "$RUNNER_TEMP/musl-build-cargo:/build-cargo" \
@@ -149,8 +193,9 @@ jobs:
           file "$binary"
           readelf -l "$binary" > "$RUNNER_TEMP/program-headers"
           readelf -d "$binary" > "$RUNNER_TEMP/dynamic-entries"
-          ! grep -q INTERP "$RUNNER_TEMP/program-headers"
-          ! grep -q NEEDED "$RUNNER_TEMP/dynamic-entries"
+          # `! cmd` alone does not trip errexit.
+          if grep -q INTERP "$RUNNER_TEMP/program-headers"; then exit 1; fi
+          if grep -q NEEDED "$RUNNER_TEMP/dynamic-entries"; then exit 1; fi
           "$binary" --help > /dev/null
           "$binary" openapi > "$RUNNER_TEMP/openapi.json"
           cmp web/openapi.json "$RUNNER_TEMP/openapi.json"
@@ -240,6 +285,26 @@ jobs:
           path: target/cannery-${{ matrix.target }}.tar.gz
           if-no-files-found: error
           retention-days: 7
+      - name: Prune the workspace crates from the dependency build
+        if: github.ref == 'refs/heads/main' && steps.musl-cache.outputs.cache-hit != 'true'
+        env:
+          CANNERY_BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          for profile in "target/$CANNERY_BUILD_TARGET/release" target/release; do
+            for dir in build deps .fingerprint; do
+              [[ -d "$profile/$dir" ]] || continue
+              find "$profile/$dir" -mindepth 1 -maxdepth 1 \( -name 'cannery*' -o -name 'libcannery*' \
+                -o -name 'conformance*' -o -name 'libconformance*' \) -exec rm -rf {} +
+            done
+          done
+          du -sh target/release "target/$CANNERY_BUILD_TARGET/release" || true
+      - name: Save the dependency build
+        if: github.ref == 'refs/heads/main' && steps.musl-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: *musl-cache-paths
+          key: musl-release-${{ matrix.target }}-${{ env.MUSL_BUILD_IMAGE }}-${{ hashFiles('Cargo.lock') }}
 
   macos:
     name: Native macOS arm64
@@ -258,6 +323,10 @@ jobs:
         with:
           toolchain: "1.99.0"
           targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Fetch for the native Apple target
         run: cargo fetch --locked --target aarch64-apple-darwin
       - name: Build production offline
@@ -275,7 +344,8 @@ jobs:
           binary="$PWD/target/aarch64-apple-darwin/release/cannery"
           file "$binary" | grep -q arm64
           otool -L "$binary" > "$RUNNER_TEMP/mac-libraries"
-          ! grep -Ei 'libssl|libcrypto|libpq' "$RUNNER_TEMP/mac-libraries"
+          # `! cmd` alone does not trip errexit.
+          if grep -Ei 'libssl|libcrypto|libpq' "$RUNNER_TEMP/mac-libraries"; then exit 1; fi
           "$binary" --help > /dev/null
           "$binary" openapi > "$RUNNER_TEMP/mac-openapi.json"
           cmp web/openapi.json "$RUNNER_TEMP/mac-openapi.json"
@@ -345,6 +415,13 @@ jobs:
         with:
           toolchain: "1.99.0"
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          workspaces: |
+            . -> target
+            tools/sqlx-cli -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Fetch the already audited graphs
         run: |
           cargo fetch --locked

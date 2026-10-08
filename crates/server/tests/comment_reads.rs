@@ -247,10 +247,13 @@ async fn comment_reads_match_production() -> Result<()> {
     ];
     assert_eq!(fixture["tables"], json!(tables));
     for table in tables {
-        let sql =
-            format!("SELECT row_to_json(t)::text FROM {table} t ORDER BY row_to_json(t)::text");
-        let storage: Vec<String> = sqlx::query_scalar(&sql).fetch_all(&state.pool).await?;
-        if json!(storage) != fixture["storage"][table] {
+        // Compared as sorted sets: the database collation must not decide the order.
+        let sql = format!("SELECT row_to_json(t)::text FROM {table} t");
+        let mut storage: Vec<String> = sqlx::query_scalar(&sql).fetch_all(&state.pool).await?;
+        storage.sort();
+        let mut expected: Vec<String> = serde_json::from_value(fixture["storage"][table].clone())?;
+        expected.sort();
+        if storage != expected {
             failures.push(json!({"kind":"storage","table":table}));
         }
     }

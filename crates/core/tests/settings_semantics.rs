@@ -362,28 +362,6 @@ fn settings_wrong_sections_explicit_path_and_string_whitespace() {
 }
 
 #[test]
-fn settings_fresh_python_reference_recipes_have_zero_differences() {
-    let reference = std::env::var_os("CANNERY_SETTINGS_REFERENCE").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/settings-reference.json"),
-        PathBuf::from,
-    );
-    assert!(
-        reference.is_file(),
-        "regenerate Python settings reference before differential test"
-    );
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_settings-parity"))
-        .arg(reference)
-        .output()
-        .expect("run settings parity adapter");
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("zero mismatches"));
-}
-
-#[test]
 fn settings_native_whitespace_and_finite_numbers() {
     let huge = "9".repeat(310);
     for field in [

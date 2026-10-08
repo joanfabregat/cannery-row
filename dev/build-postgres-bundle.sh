@@ -15,7 +15,7 @@
 source "$(dirname "$0")/common.sh"
 
 # Per-architecture manifests of buildpack-deps:bookworm; the same pins are
-# in the managed-postgres job of .github/workflows/rust.yml.
+# in ci/postgres-bundle.sh, which CI uses.
 case $(uname -m) in
   x86_64) BUILD_IMAGE=docker.io/library/buildpack-deps:bookworm@sha256:672aaedcfec98774308e902ae592697bc34b05d58f62104015cf3511f58e318a ;;
   aarch64) BUILD_IMAGE=docker.io/library/buildpack-deps:bookworm@sha256:713468e310395862392894a4dea5996eb8f6f76498c74dcbd37613e0f740096f ;;

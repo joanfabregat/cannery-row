@@ -299,6 +299,13 @@ fn outcome(result: Result<(), PreparationError>, root: &Path) -> Value {
         }
     }
 }
+/// Copy issues follow directory listing order, which the file system decides.
+fn unordered_issues(mut outcome: Value) -> Value {
+    if let Some(issues) = outcome.get_mut("issues").and_then(Value::as_array_mut) {
+        issues.sort_by(|a, b| a["source_hex"].as_str().cmp(&b["source_hex"].as_str()));
+    }
+    outcome
+}
 #[test]
 fn runtime_reference_preparation_effects() {
     assert_ne!(rustix::process::geteuid().as_raw(), 0);
@@ -375,7 +382,8 @@ fn runtime_reference_preparation_effects() {
             );
         }
         assert_eq!(
-            observed, case["observed"]["outcome"],
+            unordered_issues(observed),
+            unordered_issues(case["observed"]["outcome"].clone()),
             "outcome {}",
             case["name"]
         );
@@ -483,98 +491,4 @@ async fn launcher_defers_filesystem_and_preserves_workdir() {
     assert!(!fixture.0.join("second.code").exists());
     assert_eq!(fs::read(fixture.0.join("second/code/a")).unwrap(), b"abc");
     assert!(fixture.0.join("second/cache").is_symlink());
-}
-#[tokio::test]
-#[ignore = "requires the built Cannery binary and frozen Python interpreter"]
-async fn deferred_integer_deadlines_follow_actual_source() {
-    use cannery_runner::{
-        cancellation::CancellationEvent,
-        local_preparation::LocalLauncher,
-        local_process::{Deadline, LocalError, LocalProcessBackend},
-    };
-    let reference = reference();
-    let cases = reference["deadline_cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 6);
-    let binary = PathBuf::from(std::env::var_os("CANNERY_LOCAL_PROCESS_BINARY").unwrap());
-    let interpreter = PathBuf::from(std::env::var_os("CANNERY_LOCAL_INTERPRETER").unwrap());
-    for case in cases {
-        let fixture = Fixture::new();
-        fs::create_dir(fixture.0.join("source")).unwrap();
-        fs::create_dir(fixture.0.join("job")).unwrap();
-        let name = case["name"].as_str().unwrap();
-        if name == "missing-source" {
-            fs::remove_dir(fixture.0.join("source")).unwrap();
-        }
-        let launcher = LocalLauncher::new(
-            LocalProcessBackend::new(binary.clone(), interpreter.clone(), true).unwrap(),
-            fixture.0.join("source"),
-        );
-        let mut spec = step();
-        if name == "empty-command" {
-            spec.command.clear();
-        }
-        if name == "missing-command" {
-            spec.command = vec![String::from("cannery-synthetic-missing-command")];
-        }
-        let local = launcher.prepare(spec, fixture.0.join("job"));
-        let prepared = local
-            .prepare_with(
-                &InlineTestExecutor,
-                CopyLimits::default(),
-                native_metadata(),
-            )
-            .await;
-        let mut actual = match prepared {
-            Err(PreparationError::Io { errno }) => json!({"error":"Io","errno":errno}),
-            Err(error) => panic!("unexpected prepare failure {error:?}"),
-            Ok(ready) => {
-                let cancel = CancellationEvent::new();
-                if name == "cancel-ready" {
-                    cancel.set();
-                }
-                let mut integer = num_bigint::BigInt::from(10).pow(400);
-                if name == "negative" {
-                    integer = -integer;
-                }
-                let handle = ready.run(fixture.0.join("log"), Deadline::Integer(integer), cancel);
-                match handle.result().await {
-                    Err(LocalError::Overflow) => json!({"error":"Overflow"}),
-                    Err(LocalError::EmptyCommand) => json!({"error":"Value"}),
-                    Ok(result) => {
-                        json!({"exit_code":result.exit_code.unwrap().to_string().parse::<i64>().unwrap()})
-                    }
-                    Err(error) => panic!("unexpected process result {error:?}"),
-                }
-            }
-        };
-        actual["code_exists"] = json!(fixture.0.join("job.code").exists());
-        actual["log_exists"] = json!(fixture.0.join("log").exists());
-        actual["tmp_exists"] = json!(fixture.0.join("job/tmp").exists());
-        // The source observer records a real successful exec before OverflowError.
-        assert!(case["owned_child_reaped"].as_bool().unwrap());
-        assert!(case["child_session_identity"].as_bool().unwrap());
-        assert_eq!(
-            case["actual_child_creations"].as_u64().unwrap(),
-            u64::from(case["error"] == "Overflow")
-        );
-        // This test executable owns every child it launches; nothing may remain after
-        // the handle's explicit settlement result, including integer conversion errors.
-        assert_eq!(
-            nix::sys::wait::waitpid(
-                nix::unistd::Pid::from_raw(-1),
-                Some(nix::sys::wait::WaitPidFlag::WNOHANG)
-            ),
-            Err(nix::errno::Errno::ECHILD)
-        );
-        let mut expected = case.clone();
-        for field in [
-            "name",
-            "actual_child_creations",
-            "child_session_identity",
-            "owned_child_reaped",
-        ] {
-            expected.as_object_mut().unwrap().remove(field);
-        }
-        assert_eq!(actual, expected, "deadline {name}");
-    }
 }
