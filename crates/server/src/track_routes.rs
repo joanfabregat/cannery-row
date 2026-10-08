@@ -286,7 +286,7 @@ async fn binding(
     .await
     .map_err(|e| science_error(c, e))
 }
-const SNAPSHOT: &[&str] = &[
+pub(crate) const SNAPSHOT: &[&str] = &[
     "title",
     "description",
     "producer",

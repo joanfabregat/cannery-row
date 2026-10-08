@@ -25,6 +25,30 @@ tracks:
     title: Cold start
     description: What to show users with fewer than three interactions.
 
+brief:
+  by: ben
+  document: |
+    ---
+    title: Shop recommender
+    goal: >-
+      Top-10 product recommendations that beat the popularity list on
+      validation recall@10 for returning users without making cold-start
+      users worse off.
+    ---
+    # Domain
+
+    A fictional online shop with 12,000 products and synthetic implicit feedback (`toy-ratings-2026-08`): views, carts and purchases, no ratings. Most users have fewer than ten interactions.
+
+    # Constraints
+
+    - Recommendations are recomputed nightly; a model must train in under an hour on one machine.
+    - Every recommendation must be explainable on the product page, so opaque ensembles need a neighbourhood fallback.
+
+    # Conventions
+
+    - Report recall@10 and NDCG@10 per `user_segment` slice: returning and new users.
+    - The popularity list (`popularity` r1) is the control unless a promoted hypothesis is better.
+
 hypotheses:
   - key: als-64
     by: agent

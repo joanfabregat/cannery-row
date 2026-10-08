@@ -158,12 +158,17 @@ fn hash(
 }
 async fn claim_document(
     c: &mut PgConnection,
+    slug: &str,
     job: &Job,
     token: &Secret,
     ttl: &BigInt,
     profile: &JobClaimContext,
     context: &RequestContext,
 ) -> Result<crate::api_models::JobClaimOut, Failure> {
+    // A job runs under the brief its attempt pinned.
+    let brief = crate::brief_routes::pinned(c, slug, job.attempt_id)
+        .await
+        .map_err(|error| failure(context.project_error(error)))?;
     let attempt = cannery_attempts::repo::Repository::new(c, profile.attempts)
         .get_attempt_by_id(job.attempt_id, false)
         .await
@@ -197,6 +202,7 @@ async fn claim_document(
         heartbeat_seconds: std::cmp::max(BigInt::from(1), ttl / BigInt::from(3))
             .to_i64()
             .ok_or_else(|| internal(context, "job claim heartbeat"))?,
+        brief,
     })
 }
 async fn audit_claim(
@@ -436,9 +442,17 @@ pub(crate) async fn claim(
                 &context,
             )
             .await?;
-            return claim_document(&mut tx, &job, &secret, ttl, &state.profile, &context)
-                .await
-                .map(|d| (StatusCode::OK, d));
+            return claim_document(
+                &mut tx,
+                &project.slug,
+                &job,
+                &secret,
+                ttl,
+                &state.profile,
+                &context,
+            )
+            .await
+            .map(|d| (StatusCode::OK, d));
         }
         let id = repo::pick_pending(
             &mut tx,
@@ -501,9 +515,17 @@ pub(crate) async fn claim(
             .await
             .map_err(|_| internal(&context, "job claim remember"))?;
         }
-        claim_document(&mut tx, &job, &secret, ttl, &state.profile, &context)
-            .await
-            .map(|d| (StatusCode::CREATED, d))
+        claim_document(
+            &mut tx,
+            &project.slug,
+            &job,
+            &secret,
+            ttl,
+            &state.profile,
+            &context,
+        )
+        .await
+        .map(|d| (StatusCode::CREATED, d))
     }
     .await;
     let (status, d) = match result {

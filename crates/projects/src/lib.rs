@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 pub mod authz;
+pub mod briefs;
 mod error;
 pub mod repo;
 

@@ -257,11 +257,16 @@ async fn read(
                 .list_artifacts(attempt.id)
                 .await
                 .map_err(|_| internal(&context, "attempt artifacts"))?;
+            let brief =
+                crate::brief_routes::pinned(&mut auth.connection, &project.slug, attempt.id)
+                    .await
+                    .map_err(|_| internal(&context, "attempt brief"))?;
             attempt_read_wire::detail(
                 &attempt,
                 &artifacts,
                 &failures,
                 &sheet,
+                brief,
                 state.context.response,
             )
         }

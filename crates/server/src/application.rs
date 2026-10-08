@@ -237,6 +237,7 @@ fn application_with_proxy(
         .merge(crate::identity_routes::routes(state.clone()))
         .merge(crate::browser_routes::routes(state.clone()))
         .merge(crate::project_routes::routes(state.clone()))
+        .merge(crate::brief_routes::routes(state.clone())?)
         .merge(contexts.attempt_claims.map_or_else(Router::new, |context| {
             crate::attempt_claim_routes::routes(state.clone(), context)
         }))

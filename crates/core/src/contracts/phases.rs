@@ -17,6 +17,8 @@ use std::collections::{BTreeMap, BTreeSet};
 /// A phase whose output documents have a published front matter schema.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum Phase {
+    /// A project's brief: its goal, domain, constraints and conventions.
+    Brief,
     /// The claimed result sheet of a run.
     Run,
     /// The tester's verified evidence and the evaluator's assessment.
@@ -26,7 +28,7 @@ pub enum Phase {
 }
 
 impl Phase {
-    pub const ALL: [Self; 3] = [Self::Run, Self::Verification, Self::Writeup];
+    pub const ALL: [Self; 4] = [Self::Brief, Self::Run, Self::Verification, Self::Writeup];
 
     /// The phase named in a URL or a tool argument; unknown names are absent.
     #[must_use]
@@ -38,6 +40,7 @@ impl Phase {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
+            Self::Brief => "brief",
             Self::Run => "run",
             Self::Verification => "verification",
             Self::Writeup => "writeup",
@@ -199,8 +202,43 @@ mod tests {
         for phase in Phase::ALL {
             assert_eq!(Phase::from_name(phase.name()), Some(phase));
         }
-        assert_eq!(Phase::from_name("brief"), None);
+        assert_eq!(Phase::from_name("plan"), None);
         assert_eq!(Phase::from_name("Run"), None);
+    }
+
+    #[test]
+    fn brief_front_matter_is_checked() -> Result {
+        let schemas = schemas()?;
+        let document = schemas.parse(
+            Phase::Brief,
+            "---\ntitle: Herring counts\ngoal: Count herring in sonar images within 5%.\n---\n## Domain\n\nSonar.\n",
+            Limits::default(),
+        )?;
+        assert_eq!(document.front_matter["title"], "Herring counts");
+        assert_eq!(document.body, "## Domain\n\nSonar.\n");
+        assert!(accepts(
+            &schemas,
+            Phase::Brief,
+            &json!({"title": "T", "goal": "One line,\nthen another."})
+        ));
+        for invalid in [
+            json!({"title": "T"}),
+            json!({"goal": "G"}),
+            json!({"title": " ", "goal": "G"}),
+            json!({"title": "T", "goal": ""}),
+            json!({"title": "T", "goal": "One paragraph.\n\nThen a second."}),
+            json!({"title": "T", "goal": "One paragraph.\n \nThen a second."}),
+            json!({"title": "x".repeat(201), "goal": "G"}),
+            json!({"title": "T", "goal": "G", "owner": "A"}),
+        ] {
+            assert!(!accepts(&schemas, Phase::Brief, &invalid), "{invalid}");
+        }
+        assert!(
+            schemas.schema(Phase::Brief)["$defs"]
+                .get("common.schema.json")
+                .is_some()
+        );
+        Ok(())
     }
 
     #[test]

@@ -45,6 +45,9 @@ export type ServiceAccount = Schemas["ServiceAccountOut"];
 export type User = Schemas["UserOut"];
 export type ProjectOut = Schemas["ProjectOut"];
 
+export type Brief = Schemas["BriefOut"];
+export type BriefRevision = Schemas["BriefRevisionOut"];
+
 /** A measurement row of an evidence envelope (claimed or verified). */
 export interface Measurement {
   metric: string;

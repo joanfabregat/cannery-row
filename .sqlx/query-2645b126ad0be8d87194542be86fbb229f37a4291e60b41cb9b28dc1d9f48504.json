@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT b.revision, b.sha256 FROM attempts a\n        JOIN briefs b ON b.project_id = a.project_id AND b.revision = a.brief_revision\n        WHERE a.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "sha256",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "2645b126ad0be8d87194542be86fbb229f37a4291e60b41cb9b28dc1d9f48504"
+}

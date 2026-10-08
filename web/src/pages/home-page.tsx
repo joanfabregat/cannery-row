@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 
-import { useAttention } from "@/api/queries";
+import { useAttention, useBrief } from "@/api/queries";
 import type { Attention } from "@/api/types";
 import { ImportedBadge } from "@/components/imported-badge";
 import { PageHeader } from "@/components/page-header";
@@ -39,6 +39,7 @@ function Attention({ project }: { project: Project }) {
     <QueryView query={attention}>
       {(data) => (
         <div className="flex flex-col gap-6">
+          <BriefCard project={project.slug} />
           {isResearcher ? <ReviewQueue data={data} /> : null}
           <RecentOutcomes data={data} />
           <StalledEvaluations data={data} />
@@ -47,6 +48,28 @@ function Attention({ project }: { project: Project }) {
         </div>
       )}
     </QueryView>
+  );
+}
+
+/** The brief's title and goal, or a note that the project has none yet. */
+function BriefCard({ project }: { project: string }) {
+  const brief = useBrief(project);
+  if (brief.isPending || brief.isError) return null;
+  const current = brief.data;
+  return (
+    <Section
+      title="Brief"
+      description={current ? current.title : "This project has no brief yet."}
+      actions={
+        <Link to="/brief" className="text-sm font-medium hover:underline">
+          {current ? "Read the brief" : "Open the brief"}
+        </Link>
+      }
+    >
+      {current ? (
+        <p className="text-sm text-muted-foreground">{excerpt(current.goal, 300)}</p>
+      ) : null}
+    </Section>
   );
 }
 

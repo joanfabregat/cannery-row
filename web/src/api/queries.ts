@@ -152,6 +152,34 @@ export function useAttention(slug: string) {
   });
 }
 
+/** The project's current brief, or `null` when it has none yet (a 404). */
+export function useBrief(slug: string) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "brief"],
+    queryFn: async () => {
+      const result = await api
+        .GET("/api/projects/{slug}/brief", { params: { path: { slug } } })
+        .catch((error: unknown) => {
+          if (isNotFound(error)) return null;
+          throw error;
+        });
+      return result === null ? null : unwrap(result);
+    },
+  });
+}
+
+export function useBriefRevisions(slug: string) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "brief", "revisions"],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/projects/{slug}/brief/revisions", {
+          params: { path: { slug }, query: { limit: 200 } },
+        }),
+      ),
+  });
+}
+
 export function useTracks(slug: string) {
   return useQuery({
     queryKey: [...projectKey(slug), "tracks"],

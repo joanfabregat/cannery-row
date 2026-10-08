@@ -40,6 +40,93 @@
     }
   },
   {
+    "name": "get_brief",
+    "title": "Get the project brief",
+    "description": "The project's brief: its goal, domain, constraints and conventions, as Markdown with YAML front matter. Read it before drafting or claiming. Without revision, the current one; claims and jobs name the revision they run under.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A brief revision; omitted, the current one.",
+          "title": "Revision"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "BriefArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get the project brief",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "revise_brief",
+    "title": "Revise the project brief",
+    "description": "Write a new revision of the project's brief: the whole document, Markdown with YAML front matter holding at least title and goal (GET /api/schemas/brief). Only researchers write briefs; acting for one, you are recorded as the channel. expected_revision is the current revision, 0 for the first brief.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "maximum": 2147483647,
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "document": {
+          "maxLength": 262144,
+          "minLength": 1,
+          "title": "Document",
+          "type": "string"
+        },
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_revision",
+        "document",
+        "project"
+      ],
+      "title": "ReviseBrief",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Revise the project brief",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "list_tracks",
     "title": "List tracks",
     "description": "A project's research tracks, by slug, optionally filtered by state.",

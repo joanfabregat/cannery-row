@@ -23,6 +23,7 @@ pub mod attempt_release_routes;
 pub mod attempt_workflow;
 mod authentication;
 pub mod body;
+mod brief_routes;
 pub mod browser;
 mod browser_routes;
 pub mod claim_request;
@@ -134,6 +135,10 @@ pub use documentation::OPENAPI;
         project_routes::list_members,
         project_routes::set_member,
         project_routes::remove_member,
+        brief_routes::current,
+        brief_routes::revise,
+        brief_routes::revisions,
+        brief_routes::revision,
         config_routes::create,
         config_routes::list,
         config_routes::latest,

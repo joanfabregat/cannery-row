@@ -22,6 +22,14 @@ pub struct ProjectCreate {
     pub slug: String,
     pub title: String,
     pub description: String,
+    pub tracks: Vec<ProjectTrack>,
+}
+/// A track created with its project: agent mode, the project default producer.
+#[derive(Clone)]
+pub struct ProjectTrack {
+    pub slug: String,
+    pub title: String,
+    pub description: String,
 }
 #[derive(Clone)]
 pub struct ServiceAccountCreate {
@@ -664,17 +672,144 @@ pub fn project_create(document: &Document) -> Checked<ProjectCreate> {
     let description = fields.field("description", Some(String::new()), |node| {
         text(node, TextRule::Plain)
     });
-    fields.extras(&["slug", "title", "description"]);
-    match (slug, title, description) {
-        (Some(slug), Some(title), Some(description)) if fields.problems.is_empty() => {
+    let tracks = project_tracks(&mut fields);
+    fields.extras(&["slug", "title", "description", "tracks"]);
+    match (slug, title, description, tracks) {
+        (Some(slug), Some(title), Some(description), Some(tracks))
+            if fields.problems.is_empty() =>
+        {
             Ok(ProjectCreate {
                 slug,
                 title,
                 description,
+                tracks,
             })
         }
         _ => Err(fields.failure()),
     }
+}
+/// The most tracks a project starts with.
+pub const PROJECT_TRACKS_MAX: usize = 32;
+fn project_tracks(fields: &mut Fields<'_>) -> Option<Vec<ProjectTrack>> {
+    let loc = vec![Location::field("body"), Location::field("tracks")];
+    let document = fields.document;
+    let Some(node) = document
+        .field(fields.root, "tracks")
+        .and_then(|id| document.node(id))
+    else {
+        fields.push(loc, MISSING);
+        return None;
+    };
+    let Node::Array(items) = node else {
+        fields.push(loc, issue("list_type", "Input should be a valid list"));
+        return None;
+    };
+    if items.is_empty() {
+        fields.push(
+            loc,
+            issue(
+                "too_short",
+                "List should have at least 1 item after validation, not 0",
+            ),
+        );
+        return None;
+    }
+    if items.len() > PROJECT_TRACKS_MAX {
+        fields.push(
+            loc,
+            issue(
+                "too_long",
+                "List should have at most 32 items after validation",
+            ),
+        );
+        return None;
+    }
+    let mut tracks = Vec::with_capacity(items.len());
+    let mut slugs = BTreeSet::new();
+    for (index, id) in items.iter().enumerate() {
+        let mut at = loc.clone();
+        at.push(Location::Index(index));
+        if let Some(track) = project_track(fields, *id, &at) {
+            if !slugs.insert(track.slug.clone()) {
+                let mut at = at.clone();
+                at.push(Location::field("slug"));
+                fields.push(
+                    at,
+                    issue("value_error", "Value error, track slugs must be unique"),
+                );
+            }
+            tracks.push(track);
+        }
+    }
+    Some(tracks)
+}
+fn project_track(fields: &mut Fields<'_>, id: NodeId, loc: &[Location]) -> Option<ProjectTrack> {
+    let document = fields.document;
+    let at = |name: &str| {
+        let mut loc = loc.to_vec();
+        loc.push(Location::field(name));
+        loc
+    };
+    let Some(Node::Object(entries)) = document.node(id) else {
+        fields.push(
+            loc.to_vec(),
+            issue(
+                "model_type",
+                "Input should be a valid dictionary or instance of ProjectTrack",
+            ),
+        );
+        return None;
+    };
+    let mut value =
+        |name: &str, required: bool, rule: fn(&Node) -> Result<String, Issue>| match document
+            .field(id, name)
+            .and_then(|id| document.node(id))
+        {
+            Some(node) => match rule(node) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    fields.push(at(name), error);
+                    None
+                }
+            },
+            None if required => {
+                fields.push(at(name), MISSING);
+                None
+            }
+            None => Some(String::new()),
+        };
+    let slug = value("slug", true, |node| utf8_text(node, TextRule::Slug));
+    let title = value("title", true, track_text);
+    let description = value("description", false, |node| text(node, TextRule::Plain));
+    for (name, _) in entries {
+        if !["slug", "title", "description"]
+            .iter()
+            .any(|allowed| name.equals_utf8(allowed))
+        {
+            let mut loc = loc.to_vec();
+            loc.push(Location::Field(name.clone()));
+            fields.push(
+                loc,
+                issue("extra_forbidden", "Extra inputs are not permitted"),
+            );
+        }
+    }
+    Some(ProjectTrack {
+        slug: slug?,
+        title: title?,
+        description: description?,
+    })
+}
+/// A track title: required free text, not whitespace-only.
+fn track_text(node: &Node) -> Result<String, Issue> {
+    let value = utf8_text(node, TextRule::Plain)?;
+    if value.trim().is_empty() {
+        return Err(issue(
+            "string_pattern_mismatch",
+            "String should match pattern '\\S'",
+        ));
+    }
+    Ok(value)
 }
 /// Validate service creation without application/database side effects.
 /// # Errors
@@ -1040,6 +1175,51 @@ pub fn find_users_query(pairs: &[(String, String)]) -> Checked<FindUsersQuery> {
     }
 }
 
+/// A brief revision: the whole document and the revision it replaces.
+pub struct BriefRevise {
+    pub document: String,
+    pub expected_revision: i32,
+}
+/// Validate a brief revision request. The document itself is parsed and
+/// checked against the brief schema by the route.
+/// # Errors
+/// Returns ordered field errors followed by extras in insertion order.
+pub fn validate_brief_revise(input: BodyInput<'_>) -> Checked<BriefRevise> {
+    let mut fields = Fields::from_input(input)?;
+    let document = fields.field("document", None, |node| {
+        let value = utf8_text(node, TextRule::Plain)?;
+        if value.is_empty() {
+            return Err(issue(
+                "string_too_short",
+                "String should have at least 1 character",
+            ));
+        }
+        Ok(value)
+    });
+    let expected_revision = fields.field("expected_revision", None, |node| {
+        let value = integer(node)?;
+        if value < BigInt::from(0) {
+            return Err(issue(
+                "greater_than_equal",
+                "Input should be greater than or equal to 0",
+            ));
+        }
+        value.to_i32().ok_or(issue(
+            "less_than_equal",
+            "Input should be less than or equal to 2147483647",
+        ))
+    });
+    fields.extras(&["document", "expected_revision"]);
+    match (document, expected_revision) {
+        (Some(document), Some(expected_revision)) if fields.problems.is_empty() => {
+            Ok(BriefRevise {
+                document,
+                expected_revision,
+            })
+        }
+        _ => Err(fields.failure()),
+    }
+}
 /// Source `TrackUpdate` field order and explicitly supplied-field set.
 pub struct TrackUpdate {
     pub expected_revision: BigInt,

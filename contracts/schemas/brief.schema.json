@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/brief.schema.json",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
+  "title": "Brief front matter",
+  "description": "The front matter of a project's brief, the context handed to everyone who works on the project. The Markdown body holds the domain, the constraints, the resources and the conventions.",
+  "type": "object",
+  "properties": {
+    "title": {
+      "description": "The brief's title, usually the project's name or its question.",
+      "$ref": "common.schema.json#/$defs/text",
+      "maxLength": 200
+    },
+    "goal": {
+      "description": "One paragraph: what the project is for. No blank line.",
+      "$ref": "common.schema.json#/$defs/text",
+      "maxLength": 4000,
+      "not": {"pattern": "\\n[ \\t\\r]*\\n"}
+    }
+  },
+  "required": ["title", "goal"],
+  "additionalProperties": false
+}

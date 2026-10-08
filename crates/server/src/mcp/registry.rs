@@ -21,7 +21,7 @@ impl Tool {
     }
     #[allow(
         clippy::too_many_lines,
-        reason = "All 42 canonical tool mappings are reviewed together"
+        reason = "All 44 canonical tool mappings are reviewed together"
     )]
     pub fn request(&self, args: &Map<String, Value>) -> Result<ToolRequest, ()> {
         let mut args = args.clone();
@@ -50,6 +50,15 @@ impl Tool {
         }
         let (method, path) = match name {
             "list_projects" => (Method::GET, "/api/projects".into()),
+            "get_brief" => {
+                let revision = take_path(&mut args, "revision");
+                if revision.is_empty() {
+                    (Method::GET, format!("{base}/brief"))
+                } else {
+                    (Method::GET, format!("{base}/brief/revisions/{revision}"))
+                }
+            }
+            "revise_brief" => (Method::POST, format!("{base}/brief")),
             "list_tracks" => (Method::GET, format!("{base}/tracks")),
             "get_track" | "update_track" | "track_history" | "transition_track" => {
                 let track = take_path(&mut args, "track");
@@ -260,7 +269,7 @@ pub(super) fn encode(value: &str) -> String {
 pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
     let values: Vec<Value> =
         serde_json::from_str(include_str!("tools.json")).map_err(|_| StartupError::Registry)?;
-    if values.len() != 42 {
+    if values.len() != 44 {
         return Err(StartupError::Registry);
     }
     values

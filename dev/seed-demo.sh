@@ -34,6 +34,8 @@
 #   (dev/demo-data/import/demo-forecast), loaded with `cannery import` by the
 #   instance's own binary in the same container, over the same socket.
 #
+# Each project is created with its first track, then gets its other tracks and
+# its brief, written by the researcher project.yaml names under brief.by.
 # The REST part drives each hypothesis of dev/demo-data/projects/*/project.yaml
 # through the real lifecycle: drafts by the demo agent or a researcher, draft
 # reviews (approve, request_revision then revise, decline), claims, uploads,
@@ -216,9 +218,13 @@ setup_project() {
   title=$(pvr '.title')
   description=$(pvr '.description // ""')
   status=$(status_of "$ADMIN" "/api/projects/$slug")
+  # A project is created with its first track; the others follow below.
+  local created=0
   if [[ "$status" == 404 ]]; then
     api "$ADMIN" POST /api/projects "$(jq -nc --arg s "$slug" --arg t "$title" --arg d "$description" \
-      '{slug: $s, title: $t, description: $d}')" >/dev/null
+      --argjson track "$(pv '.tracks[0] | {slug, title, description}')" \
+      '{slug: $s, title: $t, description: $d, tracks: [$track]}')" >/dev/null
+    created=1
   fi
   for user in $(pvr '.members | keys[]'); do
     role=$(pvr ".members.$user")
@@ -253,7 +259,10 @@ setup_project() {
   local track
   while read -r track; do
     api "$ADMIN" POST "$BASE/tracks" "$(jq -c '{slug, title, description}' <<<"$track")" >/dev/null
-  done < <(pv '.tracks[]')
+  done < <(pv ".tracks[$created:][]")
+  # The brief, written by one of the project's researchers.
+  api "$(pvr '.brief.by')" POST "$BASE/brief" \
+    "$(pv '{document: .brief.document, expected_revision: 0}')" >/dev/null
 }
 
 user_id() {

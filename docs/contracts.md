@@ -28,6 +28,8 @@ The server assigns `id`, state (`active` on creation), actor, via, timestamps an
 }
 ```
 
+A project is created with its first tracks: `POST /api/projects` takes `tracks`, 1 to 32 entries of `slug`, `title` and an optional `description`, with distinct slugs. They are created in the same transaction as the project, `active`, in `agent` mode and with the project's default producer, each recorded as `track.created`; a project without a track is `422` at `body/tracks`. A researcher binds a producer or switches a track to `workflow` afterwards, once the project has a science revision.
+
 A researcher changes a track's `producer`, `mode` or `workflow` with `PATCH /projects/{slug}/tracks/{track}` (`expected_revision`, the fields to change, and a non-empty `reason`, which any of the three requires). Switching to `workflow` needs a `workflow` in the same request; switching to `agent` drops it. The merged track is checked as on creation. Each change records `track.updated` with the prior and new producer, mode and workflow, plus `track.mode_changed` when the mode changes. Hypothesis summaries and attempts carry the `mode` of their track.
 
 ## Hypothesis
@@ -210,6 +212,7 @@ Each phase has a JSON Schema for its front matter:
 
 | Phase | Schema | Front matter |
 | --- | --- | --- |
+| `brief` | `brief.schema.json` | The project's [brief](#the-brief): `title` and a one-paragraph `goal`, nothing else. |
 | `run` | `run.schema.json` | The agent's evidence envelope (`stage: agent`), as [above](#evidence-envelope). |
 | `verification` | `verification.schema.json` | A tester's or an evaluator's evidence envelope (`stage: tester` or `evaluator`). |
 | `writeup` | `writeup.schema.json` | `kind` (`retrospective`), `author`, and exactly one of `written_on` (a date) or `written_at` (an instant). |
@@ -217,6 +220,38 @@ Each phase has a JSON Schema for its front matter:
 `GET /api/schemas/{phase}` returns a phase's schema as one self-contained document (`application/schema+json`): the published schemas it references are embedded under `$defs` with their own `$id`, so a client validates against it without fetching anything else. It needs no authentication, like the OpenAPI document; an unknown phase is `404 not_found`.
 
 Submissions still take the JSON evidence envelope: the run and verification outputs store it as their front matter, with an empty body. The only write-ups are imported ones: the report of an imported attempt, stored with `origin: imported`, its path in the bundle as `source_ref` and the report's SHA-256 (see [import](import.md#reports)).
+
+## The brief
+
+The [brief](spec.md#the-brief) is a phase document of the `brief` phase, at most 256 KiB:
+
+```markdown
+---
+title: Bakery demand forecast
+goal: >-
+  Daily demand forecasts per shop and product, one and seven days ahead,
+  accurate enough to cut unsold bread without running out before closing.
+---
+# Domain
+
+A fictional bakery chain: 40 shops, 12 products …
+```
+
+`title` (at most 200 characters) and `goal` (at most 4,000, with no blank line) are required, and the front matter may hold nothing else. The body is free Markdown.
+
+- `GET /api/projects/{slug}/brief` returns the current revision: `revision`, `document` as written, `front_matter`, `title`, `goal`, `body`, `sha256` (of the document's UTF-8 bytes), `created_by`, `created_by_name`, `via_channel`, `via_client` and `created_at`. Before the first save it is `404 not_found`.
+- `GET /api/projects/{slug}/brief/revisions` lists every revision newest first, without documents (`before`, `limit` up to 200); `GET /api/projects/{slug}/brief/revisions/{revision}` returns one revision like the current one.
+- `POST /api/projects/{slug}/brief` with `{"document": "…", "expected_revision": 2}` saves revision 3 and answers `201` with it. `expected_revision` is the current revision, `0` for the first brief; any other is `409 stale_revision`. Only a researcher of the project may save (`403` for anyone else, service accounts included). A document that is not a phase document, or whose front matter breaks the schema, is `422` at `body/document`, each detail naming the front matter pointer. Each save records `brief.revised` in the audit log. Revisions are immutable.
+
+Every claim names the brief revision the work runs under, as a `brief` object beside the attempt or job, absent while the project has no brief:
+
+```json
+{"revision": 3, "sha256": "…", "ref": "/api/projects/pilchards/brief/revisions/3"}
+```
+
+An attempt pins the current revision when it is claimed (`brief_revision` in the `attempt.claimed` audit row); `GET …/attempts/{sequence}` reports it as `brief`, and the attempt's test and evaluation job claims hand out the same revision, never a later one.
+
+MCP serves the brief through the tools `get_brief` (the current revision, or the one named by `revision`) and `revise_brief` (`document`, `expected_revision`), and as resources: `cannery-row://projects/{project}/brief` for the current revision and `cannery-row://projects/{project}/brief/revisions/{revision}` for one revision, each a `text/markdown` document listed by `resources/list` for the projects the caller reads.
 
 ## Test and evaluation jobs
 
