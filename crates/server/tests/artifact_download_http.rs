@@ -614,13 +614,21 @@ async fn transfer_checks(
     })
     .await?;
     store.mode.store(2, Ordering::Release);
-    let lazy = client
+    // The object vanishes after the head check, so the streamed body fails.
+    // Whether the 200 headers reach the client before the connection closes
+    // depends on scheduling; either way the client must not get the bytes.
+    match client
         .get(&uri)
         .bearer_auth("cr_pat_track_http_researcher")
         .send()
-        .await?;
-    assert_eq!(lazy.status(), 200);
-    assert!(lazy.bytes().await.is_err());
+        .await
+    {
+        Ok(lazy) => {
+            assert_eq!(lazy.status(), 200);
+            assert!(lazy.bytes().await.is_err());
+        }
+        Err(error) => assert!(error.is_request(), "{error}"),
+    }
     Ok(())
 }
 fn local_files(root: &Path) -> Result<PathBuf> {
