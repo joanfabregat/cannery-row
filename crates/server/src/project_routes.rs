@@ -154,6 +154,7 @@ async fn create(
     slug: &str,
     title: &str,
     description: &str,
+    tracks: &[crate::validation::ProjectTrack],
 ) -> Result<ProjectOut, ApiError> {
     let admin = principal.require_admin(true)?;
     let mut transaction = connection
@@ -187,6 +188,45 @@ async fn create(
     )
     .await
     .map_err(|_| context.internal("project audit"))?;
+    // A project always has a track: its first ones are created with it.
+    let budget = cannery_core::json::MAX_DEPTH;
+    for track in tracks {
+        let row = cannery_tracks::repo::create_track(
+            &mut transaction,
+            cannery_tracks::repo::CreateTrack {
+                project_id: project.id,
+                slug: &track.slug,
+                title: &track.title,
+                description: &track.description,
+                producer: None,
+                mode: cannery_tracks::repo::TrackMode::Agent,
+                workflow: None,
+                created_by: admin.user_id,
+            },
+            cannery_tracks::repo::JsonContext {
+                encode_nesting_budget: budget,
+                decode_nesting_budget: budget,
+            },
+        )
+        .await
+        .map_err(|_| context.internal("project track create"))?
+        .ok_or_else(|| context.internal("project track slug"))?;
+        let snapshot = crate::track_wire::snapshot(&row, crate::track_routes::SNAPSHOT)
+            .map_err(|_| context.internal("project track snapshot"))?;
+        crate::track_audit::record(
+            &mut transaction,
+            admin,
+            project.id,
+            &row.id.to_string(),
+            "track.created",
+            None,
+            &snapshot,
+            None,
+            budget,
+        )
+        .await
+        .map_err(|_| context.internal("project track audit"))?;
+    }
     transaction
         .commit()
         .await
@@ -527,7 +567,7 @@ pub(crate) async fn create_project(
             |error| RouteFailure::new(ApiError::from(error)),
         )
     })?;
-    let crate::validation::Body::ProjectCreate(_) = validated else {
+    let crate::validation::Body::ProjectCreate(validated) = validated else {
         return Err(RouteFailure::new(context.internal("project body type")));
     };
     let typed: crate::api_models::ProjectCreate =
@@ -539,6 +579,7 @@ pub(crate) async fn create_project(
         &typed.slug,
         typed.title.trim(),
         typed.description.as_deref().unwrap_or(""),
+        &validated.tracks,
     )
     .await
     .map(|body| (StatusCode::CREATED, Json(body)).into_response())

@@ -19,7 +19,7 @@ fn generated_rest_contract_matches_the_committed_client_contract()
     );
     assert_eq!(
         generated["paths"].as_object().ok_or("missing paths")?.len(),
-        74
+        77
     );
     Ok(())
 }

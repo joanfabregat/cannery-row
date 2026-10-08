@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO briefs (project_id, revision, document, front_matter, body, sha256,\n        created_by, via_channel, via_client)\n        SELECT $1, coalesce(max(revision), 0) + 1, $2, $3::text::jsonb, $4, $5, $6, $7, $8\n        FROM briefs WHERE project_id = $1\n        RETURNING revision",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0b4cca98366c76d8c7b5992d1e4cae251b6784676fa61bef4c7b10d2ccfb2f58"
+}

@@ -99,7 +99,7 @@ mod tests {
     #[tokio::test]
     async fn an_unknown_phase_is_not_found() -> Result {
         for path in [
-            "/api/schemas/brief",
+            "/api/schemas/plan",
             "/api/schemas/Run",
             "/api/schemas/evidence_envelope",
         ] {

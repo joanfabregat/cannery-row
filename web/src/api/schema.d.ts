@@ -228,6 +228,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Brief
+         * @description The project's current brief: its latest revision. `404 not_found` until a
+         *     researcher writes the first one.
+         */
+        get: operations["get_brief_api_projects__slug__brief_get"];
+        put?: never;
+        /**
+         * Revise Brief
+         * @description Write a new revision of the project's brief: one Markdown document with YAML
+         *     front matter, checked against `GET /api/schemas/brief`. Researchers only;
+         *     `expected_revision` is the current revision, 0 for the first brief, and a
+         *     stale one is `409 stale_revision`.
+         */
+        post: operations["revise_brief_api_projects__slug__brief_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/brief/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Brief Revisions
+         * @description Every revision of the project's brief, newest first, without their documents.
+         */
+        get: operations["list_brief_revisions_api_projects__slug__brief_revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/brief/revisions/{revision}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Brief Revision
+         * @description One revision of the project's brief, as claims and jobs name it.
+         */
+        get: operations["get_brief_revision_api_projects__slug__brief_revisions__revision__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/claims": {
         parameters: {
             query?: never;
@@ -1591,6 +1659,7 @@ export interface components {
         };
         AttemptDetail: {
             artifacts: components["schemas"]["ArtifactOut"][];
+            brief?: components["schemas"]["BriefRef"] | null;
             /** Format: date-time */
             claimed_at: string;
             claimed_by: components["schemas"]["Claimant"];
@@ -1784,6 +1853,60 @@ export interface components {
             id: string;
             revision: string;
         };
+        /**
+         * @description One revision of a project's brief: the document as written, its front
+         *     matter and its body.
+         */
+        BriefOut: {
+            body: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by: string;
+            created_by_name: string | null;
+            document: string;
+            front_matter: {
+                [key: string]: unknown;
+            };
+            goal: string;
+            /** Format: int64 */
+            revision: number;
+            sha256: string;
+            title: string;
+            via_channel: string;
+            via_client: string | null;
+        };
+        /** @description The brief revision a claim or a job runs under, and where to read it. */
+        BriefRef: {
+            ref: string;
+            /** Format: int64 */
+            revision: number;
+            sha256: string;
+        };
+        /**
+         * @description A new revision of the brief. `expected_revision` is the current one, 0
+         *     when the project has no brief yet.
+         */
+        BriefRevise: {
+            document: string;
+            /** Format: int64 */
+            expected_revision: number;
+        };
+        /** @description A revision in the brief's history, without its document. */
+        BriefRevisionOut: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by: string;
+            created_by_name: string | null;
+            goal: string;
+            /** Format: int64 */
+            revision: number;
+            sha256: string;
+            title: string;
+            via_channel: string;
+            via_client: string | null;
+        };
         /** @enum {string} */
         CaseKind: "draft" | "result" | "failure";
         /** @enum {string} */
@@ -1797,6 +1920,7 @@ export interface components {
         };
         ClaimOut: {
             attempt: components["schemas"]["AttemptOut"];
+            brief?: components["schemas"]["BriefRef"] | null;
             /** Format: int64 */
             heartbeat_seconds: number;
             /** Format: date-time */
@@ -2071,7 +2195,7 @@ export interface components {
          * @description A phase whose output documents have a published front matter schema.
          * @enum {string}
          */
-        DocumentPhase: "run" | "verification" | "writeup";
+        DocumentPhase: "brief" | "run" | "verification" | "writeup";
         DraftReviewRequest: {
             action: components["schemas"]["DraftReviewRequestAction"];
             /** Format: int64 */
@@ -2366,6 +2490,7 @@ export interface components {
         InterfaceRequestEncoding: "json" | "jsonl" | "binary";
         JobClaimOut: {
             attempt_ref: string;
+            brief?: components["schemas"]["BriefRef"] | null;
             /** Format: int64 */
             heartbeat_seconds: number;
             job: components["schemas"]["ClaimedJobDocument"];
@@ -2559,6 +2684,11 @@ export interface components {
             /** Format: int64 */
             next_before: number | null;
         };
+        Page_BriefRevisionOut_int_: {
+            items: components["schemas"]["BriefRevisionOut"][];
+            /** Format: int64 */
+            next_before: number | null;
+        };
         Page_CommentOut_UUID_: {
             items: components["schemas"]["CommentOut"][];
             /** Format: uuid */
@@ -2717,6 +2847,11 @@ export interface components {
             description?: string | null;
             slug: string;
             title: string;
+            /**
+             * @description The project's first tracks, created with it. Each starts in `agent` mode
+             *     with the project default producer; `PATCH` a track to bind it.
+             */
+            tracks: components["schemas"]["ProjectTrackCreate"][];
         };
         ProjectOut: {
             /** Format: date-time */
@@ -2725,6 +2860,14 @@ export interface components {
             /** Format: uuid */
             id: string;
             role?: string | null;
+            slug: string;
+            title: string;
+        };
+        /** @description A track created with its project. */
+        ProjectTrackCreate: {
+            /** @description Markdown: the approach this track explores. */
+            description?: string | null;
+            /** @description Unique within the project. */
             slug: string;
             title: string;
         };
@@ -4329,6 +4472,392 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttentionOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_brief_api_projects__slug__brief_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BriefOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revise_brief_api_projects__slug__brief_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BriefRevise"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BriefOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_brief_revisions_api_projects__slug__brief_revisions_get: {
+        parameters: {
+            query?: {
+                /** @description Continue before this revision. */
+                before?: number;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_BriefRevisionOut_int_"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_brief_revision_api_projects__slug__brief_revisions__revision__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                revision: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BriefOut"];
                 };
             };
             /** @description Invalid request */

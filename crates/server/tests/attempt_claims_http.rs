@@ -695,6 +695,247 @@ async fn attempt_claims_match_production() -> Result<()> {
     fixed_state.pool.close().await;
     Ok(())
 }
+fn brief_document(title: &str) -> String {
+    format!(
+        "---\ntitle: {title}\ngoal: |\n  Rank the matrix fixtures.\n  Keep the baseline.\n---\n# Domain\n\nFixtures only.\n"
+    )
+}
+async fn brief_call(
+    app: &Router,
+    role: &str,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+) -> Result<(u16, Value)> {
+    let recipe = json!({
+        "role": role,
+        "method": method,
+        "path": path,
+        "raw": body.map(|body| body.to_string()),
+    });
+    let (status, _, value, _) = call(app, &recipe).await?;
+    Ok((status, value))
+}
+#[tokio::test]
+#[ignore = "requires positive exact selection and guarded fresh migrated child"]
+#[allow(
+    clippy::too_many_lines,
+    reason = "One brief history, its refusals and the claim that pins it"
+)]
+async fn a_claim_pins_the_current_brief() -> Result<()> {
+    let url = std::env::var("CANNERY_ATTEMPT_CLAIMS_HTTP_DATABASE_URL")?;
+    let mut settings = load_settings(
+        None,
+        &BTreeMap::from([("CANNERY_DATABASE_URL".into(), url)]),
+    )?;
+    settings.leases.ttl_seconds = 90_i64.into();
+    settings.leases.job_overhead_seconds = 300_i64.into();
+    let (app, state) = application_with_attempt_claim_context(settings, Arc::new(profile(false)))?;
+    let name: String = sqlx::query_scalar("SELECT current_database()")
+        .fetch_one(&state.pool)
+        .await?;
+    if !name.starts_with("conformance_") {
+        return Err("owned nonce child".into());
+    }
+    let f = fixture()?;
+    let claim = f["cases"]
+        .as_array()
+        .ok_or("cases")?
+        .iter()
+        .find(|r| r["name"] == "authorization-agent")
+        .ok_or("agent claim recipe")?;
+    reset(&state.pool, claim).await?;
+    let brief = "/api/projects/matrix/brief";
+    // Without a brief, reads are 404 and a claim pins nothing.
+    let (status, value) = brief_call(&app, "member", "GET", brief, None).await?;
+    assert_eq!(
+        (status, &value["error"]["code"]),
+        (404, &json!("not_found"))
+    );
+    let first = json!({"document": brief_document("Matrix"), "expected_revision": 0});
+    // Only researchers write the brief; members, viewers and agents may read it.
+    for role in ["member", "viewer", "agent"] {
+        let (status, value) = brief_call(&app, role, "POST", brief, Some(first.clone())).await?;
+        assert_eq!(status, 403, "{role} {value}");
+    }
+    for (document, path) in [
+        ("no front matter", "body/document"),
+        ("---\ntitle: Matrix\n---\n", "body/document"),
+        ("---\ntitle: Matrix\ngoal: \"\"\n---\n", "body/document"),
+        (
+            "---\ntitle: Matrix\ngoal: A\nextra: 1\n---\n",
+            "body/document",
+        ),
+        ("", "body/document"),
+    ] {
+        let (status, value) = brief_call(
+            &app,
+            "researcher",
+            "POST",
+            brief,
+            Some(json!({"document": document, "expected_revision": 0})),
+        )
+        .await?;
+        assert_eq!(status, 422, "{document:?} {value}");
+        assert_eq!(value["error"]["details"][0]["path"], path, "{document:?}");
+    }
+    let (status, value) = brief_call(
+        &app,
+        "researcher",
+        "POST",
+        brief,
+        Some(json!({"document": brief_document("Matrix"), "expected_revision": -1})),
+    )
+    .await?;
+    assert_eq!(status, 422, "{value}");
+    assert_eq!(
+        value["error"]["details"][0]["path"],
+        "body/expected_revision"
+    );
+    let (status, created) =
+        brief_call(&app, "researcher", "POST", brief, Some(first.clone())).await?;
+    assert_eq!(status, 201, "{created}");
+    assert_eq!(created["revision"], 1);
+    assert_eq!(created["title"], "Matrix");
+    assert_eq!(
+        created["goal"],
+        "Rank the matrix fixtures.\nKeep the baseline.\n"
+    );
+    assert_eq!(created["body"], "# Domain\n\nFixtures only.\n");
+    assert_eq!(created["document"], first["document"]);
+    assert_eq!(created["via_channel"], "api");
+    assert_eq!(created["created_by_name"], "researcher");
+    assert_eq!(created["sha256"].as_str().map(str::len), Some(64));
+    // A stale expected revision is refused; the next revision names the current one.
+    let (status, value) = brief_call(&app, "researcher", "POST", brief, Some(first)).await?;
+    assert_eq!(
+        (status, &value["error"]["code"]),
+        (409, &json!("stale_revision"))
+    );
+    let (status, second) = brief_call(
+        &app,
+        "researcher",
+        "POST",
+        brief,
+        Some(json!({"document": brief_document("Matrix, revised"), "expected_revision": 1})),
+    )
+    .await?;
+    assert_eq!(status, 201, "{second}");
+    assert_eq!(second["revision"], 2);
+    let (status, current) = brief_call(&app, "agent", "GET", brief, None).await?;
+    assert_eq!(status, 200);
+    assert_eq!(current, second);
+    let (status, page) = brief_call(
+        &app,
+        "viewer",
+        "GET",
+        "/api/projects/matrix/brief/revisions?limit=1",
+        None,
+    )
+    .await?;
+    assert_eq!(status, 200);
+    assert_eq!(page["items"][0]["revision"], 2);
+    assert!(page["items"][0].get("document").is_none());
+    assert_eq!(page["next_before"], 2);
+    let (_, page) = brief_call(
+        &app,
+        "viewer",
+        "GET",
+        "/api/projects/matrix/brief/revisions?before=2",
+        None,
+    )
+    .await?;
+    assert_eq!(page["items"][0]["title"], "Matrix");
+    assert_eq!(page["next_before"], Value::Null);
+    let (status, old) = brief_call(
+        &app,
+        "member",
+        "GET",
+        "/api/projects/matrix/brief/revisions/1",
+        None,
+    )
+    .await?;
+    assert_eq!(status, 200);
+    assert_eq!(old, created);
+    for path in [
+        "/api/projects/matrix/brief/revisions/3",
+        "/api/projects/other/brief",
+    ] {
+        let (status, _) = brief_call(&app, "researcher", "GET", path, None).await?;
+        assert_eq!(status, 404, "{path}");
+    }
+    let (status, _) = brief_call(
+        &app,
+        "researcher",
+        "GET",
+        "/api/projects/matrix/brief/revisions/x",
+        None,
+    )
+    .await?;
+    assert_eq!(status, 422);
+    // Revisions are immutable rows.
+    assert!(
+        sqlx::query("UPDATE briefs SET body = '' WHERE revision = 1")
+            .execute(&state.pool)
+            .await
+            .is_err()
+    );
+    // The claim pins the current revision and hands it out.
+    let (status, _, response, _) = call(&app, claim).await?;
+    assert_eq!(status, 201, "{response}");
+    assert_eq!(
+        response["brief"],
+        json!({
+            "revision": 2,
+            "sha256": second["sha256"],
+            "ref": "/api/projects/matrix/brief/revisions/2",
+        })
+    );
+    let attempt = response["attempt"]["id"].as_str().ok_or("attempt id")?;
+    let pinned: Option<i32> =
+        sqlx::query_scalar("SELECT brief_revision FROM attempts WHERE id = $1::uuid")
+            .bind(attempt)
+            .fetch_one(&state.pool)
+            .await?;
+    assert_eq!(pinned, Some(2));
+    let audited: Value = sqlx::query_scalar(
+        "SELECT new_state FROM audit_events WHERE action = 'attempt.claimed' AND subject_id = $1",
+    )
+    .bind(attempt)
+    .fetch_one(&state.pool)
+    .await?;
+    assert_eq!(audited["brief_revision"], 2);
+    let events: Vec<(String, Option<Value>, Option<Value>, String)> = sqlx::query_as(
+        "SELECT action, prior_state, new_state, via_channel FROM audit_events WHERE subject_type = 'brief' ORDER BY seq",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[1].0, "brief.revised");
+    assert_eq!(events[1].1, Some(json!({"revision": 1})));
+    assert_eq!(
+        events[1].2.as_ref().map(|state| state["revision"].clone()),
+        Some(json!(2))
+    );
+    // A later revision does not move an attempt that already ran.
+    let (status, _) = brief_call(
+        &app,
+        "researcher",
+        "POST",
+        brief,
+        Some(json!({"document": brief_document("Matrix, third"), "expected_revision": 2})),
+    )
+    .await?;
+    assert_eq!(status, 201);
+    let pinned: Option<i32> =
+        sqlx::query_scalar("SELECT brief_revision FROM attempts WHERE id = $1::uuid")
+            .bind(attempt)
+            .fetch_one(&state.pool)
+            .await?;
+    assert_eq!(pinned, Some(2));
+    state.pool.close().await;
+    Ok(())
+}
 type Observation = (u16, Option<String>, Value, String);
 struct Tasks(Vec<tokio::task::JoinHandle<Result<Observation>>>);
 impl Drop for Tasks {

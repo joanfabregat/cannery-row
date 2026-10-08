@@ -71,6 +71,10 @@ pub struct AttemptDetail {
     pub failures: Vec<cannery_row__attempts__routes__FailureOut>,
     #[schema(required = true)]
     pub claimed_sheet: Option<ReadEvidenceEnvelope>,
+    /// The brief revision the attempt ran under, pinned at its claim; absent
+    /// when the project had no brief then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brief: Option<BriefRef>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -262,6 +266,71 @@ pub struct Baseline {
     pub description: Option<String>,
 }
 
+/// One revision of a project's brief: the document as written, its front
+/// matter and its body.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BriefOut {
+    pub revision: i64,
+    pub title: String,
+    pub goal: String,
+    pub front_matter: BTreeMap<String, serde_json::Value>,
+    pub body: String,
+    pub document: String,
+    #[schema(pattern = "^[0-9a-f]{64}$")]
+    pub sha256: String,
+    #[schema(format = "uuid")]
+    pub created_by: String,
+    #[schema(required = true)]
+    pub created_by_name: Option<String>,
+    pub via_channel: String,
+    #[schema(required = true)]
+    pub via_client: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+}
+
+/// The brief revision a claim or a job runs under, and where to read it.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BriefRef {
+    pub revision: i64,
+    #[schema(pattern = "^[0-9a-f]{64}$")]
+    pub sha256: String,
+    pub r#ref: String,
+}
+
+/// A new revision of the brief. `expected_revision` is the current one, 0
+/// when the project has no brief yet.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BriefRevise {
+    #[schema(min_length = 1, max_length = 262_144)]
+    pub document: String,
+    #[schema(minimum = 0.0, maximum = 2_147_483_647.0)]
+    pub expected_revision: i64,
+}
+
+/// A revision in the brief's history, without its document.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct BriefRevisionOut {
+    pub revision: i64,
+    pub title: String,
+    pub goal: String,
+    #[schema(pattern = "^[0-9a-f]{64}$")]
+    pub sha256: String,
+    #[schema(format = "uuid")]
+    pub created_by: String,
+    #[schema(required = true)]
+    pub created_by_name: Option<String>,
+    pub via_channel: String,
+    #[schema(required = true)]
+    pub via_client: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum CaseKind {
     #[serde(rename = "draft")]
@@ -300,6 +369,9 @@ pub struct ClaimOut {
     pub heartbeat_seconds: i64,
     #[serde(default)]
     pub workflow: Option<ClaimedWorkflow>,
+    /// The project's brief at the claim, absent when it had none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brief: Option<BriefRef>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -635,6 +707,9 @@ pub struct JobClaimOut {
     pub job: ClaimedJobDocument,
     pub attempt_ref: String,
     pub heartbeat_seconds: i64,
+    /// The brief revision the job's attempt pinned, absent when it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brief: Option<BriefRef>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -834,6 +909,8 @@ pub enum Origin {
 /// A phase whose output documents have a published front matter schema.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum DocumentPhase {
+    #[serde(rename = "brief")]
+    Brief,
     #[serde(rename = "run")]
     Run,
     #[serde(rename = "verification")]
@@ -880,6 +957,14 @@ pub struct Page_CommentOut_UUID_ {
 #[serde(deny_unknown_fields)]
 pub struct Page_CommentRevisionOut_int_ {
     pub items: Vec<CommentRevisionOut>,
+    #[schema(required = true)]
+    pub next_before: Option<i64>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Page_BriefRevisionOut_int_ {
+    pub items: Vec<BriefRevisionOut>,
     #[schema(required = true)]
     pub next_before: Option<i64>,
 }
@@ -1097,6 +1182,24 @@ pub struct ProjectCreate {
     pub slug: String,
     #[schema(min_length = 1, max_length = 200)]
     pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// The project's first tracks, created with it. Each starts in `agent` mode
+    /// with the project default producer; `PATCH` a track to bind it.
+    #[schema(min_items = 1, max_items = 32)]
+    pub tracks: Vec<ProjectTrackCreate>,
+}
+
+/// A track created with its project.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectTrackCreate {
+    /// Unique within the project.
+    #[schema(pattern = "^[a-z0-9][a-z0-9-]{0,62}$")]
+    pub slug: String,
+    #[schema(min_length = 1, pattern = "\\S")]
+    pub title: String,
+    /// Markdown: the approach this track explores.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }

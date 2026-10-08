@@ -214,7 +214,7 @@ async fn config_publication_reads_semantics_and_bounded_json_refusal() -> Result
         Method::POST,
         "/api/projects",
         Some(&admin),
-        Some(&json!({"slug":"alpha","title":"Alpha"})),
+        Some(&json!({"slug":"alpha","title":"Alpha","tracks":[{"slug":"main","title":"Main"}]})),
         201,
     )
     .await?;
@@ -561,7 +561,7 @@ async fn config_concurrent_revisions_audit_rollback_and_immutability() -> Result
         Method::POST,
         "/api/projects",
         Some(&admin),
-        Some(&json!({"slug":"concurrent","title":"Concurrent"})),
+        Some(&json!({"slug":"concurrent","title":"Concurrent","tracks":[{"slug":"main","title":"Main"}]})),
         201,
     )
     .await?;
@@ -713,7 +713,7 @@ async fn configuration_matches_real_python_http_and_persisted_reference() -> Res
         Method::POST,
         "/api/projects",
         Some(&admin),
-        Some(&json!({"slug":"matrix","title":"Matrix"})),
+        Some(&json!({"slug":"matrix","title":"Matrix","tracks":[{"slug":"main","title":"Main"}]})),
         201,
     )
     .await?;

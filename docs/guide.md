@@ -18,6 +18,7 @@ One installation hosts several **projects**, each fully separate: its own member
 
 ```text
 project
+├── brief (revisioned): goal, domain, constraints, conventions; every attempt pins a revision
 ├── science revision (immutable, versioned): metrics, datasets, interfaces, scorer, evaluator, limits…
 ├── producers and experiment steps (registered step manifests, each revision immutable)
 └── track (agent or workflow mode)
@@ -29,6 +30,7 @@ project
             then a human decision: promote | reject | inconclusive
 ```
 
+- The **brief** is the project's context, written once by a researcher: what the project is for, the domain, the constraints, the resources and the conventions. Every claim names the revision it runs under, and the attempt keeps it.
 - A **hypothesis** is written outside CR (by a researcher with an agent) and submitted as a `draft`. Nothing runs until a researcher approves it with a reason; it is then `queued`. CR never invents or recycles hypotheses.
 - An **attempt** is one execution of a hypothesis. It is created by a **claim**, which returns a lease token; every write on the attempt needs the current token and generation. One attempt at a time per hypothesis.
 - The three stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **claimed result sheet** (its measurements are `agent_claim`, never trusted). The **test** re-runs and grades the frozen submission with trusted code and publishes `tester_verified` evidence. The **eval** applies the project's policy to that evidence and gives a verdict with a reason. A **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
@@ -40,7 +42,7 @@ Who holds which token, and what it may do:
 | --- | --- | --- | --- |
 | User, `viewer` | Personal token, or the web session | Read the project, reports, metrics, verdicts, decisions; search. | Download artifacts other than `report_asset`. |
 | User, `member` | same | Viewer rights, plus comment and download artifacts. | Draft or decide. |
-| User, `researcher` | same | Member rights, plus create and revise drafts, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, and record every human decision. | Claim in `workflow` mode. |
+| User, `researcher` | same | Member rights, plus write the brief, create and revise drafts, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, and record every human decision. | Claim in `workflow` mode. |
 | User, installation admin | same | Create projects, grant memberships, register science and dashboard revisions, producers and experiment steps, create service accounts and their tokens. Admin is not a project role: an admin also needs a membership to act as a researcher. | |
 | Service account `agent` | Service token | Create and revise drafts, claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; read the project. | Claim in `workflow` mode, comment, decide. |
 | Service account `experimenter` | Service token, held by a runner only | Claim in `workflow` mode only, heartbeat, upload, submit, read the predecessor attempt's artifacts, release with a failure `code`, `step` and `logs` (trusted). | Draft, comment, decide, claim in `agent` mode. |
@@ -55,7 +57,7 @@ A claimed job also returns a **job lease token**, which can only read that job's
 | --- | --- |
 | Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; edit and review drafts; decide results and failures; read everything; comment; search. |
 | REST (`/api/…`) | Everything, and the only way to register science and dashboard revisions (`POST /api/projects/{slug}/config/science`), producers (`…/producers`) and experiment steps (`…/experiment-steps`), and to create drafts besides MCP. Authenticate with `Authorization: Bearer <token>`. `GET /api/me` shows who a token is. |
-| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `list_tracks`, `get_track`, `create_draft`, `revise_draft`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, and the researcher's `review_draft`, `record_decision`, `create_track`, `update_track`, `transition_track`. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
+| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `create_draft`, `revise_draft`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, and the researcher's `revise_brief`, `review_draft`, `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
 | CLI (`cannery`) | `migrate`, `serve`, `db` (dump, restore, upgrade), `runner`, `evaluator` (the stock evaluator alone), `import`, `openapi`. |
 
 Every error answer has the shape `{"error": {"code", "message", "details"}}`; `details` holds JSON Pointers into the request. See [Troubleshooting](#troubleshooting).
@@ -65,11 +67,12 @@ Every error answer has the shape `{"error": {"code", "message", "details"}}`; `d
 The order matters: each step is checked against the ones before it.
 
 1. **Install and sign in.** Deploy the image and run `migrate` ([deploy.md](deploy.md#running)), with `CANNERY_AUTH_BOOTSTRAP_ADMIN_EMAILS` naming the first admin. Sign in once in the web app: users exist only after their first login.
-2. **Create the project** (web app, or `POST /api/projects` with `{"slug", "title", "description"}`) and grant memberships (`PUT /api/projects/{slug}/members/{user_id}` with `{"role": "researcher"}`; `GET /api/users` finds a user id). Give yourself `researcher` if you will create tracks or decide.
-3. **Register the science revision** (below).
-4. **Register producers** and, for `workflow` tracks, **experiment steps** (below).
-5. **Create the tracks.**
-6. **Create the service accounts and their tokens.**
+2. **Create the project with its first track** (web app, or `POST /api/projects` with `{"slug", "title", "description", "tracks": [{"slug", "title", "description"}]}`, at least one track) and grant memberships (`PUT /api/projects/{slug}/members/{user_id}` with `{"role": "researcher"}`; `GET /api/users` finds a user id). Give yourself `researcher` if you will write the brief, create tracks or decide.
+3. **Write the brief** (below).
+4. **Register the science revision** (below).
+5. **Register producers** and, for `workflow` tracks, **experiment steps** (below).
+6. **Create the other tracks**, and bind producers and workflows.
+7. **Create the service accounts and their tokens.**
 
 An admin's personal token with the `write` scope registers revisions and steps through REST:
 
@@ -84,6 +87,18 @@ curl -sf -X POST "$API/experiment-steps" -H "Authorization: Bearer $ADMIN" \
 curl -sf -X POST "$API/tracks" -H "Authorization: Bearer $RESEARCHER" \
   -H 'Content-Type: application/json' -d @examples/fixture/workflow-track.json
 ```
+
+### The brief
+
+The brief tells every agent and step what the project is for, so each hypothesis does not have to repeat it. It is one Markdown document with YAML front matter holding `title` and a one-paragraph `goal` (schema: `GET /api/schemas/brief`); the body carries the domain, the constraints, the resources and the conventions ([the contract](contracts.md#the-brief)). A researcher writes it in the web app (**Brief**, linked from Home), with MCP `revise_brief`, or through REST:
+
+```sh
+jq -n --rawfile document brief.md '{document: $document, expected_revision: 0}' |
+  curl -sf -X POST "$API/brief" -H "Authorization: Bearer $RESEARCHER" \
+    -H 'Content-Type: application/json' -d @-
+```
+
+Each save is a new revision; send the current revision as `expected_revision` (`0` for the first). Agents read it with `GET $API/brief` or MCP `get_brief`, and every claim answer carries `brief` (`revision`, `sha256`, `ref`), the revision the attempt runs under; its test and evaluation jobs get the same one.
 
 ### The science revision
 
@@ -121,7 +136,7 @@ Either way the policy file lives with the runner, not in CR: changing the policy
 
 ### Tracks
 
-A track is a line of research (one architecture against another). It is created by a researcher (web app, REST, or MCP `create_track`) from `examples/fixture/tracks.json`-style documents:
+A track is a line of research (one architecture against another). A project's first tracks come with it (`tracks` in `POST /api/projects`, created in `agent` mode with the default producer); later ones are created by a researcher (web app, REST, or MCP `create_track`) from `examples/fixture/tracks.json`-style documents:
 
 ```json
 {"slug": "lexical", "title": "Lexical overlap", "description": "Ranks documents by shared words.",
@@ -338,7 +353,7 @@ The image digest is that of `node:22-slim` when this guide was written; pin the 
 An outside agent (a Codex or Claude Code session) runs the experiment itself, through REST or MCP, with an `agent` service token or a researcher's personal token.
 
 1. **Draft.** `POST /api/projects/{slug}/hypotheses` (MCP `create_draft`) with a hypothesis document (`examples/fixture/hypothesis.json`), optionally with an `Idempotency-Key` header. Search first (`GET /api/search`, MCP `search`) for prior related work. A researcher approves it (`POST …/hypotheses/{number}/draft-review` with `{"draft_revision", "action": "approve", "reason"}`, or the web app).
-2. **Claim.** `POST /api/projects/{slug}/claims` with `{}` or `{"hypothesis": 12}` or `{"track": "lexical"}` (MCP `claim_hypothesis`). The answer holds the `attempt`, `lease_token` and `lease_generation` (send them as `X-Lease-Token` and `X-Lease-Generation` on every attempt call) and `heartbeat_seconds`.
+2. **Claim.** `POST /api/projects/{slug}/claims` with `{}` or `{"hypothesis": 12}` or `{"track": "lexical"}` (MCP `claim_hypothesis`). The answer holds the `attempt`, `lease_token` and `lease_generation` (send them as `X-Lease-Token` and `X-Lease-Generation` on every attempt call), `heartbeat_seconds`, and `brief`, the brief revision to read (`GET` its `ref`, or MCP `get_brief` with that `revision`).
 3. **Heartbeat** `POST …/hypotheses/{number}/attempts/{sequence}/heartbeat` at least every `heartbeat_seconds` (a third of the lease TTL, `leases.ttl_seconds`, 900 seconds by default).
 4. **Upload** each file: `POST …/attempts/{sequence}/uploads` with `{role, name, size_bytes, sha256, media_type}`, then send the bytes as the grant says (a `PUT upload_url`, or the `direct` presigned requests and `POST finish_url`; [the protocol](contracts.md#uploads-and-downloads)). The role is what the track's producer reads (`from: attempt`), plus every role in `required_artifact_roles.attempt`.
 5. **Post the manifest** of the verified uploads (`POST …/manifest`, MCP `post_manifest`), which answers `{ref, sha256}`.
@@ -482,11 +497,11 @@ An attempt may carry its retrospective report, a Markdown file under the bundle'
 From an empty CR to the first decided hypothesis:
 
 1. Deploy the image with OIDC and a bootstrap admin, run `migrate`, sign in. [deploy.md](deploy.md#configuration)
-2. Create the project and grant `researcher` to the people who approve and decide (yourself included). [Setting up a project](#setting-up-a-project)
+2. Create the project with its first track, grant `researcher` to the people who approve and decide (yourself included), and write the brief. [Setting up a project](#setting-up-a-project), [The brief](#the-brief)
 3. Write the scorer, its interfaces and validators; choose the evaluator (stock gates or policy step) and write its policy file. [Steps](#steps), [Eval stage](#eval-stage)
 4. Register the science revision. [The science revision](#the-science-revision)
 5. Register the producers (the default first) and, for workflow tracks, the experiment steps. [Test stage](#test-stage), [Workflow mode](#workflow-mode)
-6. Create the tracks, each with its mode. [Tracks](#tracks)
+6. Create the other tracks, each with its mode. [Tracks](#tracks)
 7. Create the tester, evaluator and, for workflow tracks, experimenter service accounts, named as the science revision says, and an agent account for agent tracks; mint their tokens in the web app. [Service accounts and tokens](#service-accounts-and-tokens)
 8. Put the datasets and baselines in the runner's data root at `datasets/<id>/<revision>/` and `baselines/<id>/<revision>/`. [deploy.md](deploy.md#runner)
 9. Write `runner.toml`, choose the launcher, give it the GitHub credential, start `cannery runner --config runner.toml` and check it with `--once`. [Running the runner](#running-the-runner)

@@ -117,13 +117,28 @@ function NewProjectDialog() {
   const [slug, setSlug] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const ids = { slug: useId(), title: useId(), description: useId(), hint: useId() };
+  const [trackSlug, setTrackSlug] = useState("");
+  const [trackTitle, setTrackTitle] = useState("");
+  const ids = {
+    slug: useId(),
+    title: useId(),
+    description: useId(),
+    hint: useId(),
+    trackSlug: useId(),
+    trackTitle: useId(),
+    trackHint: useId(),
+  };
   const queryClient = useQueryClient();
   const create = useMutation({
     mutationFn: async () =>
       unwrap(
         await api.POST("/api/projects", {
-          body: { slug, title: title.trim(), description: description.trim() },
+          body: {
+            slug,
+            title: title.trim(),
+            description: description.trim(),
+            tracks: [{ slug: trackSlug, title: trackTitle.trim() }],
+          },
         }),
       ),
     onSuccess: async () => {
@@ -131,10 +146,17 @@ function NewProjectDialog() {
       setSlug("");
       setTitle("");
       setDescription("");
+      setTrackSlug("");
+      setTrackTitle("");
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
   });
-  const valid = SLUG.test(slug) && title.trim().length > 0 && title.trim().length <= 200;
+  const valid =
+    SLUG.test(slug) &&
+    title.trim().length > 0 &&
+    title.trim().length <= 200 &&
+    SLUG.test(trackSlug) &&
+    trackTitle.trim().length > 0;
   return (
     <Dialog
       open={open}
@@ -149,7 +171,8 @@ function NewProjectDialog() {
       <DialogContent>
         <DialogTitle>New project</DialogTitle>
         <DialogDescription>
-          Its science configuration is published separately, through the API or the command line.
+          A project starts with one track, a first line of research; researchers add more later. Its
+          science configuration is published separately, through the API or the command line.
         </DialogDescription>
         <form
           className="flex flex-col gap-4"
@@ -201,6 +224,38 @@ function NewProjectDialog() {
               }}
             />
           </div>
+          <fieldset className="flex flex-col gap-4">
+            <legend className="mb-2 text-sm font-medium">First track</legend>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={ids.trackTitle} className="text-sm font-medium">
+                Track title
+              </label>
+              <Input
+                id={ids.trackTitle}
+                value={trackTitle}
+                onChange={(event) => {
+                  setTrackTitle(event.target.value);
+                }}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor={ids.trackSlug} className="text-sm font-medium">
+                Track short name
+              </label>
+              <p id={ids.trackHint} className="text-xs text-muted-foreground">
+                Lowercase letters, digits and dashes, unique in the project (for example baselines).
+              </p>
+              <Input
+                id={ids.trackSlug}
+                value={trackSlug}
+                aria-describedby={ids.trackHint}
+                aria-invalid={trackSlug !== "" && !SLUG.test(trackSlug)}
+                onChange={(event) => {
+                  setTrackSlug(event.target.value);
+                }}
+              />
+            </div>
+          </fieldset>
           <ErrorLine error={create.error} />
           <DialogFooter>
             <Button type="submit" disabled={!valid || create.isPending}>

@@ -31,6 +31,31 @@ tracks:
     description: Hand-written polarity lexicons and negation rules, kept as an interpretable reference.
     final: {state: archived, by: ada, reason: "Rules are far behind the linear baselines on both domains; archived after #3 was rejected."}
 
+brief:
+  by: ada
+  document: |
+    ---
+    title: Review sentiment
+    goal: >-
+      The most accurate binary sentiment classifier for short movie and
+      product reviews that still runs on one CPU core at 200 reviews a
+      second, judged on dev macro-F1 and confirmed once on test.
+    ---
+    # Domain
+
+    Short English reviews (median 42 words) from the public toy corpus `toy-reviews-v2`, half movies and half products. Labels are the reviewers' own thumbs up or down; about 3% are sarcastic and mislabeled by any lexical model.
+
+    # Constraints
+
+    - Inference on one CPU core, at least 200 reviews a second.
+    - Training at most 2 GPU-hours a run.
+    - The test split is for confirmation only: never tune on it.
+
+    # Conventions
+
+    - Report macro-F1 overall and per `domain` slice; a hypothesis that helps one domain and hurts the other does not count.
+    - Controls are named baselines (`tfidf-unigram-lr` r1) or earlier promoted hypotheses.
+
 hypotheses:
   - key: bigrams
     by: agent

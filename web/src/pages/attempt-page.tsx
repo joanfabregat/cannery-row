@@ -273,6 +273,7 @@ function AttemptDetails({ attempt }: { attempt: AttemptDetail }) {
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Fact term="Hypothesis revision">{attempt.hypothesis_revision}</Fact>
           <Fact term="Science revision">{attempt.science_revision}</Fact>
+          <Fact term="Brief revision">{attempt.brief?.revision ?? "None"}</Fact>
           <Fact term="Lease generation">{attempt.lease_generation}</Fact>
           <Fact term="Lease expires">{formatDateTime(attempt.lease_expires_at)}</Fact>
           <Fact term="Client">{attempt.via_client ?? "—"}</Fact>

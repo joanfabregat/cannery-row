@@ -204,6 +204,7 @@ async fn mcp_stateless_http() -> Result<()> {
     });
     let domain = Router::new()
         .merge(crate::project_routes::routes(state.clone()))
+        .merge(crate::brief_routes::routes(state.clone())?)
         .merge(crate::comment_routes::routes(state.clone(), comments()));
     let mcp = routes(state.clone(), domain.clone(), Some(download))?;
     let app = domain.merge(mcp).layer(middleware::from_fn_with_state(
@@ -236,7 +237,7 @@ async fn mcp_stateless_http() -> Result<()> {
     }
     let fixture: Value = serde_json::from_str(*FIXTURE)?;
     let cases = fixture["cases"].as_array().ok_or("cases")?;
-    assert_eq!(cases.len(), 78);
+    assert_eq!(cases.len(), 89);
     let mut unauthenticated = cases[0].clone();
     unauthenticated["authorization"] = Value::Null;
     assert_eq!(
@@ -326,7 +327,7 @@ async fn mcp_stateless_http() -> Result<()> {
     small_state.pool.close().await;
     state.pool.close().await;
     println!(
-        "MCP78 unchanged-source observations, max1 ownership/reuse, metadata/no-store-IO, limits and persisted attribution passed"
+        "MCP89 unchanged-source observations, max1 ownership/reuse, metadata/no-store-IO, limits and persisted attribution passed"
     );
     Ok(())
 }

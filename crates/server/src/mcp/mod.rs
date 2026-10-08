@@ -1,5 +1,6 @@
 //! Stateless Streamable HTTP MCP, with a single authenticated connection handoff.
 mod registry;
+mod resources;
 
 use crate::{
     AppState,
@@ -25,7 +26,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
-const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses, their attempts, independent testing and evaluation, and human decisions. Search before drafting; claim, heartbeat, upload, record the manifest and submit under the lease you were given. Actor and via are taken from your token; decisions need a person with the researcher role.";
+const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses, their attempts, independent testing and evaluation, and human decisions. Read the project brief (get_brief, or the brief resource) and search before drafting; claim, heartbeat, upload, record the manifest and submit under the lease you were given. Actor and via are taken from your token; decisions need a person with the researcher role.";
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
@@ -364,7 +365,7 @@ async fn endpoint(State(state): State<McpState>, request: Request) -> Response {
             }
             rpc_result(
                 reply_id,
-                json!({"protocolVersion":PROTOCOL_VERSION,"capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"cannery-row","title":"Cannery Row","version":env!("CARGO_PKG_VERSION")},"instructions":INSTRUCTIONS}),
+                json!({"protocolVersion":PROTOCOL_VERSION,"capabilities":{"tools":{"listChanged":false},"resources":{"listChanged":false}},"serverInfo":{"name":"cannery-row","title":"Cannery Row","version":env!("CARGO_PKG_VERSION")},"instructions":INSTRUCTIONS}),
             )
         }
         "ping" => rpc_result(reply_id, json!({})),
@@ -373,6 +374,13 @@ async fn endpoint(State(state): State<McpState>, request: Request) -> Response {
             json!({"tools":state.tools.iter().map(|tool| &tool.definition).collect::<Vec<_>>()}),
         ),
         "tools/call" => tool_call(&state, context, authentication, reply_id, params).await,
+        "resources/templates/list" => rpc_result(reply_id, resources::templates()),
+        "resources/list" => {
+            resources::list(&state, context, authentication, reply_id, params).await
+        }
+        "resources/read" => {
+            resources::read(&state, context, authentication, reply_id, params).await
+        }
         _ => rpc_error(reply_id, -32601, "method not found", None, StatusCode::OK),
     }
 }
@@ -589,9 +597,9 @@ mod tests {
     #[test]
     fn registry_has_all_source_tools_and_complete_validation() {
         let tools = registry::tools().expect("compiled registry");
-        assert_eq!(tools.len(), 42);
+        assert_eq!(tools.len(), 44);
         let names: std::collections::BTreeSet<_> = tools.iter().map(registry::Tool::name).collect();
-        assert_eq!(names.len(), 42);
+        assert_eq!(names.len(), 44);
         for tool in &tools {
             assert!(
                 tool.invalid_arguments(&json!({"unexpected":"secret"}))
@@ -672,6 +680,20 @@ mod tests {
             json!({"project":"matrix","number":1,"expected_revision":2,"document":{}}),
         );
         assert_eq!(revision.method, axum::http::Method::PUT);
+        let brief = build("get_brief", json!({"project":"matrix"}));
+        assert_eq!(brief.uri, "/api/projects/matrix/brief");
+        let brief = build("get_brief", json!({"project":"matrix","revision":2}));
+        assert_eq!(brief.uri, "/api/projects/matrix/brief/revisions/2");
+        let brief = build(
+            "revise_brief",
+            json!({"project":"matrix","expected_revision":0,"document":"---\ntitle: T\ngoal: G\n---\n"}),
+        );
+        assert_eq!(brief.method, axum::http::Method::POST);
+        assert_eq!(brief.uri, "/api/projects/matrix/brief");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&brief.body).expect("body"),
+            json!({"expected_revision":0,"document":"---\ntitle: T\ngoal: G\n---\n"})
+        );
         let edit = build(
             "edit_comment",
             json!({"project":"matrix","comment_id":"uuid","expected_revision":1,"body_markdown":"é"}),

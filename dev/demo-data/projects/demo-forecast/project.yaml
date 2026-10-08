@@ -19,6 +19,30 @@ tracks:
     title: Hierarchical reconciliation
     description: Making product, shop and chain totals agree without losing accuracy.
 
+brief:
+  by: chloe
+  document: |
+    ---
+    title: Bakery demand forecast
+    goal: >-
+      Daily demand forecasts per shop and product, one and seven days
+      ahead, accurate enough to cut unsold bread without running out
+      before closing.
+    ---
+    # Domain
+
+    A fictional bakery chain: 40 shops, 12 products, daily sales since 2024 (`bakery-sales-2026-06`). Sales stop at zero when a shop sells out, so observed sales understate demand on sold-out days.
+
+    # Constraints
+
+    - Forecasts are due at 18:00 for the next morning's bake; a model must run in under ten minutes.
+    - Product, shop and chain totals must agree.
+
+    # Conventions
+
+    - Report backtest MASE per `horizon` slice, `d1` and `d7`.
+    - The notebook-era four-week average (#1) is the control to beat.
+
 hypotheses:
   - key: lgbm-global
     by: agent

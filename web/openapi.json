@@ -1167,6 +1167,483 @@
         }
       }
     },
+    "/api/projects/{slug}/brief": {
+      "get": {
+        "summary": "Get Brief",
+        "description": "The project's current brief: its latest revision. `404 not_found` until a\nresearcher writes the first one.",
+        "operationId": "get_brief_api_projects__slug__brief_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Revise Brief",
+        "description": "Write a new revision of the project's brief: one Markdown document with YAML\nfront matter, checked against `GET /api/schemas/brief`. Researchers only;\n`expected_revision` is the current revision, 0 for the first brief, and a\nstale one is `409 stale_revision`.",
+        "operationId": "revise_brief_api_projects__slug__brief_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BriefRevise"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/brief/revisions": {
+      "get": {
+        "summary": "List Brief Revisions",
+        "description": "Every revision of the project's brief, newest first, without their documents.",
+        "operationId": "list_brief_revisions_api_projects__slug__brief_revisions_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Continue before this revision.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 2147483647,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_BriefRevisionOut_int_"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/brief/revisions/{revision}": {
+      "get": {
+        "summary": "Get Brief Revision",
+        "description": "One revision of the project's brief, as claims and jobs name it.",
+        "operationId": "get_brief_revision_api_projects__slug__brief_revisions__revision__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BriefOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/claims": {
       "post": {
         "summary": "Claim",
@@ -11841,6 +12318,17 @@
               "$ref": "#/components/schemas/ArtifactOut"
             }
           },
+          "brief": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BriefRef",
+                "description": "The brief revision the attempt ran under, pinned at its claim; absent\nwhen the project had no brief then."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "claimed_at": {
             "type": "string",
             "format": "date-time"
@@ -12552,6 +13040,177 @@
         },
         "additionalProperties": false
       },
+      "BriefOut": {
+        "type": "object",
+        "description": "One revision of a project's brief: the document as written, its front\nmatter and its body.",
+        "required": [
+          "revision",
+          "title",
+          "goal",
+          "front_matter",
+          "body",
+          "document",
+          "sha256",
+          "created_by",
+          "created_by_name",
+          "via_channel",
+          "via_client",
+          "created_at"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "document": {
+            "type": "string"
+          },
+          "front_matter": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "goal": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "via_channel": {
+            "type": "string"
+          },
+          "via_client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "BriefRef": {
+        "type": "object",
+        "description": "The brief revision a claim or a job runs under, and where to read it.",
+        "required": [
+          "revision",
+          "sha256",
+          "ref"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BriefRevise": {
+        "type": "object",
+        "description": "A new revision of the brief. `expected_revision` is the current one, 0\nwhen the project has no brief yet.",
+        "required": [
+          "document",
+          "expected_revision"
+        ],
+        "properties": {
+          "document": {
+            "type": "string",
+            "maxLength": 262144,
+            "minLength": 1
+          },
+          "expected_revision": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 2147483647,
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "BriefRevisionOut": {
+        "type": "object",
+        "description": "A revision in the brief's history, without its document.",
+        "required": [
+          "revision",
+          "title",
+          "goal",
+          "sha256",
+          "created_by",
+          "created_by_name",
+          "via_channel",
+          "via_client",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "goal": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "via_channel": {
+            "type": "string"
+          },
+          "via_client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "CaseKind": {
         "type": "string",
         "enum": [
@@ -12613,6 +13272,17 @@
         "properties": {
           "attempt": {
             "$ref": "#/components/schemas/AttemptOut"
+          },
+          "brief": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BriefRef",
+                "description": "The project's brief at the claim, absent when it had none."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "heartbeat_seconds": {
             "type": "integer",
@@ -13692,6 +14362,7 @@
         "type": "string",
         "description": "A phase whose output documents have a published front matter schema.",
         "enum": [
+          "brief",
           "run",
           "verification",
           "writeup"
@@ -14835,6 +15506,17 @@
           "attempt_ref": {
             "type": "string"
           },
+          "brief": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BriefRef",
+                "description": "The brief revision the job's attempt pinned, absent when it has none."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "heartbeat_seconds": {
             "type": "integer",
             "format": "int64"
@@ -15643,6 +16325,29 @@
         },
         "additionalProperties": false
       },
+      "Page_BriefRevisionOut_int_": {
+        "type": "object",
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BriefRevisionOut"
+            }
+          },
+          "next_before": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
       "Page_CommentOut_UUID_": {
         "type": "object",
         "required": [
@@ -16315,7 +17020,8 @@
         "type": "object",
         "required": [
           "slug",
-          "title"
+          "title",
+          "tracks"
         ],
         "properties": {
           "description": {
@@ -16332,6 +17038,15 @@
             "type": "string",
             "maxLength": 200,
             "minLength": 1
+          },
+          "tracks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectTrackCreate"
+            },
+            "description": "The project's first tracks, created with it. Each starts in `agent` mode\nwith the project default producer; `PATCH` a track to bind it.",
+            "maxItems": 32,
+            "minItems": 1
           }
         },
         "additionalProperties": false
@@ -16368,6 +17083,34 @@
           },
           "title": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProjectTrackCreate": {
+        "type": "object",
+        "description": "A track created with its project.",
+        "required": [
+          "slug",
+          "title"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Markdown: the approach this track explores."
+          },
+          "slug": {
+            "type": "string",
+            "description": "Unique within the project.",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
           }
         },
         "additionalProperties": false

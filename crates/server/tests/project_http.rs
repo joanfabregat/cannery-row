@@ -157,7 +157,7 @@ async fn project_membership_http_preserves_visibility_pagination_and_audit() -> 
         Method::POST,
         "/api/projects",
         Some(&admin_token),
-        Some(r#"{"slug":"alpha","title":" Alpha ","description":"public"}"#),
+        Some(r#"{"slug":"alpha","title":" Alpha ","description":"public","tracks":[{"slug":"main","title":"Main"}]}"#),
         201,
     )
     .await?;
@@ -176,7 +176,7 @@ async fn project_membership_http_preserves_visibility_pagination_and_audit() -> 
         Method::POST,
         "/api/projects",
         Some(&admin_token),
-        Some(r#"{"slug":"alpha","title":"Duplicate"}"#),
+        Some(r#"{"slug":"alpha","title":"Duplicate","tracks":[{"slug":"main","title":"Main"}]}"#),
         409,
     )
     .await?;
@@ -185,7 +185,7 @@ async fn project_membership_http_preserves_visibility_pagination_and_audit() -> 
         Method::POST,
         "/api/projects",
         Some(&admin_token),
-        Some(r#"{"slug":"beta","title":"Beta"}"#),
+        Some(r#"{"slug":"beta","title":"Beta","tracks":[{"slug":"main","title":"Main"}]}"#),
         201,
     )
     .await?;
@@ -375,23 +375,31 @@ async fn project_membership_http_preserves_visibility_pagination_and_audit() -> 
             .collect::<Vec<_>>(),
         [
             "project.created",
+            "track.created",
             "project.created",
+            "track.created",
             "membership.set",
             "membership.set",
             "membership.set",
             "membership.removed"
         ]
     );
+    // A project's first tracks are created with it, in the same transaction.
+    assert_eq!(events[1].2, None);
     assert_eq!(
-        events[2].1,
+        events[1].3.as_ref().map(|state| state["title"].clone()),
+        Some(json!("Main"))
+    );
+    assert_eq!(
+        events[4].1,
         format!("{}:{}", created["id"].as_str().ok_or("id")?, alice.id)
     );
-    assert_eq!(events[2].2, None);
-    assert_eq!(events[2].3, Some(json!({"role":"viewer"})));
-    assert_eq!(events[3].2, Some(json!({"role":"viewer"})));
-    assert_eq!(events[3].3, Some(json!({"role":"researcher"})));
-    assert_eq!(events[5].2, Some(json!({"role":"researcher"})));
-    assert_eq!(events[5].3, None);
+    assert_eq!(events[4].2, None);
+    assert_eq!(events[4].3, Some(json!({"role":"viewer"})));
+    assert_eq!(events[5].2, Some(json!({"role":"viewer"})));
+    assert_eq!(events[5].3, Some(json!({"role":"researcher"})));
+    assert_eq!(events[7].2, Some(json!({"role":"researcher"})));
+    assert_eq!(events[7].3, None);
     assert!(events.iter().all(|event| event.4 == "api"));
     let actors: Vec<(String, String, Option<String>)> = sqlx::query_as(
         "SELECT actor_kind, actor_user_id::text, actor_service_id::text FROM audit_events ORDER BY seq",
@@ -421,7 +429,7 @@ async fn project_validation_precedes_authorization_after_authentication() -> Res
     let (_, plain) = person(&pool, "user-validation", false, &[Scope::Read]).await?;
     let (_, read_only) = person(&pool, "readonly-validation", true, &[Scope::Read]).await?;
     // JSON surrogate escapes are rejected before authorization by the native decoder.
-    let surrogate = r#"{"slug":"surrogate","title":"S","description":"\ud800"}"#;
+    let surrogate = r#"{"slug":"surrogate","title":"S","description":"\ud800","tracks":[{"slug":"main","title":"Main"}]}"#;
     for token in [&plain, &read_only, &admin_token] {
         let response = expect(
             &app,
@@ -435,7 +443,7 @@ async fn project_validation_precedes_authorization_after_authentication() -> Res
         assert_eq!(response["error"]["code"], "validation_failed");
     }
     // Valid JSON containing NUL reaches storage only after admin/write checks.
-    let nul = r#"{"slug":"surrogate","title":"S","description":"\u0000"}"#;
+    let nul = r#"{"slug":"surrogate","title":"S","description":"\u0000","tracks":[{"slug":"main","title":"Main"}]}"#;
     for (token, status) in [(&plain, 403), (&read_only, 403), (&admin_token, 500)] {
         let response = expect(
             &app,
@@ -483,7 +491,7 @@ async fn project_validation_precedes_authorization_after_authentication() -> Res
         Method::POST,
         "/api/projects",
         Some(&plain),
-        Some(r#"{"slug":"v","title":"V"}"#),
+        Some(r#"{"slug":"v","title":"V","tracks":[{"slug":"main","title":"Main"}]}"#),
         403,
     )
     .await?;
@@ -492,7 +500,7 @@ async fn project_validation_precedes_authorization_after_authentication() -> Res
         Method::POST,
         "/api/projects",
         Some(&read_only),
-        Some(r#"{"slug":"v","title":"V"}"#),
+        Some(r#"{"slug":"v","title":"V","tracks":[{"slug":"main","title":"Main"}]}"#),
         403,
     )
     .await?;
@@ -557,15 +565,83 @@ async fn project_validation_precedes_authorization_after_authentication() -> Res
         422,
     )
     .await?;
+    // A project starts with at least one track, each with a unique slug.
+    for (body, path) in [
+        (r#"{"slug":"validation","title":"V"}"#, "body/tracks"),
+        (
+            r#"{"slug":"validation","title":"V","tracks":[]}"#,
+            "body/tracks",
+        ),
+        (
+            r#"{"slug":"validation","title":"V","tracks":{"slug":"main"}}"#,
+            "body/tracks",
+        ),
+        (
+            r#"{"slug":"validation","title":"V","tracks":[{"slug":"Main","title":"Main"}]}"#,
+            "body/tracks/0/slug",
+        ),
+        (
+            r#"{"slug":"validation","title":"V","tracks":[{"slug":"main","title":" "}]}"#,
+            "body/tracks/0/title",
+        ),
+        (
+            r#"{"slug":"validation","title":"V","tracks":[{"slug":"main"}]}"#,
+            "body/tracks/0/title",
+        ),
+        (
+            r#"{"slug":"validation","title":"V","tracks":[{"slug":"main","title":"M","mode":"workflow"}]}"#,
+            "body/tracks/0/mode",
+        ),
+        (
+            r#"{"slug":"validation","title":"V","tracks":[{"slug":"main","title":"A"},{"slug":"main","title":"B"}]}"#,
+            "body/tracks/1/slug",
+        ),
+    ] {
+        let response = expect(
+            &app,
+            Method::POST,
+            "/api/projects",
+            Some(&admin_token),
+            Some(body),
+            422,
+        )
+        .await?;
+        assert_eq!(response["error"]["details"][0]["path"], path, "{body}");
+    }
     expect(
         &app,
         Method::POST,
         "/api/projects",
         Some(&admin_token),
-        Some(r#"{"slug":"validation","title":"V"}"#),
+        Some(
+            r#"{"slug":"validation","title":"V","tracks":[{"slug":"main","title":"Main"},{"slug":"second","title":"Second","description":"Another approach."}]}"#,
+        ),
         201,
     )
     .await?;
+    let mut connection = pool
+        .acquire()
+        .await
+        .map_err(|_| "fixture connection failed")?;
+    let stored: Vec<(String, String, String, String)> = sqlx::query_as(
+        "SELECT t.slug, t.title, t.description, t.mode FROM tracks t JOIN projects p ON p.id = t.project_id WHERE p.slug = 'validation' ORDER BY t.slug",
+    )
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(|_| "track fixture read failed")?;
+    assert_eq!(
+        stored,
+        [
+            ("main".into(), "Main".into(), String::new(), "agent".into()),
+            (
+                "second".into(),
+                "Second".into(),
+                "Another approach.".into(),
+                "agent".into()
+            ),
+        ]
+    );
+    drop(connection);
     let path = format!("/api/projects/missing/members/{}", admin.id);
     expect(
         &app,

@@ -3,6 +3,7 @@ import type { RouteObject } from "react-router";
 import { RequireAuth } from "@/auth/require-auth";
 import { Loading } from "@/components/query-state";
 import { AttemptPage } from "@/pages/attempt-page";
+import { BriefPage } from "@/pages/brief-page";
 import { DraftEditPage } from "@/pages/draft-edit-page";
 import { HomePage } from "@/pages/home-page";
 import { HypothesesPage } from "@/pages/hypotheses-page";
@@ -21,6 +22,7 @@ export const routes: RouteObject[] = [
     element: <RequireAuth />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: "brief", element: <BriefPage /> },
       { path: "tracks", element: <TracksPage /> },
       { path: "tracks/:track", element: <TrackPage /> },
       { path: "hypotheses", element: <HypothesesPage /> },

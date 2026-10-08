@@ -304,11 +304,19 @@ describe("administration", () => {
     expect(within(dialog).getByRole("button", { name: "Create project" })).toBeDisabled();
     await user.clear(within(dialog).getByRole("textbox", { name: "Short name" }));
     await user.type(within(dialog).getByRole("textbox", { name: "Short name" }), "herring");
+    expect(within(dialog).getByRole("button", { name: "Create project" })).toBeDisabled();
+    await user.type(within(dialog).getByRole("textbox", { name: "Track title" }), "Baselines");
+    await user.type(within(dialog).getByRole("textbox", { name: "Track short name" }), "baselines");
     await user.click(within(dialog).getByRole("button", { name: "Create project" }));
     await waitFor(() => {
       expect(posted).toHaveLength(1);
     });
-    expect(await posted[0]?.json()).toEqual({ slug: "herring", title: "Herring", description: "" });
+    expect(await posted[0]?.json()).toEqual({
+      slug: "herring",
+      title: "Herring",
+      description: "",
+      tracks: [{ slug: "baselines", title: "Baselines" }],
+    });
   });
 
   it("adds a member by email and changes a role", async () => {
