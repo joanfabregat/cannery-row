@@ -202,7 +202,7 @@ async fn storage(pool: &PgPool) -> Result<Value> {
         ("hypotheses", "project_id,number"),
         ("attempts", "id"),
         ("attempt_failures", "id"),
-        ("evidence_records", "id"),
+        ("phase_outputs", "id"),
         ("review_cases", "opened_at,id"),
         ("decisions", "decided_at,id"),
         ("jobs", "id"),
@@ -301,7 +301,7 @@ async fn review_attention_match_production() -> Result<()> {
         .execute(&state.pool)
         .await?;
     let documents: Vec<String> =
-        sqlx::query_scalar("SELECT content::text FROM evidence_records ORDER BY id")
+        sqlx::query_scalar("SELECT front_matter::text FROM phase_outputs ORDER BY id")
             .fetch_all(&state.pool)
             .await?;
     assert_eq!(documents.len(), 6);

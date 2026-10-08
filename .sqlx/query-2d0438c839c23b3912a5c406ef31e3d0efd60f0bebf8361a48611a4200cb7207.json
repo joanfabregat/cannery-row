@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,sha256,via_channel,via_client,created_at,origin,source_ref) VALUES($1,$2,$3,'completed',1,$4,$5,'cli','cannery import',$6,'imported',$7) RETURNING id AS \"id: uuid::Uuid\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: uuid::Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Jsonb",
+        "Text",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2d0438c839c23b3912a5c406ef31e3d0efd60f0bebf8361a48611a4200cb7207"
+}

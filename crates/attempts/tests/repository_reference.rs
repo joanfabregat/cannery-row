@@ -248,7 +248,7 @@ async fn snapshot(connection: &mut PgConnection) -> Value {
         "uploads",
         "artifacts",
         "manifests",
-        "evidence_records",
+        "phase_outputs",
         "attempt_failures",
         "review_cases",
     ] {
@@ -318,7 +318,7 @@ async fn snapshot(connection: &mut PgConnection) -> Value {
         ),
         (
             "evidence_json_text",
-            "SELECT id,content::text,created_at::text FROM evidence_records ORDER BY id",
+            "SELECT id,front_matter::text,created_at::text FROM phase_outputs ORDER BY id",
         ),
         (
             "failure_json_text",

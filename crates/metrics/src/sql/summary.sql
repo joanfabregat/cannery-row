@@ -8,7 +8,7 @@ JOIN tracks t ON t.id=a.track_id
 JOIN hypothesis_revisions hr ON hr.hypothesis_id=h.id AND hr.revision=a.hypothesis_revision
 WHERE m.project_id=$1 AND m.metric=$2
 AND m.authority=ANY($3::text[])
-AND m.evidence_id=(SELECT e.id FROM evidence_records e WHERE e.attempt_id=m.attempt_id AND e.stage=$4 ORDER BY e.revision DESC LIMIT 1)
+AND m.evidence_id=(SELECT e.id FROM phase_outputs e WHERE e.attempt_id=m.attempt_id AND e.stage=$4 ORDER BY e.revision DESC LIMIT 1)
 AND ($5::text IS NULL OR m.split=$5)
 AND ($6 OR m.dimension_keys=$7::text[])
 AND ($8::text::jsonb IS NULL OR NOT EXISTS(SELECT 1 FROM jsonb_each($8::text::jsonb) AS f(name,allowed) WHERE NOT coalesce(f.allowed ? (m.dimensions->>f.name),false)))

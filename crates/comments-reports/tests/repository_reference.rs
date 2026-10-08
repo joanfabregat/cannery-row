@@ -285,8 +285,7 @@ async fn raw_storage(conn: &mut PgConnection) -> Result<Value, Box<dyn Error>> {
         ("comment_revisions", "comment_id,revision"),
         ("mentions", "source_type,source_id,target_id"),
         ("search_documents", "id"),
-        ("evidence_records", "id"),
-        ("imported_reports", "attempt_id"),
+        ("phase_outputs", "id"),
         ("review_cases", "id"),
         ("audit_events", "seq"),
         ("attempts", "id"),
@@ -430,7 +429,7 @@ async fn compare_storage(conn: &mut PgConnection, reference: &Value) -> Result<(
         .collect();
     assert_eq!(value!(storage), reference["storage"]);
     let rows = sqlx::query(
-        "SELECT id::text,content::text,created_at::text FROM evidence_records ORDER BY id",
+        "SELECT id::text,front_matter::text,created_at::text FROM phase_outputs WHERE stage<>'writeup' ORDER BY id",
     )
     .fetch_all(&mut *conn)
     .await?;
@@ -547,7 +546,7 @@ async fn compare_dates(reference: &Value) -> Result<(), Box<dyn Error>> {
     let mut conn = connection().await?;
     for probe in reference["dates"].as_array().unwrap() {
         conn.execute("BEGIN").await?;
-        sqlx::query("INSERT INTO imported_reports(attempt_id,kind,author,written_on,body_markdown,sha256,source_ref) VALUES($1,'retrospective','Date fixture',$2::date,'Historical report',$3,'reports/date.md')").bind(uid(208)).bind(probe["input"].as_str().unwrap()).bind("0".repeat(64)).execute(&mut conn).await?;
+        sqlx::query("INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,body,sha256,via_channel,via_client,origin,source_ref) SELECT project_id,id,'writeup','completed',1,jsonb_build_object('kind','retrospective','author','Date fixture','written_on',$2::date),'Historical report',$3,'cli','cannery import','imported','reports/date.md' FROM attempts WHERE id=$1").bind(uid(208)).bind(probe["input"].as_str().unwrap()).bind("0".repeat(64)).execute(&mut conn).await?;
         match reports::imported_report(&mut conn, AttemptId(uid(208))).await {
             Ok(report) => assert_eq!(
                 report.as_ref().map_or(Value::Null, imported),
@@ -581,7 +580,7 @@ async fn compare_json_profiles(reference: &Value) -> Result<(), Box<dyn Error>> 
                 "evaluator"
             };
             conn.execute("BEGIN").await?;
-            sqlx::query("INSERT INTO evidence_records(id,project_id,attempt_id,stage,status,revision,content,sha256,producer_user,via_channel,created_at) VALUES($1,$2,$3,$4,'completed',4,$5::jsonb,$6,$7,'cli','2024-01-02Z')").bind(uid(9000)).bind(uid(2)).bind(uid(200)).bind(stage).bind(&stored_document).bind("0".repeat(64)).bind(if stage=="agent"{Some(uid(1))}else{None}).execute(&mut conn).await?;
+            sqlx::query("INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,revision,front_matter,sha256,producer_user,via_channel,created_at) VALUES($1,$2,$3,$4,'completed',4,$5::jsonb,$6,$7,'cli','2024-01-02Z')").bind(uid(9000)).bind(uid(2)).bind(uid(200)).bind(stage).bind(&stored_document).bind("0".repeat(64)).bind(if stage=="agent"{Some(uid(1))}else{None}).execute(&mut conn).await?;
             let result = if name == "list_reports" {
                 reports::list_reports(
                     &mut conn,
@@ -612,7 +611,7 @@ async fn compare_json_profiles(reference: &Value) -> Result<(), Box<dyn Error>> 
                         root = children[0];
                     }
                     let storage: String = sqlx::query_scalar(
-                        "SELECT content::text FROM evidence_records WHERE id=$1",
+                        "SELECT front_matter::text FROM phase_outputs WHERE id=$1",
                     )
                     .bind(uid(9000))
                     .fetch_one(&mut conn)
@@ -628,7 +627,7 @@ async fn compare_json_profiles(reference: &Value) -> Result<(), Box<dyn Error>> 
                     let depth = recipe["depth"].as_u64().unwrap();
                     assert!(depth >= 128);
                     let storage: String = sqlx::query_scalar(
-                        "SELECT content::text FROM evidence_records WHERE id=$1",
+                        "SELECT front_matter::text FROM phase_outputs WHERE id=$1",
                     )
                     .bind(uid(9000))
                     .fetch_one(&mut conn)

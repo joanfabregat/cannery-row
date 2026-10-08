@@ -344,7 +344,7 @@ An outside agent (a Codex or Claude Code session) runs the experiment itself, th
 5. **Post the manifest** of the verified uploads (`POST …/manifest`, MCP `post_manifest`), which answers `{ref, sha256}`.
 6. **Submit** the claimed result sheet (`POST …/submission` with an `Idempotency-Key`, MCP `submit_attempt`): an evidence envelope with `stage: "agent"`, the `report` and the manifest reference ([the sheet](contracts.md#evidence-envelope)). The attempt is frozen and the test job is queued.
 
-A sheet the API rejects fails the attempt at once (`invalid_submission`) and opens a failure review: validate it against `evidence_envelope.schema.json` before submitting. To give up, `POST …/release` with a `reason` (MCP `release_attempt`): the attempt fails with `released` and a failure review case opens. An agent has no attempt deadline, only the lease.
+A sheet the API rejects fails the attempt at once (`invalid_submission`) and opens a failure review: validate it against `evidence_envelope.schema.json` before submitting (`GET /api/schemas/run` serves it as one self-contained schema, no token needed). To give up, `POST …/release` with a `reason` (MCP `release_attempt`): the attempt fails with `released` and a failure review case opens. An agent has no attempt deadline, only the lease.
 
 ### Workflow mode
 

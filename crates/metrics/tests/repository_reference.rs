@@ -178,13 +178,13 @@ async fn queries_match_actual_source() -> Result<(), Box<dyn Error>> {
         (
             include_str!("../src/sql/points.sql"),
             include_str!(
-                "../../../.sqlx/query-e9c32ade3e95f4406fb6ca366aa7fd81d828de4cdcbef2b157298c4535356273.json"
+                "../../../.sqlx/query-8c70f997103972dd18d0ff4a1362aaa05a2c6ede4771527d41d7d1795035567a.json"
             ),
         ),
         (
             include_str!("../src/sql/summary.sql"),
             include_str!(
-                "../../../.sqlx/query-724017bf5cafeb7bc23c916c17cac86f3f582c925a6e93acabdbe58a3c10b4ce.json"
+                "../../../.sqlx/query-b37b480ef7429dcd630e9c18a33758711411f6c5c1eae7b7c78a947f6a2038b4.json"
             ),
         ),
         (

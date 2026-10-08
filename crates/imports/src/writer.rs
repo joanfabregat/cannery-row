@@ -325,7 +325,8 @@ impl Writer<'_> {
         };
         let body = self.reports.get(path).ok_or(Error::CorruptData)?;
         sqlx::query!(
-            "INSERT INTO imported_reports(attempt_id,kind,author,written_on,written_at,body_markdown,sha256,source_ref) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+            "INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,body,sha256,via_channel,via_client,origin,source_ref) VALUES($1,$2,'writeup','completed',1,jsonb_strip_nulls(jsonb_build_object('kind',$3::text,'author',$4::text,'written_on',$5::date,'written_at',$6::timestamptz)),$7,$8,'cli','cannery import','imported',$9)",
+            self.project.0 as _,
             attempt.0 as _,
             text(report,"kind")?,
             text(report,"author")?,
@@ -348,7 +349,7 @@ impl Writer<'_> {
     ) -> Result<(EvidenceId, String)> {
         let digest = canonical_sha256(content);
         let id=EvidenceId(sqlx::query_scalar!(
-            "INSERT INTO evidence_records(project_id,attempt_id,stage,status,revision,content,sha256,via_channel,via_client,created_at,origin,source_ref) VALUES($1,$2,$3,'completed',1,$4,$5,'cli','cannery import',$6,'imported',$7) RETURNING id AS \"id: uuid::Uuid\"",
+            "INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,sha256,via_channel,via_client,created_at,origin,source_ref) VALUES($1,$2,$3,'completed',1,$4,$5,'cli','cannery import',$6,'imported',$7) RETURNING id AS \"id: uuid::Uuid\"",
             self.project.0 as _,
             attempt.0 as _,
             stage,

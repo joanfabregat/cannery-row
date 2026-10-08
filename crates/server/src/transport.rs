@@ -247,6 +247,7 @@ pub(crate) async fn normalize(
 pub(crate) fn installed_routes() -> Vec<Route> {
     [
         ("/api/health", "GET"),
+        ("/api/schemas/{phase}", "GET"),
         ("/mcp", "POST"),
         ("/openapi.json", "GET, HEAD"),
         ("/docs", "GET, HEAD"),

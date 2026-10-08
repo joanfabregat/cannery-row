@@ -17,7 +17,7 @@ One Cargo workspace (`Cargo.toml`, edition 2024, minimum Rust 1.94.1, built with
 | --- | --- |
 | `crates/cannery` | The command line: `serve`, `migrate`, `db`, `openapi`, `runner`, `evaluator`, `import`. |
 | `crates/server` | The Axum HTTP application: REST routes, browser login, MCP at `/mcp`, the embedded web distribution, OpenAPI generation, background recovery. |
-| `crates/core` | Settings, database connection and migrations, the bounded JSON `Document`, canonical evidence bytes, published-contract validation, audit, IDs, pagination, timestamps. |
+| `crates/core` | Settings, database connection and migrations, the bounded JSON `Document`, canonical evidence bytes, published-contract validation and the per-phase front matter schemas, strict YAML and front matter documents, audit, IDs, pagination, timestamps. |
 | `crates/identity` | Users, sessions, personal and service tokens, login requests, opaque credential minting. |
 | `crates/projects` | Projects, memberships and project-scoped authorization. |
 | `crates/research` | Science and dashboard revisions, step manifests and their checks, interfaces, job baselines, deadlines and job documents. |
@@ -119,7 +119,7 @@ The workspace uses rustls 0.23 with the ring 0.17 provider for HTTPS, PostgreSQL
 | JSON Schema | `jsonschema` 0.58.5, default features off | Draft 2020-12, in-memory registry, no network resolution. |
 | OpenAPI | `utoipa` 6 | Generates the document from the same DTOs and handlers. |
 | MCP | Own transport over Axum | `rmcp`'s HTTP service changes status codes for clients that omit `Accept`/`Content-Type`. |
-| YAML (imports) | `serde-saphyr` 0.0.29 | `serde_yaml` is unmaintained and `serde_yml` has a RustSec advisory. Bounded reads and alias restrictions are documented in [crates/imports/README.md](../../crates/imports/README.md). |
+| YAML (imports, front matter) | `serde-saphyr` 0.0.29 | `serde_yaml` is unmaintained and `serde_yml` has a RustSec advisory. The strict options are shared by imports and phase documents (`cannery_core::yaml`); the front matter delimiters are split by `cannery_core::front_matter`, without a separate front matter crate. Bounded reads and alias restrictions are documented in [crates/imports/README.md](../../crates/imports/README.md). |
 | Settings | `toml` 0.8 | Maintained TOML parser. |
 | Object storage | `aws-sdk-s3` and related official AWS crates | Official SDK, rustls with ring. |
 | Containers | `bollard` 0.21.1, `kube` 4.2.0, `k8s-openapi` 0.28.0 | Official-API clients without a CLI or ambient credentials. |

@@ -77,6 +77,7 @@ pub mod review_attention_routes;
 pub mod review_attention_wire;
 mod review_decision_idempotency;
 pub mod review_decision_routes;
+mod schema_routes;
 mod search_request;
 pub mod search_routes;
 pub mod step_binding;
@@ -203,6 +204,7 @@ pub use documentation::OPENAPI;
         metric_routes::view,
         comparison_routes::list,
         review_attention_routes::attention,
+        schema_routes::schema,
         health::health
     ),
     info(title = "Cannery Row")

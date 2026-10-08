@@ -27,7 +27,6 @@ describe("plain-language labels", () => {
       "claimed",
       "running",
       "submitted",
-      "validating",
       "testing",
       "evaluating",
       "awaiting_human_review",

@@ -174,6 +174,7 @@
     crate::api_models::MetricsPage,
     crate::api_models::Origin,
     crate::api_models::OriginFilter,
+    crate::api_models::DocumentPhase,
     crate::api_models::Page_AttemptOut_UUID_,
     crate::api_models::Page_AttemptOut_int_,
     crate::api_models::Page_CommentOut_UUID_,

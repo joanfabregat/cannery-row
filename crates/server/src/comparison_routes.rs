@@ -161,7 +161,6 @@ pub(crate) async fn list(
                 "claimed",
                 "running",
                 "submitted",
-                "validating",
                 "testing",
                 "evaluating",
                 "awaiting_human_review",

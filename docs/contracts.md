@@ -189,6 +189,35 @@ An evaluator record adds `assessment`: policy revision, each gate's `pass`/`fail
 
 A human decision always supplies `review_case_id`, `evidence_revision`, `action`, and a non-empty `reason`. Draft actions are `approve`, `request_revision`, `decline`; result actions are `promote`, `reject`, `inconclusive`; failure actions are `retry`, `close_failed`. The server derives actor, via and timestamp from authentication and binds the decision to the exact draft/evaluator/failure evidence revision. `promote` is valid only when the evaluator verdict is `pass`. A later correction is another linked, reasoned decision record; it never edits the evaluator verdict or original human decision. This preserves the distinction between measurements, evaluator judgment, and human validation.
 
+## Phase documents
+
+What an attempt's phases produce is kept as phase outputs, each a Markdown document with YAML front matter:
+
+```markdown
+---
+kind: retrospective
+author: A. Researcher
+written_on: 2024-03-01
+---
+# Seed 1
+
+The run diverged after epoch 3 …
+```
+
+The front matter is the machine-readable part and the body the narrative. The document opens with a line `---` and the front matter closes with a line `---` (or `...`); everything after it is the body, kept byte for byte. Lines end with LF or CRLF, and a leading byte order mark is ignored. The front matter must be present and be one YAML mapping (an empty one is allowed); the body may be empty. YAML is read strictly, as in an [import bundle](import.md#layout): a duplicate key is an error, anchors, aliases and merge keys are refused, dates stay text, and only `true` and `false` are booleans. A document is at most 1 MiB, with front matter nested at most 64 deep and at most 100,000 nodes.
+
+Each phase has a JSON Schema for its front matter:
+
+| Phase | Schema | Front matter |
+| --- | --- | --- |
+| `run` | `run.schema.json` | The agent's evidence envelope (`stage: agent`), as [above](#evidence-envelope). |
+| `verification` | `verification.schema.json` | A tester's or an evaluator's evidence envelope (`stage: tester` or `evaluator`). |
+| `writeup` | `writeup.schema.json` | `kind` (`retrospective`), `author`, and exactly one of `written_on` (a date) or `written_at` (an instant). |
+
+`GET /api/schemas/{phase}` returns a phase's schema as one self-contained document (`application/schema+json`): the published schemas it references are embedded under `$defs` with their own `$id`, so a client validates against it without fetching anything else. It needs no authentication, like the OpenAPI document; an unknown phase is `404 not_found`.
+
+Submissions still take the JSON evidence envelope: the run and verification outputs store it as their front matter, with an empty body. The only write-ups are imported ones: the report of an imported attempt, stored with `origin: imported`, its path in the bundle as `source_ref` and the report's SHA-256 (see [import](import.md#reports)).
+
 ## Test and evaluation jobs
 
 Testers and external evaluators pull work. A claim returns one job, a lease token, and its generation. An evaluation claim names the policy revision the evaluator applies (`{"stage": "evaluator", "revision": "policy-r1"}`) and is handed only evaluation jobs pinned to that revision, so evaluators of different revisions can run side by side and a switch of revision never fails a job; a test claim names none. Heartbeats extend the lease; completion or failure requires the current token. The job lease token authorizes only reading the listed inputs and writing under `output_prefix`.

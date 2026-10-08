@@ -26,7 +26,7 @@ macro_rules! domain {
 domain!(Stage {Agent=>"agent",Evaluator=>"evaluator",Tester=>"tester"});
 domain!(Status {Completed=>"completed",Failed=>"failed"});
 domain!(Origin {Live=>"live",Imported=>"imported"});
-domain!(AttemptState {Claimed=>"claimed",Running=>"running",Submitted=>"submitted",Validating=>"validating",Testing=>"testing",Evaluating=>"evaluating",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+domain!(AttemptState {Claimed=>"claimed",Running=>"running",Submitted=>"submitted",Testing=>"testing",Evaluating=>"evaluating",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 domain!(ImportedKind {Retrospective=>"retrospective"});
 /// Calibrated source decoder profile; no universal native default is inferred.
 #[derive(Clone, Copy, Debug)]

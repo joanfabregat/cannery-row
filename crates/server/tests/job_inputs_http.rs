@@ -281,8 +281,7 @@ async fn storage(pool: &sqlx::PgPool) -> Result<Value> {
         ("artifacts", "id"),
         ("measurements", "id"),
         ("comparisons", "id"),
-        ("evidence_records", "id"),
-        ("imported_reports", "attempt_id"),
+        ("phase_outputs", "id"),
         ("review_cases", "id"),
         ("decisions", "id"),
         ("audit_events", "seq"),
@@ -627,7 +626,7 @@ async fn assert_native_refusal(
                     .ok_or("name")?
                     .starts_with("recovered-evidence-")
             );
-            let content: Value = sqlx::query_scalar("SELECT content FROM evidence_records WHERE id='00000000-0000-0000-0000-000000003008'").fetch_one(pool).await?;
+            let content: Value = sqlx::query_scalar("SELECT front_matter FROM phase_outputs WHERE id='00000000-0000-0000-0000-000000003008'").fetch_one(pool).await?;
             assert!(content.is_object());
             assert!(
                 serde_json::from_value::<cannery_server::api_models::EvidenceEnvelopeRequest>(

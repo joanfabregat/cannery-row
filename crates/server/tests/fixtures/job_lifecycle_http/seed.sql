@@ -13,9 +13,9 @@ spec=spec||jsonb_build_object('steps',jsonb_build_array(jsonb_build_object('name
 WHERE id='00000000-0000-0000-0000-000000006005';
 SET CONSTRAINTS ALL IMMEDIATE;
 ALTER TABLE jobs ENABLE TRIGGER jobs_frozen;
-ALTER TABLE evidence_records DISABLE TRIGGER evidence_records_immutable;
-UPDATE evidence_records SET content='{"provenance":{"source_revision":"source-1"}}' WHERE id='00000000-0000-0000-0000-000000003008';
-ALTER TABLE evidence_records ENABLE TRIGGER evidence_records_immutable;
+ALTER TABLE phase_outputs DISABLE TRIGGER phase_outputs_immutable;
+UPDATE phase_outputs SET front_matter='{"provenance":{"source_revision":"source-1"}}' WHERE id='00000000-0000-0000-0000-000000003008';
+ALTER TABLE phase_outputs ENABLE TRIGGER phase_outputs_immutable;
 CREATE TABLE fixture_job_lifecycle_fault(enabled boolean NOT NULL);
 INSERT INTO fixture_job_lifecycle_fault VALUES(false);
 CREATE FUNCTION fixture_job_lifecycle_audit_fault() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -23,7 +23,7 @@ BEGIN IF EXISTS(SELECT 1 FROM fixture_job_lifecycle_fault WHERE enabled) THEN RA
 CREATE TRIGGER fixture_job_lifecycle_audit_fault BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fixture_job_lifecycle_audit_fault();
 -- A second independent tester run permits publication and capability uploads.
 UPDATE attempts SET state='testing' WHERE id='00000000-0000-0000-0000-000000002006';
-INSERT INTO evidence_records(id,project_id,attempt_id,stage,status,content,sha256,producer_user,via_channel)
+INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_user,via_channel)
 VALUES('00000000-0000-0000-0000-000000003006','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002006','agent','completed','{"provenance":{"source_revision":"source-1"}}',repeat('a',64),'00000000-0000-0000-0000-000000000001','api');
 ALTER TABLE jobs DISABLE TRIGGER jobs_frozen;
 UPDATE jobs SET stage='tester',tester_id='fixture-tester',state='claimed',claimed_by_service='00000000-0000-0000-0000-000000000023',lease_generation=9,lease_token_hash=sha256(convert_to('fixture-held-second','UTF8')),lease_expires_at=now()+interval '1 hour',deadline=now()+interval '2 hours',claimed_at=now(),

@@ -124,8 +124,6 @@ pub enum AttemptState {
     Running,
     #[serde(rename = "submitted")]
     Submitted,
-    #[serde(rename = "validating")]
-    Validating,
     #[serde(rename = "testing")]
     Testing,
     #[serde(rename = "evaluating")]
@@ -831,6 +829,17 @@ pub enum Origin {
     Live,
     #[serde(rename = "imported")]
     Imported,
+}
+
+/// A phase whose output documents have a published front matter schema.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub enum DocumentPhase {
+    #[serde(rename = "run")]
+    Run,
+    #[serde(rename = "verification")]
+    Verification,
+    #[serde(rename = "writeup")]
+    Writeup,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

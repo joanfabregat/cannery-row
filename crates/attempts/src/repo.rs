@@ -1007,7 +1007,6 @@ fn is_open(state: State) -> bool {
         State::Claimed
             | State::Running
             | State::Submitted
-            | State::Validating
             | State::Testing
             | State::Evaluating
             | State::AwaitingHumanReview

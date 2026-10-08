@@ -409,7 +409,7 @@ async fn publication_and_upload(
     )
     .await?;
     assert_eq!(status, 409, "{value}");
-    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM evidence_records WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='tester'),(SELECT count(*) FROM manifests WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='tester'),(SELECT count(*) FROM idempotency_keys WHERE scope='job.complete')").fetch_one(pool).await?;
+    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='tester'),(SELECT count(*) FROM manifests WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='tester'),(SELECT count(*) FROM idempotency_keys WHERE scope='job.complete')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
     Ok(())
 }
@@ -558,7 +558,7 @@ async fn cancelled_receive(
 }
 async fn evaluator_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     sqlx::raw_sql("INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001006',2,'evaluating',2,4,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
-    INSERT INTO evidence_records(id,project_id,attempt_id,stage,status,content,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002406','tester','completed','{\"provenance\":{\"source_revision\":\"source-1\",\"dataset_revision\":\"data-1\"},\"measurements\":[]}',repeat('a',64),'00000000-0000-0000-0000-000000000023','api');
+    INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002406','tester','completed','{\"provenance\":{\"source_revision\":\"source-1\",\"dataset_revision\":\"data-1\"},\"measurements\":[]}',repeat('a',64),'00000000-0000-0000-0000-000000000023','api');
     INSERT INTO jobs(id,project_id,attempt_id,stage,run_number,state,science_revision,tester_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) VALUES('00000000-0000-0000-0000-000000006108','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002406','evaluator',1,'claimed',4,'fixture-evaluator','{\"evaluator\":{\"id\":\"fixture-evaluator\",\"revision\":\"policy-1\"},\"track\":\"track-4\",\"parameters\":{},\"control\":null,\"output_prefix\":\"evaluation/\",\"inputs\":{\"evidence\":[{\"ref\":\"00000000-0000-0000-0000-000000003406\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}}',600,'00000000-0000-0000-0000-000000000024','api',1,sha256(convert_to('evaluation-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours');").execute(pool).await?;
     let record = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","evidence":{"schema_version":"0.2","attempt_id":"00000000-0000-0000-0000-000000002406","stage":"evaluator","status":"completed","producer":{"kind":"service","id":"fixture-evaluator"},"started_at":"2026-10-01T00:00:00Z","finished_at":"2026-10-01T00:01:00Z","provenance":{"source_revision":"source-1","science_revision":"4","dataset_revision":"data-1"},"assessment":{"policy_revision":"policy-1","gates":[{"id":"coverage","result":"unknown"}],"evidence":[{"ref":"00000000-0000-0000-0000-000000003406","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"verdict":"inconclusive","reason":"bounded evaluation"}}});
     let (first, second) = tokio::join!(
@@ -586,7 +586,7 @@ async fn evaluator_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result
     assert_eq!(first.0, 200, "{}", first.1);
     assert_eq!(second.0, 200, "{}", second.1);
     assert_ne!(first.2, second.2);
-    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM evidence_records WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND stage='evaluator'),(SELECT count(*) FROM review_cases WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND kind='result'),(SELECT count(*) FROM audit_events WHERE action='attempt.evaluated' AND subject_id='00000000-0000-0000-0000-000000002406')").fetch_one(pool).await?;
+    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND stage='evaluator'),(SELECT count(*) FROM review_cases WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND kind='result'),(SELECT count(*) FROM audit_events WHERE action='attempt.evaluated' AND subject_id='00000000-0000-0000-0000-000000002406')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
     let (attempt,hypothesis):(String,String)=sqlx::query_as("SELECT a.state,h.state FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id='00000000-0000-0000-0000-000000002406'").fetch_one(pool).await?;
     assert_eq!(
@@ -596,7 +596,7 @@ async fn evaluator_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result
             "awaiting_human_review".into()
         )
     );
-    let linked:bool=sqlx::query_scalar("SELECT j.evidence_id=c.evidence_id AND c.subject_revision=e.revision AND c.resolved_at IS NULL FROM jobs j JOIN evidence_records e ON e.id=j.evidence_id JOIN review_cases c ON c.evidence_id=e.id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
+    let linked:bool=sqlx::query_scalar("SELECT j.evidence_id=c.evidence_id AND c.subject_revision=e.revision AND c.resolved_at IS NULL FROM jobs j JOIN phase_outputs e ON e.id=j.evidence_id JOIN review_cases c ON c.evidence_id=e.id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
     assert!(linked);
     Ok(())
 }
@@ -610,10 +610,10 @@ INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision
 SELECT '00000000-0000-0000-0000-000000001416',2,content,5,author_user,via_channel FROM hypothesis_revisions WHERE hypothesis_id='00000000-0000-0000-0000-000000001006' AND revision=2;
 INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation)
 SELECT '00000000-0000-0000-0000-000000002416',project_id,'00000000-0000-0000-0000-000000001416',1,'evaluating',2,5,track_id,claimed_by_service,via_channel,0 FROM attempts WHERE id='00000000-0000-0000-0000-000000002406';
-INSERT INTO evidence_records(id,project_id,attempt_id,stage,status,content,sha256,producer_service,via_channel)
-SELECT '00000000-0000-0000-0000-000000003416',project_id,'00000000-0000-0000-0000-000000002416',stage,status,content,sha256,producer_service,via_channel FROM evidence_records WHERE id='00000000-0000-0000-0000-000000003406';
-INSERT INTO evidence_records(id,project_id,attempt_id,stage,status,revision,content,sha256,producer_service,via_channel)
-SELECT '00000000-0000-0000-0000-000000003417',project_id,attempt_id,stage,status,2,content||'{"measurements":[{"metric":"mrr","split":"dev","dimensions":{},"authority":"tester_verified","value":0.42,"unit":"ratio","direction":"higher"}]}'::jsonb,repeat('b',64),producer_service,via_channel FROM evidence_records WHERE id='00000000-0000-0000-0000-000000003416';
+INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel)
+SELECT '00000000-0000-0000-0000-000000003416',project_id,'00000000-0000-0000-0000-000000002416',stage,status,front_matter,sha256,producer_service,via_channel FROM phase_outputs WHERE id='00000000-0000-0000-0000-000000003406';
+INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,revision,front_matter,sha256,producer_service,via_channel)
+SELECT '00000000-0000-0000-0000-000000003417',project_id,attempt_id,stage,status,2,front_matter||'{"measurements":[{"metric":"mrr","split":"dev","dimensions":{},"authority":"tester_verified","value":0.42,"unit":"ratio","direction":"higher"}]}'::jsonb,repeat('b',64),producer_service,via_channel FROM phase_outputs WHERE id='00000000-0000-0000-0000-000000003416';
 "#).execute(pool).await?;
     let refs = json!([
         {"ref":"00000000-0000-0000-0000-000000003416","sha256":"a".repeat(64)},
