@@ -1,0 +1,227 @@
+# Demo project: daily demand forecasts for a fictional bakery chain. Its
+# notebook-era history (hypotheses #1 to #5) comes from the import bundle in
+# dev/demo-data/import/demo-forecast; this file is the live work that
+# continues it. Fictional demo data for dev/seed-demo.sh.
+slug: demo-forecast
+title: "Demo: bakery demand forecast"
+dataset_revision: bakery-sales-2026-06
+members:
+  chloe: researcher
+  ada: researcher
+  ben: member
+  eli: viewer
+
+tracks:
+  - slug: global-models
+    title: Global gradient boosting
+    description: One gradient-boosted model across all shops and products, with calendar, price and weather features.
+  - slug: reconciliation
+    title: Hierarchical reconciliation
+    description: Making product, shop and chain totals agree without losing accuracy.
+
+hypotheses:
+  - key: lgbm-global
+    by: agent
+    doc:
+      track: global-models
+      title: One gradient-boosted model for all series
+      question: Does a single gradient-boosted model over all 480 series beat the four-week average (#1) on backtest MASE at both horizons?
+      rationale: A global model shares information across shops and products; the per-series ARIMA search (#3) was too slow.
+      intervention: Gradient-boosted trees on lags 1-28, rolling means, weekday, holiday flags and price, one model per horizon, Tweedie loss.
+      control: {kind: baseline, id: seasonal-naive, revision: r1}
+      plan:
+        selection_splits: [backtest]
+        confirmation_splits: [backtest]
+        primary_metric: mase
+        required_slices: [horizon]
+        success_criteria: Backtest MASE below 0.88 overall and below the four-week average (0.90 and 0.96) at each horizon.
+        falsification_criteria: MASE not below 0.93 overall.
+        regression_gates: [horizon]
+        compute_budget: {cpu_hours_max: 6}
+      project_fields: {horizon_days: 7, seed: 11}
+      relations:
+        - {kind: derived_from, hypothesis: 1}
+        - {kind: supersedes, hypothesis: 3}
+    review:
+      - {by: chloe, action: approve, reason: "The obvious next step after the notebook; approved with the 6 CPU-hour budget."}
+    attempts:
+      - by: agent
+        stop: evaluated
+        seconds: 7800
+        candidate: {model: gradient-boosted-trees, loss: tweedie, horizons: [1, 7], lags: 28, num_leaves: 63, learning_rate: 0.05}
+        sheet:
+          tried: One gradient-boosted model per horizon across all series, Tweedie loss.
+          configuration: Code 3e9d5a0; data bakery-sales-2026-06; control seasonal-naive r1. New features are holiday flags and price; lags as in the notebook.
+          observations: Holiday weeks improve the most; the three new shops are still the weakest series.
+          findings: Backtest MASE about 0.84 overall, 0.80 one day ahead and 0.88 seven days ahead.
+          limitations: Weather not used yet; quantiles not modeled, so no intervals.
+          next_question: Do weather features help the seven-day horizon?
+          body: |
+            # Global gradient boosting
+
+            | Horizon | Seasonal naive | Four-week avg (#1) | Global GBT |
+            | --- | --- | --- | --- |
+            | overall | 1.00 | 0.93 | **0.84** |
+            | 1 day | 1.00 | 0.90 | **0.80** |
+            | 7 days | 1.00 | 0.96 | **0.88** |
+
+            Feature importance is led by the 7- and 14-day lags, then the holiday flag. Training all 13 backtest windows takes 25 minutes on 4 cores.
+        results:
+          - {metric: mase, split: backtest, claimed: 0.84, verified: 0.842, n: 480, control: 1.0, ci: [0.826, 0.858]}
+          - {metric: mase, split: backtest, dims: {horizon: d1}, claimed: 0.8, verified: 0.803, n: 480}
+          - {metric: mase, split: backtest, dims: {horizon: d7}, claimed: 0.88, verified: 0.881, n: 480}
+          - {metric: mape, split: backtest, claimed: 18.4, verified: 18.6, n: 480}
+        tester_notes: Refitted on the 13 backtest windows from the submitted configuration; MASE within 0.003 of the claim.
+        verdict:
+          result: pass
+          gates:
+            - {id: mase-gain, result: pass, detail: "0.842 < 0.88"}
+            - {id: horizons-beat-average, result: pass, detail: "d1 0.803 < 0.90; d7 0.881 < 0.96"}
+          reason: Both gates pass; the largest gain since the project started.
+          compare:
+            - {metric: mase, split: backtest, reference: {value: 0.93, label: "Four-week average (#1, imported)", kind: promoted_attempt, ref: "demo-forecast#1"}}
+            - {metric: mase, split: backtest, dims: {horizon: d7}, reference: {value: 0.96, label: "Four-week average (#1, imported)", kind: promoted_attempt, ref: "demo-forecast#1"}}
+        decision: {by: chloe, action: promote, reason: "Clear gain at both horizons and fast enough to retrain weekly. This is the production candidate."}
+    comments:
+      - {by: ada, on: hypothesis, body: "Worth noting in the report that #4 (holiday-aware average, still awaiting review) is now mostly moot: the holiday flag here does the same job."}
+      - {by: chloe, on: 1, body: "The new shops are the weak spot. I'll draft something on borrowing strength from similar shops."}
+
+  - key: lgbm-weather
+    by: agent
+    doc:
+      track: global-models
+      title: Add the weather forecast as features
+      question: Do next-day temperature and rain forecasts lower seven-day MASE of the global model?
+      rationale: Bread and cold drinks sales swing with the weather, which lags cannot anticipate.
+      intervention: Add forecast max temperature and rain probability for the target day, as known at forecast time.
+      control: {kind: baseline, id: seasonal-naive, revision: r1}
+      plan:
+        selection_splits: [backtest]
+        confirmation_splits: [backtest]
+        primary_metric: mase
+        required_slices: [horizon]
+        success_criteria: Seven-day MASE at least 0.02 below the global model without weather.
+        falsification_criteria: No gain at seven days.
+        regression_gates: [horizon]
+        compute_budget: {cpu_hours_max: 6}
+      project_fields: {horizon_days: 7, seed: 11}
+      relations:
+        - {kind: derived_from, hypothesis: lgbm-global}
+    review:
+      - {by: chloe, action: approve, reason: "Approved. Make sure only forecasts available at prediction time are used, not observed weather."}
+    attempts:
+      - by: agent
+        stop: tested
+        seconds: 8100
+        candidate: {model: gradient-boosted-trees, loss: tweedie, horizons: [1, 7], weather: [forecast_tmax, forecast_rain_prob]}
+        sheet:
+          tried: Weather forecasts as of forecast time added to the global model.
+          configuration: As the promoted global model plus two weather columns from the archived forecasts.
+          observations: The rain probability matters more than temperature, mostly for weekend sales.
+          findings: Seven-day MASE about 0.85, down from 0.88.
+          limitations: Weather forecasts are only archived from 2024 on, so the first year trains without them.
+          next_question: Does the gain survive without the 2023 data?
+          body: |
+            # Weather features
+
+            Seven-day MASE 0.851 against 0.881 without weather. Gains concentrate on weekends with rain forecasts.
+        results:
+          - {metric: mase, split: backtest, claimed: 0.826, verified: 0.829, n: 480, control: 1.0}
+          - {metric: mase, split: backtest, dims: {horizon: d1}, claimed: 0.801, verified: 0.802, n: 480}
+          - {metric: mase, split: backtest, dims: {horizon: d7}, claimed: 0.851, verified: 0.856, n: 480}
+        tester_notes: Checked that every weather value was issued before the forecast date.
+
+  - key: quantile-intervals
+    by: chloe
+    doc:
+      track: global-models
+      title: 80% prediction intervals with quantile loss
+      question: Do two extra quantile models give 80% intervals with coverage between 0.78 and 0.82?
+      rationale: Shop managers need a range to plan production, not only a point forecast.
+      intervention: Train the global model with quantile loss at 0.1 and 0.9 next to the Tweedie mean model.
+      control: {kind: baseline, id: seasonal-naive, revision: r1}
+      plan:
+        selection_splits: [backtest]
+        confirmation_splits: [backtest]
+        primary_metric: interval_coverage_80
+        required_slices: [horizon]
+        success_criteria: Interval coverage between 0.78 and 0.82, mean forecast unchanged.
+        falsification_criteria: Coverage outside 0.75 to 0.85.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 8}
+      relations:
+        - {kind: derived_from, hypothesis: lgbm-global}
+    review:
+      - {by: ada, action: approve, reason: "Useful for the shops; approved."}
+    attempts:
+      - by: chloe
+        stop: evaluated
+        seconds: 9900
+        candidate: {model: gradient-boosted-trees, quantiles: [0.1, 0.5, 0.9]}
+        sheet:
+          tried: Quantile models at 0.1 and 0.9 beside the mean model.
+          configuration: Same features as the promoted global model.
+          observations: Intervals are too narrow for the three new shops.
+          findings: Overall coverage 0.77, slightly below target.
+          limitations: No conformal calibration.
+          next_question: Would conformal calibration per shop fix the new shops?
+          body: |
+            # Quantile intervals
+
+            80% intervals cover 77% of backtest days: 79% for established shops, 64% for the three new ones.
+        results:
+          - {metric: interval_coverage_80, split: backtest, claimed: 0.77, verified: 0.768, n: 480}
+          - {metric: mase, split: backtest, claimed: 0.842, verified: 0.842, n: 480}
+          - {metric: mase, split: backtest, dims: {horizon: d1}, claimed: 0.803, verified: 0.803, n: 480}
+          - {metric: mase, split: backtest, dims: {horizon: d7}, claimed: 0.881, verified: 0.881, n: 480}
+        verdict:
+          result: inconclusive
+          gates:
+            - {id: mase-gain, result: pass}
+            - {id: horizons-beat-average, result: pass}
+            - {id: interval-coverage, result: fail, detail: "0.768 < 0.78"}
+          reason: The point forecast is unchanged, but coverage is just below the target band, driven by the three new shops.
+    comments:
+      - {by: ben, on: 1, body: "From the shop side, 77% would already be a big improvement over no range at all."}
+
+  - key: reconcile-mint
+    by: agent
+    doc:
+      track: reconciliation
+      title: MinT reconciliation of product, shop and chain forecasts
+      question: Does MinT reconciliation make the hierarchy coherent without raising product-level MASE by more than 0.01?
+      rationale: Chain-level planning currently sums incoherent forecasts.
+      intervention: MinT with a shrinkage covariance estimate over the product-shop-chain hierarchy.
+      plan:
+        selection_splits: [backtest]
+        confirmation_splits: [backtest]
+        primary_metric: mase
+        required_slices: [horizon]
+        success_criteria: Coherent forecasts with product-level MASE within 0.01 of the global model.
+        falsification_criteria: Product-level MASE more than 0.02 worse.
+        regression_gates: [horizon]
+        compute_budget: {cpu_hours_max: 2}
+      relations:
+        - {kind: related_to, hypothesis: lgbm-global}
+    review:
+      - {by: chloe, action: approve, reason: "Approved; queue it after the weather run."}
+
+  - key: new-shops
+    by: chloe
+    doc:
+      track: global-models
+      title: Borrow strength for new shops from similar shops
+      question: Does initializing new shops' series with the profile of the three most similar established shops lower their MASE?
+      rationale: New shops have under a year of history and are the weakest series.
+      intervention: Add the mean sales profile of the three nearest established shops (by size and location type) as features for shops younger than a year.
+      plan:
+        selection_splits: [backtest]
+        confirmation_splits: [backtest]
+        primary_metric: mase
+        required_slices: [horizon]
+        success_criteria: New-shop MASE at least 0.05 lower, established shops unchanged.
+        falsification_criteria: No new-shop gain.
+        regression_gates: [horizon]
+        compute_budget: {cpu_hours_max: 4}
+      relations:
+        - {kind: derived_from, hypothesis: lgbm-global}

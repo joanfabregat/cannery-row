@@ -1,0 +1,25 @@
+{
+  "apiVersion": "cannery-row/v1",
+  "kind": "Step",
+  "metadata": {"name": "sentiment-producer"},
+  "spec": {
+    "role": "producer",
+    "container": {
+      "image": "registry.example/demo/sentiment-producer@sha256:befa1396f66e8b37eb40788ff6b292028c4e911191f2e8211c5c4d6bc3b6fc05",
+      "command": ["python3", "predict.py"],
+      "resources": {"limits": {"cpu": "2", "memory": "4Gi"}}
+    },
+    "activeDeadlineSeconds": 900,
+    "network": "none",
+    "sandbox": "Demo data: loads the candidate model and predicts the unlabeled reviews, without network.",
+    "inputs": {
+      "artifacts": [
+        {"name": "candidate", "from": "attempt", "path": "/cr/inputs/candidate"},
+        {"name": "reviews", "from": "dataset", "id": "toy-reviews", "path": "/cr/inputs/reviews"}
+      ]
+    },
+    "outputs": {
+      "artifacts": [{"name": "run", "interface": "predictions/v1", "path": "/cr/outputs/run"}]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+id: weekly-review
+revision: v1
+title: Weekly forecast review, spring 2026
+description: The gate the team applied by hand in the notebook era.
+gates:
+  - id: beats-seasonal-naive
+    description: Backtest MASE below 0.95 overall.
+    definition: {metric: mase, split: backtest, compare: "<", value: 0.95}
+  - id: d7-holds
+    description: Seven-day MASE not above 1.0.
+    definition: {metric: mase, split: backtest, slice: {horizon: d7}, compare: "<=", value: 1.0}
+source: notebook/policy.md:3-18@5be01c4

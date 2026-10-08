@@ -1,0 +1,354 @@
+# Demo project: next-item recommendations for a fictional online shop, on a
+# synthetic implicit-feedback dataset. Fictional demo data for
+# dev/seed-demo.sh.
+slug: demo-recommender
+title: "Demo: shop recommender"
+description: >-
+  Demo data. Top-10 recommendations for a fictional online shop on a
+  synthetic implicit-feedback dataset, comparing matrix factorization,
+  item neighbourhoods and cold-start strategies against a popularity list.
+dataset_revision: toy-ratings-2026-08
+members:
+  ben: researcher
+  ada: researcher
+  chloe: researcher
+  dev: viewer
+
+tracks:
+  - slug: matrix-factorization
+    title: Matrix factorization
+    description: Implicit ALS and BPR on the user-item interaction matrix.
+  - slug: neighbourhood
+    title: Item neighbourhoods
+    description: Item-to-item similarity models; easy to explain on a product page.
+  - slug: cold-start
+    title: Cold start
+    description: What to show users with fewer than three interactions.
+
+hypotheses:
+  - key: als-64
+    by: agent
+    doc:
+      track: matrix-factorization
+      title: Implicit ALS with 64 factors
+      question: Does implicit ALS with 64 factors beat the popularity list on validation recall@10 for returning users?
+      rationale: Returning users have enough history for collaborative filtering; popularity ignores it entirely.
+      intervention: Implicit ALS, 64 factors, regularization 0.05, confidence 1 + 20 * count, 15 iterations.
+      control: {kind: baseline, id: popularity, revision: r1}
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: recall_at_10
+        required_slices: [user_segment]
+        success_criteria: Recall@10 at least 0.03 above popularity for returning users, new users not worse.
+        falsification_criteria: Returning-user recall@10 within 0.01 of popularity.
+        regression_gates: [user_segment]
+        compute_budget: {cpu_hours_max: 2}
+      project_fields: {factors: 64, seed: 3}
+    review:
+      - {by: ben, action: approve, reason: "Standard first step; approved."}
+    attempts:
+      - by: agent
+        stop: evaluated
+        seconds: 2400
+        candidate: {model: implicit-als, factors: 64, regularization: 0.05, alpha: 20, iterations: 15}
+        sheet:
+          tried: Implicit ALS with 64 factors on the training weeks.
+          configuration: Code 51c0e9a; data toy-ratings-2026-08; control popularity r1. Hyperparameters from a small grid on the last training week.
+          observations: Training converges in 12 iterations. New users get near-popularity lists because their factors are close to zero.
+          findings: Returning-user recall@10 roughly doubles over popularity; new users are unchanged.
+          limitations: No item features; one seed.
+          next_question: How much do new users gain from a dedicated cold-start strategy?
+          body: |
+            # Implicit ALS, 64 factors
+
+            | Segment | Popularity | ALS |
+            | --- | --- | --- |
+            | returning | 0.091 | 0.187 |
+            | new | 0.064 | 0.066 |
+            | all | 0.082 | 0.151 |
+
+            Catalog coverage rises from 0.3% to 21% of items, which merchandising asked for.
+        results:
+          - {metric: recall_at_10, split: validation, claimed: 0.151, verified: 0.149, n: 18000, control: 0.082, ci: [0.144, 0.154]}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, claimed: 0.187, verified: 0.185, n: 12400, control: 0.091}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: new}, claimed: 0.066, verified: 0.066, n: 5600, control: 0.064}
+          - {metric: ndcg_at_10, split: validation, claimed: 0.094, verified: 0.093, n: 18000}
+          - {metric: catalog_coverage, split: validation, claimed: 0.21, verified: 0.208, n: 3200}
+        tester_notes: Recommendations regenerated from the submitted factors; recall matches the claim within 0.002.
+        verdict:
+          result: pass
+          gates:
+            - {id: returning-gain, result: pass, detail: "0.185 >= 0.091 + 0.03"}
+            - {id: new-users-hold, result: pass, detail: "0.066 >= 0.064"}
+          reason: Both gates pass; returning-user recall@10 doubles.
+          compare:
+            - {metric: recall_at_10, split: validation, reference: {value: 0.082, label: Popularity, kind: baseline, ref: popularity}}
+            - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, reference: {value: 0.091, label: Popularity, kind: baseline, ref: popularity}}
+        decision: {by: ben, action: promote, reason: "Large, consistent gain for returning users without hurting new ones. ALS-64 is the reference model of this project."}
+    comments:
+      - {by: chloe, on: hypothesis, body: "Coverage going from 0.3% to 21% is the number merchandising will care about most."}
+
+  - key: item-knn
+    by: agent
+    doc:
+      track: neighbourhood
+      title: Item-kNN with cosine similarity
+      question: Does item-kNN (k = 100, cosine) reach ALS-64's recall@10 for returning users?
+      rationale: Item-to-item lists are easier to explain ("people who bought this also bought").
+      intervention: Cosine similarity on the binarized interaction matrix, k = 100 neighbours, scores summed over the user's last 20 items.
+      control: {kind: baseline, id: popularity, revision: r1}
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: recall_at_10
+        required_slices: [user_segment]
+        success_criteria: Returning-user recall@10 within 0.01 of ALS-64 (0.185).
+        falsification_criteria: More than 0.02 below ALS-64.
+        regression_gates: [user_segment]
+        compute_budget: {cpu_hours_max: 1}
+      relations:
+        - {kind: related_to, hypothesis: als-64}
+    review:
+      - {by: ben, action: approve, reason: "Worth it for explainability."}
+    attempts:
+      - by: agent
+        stop: evaluated
+        seconds: 1500
+        candidate: {model: item-knn, similarity: cosine, k: 100, history_window: 20}
+        sheet:
+          tried: Item-kNN with cosine similarity, 100 neighbours.
+          configuration: Code 51c0e9a; data toy-ratings-2026-08.
+          observations: Lists are dominated by accessories of the last viewed item.
+          findings: Returning-user recall@10 about 0.15, well below ALS-64.
+          limitations: No similarity shrinkage tried.
+          next_question: Would shrinkage or BM25 weighting close the gap?
+          body: |
+            # Item-kNN
+
+            Returning-user recall@10 is 0.152 against 0.185 for ALS-64. The lists are very homogeneous: 7 of 10 items share the category of the last viewed item.
+        results:
+          - {metric: recall_at_10, split: validation, claimed: 0.128, verified: 0.127, n: 18000, control: 0.082}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, claimed: 0.152, verified: 0.151, n: 12400}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: new}, claimed: 0.071, verified: 0.071, n: 5600}
+          - {metric: catalog_coverage, split: validation, claimed: 0.34, verified: 0.337, n: 3200}
+        verdict:
+          result: fail
+          gates:
+            - {id: returning-gain, result: fail, detail: "0.151 is 0.034 below ALS-64"}
+            - {id: new-users-hold, result: pass}
+          reason: Returning-user recall@10 is 0.034 below the promoted ALS model.
+          compare:
+            - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, reference: {value: 0.185, label: "ALS-64 (#1)", kind: promoted_attempt, ref: "demo-recommender#1"}}
+        decision: {by: ada, action: reject, reason: "Clearly below ALS. Keep item-kNN for the explainable 'similar items' widget only, outside this ranking."}
+
+  - key: bpr
+    by: agent
+    doc:
+      track: matrix-factorization
+      title: BPR instead of ALS
+      question: Does BPR with 64 factors beat implicit ALS-64 on recall@10?
+      rationale: BPR optimizes the ranking directly.
+      intervention: BPR, 64 factors, learning rate 0.05, 100 epochs, uniform negative sampling.
+      control: {kind: baseline, id: popularity, revision: r1}
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: recall_at_10
+        required_slices: [user_segment]
+        success_criteria: Recall@10 above ALS-64 by at least 0.005.
+        falsification_criteria: Not above ALS-64.
+        regression_gates: [user_segment]
+        compute_budget: {cpu_hours_max: 3}
+      project_fields: {factors: 64, seed: 3}
+      relations:
+        - {kind: related_to, hypothesis: als-64}
+    review:
+      - {by: ben, action: approve, reason: "OK."}
+    attempts:
+      - by: agent
+        stop: evaluated
+        seconds: 5100
+        candidate: {model: bpr, factors: 64, learning_rate: 0.05, epochs: 100}
+        sheet:
+          tried: BPR with uniform negative sampling.
+          configuration: Code 51c0e9a; same data and seed as ALS-64.
+          observations: Validation recall still moves by ±0.004 between the last 10 epochs.
+          findings: Recall@10 about the same as ALS-64.
+          limitations: Noisy convergence; one seed.
+          next_question: Does BPR stabilize with a lower learning rate?
+          body: |
+            # BPR
+
+            Recall@10 0.153 (ALS-64 0.149 verified). The curve oscillates by ±0.004 near the end, so the difference is within run-to-run noise.
+        results:
+          - {metric: recall_at_10, split: validation, claimed: 0.153, verified: 0.152, n: 18000, ci: [0.146, 0.158]}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, claimed: 0.189, verified: 0.188, n: 12400}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: new}, missing_reason: "The scorer's new-user slice failed on 14 users with no training events; reported overall and returning only.", claimed: 0.065}
+        verdict:
+          result: inconclusive
+          gates:
+            - {id: returning-gain, result: pass}
+            - {id: new-users-hold, result: unknown, detail: "new-user slice missing"}
+          reason: The gain over ALS is within noise and the new-user slice is missing, so the regression gate cannot be checked.
+        decision: {by: ben, action: inconclusive, reason: "Within noise and a missing slice. Not worth another run unless ALS stalls."}
+
+  - key: als-128
+    by: agent
+    doc:
+      track: matrix-factorization
+      title: ALS with 128 factors
+      question: Do 128 factors improve recall@10 over ALS-64?
+      rationale: The 64-factor model underfits frequent buyers.
+      intervention: Same as ALS-64 with 128 factors and regularization 0.08.
+      control: {kind: baseline, id: popularity, revision: r1}
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: recall_at_10
+        required_slices: [user_segment]
+        success_criteria: Recall@10 above ALS-64 by at least 0.005.
+        falsification_criteria: Not above ALS-64.
+        regression_gates: [user_segment]
+        compute_budget: {cpu_hours_max: 3}
+      project_fields: {factors: 128, seed: 3}
+      relations:
+        - {kind: derived_from, hypothesis: als-64}
+    review:
+      - {by: ben, action: approve, reason: "Approved."}
+    attempts:
+      - by: agent
+        stop: released
+        seconds: 300
+        release: "The training job ran out of memory at 128 factors on the 4 GiB worker; releasing so it can be re-planned with sparse float32 factors."
+
+  - key: content-cold-start
+    by: chloe
+    doc:
+      track: cold-start
+      title: Category-popularity lists for new users
+      question: Does recommending the most popular items of the user's first viewed category beat global popularity for new users?
+      rationale: A single view already says a lot about intent.
+      intervention: For users with fewer than three events, the top 10 items of their first viewed category in the last 30 days.
+      control: {kind: baseline, id: popularity, revision: r1}
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: recall_at_10
+        required_slices: [user_segment]
+        success_criteria: New-user recall@10 at least 0.02 above popularity.
+        falsification_criteria: New-user recall@10 not above popularity.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 1}
+    review:
+      - {by: ben, action: approve, reason: "Simple and testable."}
+    attempts:
+      - by: chloe
+        stop: evaluated
+        seconds: 1200
+        candidate: {model: category-popularity, window_days: 30, fallback: global-popularity}
+        sheet:
+          tried: Per-category popularity for users with fewer than three events, ALS-64 for the others.
+          configuration: Code 8e2b77d; ALS-64 unchanged for returning users.
+          observations: 9% of new users have no category view and fall back to global popularity.
+          findings: New-user recall@10 about 0.098, up from 0.066.
+          limitations: Category taxonomy is coarse (24 categories).
+          next_question: Would subcategories help further?
+          body: |
+            # Category popularity for new users
+
+            New-user recall@10: **0.098** (popularity 0.064, ALS-64 0.066). Returning users keep ALS-64.
+        results:
+          - {metric: recall_at_10, split: validation, claimed: 0.159, verified: 0.158, n: 18000}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, claimed: 0.185, verified: 0.185, n: 12400}
+          - {metric: recall_at_10, split: validation, dims: {user_segment: new}, claimed: 0.098, verified: 0.097, n: 5600, control: 0.064}
+        verdict:
+          result: pass
+          gates:
+            - {id: returning-gain, result: pass}
+            - {id: new-users-hold, result: pass, detail: "0.097 >= 0.064 + 0.02"}
+          reason: New-user recall@10 rises by 0.033 and returning users are unchanged.
+          compare:
+            - {metric: recall_at_10, split: validation, dims: {user_segment: new}, reference: {value: 0.064, label: Popularity, kind: baseline, ref: popularity}}
+    comments:
+      - {by: ben, on: 1, body: "Looks good. I'll decide after checking the 9% fallback users by hand."}
+
+  - key: session-recency
+    by: agent
+    doc:
+      track: cold-start
+      title: Weight the current session's views higher
+      question: Does boosting items related to the current session's views raise new-user recall@10?
+      rationale: New users' intent is mostly in the current session.
+      intervention: Re-rank the category-popularity list by co-view counts with the session's items.
+      control: {kind: baseline, id: popularity, revision: r1}
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: recall_at_10
+        required_slices: [user_segment]
+        success_criteria: New-user recall@10 above the category-popularity strategy.
+        falsification_criteria: Not above it.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 1}
+      relations:
+        - {kind: derived_from, hypothesis: content-cold-start}
+    review:
+      - {by: chloe, action: approve, reason: "Natural follow-up."}
+    attempts:
+      - by: agent
+        stop: submitted
+        seconds: 1800
+        candidate: {model: category-popularity-session-rerank, coview_window_days: 30}
+        sheet:
+          tried: Co-view re-ranking of the category-popularity list.
+          configuration: Code 8e2b77d plus the re-ranker.
+          observations: Helps most for users with two or more session views.
+          findings: New-user recall@10 about 0.104.
+          limitations: Session boundaries are approximated with a 30-minute gap.
+          next_question: None yet.
+          body: |
+            # Session re-ranking
+
+            New-user recall@10 0.104 (claimed), up from 0.098.
+        results:
+          - {metric: recall_at_10, split: validation, dims: {user_segment: new}, claimed: 0.104, n: 5600}
+
+  - key: two-tower
+    by: agent
+    doc:
+      track: matrix-factorization
+      title: A two-tower model with item text
+      question: Does a two-tower model with item-title embeddings beat ALS-64?
+      rationale: Titles carry information for rarely bought items.
+      intervention: Two towers of two dense layers each, title embeddings from a small sentence encoder, in-batch negatives.
+      control: {kind: baseline, id: popularity, revision: r1}
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: recall_at_10
+        required_slices: [user_segment]
+        success_criteria: Recall@10 above ALS-64 by 0.01.
+        falsification_criteria: Not above ALS-64.
+        regression_gates: [user_segment]
+        compute_budget: {gpu_hours_max: 8}
+
+  - key: random-shuffle
+    by: agent
+    doc:
+      track: neighbourhood
+      title: Shuffle the item-kNN list for diversity
+      question: Does randomly shuffling positions 4-10 of the item-kNN list increase coverage without losing recall?
+      rationale: Lists are too homogeneous.
+      intervention: Keep the top 3, shuffle the rest.
+      plan:
+        selection_splits: [validation]
+        confirmation_splits: [validation]
+        primary_metric: catalog_coverage
+        required_slices: []
+        success_criteria: Coverage up, recall@10 unchanged.
+        falsification_criteria: Coverage unchanged.
+        regression_gates: []
+        compute_budget: {cpu_hours_max: 1}
+    review:
+      - {by: ben, action: decline, reason: "Shuffling within a top-10 cannot change recall@10 or coverage: the set of items is the same. Re-draft as a diversity re-ranker if needed."}
