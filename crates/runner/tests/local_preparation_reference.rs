@@ -299,6 +299,13 @@ fn outcome(result: Result<(), PreparationError>, root: &Path) -> Value {
         }
     }
 }
+/// Copy issues follow directory listing order, which the file system decides.
+fn unordered_issues(mut outcome: Value) -> Value {
+    if let Some(issues) = outcome.get_mut("issues").and_then(Value::as_array_mut) {
+        issues.sort_by(|a, b| a["source_hex"].as_str().cmp(&b["source_hex"].as_str()));
+    }
+    outcome
+}
 #[test]
 fn runtime_reference_preparation_effects() {
     assert_ne!(rustix::process::geteuid().as_raw(), 0);
@@ -375,7 +382,8 @@ fn runtime_reference_preparation_effects() {
             );
         }
         assert_eq!(
-            observed, case["observed"]["outcome"],
+            unordered_issues(observed),
+            unordered_issues(case["observed"]["outcome"].clone()),
             "outcome {}",
             case["name"]
         );
