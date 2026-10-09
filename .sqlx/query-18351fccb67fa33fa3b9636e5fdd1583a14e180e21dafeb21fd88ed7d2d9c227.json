@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plan_revisions (project_id, track_id, revision, based_on, approach,\n        created_by, via_channel, via_client)\n        SELECT $1, $2, coalesce(max(revision), 0) + 1, $3, $4, $5, $6, $7\n        FROM plan_revisions WHERE track_id = $2\n        RETURNING revision",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "18351fccb67fa33fa3b9636e5fdd1583a14e180e21dafeb21fd88ed7d2d9c227"
+}

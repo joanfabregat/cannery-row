@@ -25,6 +25,12 @@ export type ReviewCase = Schemas["cannery_row__reviews__routes__ReviewCaseOut"];
 export type Track = Schemas["TrackOut"];
 export type TrackEvent = Schemas["HistoryEvent"];
 
+export type Plan = Schemas["PlanOut"];
+export type PlanUnit = Schemas["PlanUnitOut"];
+export type PlanRevision = Schemas["PlanRevisionOut"];
+export type PlanCheck = Schemas["PlanCheckOut"];
+export type UnitIndex = Schemas["UnitIndexOut"];
+
 export type Comment = Schemas["CommentOut"];
 export type CommentRevision = Schemas["CommentRevisionOut"];
 

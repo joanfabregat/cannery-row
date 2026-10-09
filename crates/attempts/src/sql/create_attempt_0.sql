@@ -13,13 +13,16 @@
                                   science_revision, track_id, producer,
                                   claimed_by_user, claimed_by_service, via_channel, via_client,
                                   predecessor_id, lease_generation, lease_token_hash,
-                                  lease_expires_at, workflow, deadline, brief_revision)
+                                  lease_expires_at, workflow, deadline, brief_revision,
+                                  plan_revision)
             SELECT b.project_id, b.id, coalesce(p.sequence, 0) + 1, b.approved_revision,
                    $2, b.track_id, $3, $4, $5,
                    $6, $7, p.id, b.lease_generation, $8,
                    now() + make_interval(secs => $9), $10,
                    now() + make_interval(secs => $11::integer),
-                   (SELECT max(revision) FROM briefs WHERE project_id = b.project_id)
+                   (SELECT max(revision) FROM briefs WHERE project_id = b.project_id),
+                   (SELECT max(revision) FROM plan_revisions
+                    WHERE track_id = b.track_id AND state = 'approved')
             FROM bumped b CROSS JOIN previous p
             RETURNING id AS "id!: AttemptId"
             

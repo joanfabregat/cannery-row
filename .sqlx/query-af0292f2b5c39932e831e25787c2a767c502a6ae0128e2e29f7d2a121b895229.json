@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tracks SET state = 'active', revision = revision + 1, updated_at = now()\n        WHERE id = $1 AND state = 'planning'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "af0292f2b5c39932e831e25787c2a767c502a6ae0128e2e29f7d2a121b895229"
+}

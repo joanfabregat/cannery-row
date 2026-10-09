@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT f.role, f.media_type, f.size_bytes, h.number, a.sequence\n        FROM artifacts f JOIN attempts a ON a.id = f.attempt_id\n        JOIN hypotheses h ON h.id = a.hypothesis_id\n        WHERE f.project_id = $1 AND f.id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "media_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "sequence",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e0692d4dafc25aaa5be3d26cad659aa86e26d0b3fd85773ab33786c49bf8d6ab"
+}

@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id AS \"attempt_id!: _\", a.sequence, h.id AS \"hypothesis_id!: _\", h.number,\n        h.title, t.id AS \"track_id!: _\", t.slug AS track_slug, t.title AS track_title,\n        a.hypothesis_revision, a.brief_revision, a.plan_revision\n        FROM attempts a JOIN hypotheses h ON h.id = a.hypothesis_id\n        JOIN tracks t ON t.id = a.track_id\n        WHERE h.project_id = $1 AND h.number = $2 AND a.sequence = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempt_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "sequence",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "hypothesis_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "track_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "track_slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "track_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "hypothesis_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "brief_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "plan_revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "01f2557ced4a11b12290bd08a6311214550106360835cbd451330f0673db1151"
+}

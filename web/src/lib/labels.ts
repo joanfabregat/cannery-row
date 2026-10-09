@@ -60,6 +60,7 @@ const attemptState = {
 };
 
 const trackState = {
+  planning: s("Planning", "attention", "draft"),
   active: s("Active", "success", "progress"),
   paused: s("Paused", "attention", "paused"),
   archived: s("Archived", "neutral", "archived"),
@@ -87,6 +88,15 @@ const standing = {
   worse: s("Worse", "danger", "failure"),
   same: s("Same", "neutral", "inconclusive"),
   unknown: s("Can't tell", "neutral", "inconclusive"),
+};
+
+/** A track plan revision, from its draft to the researcher's review. */
+const planState = {
+  draft: s("Draft", "neutral", "draft"),
+  submitted: s("Waiting for review", "attention", "review"),
+  approved: s("Approved", "success", "success"),
+  sent_back: s("Sent back", "attention", "draft"),
+  declined: s("Declined", "neutral", "stopped"),
 };
 
 const reviewState = {
@@ -128,6 +138,7 @@ export const statusDomains = {
   hypothesis: hypothesisState,
   attempt: attemptState,
   track: trackState,
+  plan: planState,
   authority,
   verdict,
   standing,
@@ -152,6 +163,7 @@ export const labels = {
     draft: "Draft review",
     result: "Result review",
     failure: "Failure review",
+    plan: "Plan review",
   },
   decision: {
     approve: "Approve",
@@ -205,6 +217,12 @@ export const labels = {
     experimenter: "Experimenter (workflow runner)",
     tester: "Tester",
     evaluator: "Evaluator",
+  },
+  /** What a re-plan does with a unit already done or in flight. */
+  alignment: {
+    keep: "Keep",
+    obsolete: "Obsolete",
+    redo: "Redo",
   },
   relation: {
     derived_from: "Derived from",

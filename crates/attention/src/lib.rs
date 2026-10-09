@@ -258,7 +258,7 @@ pub async fn pending_counts(
     project: ProjectId,
 ) -> Result<BTreeMap<CaseKind, i64>, Error> {
     let rows = sqlx::query!(
-        "\n            SELECT kind, count(*) AS \"count!\" FROM review_cases\n            WHERE project_id = $1 AND state = 'pending' GROUP BY kind\n            ",
+        "\n            SELECT kind, count(*) AS \"count!\" FROM review_cases\n            WHERE project_id = $1 AND state = 'pending' AND kind <> 'plan' GROUP BY kind\n            ",
         project as ProjectId
     )
     .fetch_all(&mut *c)

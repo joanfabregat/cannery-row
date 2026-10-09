@@ -39,4 +39,5 @@ identifiers!(
     JobId,
     ReportId,
     ReviewCaseId,
+    PlanRevisionId,
 );

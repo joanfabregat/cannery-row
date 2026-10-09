@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plan_units (plan_revision_id, key, position, hypothesis_id, redo_of,\n        fields, brief, science_revision)\n        SELECT $2, u.key, u.position, u.hypothesis_id,\n        CASE WHEN u.hypothesis_id IS NULL THEN u.redo_of END, u.fields, u.brief, u.science_revision\n        FROM plan_units u LEFT JOIN hypotheses h ON h.id = u.hypothesis_id\n        WHERE u.plan_revision_id = $1 AND (u.hypothesis_id IS NULL OR h.state = 'queued')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b5a6af8178e246b5dd3cf87edb5601f503f3dd6c32ad10f7e63fff0e518d05dc"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO tracks(project_id,slug,title,description,producer,mode,workflow,created_by)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8)\nON CONFLICT(project_id,slug) DO NOTHING RETURNING\nid AS \"id!: _\",project_id AS \"project_id!: _\",slug,title,description,producer::text AS producer,mode,workflow::text AS workflow,state,revision,created_by AS \"created_by!: _\",created_at AS \"created_at!: _\",updated_at AS \"updated_at!: _\"",
+  "query": "INSERT INTO tracks(project_id,slug,title,description,producer,mode,workflow,created_by,state)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,'planning')\nON CONFLICT(project_id,slug) DO NOTHING RETURNING\nid AS \"id!: _\",project_id AS \"project_id!: _\",slug,title,description,producer::text AS producer,mode,workflow::text AS workflow,state,revision,created_by AS \"created_by!: _\",created_at AS \"created_at!: _\",updated_at AS \"updated_at!: _\"",
   "describe": {
     "columns": [
       {
@@ -97,5 +97,5 @@
       false
     ]
   },
-  "hash": "e8760d904584f5b30348be539c9aef0a29405cff8aaadd48d0db63ea93811bcd"
+  "hash": "8e45a0b528847088dda8cd48804087bf439735111831c90a88c9f8a156e2e35c"
 }

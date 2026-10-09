@@ -28,6 +28,11 @@ export function trackPath(slug: string, project?: string | null): string {
   return inProject(`/tracks/${encodeURIComponent(slug)}`, project);
 }
 
+/** The editor of a track's open plan revision. */
+export function planEditorPath(track: string): string {
+  return `${trackPath(track)}/plan`;
+}
+
 /** `#12.3` → [12, 3]; anything else → null. */
 export function parseAttemptRef(ref: string | null | undefined): [number, number] | null {
   const match = /#(\d+)\.(\d+)$/.exec(ref ?? "");

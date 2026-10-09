@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT max(revision) FROM plan_revisions WHERE track_id = $1 AND state = 'approved'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5920aa50f3770b7ceb4ed7132c5ecafc2b215d521005809fcb19c2b91b792989"
+}

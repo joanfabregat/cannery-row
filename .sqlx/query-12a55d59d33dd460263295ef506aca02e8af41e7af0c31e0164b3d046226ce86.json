@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO hypothesis_revisions (hypothesis_id, revision, content, science_revision,\n        author_user, via_channel, via_client, brief)\n        VALUES ($1, $2, $3::text::jsonb, $4, $5, $6, $7, $8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Text",
+        "Int4",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "12a55d59d33dd460263295ef506aca02e8af41e7af0c31e0164b3d046226ce86"
+}

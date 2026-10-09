@@ -347,11 +347,14 @@ pub(crate) async fn claim(
                 "hypothesis_revision":attempt.hypothesis_revision,
                 "science_revision":attempt.science_revision, "producer":producer,
             });
-            let brief = crate::brief_routes::pinned(&mut tx, &project.slug, attempt.id)
+            let pins = crate::context_bundle::pins(&mut tx, &project, attempt.id, &context)
                 .await
-                .map_err(|error| failure(context.project_error(error)))?;
-            if let Some(brief) = &brief {
+                .map_err(failure)?;
+            if let Some(brief) = &pins.brief {
                 new["brief_revision"] = brief.revision.into();
+            }
+            if let Some(plan) = &pins.plan {
+                new["plan_revision"] = plan.revision.into();
             }
             if let Some(workflow) = workflow {
                 let workflow_json = json::encode_ascii_pretty(&workflow, state.profile.audit_budget)
@@ -372,7 +375,7 @@ pub(crate) async fn claim(
                 secret.expose(),
                 &heartbeat,
                 run.as_ref(),
-                brief,
+                pins,
                 state.profile.response,
             )
             .map_err(|_| internal(&context, "claim response model"))?;

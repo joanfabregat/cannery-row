@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.key, u.position, u.hypothesis_id AS \"hypothesis_id?: _\", h.number AS \"number?\",\n        h.state AS \"state?\", u.redo_of AS \"redo_of?: _\", r.number AS \"redo_of_number?\",\n        u.fields::text AS \"fields!\", u.brief, u.science_revision, u.hypothesis_revision\n        FROM plan_units u LEFT JOIN hypotheses h ON h.id = u.hypothesis_id\n        LEFT JOIN hypotheses r ON r.id = u.redo_of\n        WHERE u.plan_revision_id = $1 ORDER BY u.position, u.key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "hypothesis_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "number?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "state?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "redo_of?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "redo_of_number?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "fields!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "brief",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "science_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "hypothesis_revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      null,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "bec95d9c41eb475951991b84259a1c8319c718df88a9d0d6eccc6178cddf3233"
+}

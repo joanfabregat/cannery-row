@@ -26,7 +26,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
-const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses, their attempts, independent testing and evaluation, and human decisions. Read the project brief (get_brief, or the brief resource) and search before drafting; claim, heartbeat, upload, record the manifest and submit under the lease you were given. Actor and via are taken from your token; decisions need a person with the researcher role.";
+const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses (units), the plans that define them, their attempts, independent testing and evaluation, and human decisions. Read the project brief (get_brief, or the brief resource) and search before working. To plan a track: read the brief and the track, and when re-planning the plan and the done and in-flight units (get_plan, list_units, get_unit); refine the idea with the researcher; check references and outside material with search and the read tools; list edge cases and risks into the approach and unit briefs; define units with their acceptance and the context each needs (start_plan_revision, set_plan_approach, add_unit, set_alignment); then check_plan and submit_plan; a researcher approves. To run a unit: claim, read the context bundle the claim names (the context resource), heartbeat, upload, record the manifest and submit under the lease you were given. Actor and via are taken from your token; plans and decisions need a person with the researcher role.";
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
@@ -597,9 +597,9 @@ mod tests {
     #[test]
     fn registry_has_all_source_tools_and_complete_validation() {
         let tools = registry::tools().expect("compiled registry");
-        assert_eq!(tools.len(), 44);
+        assert_eq!(tools.len(), 58);
         let names: std::collections::BTreeSet<_> = tools.iter().map(registry::Tool::name).collect();
-        assert_eq!(names.len(), 44);
+        assert_eq!(names.len(), 58);
         for tool in &tools {
             assert!(
                 tool.invalid_arguments(&json!({"unexpected":"secret"}))
@@ -632,6 +632,7 @@ mod tests {
         );
     }
     #[test]
+    #[allow(clippy::too_many_lines, reason = "One assertion per tool mapping")]
     fn path_query_body_and_capabilities_are_separate() {
         let tools = registry::tools().expect("registry");
         let build = |name: &str, args: Value| {
@@ -694,6 +695,62 @@ mod tests {
             serde_json::from_slice::<Value>(&brief.body).expect("body"),
             json!({"expected_revision":0,"document":"---\ntitle: T\ngoal: G\n---\n"})
         );
+        let plan = build("get_plan", json!({"project":"matrix","track":"t"}));
+        assert_eq!(plan.uri, "/api/projects/matrix/tracks/t/plans/current");
+        let plan = build(
+            "get_plan",
+            json!({"project":"matrix","track":"t","revision":"draft"}),
+        );
+        assert_eq!(plan.uri, "/api/projects/matrix/tracks/t/plans/draft");
+        let start = build(
+            "start_plan_revision",
+            json!({"project":"matrix","track":"t"}),
+        );
+        assert_eq!(start.method, axum::http::Method::POST);
+        assert_eq!(start.uri, "/api/projects/matrix/tracks/t/plans");
+        let unit = build(
+            "add_unit",
+            json!({"project":"matrix","track":"t","key":"k","title":"T","question":"Q","intervention":"I","acceptance":{}}),
+        );
+        assert_eq!(unit.uri, "/api/projects/matrix/tracks/t/plans/draft/units");
+        let body: Value = serde_json::from_slice(&unit.body).expect("body");
+        assert_eq!(body["key"], "k");
+        assert!(body.get("track").is_none());
+        let update = build(
+            "update_unit",
+            json!({"project":"matrix","track":"t","key":"k","brief":"B"}),
+        );
+        assert_eq!(update.method, axum::http::Method::PUT);
+        assert_eq!(
+            update.uri,
+            "/api/projects/matrix/tracks/t/plans/draft/units/k"
+        );
+        assert_eq!(
+            serde_json::from_slice::<Value>(&update.body).expect("body"),
+            json!({"brief":"B"})
+        );
+        let dropped = build(
+            "drop_unit",
+            json!({"project":"matrix","track":"t","key":"k"}),
+        );
+        assert_eq!(dropped.method, axum::http::Method::DELETE);
+        let alignment = build(
+            "set_alignment",
+            json!({"project":"matrix","track":"t","number":4,"decision":"keep","reason":"R"}),
+        );
+        assert_eq!(
+            alignment.uri,
+            "/api/projects/matrix/tracks/t/plans/draft/alignments/4"
+        );
+        let review = build(
+            "review_plan",
+            json!({"project":"matrix","track":"t","revision":2,"action":"approve","reason":"R"}),
+        );
+        assert_eq!(review.uri, "/api/projects/matrix/tracks/t/plans/2/review");
+        let units = build("list_units", json!({"project":"matrix","track":"t"}));
+        assert_eq!(units.uri.path(), "/api/projects/matrix/tracks/t/units");
+        let history = build("get_unit_history", json!({"project":"matrix","number":3}));
+        assert_eq!(history.uri, "/api/projects/matrix/units/3/history");
         let edit = build(
             "edit_comment",
             json!({"project":"matrix","comment_id":"uuid","expected_revision":1,"body_markdown":"é"}),

@@ -1,0 +1,144 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id AS \"id!: _\", p.project_id AS \"project_id!: _\", p.track_id AS \"track_id!: _\",\n        p.revision, p.state, p.based_on, p.approach, p.created_by AS \"created_by!: _\",\n        coalesce(c.display_name, c.email) AS \"created_by_name?\", p.via_channel, p.via_client,\n        p.created_at AS \"created_at!: _\", p.updated_at AS \"updated_at!: _\",\n        p.submitted_by AS \"submitted_by?: _\", p.submitted_at AS \"submitted_at?: _\",\n        p.review_case_id AS \"review_case_id?: _\", p.reviewed_by AS \"reviewed_by?: _\",\n        coalesce(r.display_name, r.email) AS \"reviewed_by_name?\", p.review_reason,\n        p.reviewed_at AS \"reviewed_at?: _\",\n        (SELECT count(*) FROM plan_units u WHERE u.plan_revision_id = p.id) AS \"units!\"\n        FROM plan_revisions p JOIN users c ON c.id = p.created_by\n        LEFT JOIN users r ON r.id = p.reviewed_by\n        WHERE p.track_id = $1 AND ($2::integer IS NULL OR p.revision < $2)\n        ORDER BY p.revision DESC LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "track_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "based_on",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "approach",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_by!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "via_channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "via_client",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "submitted_by?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "submitted_at?: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "review_case_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 16,
+        "name": "reviewed_by?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 17,
+        "name": "reviewed_by_name?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "review_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "reviewed_at?: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "units!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      null,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      null,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "e4877dedd72dbd877499bf2c11fecdc0734e2f3e642e25cc9f49b95e9af9c8b8"
+}

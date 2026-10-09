@@ -622,6 +622,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Context Bundle
+         * @description The attempt's context bundle as Markdown, assembled from the revisions it
+         *     pinned at its claim: the brief, the plan's approach, the unit's fields and
+         *     brief, an index of the track's other units, and a summary line and
+         *     reference for each context item and each unit it derives from. The front
+         *     matter states its size in bytes. `detail=compact` keeps the brief's goal,
+         *     the unit and the index, capped at 16 KiB.
+         */
+        get: operations["get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/heartbeat": {
         parameters: {
             query?: never;
@@ -1119,6 +1144,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Limits
+         * @description The project's size limits for briefs, plans, units and context bundles.
+         */
+        get: operations["get_limits_api_projects__slug__limits_get"];
+        /**
+         * Set Limits
+         * @description Replace the project's size limits. Researchers only. Writes over a limit
+         *     are refused where they are made; existing content is not changed.
+         */
+        put: operations["set_limits_api_projects__slug__limits_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/members": {
         parameters: {
             query?: never;
@@ -1431,6 +1481,237 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/tracks/{track_slug}/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Plan Revisions
+         * @description The revisions of a track's plan, newest first, without their units.
+         */
+        get: operations["list_plan_revisions_api_projects__slug__tracks__track_slug__plans_get"];
+        put?: never;
+        /**
+         * Start Plan Revision
+         * @description Open the next revision of a track's plan as a draft. A revision starts from
+         *     the approved plan (or from a newer revision sent back): its approach, its
+         *     new units and the units still queued. `needs_alignment` lists the done and
+         *     in-flight units every revision says something about. Researchers only;
+         *     one open revision per track.
+         */
+        post: operations["start_plan_revision_api_projects__slug__tracks__track_slug__plans_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/alignments/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Alignment
+         * @description Say what this revision does with a done or in-flight unit: `keep` it,
+         *     make it `obsolete` (an in-flight unit's attempt is cancelled and kept; a
+         *     decided unit keeps its decision) or `redo` it (obsolete, plus a new unit
+         *     derived from it, added to the draft with the old unit's fields).
+         */
+        put: operations["set_alignment_api_projects__slug__tracks__track_slug__plans_draft_alignments__number__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/approach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Plan Approach
+         * @description Replace the draft's approach: the track's shared reasoning, edge cases and
+         *     risks, as Markdown. Refused over the project's approach limit.
+         */
+        put: operations["set_plan_approach_api_projects__slug__tracks__track_slug__plans_draft_approach_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check Plan
+         * @description What blocks submitting the draft: no project brief, no approach, missing
+         *     alignment entries, unknown unit keys, units no longer queued, limits
+         *     exceeded. `ready` when nothing does.
+         */
+        get: operations["check_plan_api_projects__slug__tracks__track_slug__plans_draft_check_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/submission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Plan
+         * @description Freeze the draft and open its `plan` review case. Refused with the
+         *     problems `check_plan` reports while there are any.
+         */
+        post: operations["submit_plan_api_projects__slug__tracks__track_slug__plans_draft_submission_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Unit
+         * @description Add a unit to the draft. `acceptance` is checked against the project's
+         *     metric registry and `parameters` against its hypothesis fields, as for a
+         *     hypothesis; `context` items must exist; the brief and the number of context
+         *     items are refused over the project's limits.
+         */
+        post: operations["add_unit_api_projects__slug__tracks__track_slug__plans_draft_units_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/units/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Unit
+         * @description Change a new or queued unit of the draft. Omitted fields keep their value;
+         *     the result is checked as `add_unit` checks a new unit.
+         */
+        put: operations["update_unit_api_projects__slug__tracks__track_slug__plans_draft_units__key__put"];
+        post?: never;
+        /**
+         * Drop Unit
+         * @description Drop a new or queued unit from the draft and return the draft. A queued
+         *     unit the approved plan listed is cancelled when this revision is approved.
+         */
+        delete: operations["drop_unit_api_projects__slug__tracks__track_slug__plans_draft_units__key__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plan
+         * @description One revision of a track's plan with its units and alignment entries.
+         *     `revision` is a number, `draft` (the open revision) or `current` (the
+         *     approved plan, else the newest revision).
+         */
+        get: operations["get_plan_api_projects__slug__tracks__track_slug__plans__revision__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}/plan.md": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plan Markdown
+         * @description A read-only Markdown view of one plan revision: YAML front matter and a
+         *     body with the approach, the units and the alignment entries.
+         */
+        get: operations["get_plan_markdown_api_projects__slug__tracks__track_slug__plans__revision__plan_md_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Plan
+         * @description A researcher's decision on a submitted revision, with a reason: `approve`
+         *     it (in one transaction: create a queued hypothesis per new unit, write a
+         *     new revision of each changed one, cancel the queued ones it drops, apply
+         *     its alignment entries, and move a planning track to active), `send_back`
+         *     for another revision, or `decline` it.
+         */
+        post: operations["review_plan_api_projects__slug__tracks__track_slug__plans__revision__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/tracks/{track_slug}/transitions": {
         parameters: {
             query?: never;
@@ -1442,6 +1723,69 @@ export interface paths {
         put?: never;
         /** Transition Track */
         post: operations["transition_track_api_projects__slug__tracks__track_slug__transitions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Units
+         * @description The units (hypotheses) of a track, newest first: number, plan key, title,
+         *     state and whether an approved plan made them obsolete.
+         */
+        get: operations["list_units_api_projects__slug__tracks__track_slug__units_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Unit
+         * @description One unit: its hypothesis with the plan fields, context and brief it was
+         *     last approved with.
+         */
+        get: operations["get_unit_api_projects__slug__units__number__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Unit History
+         * @description A unit's hypothesis revisions, with the plan revision that wrote each one,
+         *     and the alignment entries approved plans made about it, oldest first.
+         */
+        get: operations["get_unit_history_api_projects__slug__units__number__history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1635,6 +1979,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description What a plan revision decides about a done or in-flight unit. */
+        AlignmentOut: {
+            decision: string;
+            /** Format: int64 */
+            number: number;
+            reason: string;
+            state: string;
+            title: string;
+        };
+        /** @description An alignment entry for a done or in-flight unit. */
+        AlignmentSet: {
+            decision: string;
+            reason: string;
+        };
         ArtifactManifestRequest: {
             attempt_id: string;
             objects: components["schemas"]["RequestArtifactManifestObject"][];
@@ -1664,6 +2022,7 @@ export interface components {
             claimed_at: string;
             claimed_by: components["schemas"]["Claimant"];
             claimed_sheet: components["schemas"]["ReadEvidenceEnvelope"] | null;
+            context?: components["schemas"]["ContextBundleRef"] | null;
             failures: components["schemas"]["cannery_row__attempts__routes__FailureOut"][];
             /** Format: date-time */
             finished_at: string | null;
@@ -1682,6 +2041,7 @@ export interface components {
             /** Format: int64 */
             number: number;
             origin: components["schemas"]["Origin"];
+            plan?: components["schemas"]["PlanRef"] | null;
             /** Format: uuid */
             predecessor_id: string | null;
             /** @description Legacy stored references remain readable; new requests use `RequestCommonProducerRef`. */
@@ -1921,6 +2281,7 @@ export interface components {
         ClaimOut: {
             attempt: components["schemas"]["AttemptOut"];
             brief?: components["schemas"]["BriefRef"] | null;
+            context?: components["schemas"]["ContextBundleRef"] | null;
             /** Format: int64 */
             heartbeat_seconds: number;
             /** Format: date-time */
@@ -1928,6 +2289,7 @@ export interface components {
             /** Format: int64 */
             lease_generation: number;
             lease_token: string;
+            plan?: components["schemas"]["PlanRef"] | null;
             workflow?: components["schemas"]["ClaimedWorkflow"] | null;
         };
         ClaimRequest: {
@@ -2147,6 +2509,27 @@ export interface components {
             sample_count: number;
             science_revisions: number[];
             split: string | null;
+        };
+        /** @description Where to read an attempt's context bundle, and its size in bytes. */
+        ContextBundleRef: {
+            /** Format: int64 */
+            bytes: number;
+            ref: string;
+        };
+        /**
+         * @description Something a unit's performer should read: another unit (`unit`: a
+         *     hypothesis number or a key of the same plan), an attempt's write-up
+         *     (`writeup`: `unit` number and `attempt` sequence) or an artifact
+         *     (`artifact`: its id). `note` says why it matters.
+         */
+        ContextItem: {
+            /** Format: uuid */
+            artifact?: string | null;
+            /** Format: int64 */
+            attempt?: number | null;
+            kind: string;
+            note?: string | null;
+            unit?: unknown;
         };
         DashboardOut: {
             /** Format: int64 */
@@ -2491,9 +2874,11 @@ export interface components {
         JobClaimOut: {
             attempt_ref: string;
             brief?: components["schemas"]["BriefRef"] | null;
+            context?: components["schemas"]["ContextBundleRef"] | null;
             /** Format: int64 */
             heartbeat_seconds: number;
             job: components["schemas"]["ClaimedJobDocument"];
+            plan?: components["schemas"]["PlanRef"] | null;
         };
         JobClaimRequest: {
             revision?: string | null;
@@ -2724,6 +3109,11 @@ export interface components {
             /** Format: uuid */
             next_before: string | null;
         };
+        Page_PlanRevisionOut_int_: {
+            items: components["schemas"]["PlanRevisionOut"][];
+            /** Format: int64 */
+            next_before: number | null;
+        };
         Page_ProducerOut_str_: {
             items: components["schemas"]["ProducerOut"][];
             next_before: string | null;
@@ -2755,10 +3145,129 @@ export interface components {
             items: components["schemas"]["TrackOut"][];
             next_before: string | null;
         };
+        Page_UnitIndexOut_int_: {
+            items: components["schemas"]["UnitIndexOut"][];
+            /** Format: int64 */
+            next_before: number | null;
+        };
         Page_UserOut_UUID_: {
             items: components["schemas"]["UserOut"][];
             /** Format: uuid */
             next_before: string | null;
+        };
+        /** @description The draft's approach: the track's shared reasoning, risks and edge cases. */
+        PlanApproach: {
+            approach: string;
+        };
+        /** @description What blocks submitting the draft; `ready` when nothing does. */
+        PlanCheckOut: {
+            problems: components["schemas"]["PlanProblem"][];
+            ready: boolean;
+            /** Format: int64 */
+            revision: number;
+        };
+        /** @description One revision of a track's plan with its units and alignment entries. */
+        PlanOut: {
+            alignments: components["schemas"]["AlignmentOut"][];
+            approach: string;
+            /** Format: int64 */
+            based_on: number | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by: string;
+            created_by_name: string | null;
+            /** @description The rendered Markdown view of this revision. */
+            markdown_ref: string;
+            /** @description For a draft: the done or in-flight units that need an alignment entry. */
+            needs_alignment: components["schemas"]["UnitIndexOut"][];
+            /** Format: uuid */
+            review_case_id: string | null;
+            review_reason: string | null;
+            /** Format: date-time */
+            reviewed_at: string | null;
+            reviewed_by_name: string | null;
+            /** Format: int64 */
+            revision: number;
+            state: string;
+            /** Format: date-time */
+            submitted_at: string | null;
+            track: string;
+            units: components["schemas"]["PlanUnitOut"][];
+            /** Format: date-time */
+            updated_at: string;
+            via_channel: string;
+            via_client: string | null;
+        };
+        /** @description One thing that blocks submitting a draft, and where. */
+        PlanProblem: {
+            code: string;
+            message: string;
+            path: string;
+        };
+        /** @description The plan revision a claim or a job runs under, and where to read it. */
+        PlanRef: {
+            ref: string;
+            /** Format: int64 */
+            revision: number;
+        };
+        /** @description A researcher's decision on a submitted plan revision. */
+        PlanReview: {
+            action: string;
+            reason: string;
+        };
+        /** @description A revision in a plan's history, without its units. */
+        PlanRevisionOut: {
+            /** Format: int64 */
+            based_on: number | null;
+            /** Format: date-time */
+            created_at: string;
+            created_by_name: string | null;
+            review_reason: string | null;
+            /** Format: date-time */
+            reviewed_at: string | null;
+            reviewed_by_name: string | null;
+            /** Format: int64 */
+            revision: number;
+            state: string;
+            /** Format: date-time */
+            submitted_at: string | null;
+            /** Format: int64 */
+            units: number;
+        };
+        /**
+         * @description A unit as a plan revision lists it. `number` and `state` name its
+         *     hypothesis once it has one; `redo_of` is the unit it redoes.
+         */
+        PlanUnitOut: {
+            acceptance: {
+                [key: string]: unknown;
+            };
+            brief: string;
+            context: components["schemas"]["ContextItem"][];
+            control: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Format: int64
+             * @description The hypothesis revision this entry wrote when its plan was approved.
+             */
+            hypothesis_revision: number | null;
+            intervention: string;
+            key: string;
+            /** Format: int64 */
+            number: number | null;
+            parameters: {
+                [key: string]: unknown;
+            } | null;
+            question: string;
+            /** Format: int64 */
+            redo_of: number | null;
+            relations: components["schemas"]["UnitRelation"][];
+            /** Format: int64 */
+            science_revision: number;
+            state: string | null;
+            title: string;
         };
         PointOut: {
             attempt_ref: string;
@@ -2852,6 +3361,24 @@ export interface components {
              *     with the project default producer; `PATCH` a track to bind it.
              */
             tracks: components["schemas"]["ProjectTrackCreate"][];
+        };
+        /**
+         * @description Size limits of what performers are handed, per project, in bytes (and
+         *     items for `context_items_max`).
+         */
+        ProjectLimits: {
+            /** Format: int64 */
+            brief_max_bytes: number;
+            /** Format: int64 */
+            context_items_max: number;
+            /** Format: int64 */
+            context_summary_max_bytes: number;
+            /** Format: int64 */
+            index_line_max_bytes: number;
+            /** Format: int64 */
+            plan_approach_max_bytes: number;
+            /** Format: int64 */
+            unit_brief_max_bytes: number;
         };
         ProjectOut: {
             /** Format: date-time */
@@ -3491,6 +4018,127 @@ export interface components {
             method: string;
             /** Format: double */
             upper: number;
+        };
+        /** @description An approved plan's alignment entry about a unit. */
+        UnitAlignmentOut: {
+            decision: string;
+            /** Format: int64 */
+            plan_revision: number;
+            reason: string;
+        };
+        /**
+         * @description A new unit of a plan draft. `acceptance` is the hypothesis acceptance
+         *     plan (splits, primary metric, criteria, gates, budget); `parameters` are
+         *     the project's hypothesis fields.
+         */
+        UnitCreate: {
+            acceptance: {
+                [key: string]: unknown;
+            };
+            brief?: string;
+            context?: components["schemas"]["ContextItem"][];
+            control?: {
+                [key: string]: unknown;
+            } | null;
+            intervention: string;
+            key: string;
+            parameters?: {
+                [key: string]: unknown;
+            } | null;
+            question: string;
+            relations?: components["schemas"]["UnitRelation"][];
+            title: string;
+        };
+        /** @description A unit's revisions and the alignment entries approved about it, oldest first. */
+        UnitHistoryOut: {
+            alignments: components["schemas"]["UnitAlignmentOut"][];
+            /** Format: int64 */
+            number: number;
+            revisions: components["schemas"]["UnitRevisionOut"][];
+        };
+        /** @description One line of a track's unit index. */
+        UnitIndexOut: {
+            key: string | null;
+            /** Format: int64 */
+            number: number;
+            /** @description An approved plan made it obsolete (or redid it). */
+            obsolete: boolean;
+            state: string;
+            title: string;
+        };
+        /** @description A unit: a hypothesis with the plan fields it was approved with. */
+        UnitOut: {
+            acceptance: {
+                [key: string]: unknown;
+            };
+            /** Format: int64 */
+            approved_revision: number | null;
+            brief: string;
+            context: components["schemas"]["ContextItem"][];
+            control: {
+                [key: string]: unknown;
+            } | null;
+            intervention: string;
+            key: string | null;
+            /** Format: int64 */
+            number: number;
+            obsolete: boolean;
+            parameters: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Format: int64
+             * @description The approved plan revision that last listed it, if any.
+             */
+            plan_revision: number | null;
+            question: string;
+            relations: components["schemas"]["UnitRelation"][];
+            /** Format: int64 */
+            revision: number;
+            state: string;
+            title: string;
+            track: string;
+        };
+        /**
+         * @description A typed relation of a unit: to a hypothesis of the project (its number),
+         *     of another project (`{project, number}`), or to another unit of the same
+         *     plan by key. Exactly one of `hypothesis` and `unit`.
+         */
+        UnitRelation: {
+            hypothesis?: unknown;
+            kind: string;
+            unit?: string | null;
+        };
+        /** @description One revision of a unit's hypothesis. */
+        UnitRevisionOut: {
+            brief: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /**
+             * Format: int64
+             * @description The approved plan revision that wrote it, if a plan did.
+             */
+            plan_revision: number | null;
+            /** Format: int64 */
+            revision: number;
+            title: string;
+        };
+        /**
+         * @description Changes to a unit of a plan draft; omitted fields keep their value, and
+         *     `control` or `parameters` set to null are removed.
+         */
+        UnitUpdate: {
+            acceptance?: {
+                [key: string]: unknown;
+            } | null;
+            brief?: string | null;
+            context?: components["schemas"]["ContextItem"][] | null;
+            control?: unknown;
+            intervention?: string | null;
+            parameters?: unknown;
+            question?: string | null;
+            relations?: components["schemas"]["UnitRelation"][] | null;
+            title?: string | null;
         };
         UnregisteredMetric: Record<string, never>;
         UploadGrant: {
@@ -7118,6 +7766,78 @@ export interface operations {
             };
         };
     };
+    get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get: {
+        parameters: {
+            query?: {
+                /** @description `full` (the default) or `compact`. */
+                detail?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     heartbeat_api_projects__slug__hypotheses__number__attempts__sequence__heartbeat_post: {
         parameters: {
             query?: never;
@@ -9431,6 +10151,135 @@ export interface operations {
             };
         };
     };
+    get_limits_api_projects__slug__limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLimits"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    set_limits_api_projects__slug__limits_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProjectLimits"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLimits"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     list_members_api_projects__slug__members_get: {
         parameters: {
             query?: {
@@ -11611,6 +12460,898 @@ export interface operations {
             };
         };
     };
+    list_plan_revisions_api_projects__slug__tracks__track_slug__plans_get: {
+        parameters: {
+            query?: {
+                /** @description Continue before this revision. */
+                before?: number;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PlanRevisionOut_int_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    start_plan_revision_api_projects__slug__tracks__track_slug__plans_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    set_alignment_api_projects__slug__tracks__track_slug__plans_draft_alignments__number__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AlignmentSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlignmentOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    set_plan_approach_api_projects__slug__tracks__track_slug__plans_draft_approach_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanApproach"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    check_plan_api_projects__slug__tracks__track_slug__plans_draft_check_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanCheckOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    submit_plan_api_projects__slug__tracks__track_slug__plans_draft_submission_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    add_unit_api_projects__slug__tracks__track_slug__plans_draft_units_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnitCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanUnitOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    update_unit_api_projects__slug__tracks__track_slug__plans_draft_units__key__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnitUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanUnitOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    drop_unit_api_projects__slug__tracks__track_slug__plans_draft_units__key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    get_plan_api_projects__slug__tracks__track_slug__plans__revision__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                revision: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    get_plan_markdown_api_projects__slug__tracks__track_slug__plans__revision__plan_md_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                revision: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    review_plan_api_projects__slug__tracks__track_slug__plans__revision__review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                revision: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanReview"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     transition_track_api_projects__slug__tracks__track_slug__transitions_post: {
         parameters: {
             query?: never;
@@ -11706,6 +13447,217 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_units_api_projects__slug__tracks__track_slug__units_get: {
+        parameters: {
+            query?: {
+                /** @description Only units in this hypothesis state. */
+                state?: string;
+                /** @description Continue before this number. */
+                before?: number;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_UnitIndexOut_int_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    get_unit_api_projects__slug__units__number__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    get_unit_history_api_projects__slug__units__number__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitHistoryOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
         };

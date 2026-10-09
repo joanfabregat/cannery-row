@@ -35,6 +35,7 @@ pub mod config_routes;
 pub mod config_wire;
 #[cfg(feature = "conformance-testing")]
 mod conformance_hooks;
+mod context_bundle;
 pub mod datetime_query;
 mod documentation;
 pub mod errors;
@@ -68,6 +69,9 @@ pub mod oidc_client;
 pub mod oidc_native;
 pub mod oidc_protocol;
 pub mod oidc_provider;
+mod plan_approval;
+mod plan_routes;
+mod plan_units;
 pub mod predecessor_input_routes;
 mod project_routes;
 pub mod report_routes;
@@ -156,6 +160,24 @@ pub use documentation::OPENAPI;
         hypothesis_routes::revisions,
         hypothesis_routes::revision,
         hypothesis_routes::review,
+        plan_routes::list,
+        plan_routes::start,
+        plan_routes::read,
+        plan_routes::markdown,
+        plan_routes::approach,
+        plan_routes::add_unit,
+        plan_routes::update_unit,
+        plan_routes::drop_unit,
+        plan_routes::set_alignment,
+        plan_routes::check,
+        plan_routes::submit,
+        plan_routes::review,
+        plan_routes::list_units,
+        plan_routes::unit,
+        plan_routes::unit_history,
+        plan_routes::limits,
+        plan_routes::set_limits,
+        context_bundle::route,
         attempt_claim_routes::claim,
         attempt_read_routes::hypothesis,
         attempt_read_routes::project,

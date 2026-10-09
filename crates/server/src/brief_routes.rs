@@ -33,7 +33,8 @@ use sha2::{Digest, Sha256};
 use sqlx::{Acquire, PgConnection};
 use std::{collections::BTreeMap, sync::Arc};
 
-/// The largest brief document, in UTF-8 bytes.
+/// The largest brief document any project allows, in UTF-8 bytes; each
+/// project sets its own limit up to this (64 KiB by default).
 pub const BRIEF_MAX_BYTES: usize = 262_144;
 
 #[derive(Clone)]
@@ -363,12 +364,20 @@ pub(crate) async fn revision(
     Ok(Json(brief_out(brief, &context)?).into_response())
 }
 
-fn document_error(error: &PhaseDocumentError) -> Failure {
-    match error {
-        PhaseDocumentError::FrontMatter(FrontMatterError::TooLarge) => invalid(
-            "body/document",
-            format!("the document exceeds {BRIEF_MAX_BYTES} bytes"),
+fn too_large(size: usize, limit: usize) -> Failure {
+    let message = format!("the brief is {size} bytes; the project's limit is {limit} bytes");
+    failure(ApiError::from(
+        DomainError::new(ErrorCode::ValidationFailed, "invalid brief").with_details(
+            serde_json::json!([{
+                "path": "body/document", "message": message, "size": size, "limit": limit,
+            }]),
         ),
+    ))
+}
+
+fn document_error(error: &PhaseDocumentError, size: usize, limit: usize) -> Failure {
+    match error {
+        PhaseDocumentError::FrontMatter(FrontMatterError::TooLarge) => too_large(size, limit),
         PhaseDocumentError::FrontMatter(error) => invalid("body/document", error.to_string()),
         PhaseDocumentError::Invalid(violations) => {
             let details = violations
@@ -451,14 +460,25 @@ pub(crate) async fn revise(
     let Principal::User(user) = &auth.principal else {
         return Err(internal(&context, "brief author"));
     };
+    let max_bytes = cannery_tracks::plans::limits(&mut auth.connection, access.project.id)
+        .await
+        .map_err(|_| internal(&context, "brief limit"))?
+        .brief_max_bytes;
+    let max_bytes = usize::try_from(max_bytes)
+        .unwrap_or(BRIEF_MAX_BYTES)
+        .min(BRIEF_MAX_BYTES);
+    let size = typed.document.len();
+    if size > max_bytes {
+        return Err(too_large(size, max_bytes));
+    }
     let limits = Limits {
-        max_bytes: BRIEF_MAX_BYTES,
+        max_bytes,
         ..Limits::default()
     };
     let parsed = state
         .schemas
         .parse(Phase::Brief, &typed.document, limits)
-        .map_err(|error| document_error(&error))?;
+        .map_err(|error| document_error(&error, size, max_bytes))?;
     let front_matter = serde_json::Value::Object(parsed.front_matter);
     let front_matter_text =
         serde_json::to_string(&front_matter).map_err(|_| internal(&context, "brief encoding"))?;

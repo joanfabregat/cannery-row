@@ -36,6 +36,16 @@
 #
 # Each project is created with its first track, then gets its other tracks and
 # its brief, written by the researcher project.yaml names under brief.by.
+# Tracks start in planning. A hypothesis the scenario approves in one step is
+# a unit of its track's plan: the track's planner (plan.by, default
+# brief.by) starts a plan revision, sets the approach (plan.approach, default
+# the description) and adds the units, with the rationale as the unit brief and
+# a context item per derived_from relation, then checks and submits it, and the
+# reviewer (plan.review.by, default brief.by) approves it, which makes the
+# hypotheses queued and the track active. A track with plan: false opts out.
+# A unit naming a hypothesis that does not exist yet waits for a later
+# revision of the plan.
+#
 # The REST part drives each hypothesis of dev/demo-data/projects/*/project.yaml
 # through the real lifecycle: drafts by the demo agent or a researcher, draft
 # reviews (approve, request_revision then revise, decline), claims, uploads,
@@ -210,8 +220,8 @@ open_sessions() {
 # ---------------------------------------------------------------- projects
 
 # project_value JQ: a value of the current project's scenario.
-pv() { jq -c "$1" "$SECRETS/project.json"; }
-pvr() { jq -r "$1" "$SECRETS/project.json"; }
+pv() { jq -c "$@" "$SECRETS/project.json"; }
+pvr() { jq -r "$@" "$SECRETS/project.json"; }
 
 setup_project() {
   local slug=$PROJECT title description status user role email id name kind
@@ -296,6 +306,107 @@ document() {
   jq -c --argjson n "$numbers" --argjson patch "$patch" \
     '{schema_version: "0.2"} + .doc + $patch
      | if .relations then .relations |= map(if (.hypothesis | type) == "string" then .hypothesis = $n[.hypothesis] else . end) else . end' <<<"$(hv "$1" '')"
+}
+
+# planned INDEX: whether hypothesis INDEX goes through its track's plan: its
+# scenario approves it in one step and its track does not opt out.
+planned() {
+  local track
+  track=$(hvr "$1" .doc.track)
+  [[ "$(pvr --arg t "$track" '[.tracks[] | select(.slug == $t)][0].plan')" != false ]] &&
+    hv "$1" '.review // [] | length == 1 and .[0].action == "approve"' | grep -qx true
+}
+
+# targets INDEX: the scenario keys hypothesis INDEX's relations name.
+targets() { hvr "$1" '.doc.relations // [] | .[] | .hypothesis | select(type == "string")'; }
+
+# unit INDEX KEYS: the plan entry of hypothesis INDEX; KEYS (a JSON list) are the keys of
+# the units planned with it, which its relations and context name by key.
+unit() {
+  local numbers
+  numbers=$(for key in "${!NUMBER[@]}"; do printf '%s\t%s\n' "$key" "${NUMBER[$key]}"; done |
+    jq -Rn '[inputs | split("\t") | {(.[0]): (.[1] | tonumber)}] | add // {}')
+  jq -c --argjson n "$numbers" --argjson keys "$2" '
+    def ref: . as $v | if type == "string" and ($keys | index([$v]) | not) then $n[$v] else . end;
+    def link: if type == "string" then {unit: .} else {hypothesis: .} end;
+    {key, title: .doc.title, question: .doc.question, intervention: .doc.intervention,
+     acceptance: .doc.plan, relations: [.doc.relations // [] | .[] | {kind} + (.hypothesis | ref | link)],
+     context: [.doc.relations // [] | .[] | select(.kind == "derived_from") | {kind: "unit", unit: (.hypothesis | ref), note: "the unit this one derives from"}],
+     brief: (.brief // "# Why\n\n\(.doc.rationale)\n")}
+    + (if .doc.control then {control: .doc.control} else {} end)
+    + (if .doc.project_fields then {parameters: .doc.project_fields} else {} end)' <<<"$(hv "$1" '')"
+}
+
+# plan_track TRACK INDEX...: one plan revision of TRACK with these units,
+# written by the track's planner and approved by its reviewer.
+plan_track() {
+  local track=$1 spec by reviewer reason keys i path item
+  shift
+  spec=$(pv --arg t "$track" '[.tracks[] | select(.slug == $t)][0]')
+  by=$(jq -r --arg d "$(pvr .brief.by)" '.plan.by // $d' <<<"$spec")
+  reviewer=$(jq -r --arg d "$(pvr .brief.by)" '.plan.review.by // $d' <<<"$spec")
+  reason=$(jq -r '.plan.review.reason // "The units follow the approach, and each has its acceptance plan and the context it needs."' <<<"$spec")
+  keys=$(for i in "$@"; do hvr "$i" .key; done | jq -Rsc 'split("\n") | map(select(. != ""))')
+  path=$BASE/tracks/$track/plans
+  local revision
+  revision=$(api "$by" POST "$path" | jq -r .revision)
+  api "$by" PUT "$path/draft/approach" "$(jq -c '{approach: (.plan.approach // .description)}' <<<"$spec")" >/dev/null
+  for i in "$@"; do
+    api "$by" POST "$path/draft/units" "$(unit "$i" "$keys")" >/dev/null
+  done
+  [[ "$(api "$by" GET "$path/draft/check" | jq -r .ready)" == true ]] || die "the $track plan is not ready"
+  api "$by" POST "$path/draft/submission" >/dev/null
+  api "$reviewer" POST "$path/$revision/review" "$(jq -nc --arg r "$reason" '{action: "approve", reason: $r}')" >/dev/null
+  while read -r item; do
+    NUMBER[$(jq -r .key <<<"$item")]=$(jq -r .number <<<"$item")
+    log "#$(jq -r .number <<<"$item") $(jq -r .title <<<"$item") (plan $track r$revision)"
+  done < <(api "$ADMIN" GET "$BASE/tracks/$track/units?limit=200" |
+    jq -c --argjson keys "$keys" '.items[] | select(.key as $k | $keys | index([$k]))')
+}
+
+# plan_and_draft COUNT: every hypothesis of the scenario, through its track's
+# plan or as a draft, in passes: a plan or draft is written once every
+# hypothesis its relations name exists (or is planned with it).
+plan_and_draft() {
+  local count=$1 i track target ok progress
+  local -A done=()
+  while ((${#done[@]} < count)); do
+    progress=0
+    for track in $(pvr '.tracks[].slug'); do
+      local -A batch=()
+      for ((i = 0; i < count; i++)); do
+        [[ -z "${done[$i]-}" && "$(hvr "$i" .doc.track)" == "$track" ]] && planned "$i" && batch[$(hvr "$i" .key)]=$i
+      done
+      # Drop the units naming a hypothesis that neither exists nor is planned here.
+      local changed=1
+      while ((changed)); do
+        changed=0
+        for key in "${!batch[@]}"; do
+          for target in $(targets "${batch[$key]}"); do
+            if [[ -z "${NUMBER[$target]-}" && -z "${batch[$target]-}" ]]; then
+              unset "batch[$key]"; changed=1; break
+            fi
+          done
+        done
+      done
+      if ((${#batch[@]})); then
+        local indexes
+        indexes=$(printf '%s\n' "${batch[@]}" | sort -n)
+        # shellcheck disable=SC2086
+        plan_track "$track" $indexes
+        for i in $indexes; do done[$i]=1; done
+        progress=1
+      fi
+      unset batch
+    done
+    for ((i = 0; i < count; i++)); do
+      [[ -z "${done[$i]-}" ]] && ! planned "$i" || continue
+      ok=1
+      for target in $(targets "$i"); do [[ -n "${NUMBER[$target]-}" ]] || ok=0; done
+      if ((ok)); then draft "$i"; done[$i]=1; progress=1; fi
+    done
+    ((progress)) || die "the scenario's relations cannot all be resolved"
+  done
 }
 
 draft() {
@@ -550,8 +661,10 @@ load_project() {
   setup_project
   local count i a attempts order group
   count=$(pv '.hypotheses | length')
-  # Drafts in file order, so hypothesis numbers follow it.
-  for ((i = 0; i < count; i++)); do draft "$i"; done
+  # Plans and drafts: the hypotheses a scenario approves in one step are units
+  # of their track's plan, the others drafts; each is written once what its
+  # relations name exists.
+  plan_and_draft "$count"
   # Attempts. A claim of a test or evaluation job cannot name its attempt, so
   # hypotheses that leave a job pending go last: completed work first, then
   # attempts waiting for evaluation, then for testing, then the running one.

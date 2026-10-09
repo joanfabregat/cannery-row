@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE plan_revisions SET state = 'submitted', submitted_by = $2, submitted_at = now(),\n        review_case_id = $3, updated_at = now() WHERE id = $1 AND state = 'draft'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fe870fc8339e13f45709c1c69f51c455b99617862f9f90cfb9fc616ce952664e"
+}
