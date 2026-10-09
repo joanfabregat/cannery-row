@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH bumped AS (\n                UPDATE hypotheses SET state = 'active', lease_generation = lease_generation + 1,\n                                      updated_at = now()\n                WHERE id = $1\n                RETURNING id, project_id, track_id, approved_revision, lease_generation\n            ), previous AS (\n                SELECT max(sequence) AS sequence,\n                       (array_agg(id ORDER BY sequence DESC))[1] AS id\n                FROM attempts WHERE hypothesis_id = $1\n            )\n            INSERT INTO attempts (project_id, hypothesis_id, sequence, hypothesis_revision,\n                                  science_revision, track_id, producer,\n                                  claimed_by_user, claimed_by_service, via_channel, via_client,\n                                  predecessor_id, lease_generation, lease_token_hash,\n                                  lease_expires_at, workflow, deadline, brief_revision,\n                                  plan_revision)\n            SELECT b.project_id, b.id, coalesce(p.sequence, 0) + 1, b.approved_revision,\n                   $2, b.track_id, $3, $4, $5,\n                   $6, $7, p.id, b.lease_generation, $8,\n                   now() + make_interval(secs => $9), $10,\n                   now() + make_interval(secs => $11::integer),\n                   (SELECT max(revision) FROM briefs WHERE project_id = b.project_id),\n                   (SELECT max(revision) FROM plan_revisions\n                    WHERE track_id = b.track_id AND state = 'approved')\n            FROM bumped b CROSS JOIN previous p\n            RETURNING id AS \"id!: AttemptId\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Jsonb",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Bytea",
+        "Float8",
+        "Jsonb",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8e23b53d1f0532116d1088631dda9c39ee8d152bd89a0bbbdf93c077c3c7a766"
+}

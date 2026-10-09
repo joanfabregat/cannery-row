@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT brief_max_bytes, plan_approach_max_bytes, unit_brief_max_bytes,\n        context_items_max, index_line_max_bytes, context_summary_max_bytes\n        FROM project_limits WHERE project_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief_max_bytes",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "plan_approach_max_bytes",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_brief_max_bytes",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "context_items_max",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "index_line_max_bytes",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "context_summary_max_bytes",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5b14893f19911e7283f1195a7320c2733a0abe673fae31792ba3208f7e3720a7"
+}

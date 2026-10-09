@@ -21,7 +21,7 @@ impl Tool {
     }
     #[allow(
         clippy::too_many_lines,
-        reason = "All 44 canonical tool mappings are reviewed together"
+        reason = "All 58 canonical tool mappings are reviewed together"
     )]
     pub fn request(&self, args: &Map<String, Value>) -> Result<ToolRequest, ()> {
         let mut args = args.clone();
@@ -71,6 +71,67 @@ impl Tool {
                 (method, format!("{base}/tracks/{track}{suffix}"))
             }
             "create_track" => (Method::POST, format!("{base}/tracks")),
+            "start_plan_revision"
+            | "get_plan"
+            | "list_plan_revisions"
+            | "set_plan_approach"
+            | "add_unit"
+            | "update_unit"
+            | "drop_unit"
+            | "set_alignment"
+            | "check_plan"
+            | "submit_plan"
+            | "review_plan"
+            | "list_units" => {
+                let track = take_path(&mut args, "track");
+                let plans = format!("{base}/tracks/{track}/plans");
+                match name {
+                    "start_plan_revision" => (Method::POST, plans),
+                    "list_plan_revisions" => (Method::GET, plans),
+                    "get_plan" => {
+                        let revision = take_path(&mut args, "revision");
+                        let revision = if revision.is_empty() {
+                            String::from("current")
+                        } else {
+                            revision
+                        };
+                        (Method::GET, format!("{plans}/{revision}"))
+                    }
+                    "set_plan_approach" => (Method::PUT, format!("{plans}/draft/approach")),
+                    "add_unit" => (Method::POST, format!("{plans}/draft/units")),
+                    "update_unit" | "drop_unit" => {
+                        let key = take_path(&mut args, "key");
+                        (
+                            if name == "update_unit" {
+                                Method::PUT
+                            } else {
+                                Method::DELETE
+                            },
+                            format!("{plans}/draft/units/{key}"),
+                        )
+                    }
+                    "set_alignment" => {
+                        let number = take_path(&mut args, "number");
+                        (Method::PUT, format!("{plans}/draft/alignments/{number}"))
+                    }
+                    "check_plan" => (Method::GET, format!("{plans}/draft/check")),
+                    "submit_plan" => (Method::POST, format!("{plans}/draft/submission")),
+                    "review_plan" => {
+                        let revision = take_path(&mut args, "revision");
+                        (Method::POST, format!("{plans}/{revision}/review"))
+                    }
+                    _ => (Method::GET, format!("{base}/tracks/{track}/units")),
+                }
+            }
+            "get_unit" | "get_unit_history" => {
+                let number = take_path(&mut args, "number");
+                let suffix = if name == "get_unit_history" {
+                    "/history"
+                } else {
+                    ""
+                };
+                (Method::GET, format!("{base}/units/{number}{suffix}"))
+            }
             "create_draft" | "list_hypotheses" => (
                 if name == "create_draft" {
                     Method::POST
@@ -269,7 +330,7 @@ pub(super) fn encode(value: &str) -> String {
 pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
     let values: Vec<Value> =
         serde_json::from_str(include_str!("tools.json")).map_err(|_| StartupError::Registry)?;
-    if values.len() != 44 {
+    if values.len() != 58 {
         return Err(StartupError::Registry);
     }
     values

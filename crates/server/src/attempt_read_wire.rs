@@ -94,7 +94,7 @@ pub(crate) fn claim(
     token: &str,
     heartbeat: &num_bigint::BigInt,
     workflow: Option<&Document>,
-    brief: Option<crate::api_models::BriefRef>,
+    pins: crate::context_bundle::Pins,
     p: ResponseContext,
 ) -> Result<Vec<u8>> {
     use num_traits::ToPrimitive;
@@ -116,7 +116,9 @@ pub(crate) fn claim(
                 )?)
             })
             .transpose()?,
-        brief,
+        brief: pins.brief,
+        plan: pins.plan,
+        context: pins.context,
     })
 }
 pub(crate) fn artifact_model(a: &Artifact) -> Result<ArtifactOut> {
@@ -187,7 +189,7 @@ pub(crate) fn detail(
     artifacts: &[Artifact],
     failures: &[Failure],
     sheet: &StoredJson,
-    brief: Option<crate::api_models::BriefRef>,
+    pins: crate::context_bundle::Pins,
     p: ResponseContext,
 ) -> Result<Vec<u8>> {
     let base = base(a, p)?;
@@ -225,7 +227,9 @@ pub(crate) fn detail(
             .map(|f| failure(f, p))
             .collect::<Result<_>>()?,
         claimed_sheet: mapping(sheet, p, true)?,
-        brief,
+        brief: pins.brief,
+        plan: pins.plan,
+        context: pins.context,
     })
 }
 pub(crate) fn page(

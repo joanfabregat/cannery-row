@@ -13,7 +13,7 @@ All request and evidence documents are JSON. `schema_version` identifies an immu
 }
 ```
 
-The server assigns `id`, state (`active` on creation), actor, via, timestamps and revision. `slug` is unique within the project. `producer` references a registered producer step manifest revision; omitted, the project default applies. A track declares no gates: the evaluation policy belongs to the evaluator the science revision registers (see [evaluation policy](#evaluation-policy-and-the-stock-evaluator)). A state change supplies `to_state` (`active`, `paused`, `archived`), the expected revision and a non-empty `reason`; the server enforces the transitions in [the spec](spec.md#tracks).
+The server assigns `id`, state (`planning` on creation), actor, via, timestamps and revision. `slug` is unique within the project. `producer` references a registered producer step manifest revision; omitted, the project default applies. A track declares no gates: the evaluation policy belongs to the evaluator the science revision registers (see [evaluation policy](#evaluation-policy-and-the-stock-evaluator)). A state change supplies `to_state` (`active`, `paused`, `archived`; `planning` is left only by approving a plan), the expected revision and a non-empty `reason`; the server enforces the transitions in [the spec](spec.md#tracks).
 
 `mode` says who runs the track's experiments ([experiment modes](spec.md#experiment-modes)): `agent` (the default when omitted) or `workflow`. A `workflow` track also names its `workflow`, `{"steps": [{"name", "revision"}, …]}` (1 to 16 registered experiment step manifests, run in order); an `agent` track has none, and sending one is refused. The rules a workflow must meet are in [workflow tracks](#workflow-tracks).
 
@@ -28,7 +28,7 @@ The server assigns `id`, state (`active` on creation), actor, via, timestamps an
 }
 ```
 
-A project is created with its first tracks: `POST /api/projects` takes `tracks`, 1 to 32 entries of `slug`, `title` and an optional `description`, with distinct slugs. They are created in the same transaction as the project, `active`, in `agent` mode and with the project's default producer, each recorded as `track.created`; a project without a track is `422` at `body/tracks`. A researcher binds a producer or switches a track to `workflow` afterwards, once the project has a science revision.
+A project is created with its first tracks: `POST /api/projects` takes `tracks`, 1 to 32 entries of `slug`, `title` and an optional `description`, with distinct slugs. They are created in the same transaction as the project, `planning`, in `agent` mode and with the project's default producer, each recorded as `track.created`; a project without a track is `422` at `body/tracks`. A researcher binds a producer or switches a track to `workflow` afterwards, once the project has a science revision.
 
 A researcher changes a track's `producer`, `mode` or `workflow` with `PATCH /projects/{slug}/tracks/{track}` (`expected_revision`, the fields to change, and a non-empty `reason`, which any of the three requires). Switching to `workflow` needs a `workflow` in the same request; switching to `agent` drops it. The merged track is checked as on creation. Each change records `track.updated` with the prior and new producer, mode and workflow, plus `track.mode_changed` when the mode changes. Hypothesis summaries and attempts carry the `mode` of their track.
 
@@ -223,7 +223,7 @@ Submissions still take the JSON evidence envelope: the run and verification outp
 
 ## The brief
 
-The [brief](spec.md#the-brief) is a phase document of the `brief` phase, at most 256 KiB:
+The [brief](spec.md#the-brief) is a phase document of the `brief` phase, at most the project's `brief_max_bytes` (64 KiB by default, at most 256 KiB; see [track plans](#track-plans)):
 
 ```markdown
 ---
@@ -252,6 +252,70 @@ Every claim names the brief revision the work runs under, as a `brief` object be
 An attempt pins the current revision when it is claimed (`brief_revision` in the `attempt.claimed` audit row); `GET …/attempts/{sequence}` reports it as `brief`, and the attempt's test and evaluation job claims hand out the same revision, never a later one.
 
 MCP serves the brief through the tools `get_brief` (the current revision, or the one named by `revision`) and `revise_brief` (`document`, `expected_revision`), and as resources: `cannery-row://projects/{project}/brief` for the current revision and `cannery-row://projects/{project}/brief/revisions/{revision}` for one revision, each a `text/markdown` document listed by `resources/list` for the projects the caller reads.
+
+## Track plans
+
+A [track plan](spec.md#track-plans) is built through these routes, under `/api/projects/{slug}`, each with an MCP tool of the same shape. Only a researcher of the project writes or reviews (`403` for anyone else, service accounts included); everyone who reads the project reads plans. Every write is recorded with its `via`.
+
+| Route | MCP tool | What it does |
+| --- | --- | --- |
+| `POST tracks/{track}/plans` | `start_plan_revision` | Opens the next revision (`201`), copying the approved one, or the newest one sent back after it. One revision is open at a time (`409 conflict`); an archived track takes none. |
+| `PUT tracks/{track}/plans/draft/approach` | `set_plan_approach` | `{"approach": "…"}`, Markdown. |
+| `POST tracks/{track}/plans/draft/units` | `add_unit` | One unit (`201`), fields below. |
+| `PUT tracks/{track}/plans/draft/units/{key}` | `update_unit` | The fields to change; omitted fields are kept. |
+| `DELETE tracks/{track}/plans/draft/units/{key}` | `drop_unit` | Removes the entry and answers with the revision. Dropping a queued unit cancels it on approval. |
+| `PUT tracks/{track}/plans/draft/alignments/{number}` | `set_alignment` | `{"decision": "keep" \| "obsolete" \| "redo", "reason": "…"}` for a unit done or in flight. `redo` adds an entry `redo-{number}` copying the unit with a `derived_from` relation to it; changing the decision away from `redo` removes it. |
+| `GET tracks/{track}/plans/draft/check` | `check_plan` | `{"revision", "ready", "problems": [{"code", "path", "message"}]}`; codes `no_brief`, `empty_approach`, `no_units`, `limit_exceeded`, `unknown_unit`, `unit_not_queued`, `missing_alignment`, `redo_without_unit`. |
+| `POST tracks/{track}/plans/draft/submission` | `submit_plan` | Opens a `plan` review case; `409 conflict` with the problems as details while any remain. |
+| `POST tracks/{track}/plans/{revision}/review` | `review_plan` | `{"action": "approve" \| "send_back" \| "decline", "reason": "…"}` on the submitted revision. |
+| `GET tracks/{track}/plans` | `list_plan_revisions` | Revisions newest first (`before`, `limit`). |
+| `GET tracks/{track}/plans/{revision}` | `get_plan` | A number, `draft` (the open revision, draft or submitted) or `current` (the approved one, else the newest). |
+| `GET tracks/{track}/plans/{revision}/plan.md` | | A rendered Markdown view of the revision. |
+| `GET tracks/{track}/units` | `list_units` | The track's units, one line each (`number`, `key`, `title`, `state`, `obsolete`), filtered by `state`, paged by `before` and `limit`. |
+| `GET units/{number}` | `get_unit` | A unit: its state, whether it is obsolete, its current fields and brief, its key and the newest approved plan revision listing it. |
+| `GET units/{number}/history` | `get_unit_history` | Its hypothesis revisions with their briefs, and the alignment entries that named it. |
+| `GET limits`, `PUT limits` | | The project's limits; a researcher changes them (`project.limits_changed`). |
+
+A unit entry:
+
+```json
+{
+  "key": "token-merge",
+  "title": "Merge frequent byte pairs before the sparse step",
+  "question": "Does merging frequent pairs cut tokens per document by 5% without hurting recall?",
+  "intervention": "Add a pair-merge pass before the sparse encoder.",
+  "acceptance": {"selection_splits": ["validation"], "confirmation_splits": ["test"], "primary_metric": "tokens_per_doc", "required_slices": [], "success_criteria": "…", "falsification_criteria": "…", "regression_gates": ["recall"], "compute_budget": {"gpu_hours_max": 2}},
+  "parameters": {"merges": 4096},
+  "relations": [{"kind": "derived_from", "unit": "baseline"}],
+  "context": [{"kind": "writeup", "unit": 12, "attempt": 1, "note": "the baseline's numbers"}],
+  "brief": "Markdown: what the performer of this unit should know."
+}
+```
+
+`key` is 1 to 63 lowercase letters, digits and hyphens, unique in the track; later revisions keep naming earlier units by their keys. `acceptance` is the hypothesis `plan` and `parameters` its `project_fields`; the entry is checked as the hypothesis document it becomes, and errors name the unit's fields (`body/acceptance/primary_metric`). A relation names another unit by `unit` (its key) or a hypothesis by `hypothesis`. A context item is `{"kind": "unit", "unit": <number or key>}`, `{"kind": "writeup", "unit": <number>, "attempt": <sequence>}` or `{"kind": "artifact", "artifact": "<id>"}`, each with an optional `note`.
+
+Approval writes the hypotheses in one transaction and records `plan.approved` with what it created, revised, cancelled and made obsolete; the first one also records `track.state_changed` from `planning` to `active`. The revision's lifecycle is audited as `plan.started`, `plan.submitted`, `plan.sent_back`, `plan.approved` and `plan.declined` (subject `plan_revision`); edits to an open draft live in the draft itself. Plan review cases are reviewed through the plan routes, not the review-case decisions route, and do not appear in review-case lists or attention counts.
+
+### Limits
+
+`GET /api/projects/{slug}/limits`:
+
+```json
+{"brief_max_bytes": 65536, "plan_approach_max_bytes": 65536, "unit_brief_max_bytes": 32768, "context_items_max": 64, "index_line_max_bytes": 100, "context_summary_max_bytes": 300}
+```
+
+A write over a limit is `422 validation_failed`, its detail naming the `path`, the `size` and the `limit`. The index and summary lengths are not refused: the context bundle truncates those lines.
+
+### The context bundle
+
+A claim of a track with an approved plan pins the plan revision (`plan_revision` in the `attempt.claimed` audit row) and names it and the attempt's context bundle beside the attempt or job:
+
+```json
+{"plan": {"revision": 4, "ref": "/api/projects/pilchards/tracks/compact-sparse/plans/4"},
+ "context": {"ref": "/api/projects/pilchards/hypotheses/12/attempts/1/context.md", "bytes": 5321}}
+```
+
+`GET /api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md` assembles it on demand from what the attempt pinned: YAML front matter (`project`, `attempt`, `track`, `unit`, `hypothesis_revision`, `brief_revision`, `plan_revision`, `detail` and the bundle's own `bytes`), then the brief, the plan's approach, the unit's fields and brief, a one-line index of the track's other units, a summary line and reference for each context item, and one for each output of the units it derives from. `?detail=compact` keeps the brief's goal, the unit and the index, cut at a paragraph under 16 KiB. MCP serves it as the resource `cannery-row://projects/{project}/hypotheses/{number}/attempts/{sequence}/context` (append `/compact` for the compact form). The runner does not stage the bundle into step containers; a step that needs it reads it through the API.
 
 ## Test and evaluation jobs
 

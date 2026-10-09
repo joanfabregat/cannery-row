@@ -204,6 +204,43 @@ export function useTrack(slug: string, track: string) {
   });
 }
 
+/** Everything a track's page shows: the track, its plan and its history. */
+export const planKey = (slug: string, track: string) =>
+  [...projectKey(slug), "track", track] as const;
+
+/**
+ * One revision of a track's plan: `current` (the approved one), `draft` (the
+ * open one, draft or submitted) or a number; `null` when there is none (a 404).
+ */
+export function usePlan(slug: string, track: string, revision: string) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "track", track, "plan", revision],
+    queryFn: async () => {
+      const result = await api
+        .GET("/api/projects/{slug}/tracks/{track_slug}/plans/{revision}", {
+          params: { path: { slug, track_slug: track, revision } },
+        })
+        .catch((error: unknown) => {
+          if (isNotFound(error)) return null;
+          throw error;
+        });
+      return result === null ? null : unwrap(result);
+    },
+  });
+}
+
+export function usePlanRevisions(slug: string, track: string) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "track", track, "plan", "revisions"],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/projects/{slug}/tracks/{track_slug}/plans", {
+          params: { path: { slug, track_slug: track }, query: { limit: 200 } },
+        }),
+      ),
+  });
+}
+
 export function useTrackHistory(slug: string, track: string, enabled = true) {
   return useQuery({
     queryKey: [...projectKey(slug), "track", track, "history"],

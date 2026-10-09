@@ -760,7 +760,9 @@ pub(crate) async fn transition(
     let state =
         TrackState::try_from(state.as_str()).map_err(|_| internal(&c, "track state model"))?;
     let allowed = match row.state {
-        TrackState::Active => matches!(state, TrackState::Paused | TrackState::Archived),
+        TrackState::Planning | TrackState::Active => {
+            matches!(state, TrackState::Paused | TrackState::Archived)
+        }
         TrackState::Paused => matches!(state, TrackState::Active | TrackState::Archived),
         TrackState::Archived => state == TrackState::Active,
     };
@@ -787,6 +789,21 @@ pub(crate) async fn transition(
             ));
         }
     }
+    // A track resumes in planning until its first plan is approved.
+    let state = if state == TrackState::Active
+        && cannery_tracks::plans::approved_revision(&mut tx, row.id)
+            .await
+            .map_err(|_| internal(&c, "track approved plan"))?
+            .is_none()
+        && repo::count_hypotheses(&mut tx, row.id)
+            .await
+            .map_err(|_| internal(&c, "track hypotheses"))?
+            == 0
+    {
+        TrackState::Planning
+    } else {
+        state
+    };
     let updated = repo::update_track(
         &mut tx,
         row.id,

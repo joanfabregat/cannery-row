@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT coalesce(nullif(o.body, ''), o.front_matter #>> '{report,findings}',\n                          o.front_matter #>> '{report,what_was_tried}') AS \"text?\"\n        FROM phase_outputs o\n        WHERE o.attempt_id = $1 AND o.stage IN ('writeup', 'agent')\n        ORDER BY (o.stage = 'writeup') DESC, o.created_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "text?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "193cb95b96846f0f2c26b781035a28f1c47290eeecc242490c5cd57194dc22c8"
+}

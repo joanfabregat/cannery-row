@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT kind, count(*) AS \"count!\" FROM review_cases\n            WHERE project_id = $1 AND state = 'pending' GROUP BY kind\n            ",
+  "query": "\n            SELECT kind, count(*) AS \"count!\" FROM review_cases\n            WHERE project_id = $1 AND state = 'pending' AND kind <> 'plan' GROUP BY kind\n            ",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       null
     ]
   },
-  "hash": "88933ab7eeb348bd76e9c0d56808fbca780d05d57cc74256a1b09a36e2c8f5f4"
+  "hash": "c7a285816c6d999ac697ab80ee5aca80b471e4b7efab14303956f1d9d7efe590"
 }

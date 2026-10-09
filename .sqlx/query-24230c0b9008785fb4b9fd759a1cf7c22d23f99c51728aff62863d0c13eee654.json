@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE attempts SET state = 'cancelled', lease_token_hash = NULL, lease_expires_at = NULL,\n        finished_at = coalesce(finished_at, now())\n        WHERE hypothesis_id = $1 AND state NOT IN ('promoted', 'rejected', 'inconclusive', 'failed',\n                                                    'cancelled', 'unreviewed')\n        RETURNING id AS \"id!: AttemptId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "24230c0b9008785fb4b9fd759a1cf7c22d23f99c51728aff62863d0c13eee654"
+}

@@ -9,6 +9,7 @@ import { HomePage } from "@/pages/home-page";
 import { HypothesesPage } from "@/pages/hypotheses-page";
 import { HypothesisPage } from "@/pages/hypothesis-page";
 import { NotFoundPage } from "@/pages/not-found-page";
+import { PlanEditPage } from "@/pages/plan-edit-page";
 import { ReviewPage } from "@/pages/review-page";
 import { SearchPage } from "@/pages/search-page";
 import { SettingsPage } from "@/pages/settings-page";
@@ -25,6 +26,7 @@ export const routes: RouteObject[] = [
       { path: "brief", element: <BriefPage /> },
       { path: "tracks", element: <TracksPage /> },
       { path: "tracks/:track", element: <TrackPage /> },
+      { path: "tracks/:track/plan", element: <PlanEditPage /> },
       { path: "hypotheses", element: <HypothesesPage /> },
       { path: "hypotheses/:number", element: <HypothesisPage /> },
       { path: "hypotheses/:number/review", element: <ReviewPage /> },

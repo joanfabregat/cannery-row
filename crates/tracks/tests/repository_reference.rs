@@ -56,7 +56,7 @@ async fn seed(c: &mut PgConnection, p: ProjectId, u: UserId, slug: &str) -> Resu
     let slug = String::from(slug);
     let title = String::from("Seed");
     let description = String::new();
-    repo::create_track(
+    let row = repo::create_track(
         c,
         CreateTrack {
             project_id: p,
@@ -71,7 +71,13 @@ async fn seed(c: &mut PgConnection, p: ProjectId, u: UserId, slug: &str) -> Resu
         CONTEXT,
     )
     .await?
-    .ok_or_else(|| "fixture duplicate".into())
+    .ok_or("fixture duplicate")?;
+    // New tracks start in planning; the corpus's fixture tracks are active.
+    sqlx::query("UPDATE tracks SET state='active' WHERE id=$1")
+        .bind(row.id)
+        .execute(&mut *c)
+        .await?;
+    Ok(row)
 }
 fn document(recipe: &Value, name: &str) -> Result<Option<Document>> {
     recipe[name]

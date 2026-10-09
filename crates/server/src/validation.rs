@@ -1007,13 +1007,13 @@ pub fn validate_parameter_node(node: &Node, parameter: Parameter) -> Checked<Par
                     .map_err(|_| {
                         issue(
                             "literal_error",
-                            "Input should be 'active', 'paused' or 'archived'",
+                            "Input should be 'planning', 'active', 'paused' or 'archived'",
                         )
                     })
             }
             _ => Err(issue(
                 "literal_error",
-                "Input should be 'active', 'paused' or 'archived'",
+                "Input should be 'planning', 'active', 'paused' or 'archived'",
             )),
         },
         Parameter::HistoryBefore => {

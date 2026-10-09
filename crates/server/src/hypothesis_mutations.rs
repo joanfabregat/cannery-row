@@ -452,6 +452,48 @@ async fn prepare(
         mentions: mentioned,
     })
 }
+/// A plan unit checked as the hypothesis document it becomes.
+pub(crate) struct CheckedUnit {
+    pub(crate) science_revision: i32,
+    pub(crate) relations: Vec<(RelationKind, HypothesisId)>,
+    pub(crate) mentions: BTreeSet<HypothesisId>,
+}
+/// Check a plan unit with the same contract, science, project field, track
+/// and relation checks as a hypothesis draft.
+pub(crate) async fn check_unit(
+    conn: &mut PgConnection,
+    principal: &Principal,
+    project: &projects::Project,
+    document: &Document,
+    self_id: Option<HypothesisId>,
+    state: &RouteState,
+    c: &RequestContext,
+) -> Result<CheckedUnit, Failure> {
+    fixed_contract(document, state, c)?;
+    let context = state
+        .context
+        .mutations
+        .as_ref()
+        .ok_or_else(|| internal(c, "unit mutation context"))?;
+    let kept = match self_id {
+        Some(id) => repo::outgoing_relations(conn, id, state.context.repository)
+            .await
+            .map_err(|_| internal(c, "unit kept relations"))?
+            .into_iter()
+            .map(|reference| reference.hypothesis_id)
+            .collect(),
+        None => BTreeSet::new(),
+    };
+    let prepared = prepare(
+        conn, principal, project, document, self_id, &kept, context, c,
+    )
+    .await?;
+    Ok(CheckedUnit {
+        science_revision: prepared.revision,
+        relations: prepared.relations,
+        mentions: prepared.mentions,
+    })
+}
 /// Resolve readable backlinks using the shared source document scanner.
 #[allow(
     clippy::too_many_arguments,

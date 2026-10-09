@@ -75,6 +75,14 @@ pub struct AttemptDetail {
     /// when the project had no brief then.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub brief: Option<BriefRef>,
+    /// The plan revision the attempt pinned at its claim; absent when its
+    /// track had no approved plan then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<PlanRef>,
+    /// Where to read the attempt's context bundle, and its size; absent
+    /// with `plan`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<ContextBundleRef>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -331,6 +339,363 @@ pub struct BriefRevisionOut {
     pub created_at: String,
 }
 
+/// The plan revision a claim or a job runs under, and where to read it.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanRef {
+    pub revision: i64,
+    pub r#ref: String,
+}
+
+/// Where to read an attempt's context bundle, and its size in bytes.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ContextBundleRef {
+    pub r#ref: String,
+    pub bytes: i64,
+}
+
+/// A typed relation of a unit: to a hypothesis of the project (its number),
+/// of another project (`{project, number}`), or to another unit of the same
+/// plan by key. Exactly one of `hypothesis` and `unit`.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitRelation {
+    #[schema(pattern = "^(derived_from|supersedes|related_to)$")]
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hypothesis: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(pattern = "^[a-z0-9][a-z0-9-]{0,62}$")]
+    pub unit: Option<String>,
+}
+
+/// Something a unit's performer should read: another unit (`unit`: a
+/// hypothesis number or a key of the same plan), an attempt's write-up
+/// (`writeup`: `unit` number and `attempt` sequence) or an artifact
+/// (`artifact`: its id). `note` says why it matters.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ContextItem {
+    #[schema(pattern = "^(unit|writeup|artifact)$")]
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attempt: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schema(format = "uuid")]
+    pub artifact: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// A new unit of a plan draft. `acceptance` is the hypothesis acceptance
+/// plan (splits, primary metric, criteria, gates, budget); `parameters` are
+/// the project's hypothesis fields.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitCreate {
+    #[schema(pattern = "^[a-z0-9][a-z0-9-]{0,62}$")]
+    pub key: String,
+    pub title: String,
+    pub question: String,
+    pub intervention: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control: Option<BTreeMap<String, serde_json::Value>>,
+    pub acceptance: BTreeMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<BTreeMap<String, serde_json::Value>>,
+    #[serde(default)]
+    pub relations: Vec<UnitRelation>,
+    #[serde(default)]
+    pub context: Vec<ContextItem>,
+    #[serde(default)]
+    pub brief: String,
+}
+
+/// Changes to a unit of a plan draft; omitted fields keep their value, and
+/// `control` or `parameters` set to null are removed.
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitUpdate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub question: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub intervention: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub acceptance: Option<BTreeMap<String, serde_json::Value>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relations: Option<Vec<UnitRelation>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<Vec<ContextItem>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brief: Option<String>,
+}
+
+/// A unit as a plan revision lists it. `number` and `state` name its
+/// hypothesis once it has one; `redo_of` is the unit it redoes.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanUnitOut {
+    pub key: String,
+    #[schema(required = true)]
+    pub number: Option<i64>,
+    #[schema(required = true)]
+    pub state: Option<String>,
+    #[schema(required = true)]
+    pub redo_of: Option<i64>,
+    pub title: String,
+    pub question: String,
+    pub intervention: String,
+    #[schema(required = true)]
+    pub control: Option<BTreeMap<String, serde_json::Value>>,
+    pub acceptance: BTreeMap<String, serde_json::Value>,
+    #[schema(required = true)]
+    pub parameters: Option<BTreeMap<String, serde_json::Value>>,
+    pub relations: Vec<UnitRelation>,
+    pub context: Vec<ContextItem>,
+    pub brief: String,
+    pub science_revision: i64,
+    /// The hypothesis revision this entry wrote when its plan was approved.
+    #[schema(required = true)]
+    pub hypothesis_revision: Option<i64>,
+}
+
+/// What a plan revision decides about a done or in-flight unit.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AlignmentOut {
+    pub number: i64,
+    pub title: String,
+    pub state: String,
+    #[schema(pattern = "^(keep|obsolete|redo)$")]
+    pub decision: String,
+    pub reason: String,
+}
+
+/// An alignment entry for a done or in-flight unit.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AlignmentSet {
+    #[schema(pattern = "^(keep|obsolete|redo)$")]
+    pub decision: String,
+    pub reason: String,
+}
+
+/// One line of a track's unit index.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitIndexOut {
+    pub number: i64,
+    #[schema(required = true)]
+    pub key: Option<String>,
+    pub title: String,
+    pub state: String,
+    /// An approved plan made it obsolete (or redid it).
+    pub obsolete: bool,
+}
+
+/// One revision of a track's plan with its units and alignment entries.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanOut {
+    pub track: String,
+    pub revision: i64,
+    #[schema(pattern = "^(draft|submitted|approved|sent_back|declined)$")]
+    pub state: String,
+    #[schema(required = true)]
+    pub based_on: Option<i64>,
+    pub approach: String,
+    pub units: Vec<PlanUnitOut>,
+    pub alignments: Vec<AlignmentOut>,
+    /// For a draft: the done or in-flight units that need an alignment entry.
+    pub needs_alignment: Vec<UnitIndexOut>,
+    #[schema(format = "uuid")]
+    pub created_by: String,
+    #[schema(required = true)]
+    pub created_by_name: Option<String>,
+    pub via_channel: String,
+    #[schema(required = true)]
+    pub via_client: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+    #[schema(format = "date-time")]
+    pub updated_at: String,
+    #[schema(format = "date-time", required = true)]
+    pub submitted_at: Option<String>,
+    #[schema(format = "uuid", required = true)]
+    pub review_case_id: Option<String>,
+    #[schema(required = true)]
+    pub reviewed_by_name: Option<String>,
+    #[schema(required = true)]
+    pub review_reason: Option<String>,
+    #[schema(format = "date-time", required = true)]
+    pub reviewed_at: Option<String>,
+    /// The rendered Markdown view of this revision.
+    pub markdown_ref: String,
+}
+
+/// A revision in a plan's history, without its units.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanRevisionOut {
+    pub revision: i64,
+    pub state: String,
+    #[schema(required = true)]
+    pub based_on: Option<i64>,
+    pub units: i64,
+    #[schema(required = true)]
+    pub created_by_name: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+    #[schema(format = "date-time", required = true)]
+    pub submitted_at: Option<String>,
+    #[schema(required = true)]
+    pub reviewed_by_name: Option<String>,
+    #[schema(required = true)]
+    pub review_reason: Option<String>,
+    #[schema(format = "date-time", required = true)]
+    pub reviewed_at: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Page_PlanRevisionOut_int_ {
+    pub items: Vec<PlanRevisionOut>,
+    #[schema(required = true)]
+    pub next_before: Option<i64>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Page_UnitIndexOut_int_ {
+    pub items: Vec<UnitIndexOut>,
+    #[schema(required = true)]
+    pub next_before: Option<i64>,
+}
+
+/// The draft's approach: the track's shared reasoning, risks and edge cases.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanApproach {
+    pub approach: String,
+}
+
+/// One thing that blocks submitting a draft, and where.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanProblem {
+    pub code: String,
+    pub path: String,
+    pub message: String,
+}
+
+/// What blocks submitting the draft; `ready` when nothing does.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanCheckOut {
+    pub revision: i64,
+    pub ready: bool,
+    pub problems: Vec<PlanProblem>,
+}
+
+/// A researcher's decision on a submitted plan revision.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlanReview {
+    #[schema(pattern = "^(approve|send_back|decline)$")]
+    pub action: String,
+    pub reason: String,
+}
+
+/// A unit: a hypothesis with the plan fields it was approved with.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitOut {
+    pub number: i64,
+    pub track: String,
+    #[schema(required = true)]
+    pub key: Option<String>,
+    pub state: String,
+    pub obsolete: bool,
+    pub revision: i64,
+    #[schema(required = true)]
+    pub approved_revision: Option<i64>,
+    /// The approved plan revision that last listed it, if any.
+    #[schema(required = true)]
+    pub plan_revision: Option<i64>,
+    pub title: String,
+    pub question: String,
+    pub intervention: String,
+    #[schema(required = true)]
+    pub control: Option<BTreeMap<String, serde_json::Value>>,
+    pub acceptance: BTreeMap<String, serde_json::Value>,
+    #[schema(required = true)]
+    pub parameters: Option<BTreeMap<String, serde_json::Value>>,
+    pub relations: Vec<UnitRelation>,
+    pub context: Vec<ContextItem>,
+    pub brief: String,
+}
+
+/// One revision of a unit's hypothesis.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitRevisionOut {
+    pub revision: i64,
+    /// The approved plan revision that wrote it, if a plan did.
+    #[schema(required = true)]
+    pub plan_revision: Option<i64>,
+    pub title: String,
+    #[schema(required = true)]
+    pub brief: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+}
+
+/// An approved plan's alignment entry about a unit.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitAlignmentOut {
+    pub plan_revision: i64,
+    pub decision: String,
+    pub reason: String,
+}
+
+/// A unit's revisions and the alignment entries approved about it, oldest first.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct UnitHistoryOut {
+    pub number: i64,
+    pub revisions: Vec<UnitRevisionOut>,
+    pub alignments: Vec<UnitAlignmentOut>,
+}
+
+/// Size limits of what performers are handed, per project, in bytes (and
+/// items for `context_items_max`).
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectLimits {
+    #[schema(minimum = 1024, maximum = 262_144)]
+    pub brief_max_bytes: i64,
+    #[schema(minimum = 1024, maximum = 262_144)]
+    pub plan_approach_max_bytes: i64,
+    #[schema(minimum = 1024, maximum = 131_072)]
+    pub unit_brief_max_bytes: i64,
+    #[schema(minimum = 1, maximum = 256)]
+    pub context_items_max: i64,
+    #[schema(minimum = 40, maximum = 1000)]
+    pub index_line_max_bytes: i64,
+    #[schema(minimum = 80, maximum = 2000)]
+    pub context_summary_max_bytes: i64,
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum CaseKind {
     #[serde(rename = "draft")]
@@ -372,6 +737,14 @@ pub struct ClaimOut {
     /// The project's brief at the claim, absent when it had none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub brief: Option<BriefRef>,
+    /// The plan revision the attempt pinned at its claim; absent when its
+    /// track had no approved plan then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<PlanRef>,
+    /// Where to read the attempt's context bundle, and its size; absent
+    /// with `plan`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<ContextBundleRef>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -710,6 +1083,14 @@ pub struct JobClaimOut {
     /// The brief revision the job's attempt pinned, absent when it has none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub brief: Option<BriefRef>,
+    /// The plan revision the attempt pinned at its claim; absent when its
+    /// track had no approved plan then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<PlanRef>,
+    /// Where to read the attempt's context bundle, and its size; absent
+    /// with `plan`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<ContextBundleRef>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

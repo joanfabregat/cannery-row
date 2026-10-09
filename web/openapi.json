@@ -4619,6 +4619,112 @@
         }
       }
     },
+    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md": {
+      "get": {
+        "summary": "Get Context Bundle",
+        "description": "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB.",
+        "operationId": "get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "detail",
+            "in": "query",
+            "description": "`full` (the default) or `compact`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/heartbeat": {
       "post": {
         "summary": "Heartbeat",
@@ -7969,6 +8075,162 @@
         }
       }
     },
+    "/api/projects/{slug}/limits": {
+      "get": {
+        "summary": "Get Limits",
+        "description": "The project's size limits for briefs, plans, units and context bundles.",
+        "operationId": "get_limits_api_projects__slug__limits_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLimits"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Set Limits",
+        "description": "Replace the project's size limits. Researchers only. Writes over a limit\nare refused where they are made; existing content is not changed.",
+        "operationId": "set_limits_api_projects__slug__limits_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectLimits"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLimits"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/members": {
       "get": {
         "summary": "List Members",
@@ -10899,6 +11161,1220 @@
         }
       }
     },
+    "/api/projects/{slug}/tracks/{track_slug}/plans": {
+      "get": {
+        "summary": "List Plan Revisions",
+        "description": "The revisions of a track's plan, newest first, without their units.",
+        "operationId": "list_plan_revisions_api_projects__slug__tracks__track_slug__plans_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Continue before this revision.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 2147483647,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PlanRevisionOut_int_"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Start Plan Revision",
+        "description": "Open the next revision of a track's plan as a draft. A revision starts from\nthe approved plan (or from a newer revision sent back): its approach, its\nnew units and the units still queued. `needs_alignment` lists the done and\nin-flight units every revision says something about. Researchers only;\none open revision per track.",
+        "operationId": "start_plan_revision_api_projects__slug__tracks__track_slug__plans_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/alignments/{number}": {
+      "put": {
+        "summary": "Set Alignment",
+        "description": "Say what this revision does with a done or in-flight unit: `keep` it,\nmake it `obsolete` (an in-flight unit's attempt is cancelled and kept; a\ndecided unit keeps its decision) or `redo` it (obsolete, plus a new unit\nderived from it, added to the draft with the old unit's fields).",
+        "operationId": "set_alignment_api_projects__slug__tracks__track_slug__plans_draft_alignments__number__put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlignmentSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlignmentOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/approach": {
+      "put": {
+        "summary": "Set Plan Approach",
+        "description": "Replace the draft's approach: the track's shared reasoning, edge cases and\nrisks, as Markdown. Refused over the project's approach limit.",
+        "operationId": "set_plan_approach_api_projects__slug__tracks__track_slug__plans_draft_approach_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanApproach"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/check": {
+      "get": {
+        "summary": "Check Plan",
+        "description": "What blocks submitting the draft: no project brief, no approach, missing\nalignment entries, unknown unit keys, units no longer queued, limits\nexceeded. `ready` when nothing does.",
+        "operationId": "check_plan_api_projects__slug__tracks__track_slug__plans_draft_check_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanCheckOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/submission": {
+      "post": {
+        "summary": "Submit Plan",
+        "description": "Freeze the draft and open its `plan` review case. Refused with the\nproblems `check_plan` reports while there are any.",
+        "operationId": "submit_plan_api_projects__slug__tracks__track_slug__plans_draft_submission_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/units": {
+      "post": {
+        "summary": "Add Unit",
+        "description": "Add a unit to the draft. `acceptance` is checked against the project's\nmetric registry and `parameters` against its hypothesis fields, as for a\nhypothesis; `context` items must exist; the brief and the number of context\nitems are refused over the project's limits.",
+        "operationId": "add_unit_api_projects__slug__tracks__track_slug__plans_draft_units_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnitCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanUnitOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/units/{key}": {
+      "put": {
+        "summary": "Update Unit",
+        "description": "Change a new or queued unit of the draft. Omitted fields keep their value;\nthe result is checked as `add_unit` checks a new unit.",
+        "operationId": "update_unit_api_projects__slug__tracks__track_slug__plans_draft_units__key__put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnitUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanUnitOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Drop Unit",
+        "description": "Drop a new or queued unit from the draft and return the draft. A queued\nunit the approved plan listed is cancelled when this revision is approved.",
+        "operationId": "drop_unit_api_projects__slug__tracks__track_slug__plans_draft_units__key__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}": {
+      "get": {
+        "summary": "Get Plan",
+        "description": "One revision of a track's plan with its units and alignment entries.\n`revision` is a number, `draft` (the open revision) or `current` (the\napproved plan, else the newest revision).",
+        "operationId": "get_plan_api_projects__slug__tracks__track_slug__plans__revision__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}/plan.md": {
+      "get": {
+        "summary": "Get Plan Markdown",
+        "description": "A read-only Markdown view of one plan revision: YAML front matter and a\nbody with the approach, the units and the alignment entries.",
+        "operationId": "get_plan_markdown_api_projects__slug__tracks__track_slug__plans__revision__plan_md_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}/review": {
+      "post": {
+        "summary": "Review Plan",
+        "description": "A researcher's decision on a submitted revision, with a reason: `approve`\nit (in one transaction: create a queued hypothesis per new unit, write a\nnew revision of each changed one, cancel the queued ones it drops, apply\nits alignment entries, and move a planning track to active), `send_back`\nfor another revision, or `decline` it.",
+        "operationId": "review_plan_api_projects__slug__tracks__track_slug__plans__revision__review_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanReview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/tracks/{track_slug}/transitions": {
       "post": {
         "summary": "Transition Track",
@@ -11018,6 +12494,302 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/tracks/{track_slug}/units": {
+      "get": {
+        "summary": "List Units",
+        "description": "The units (hypotheses) of a track, newest first: number, plan key, title,\nstate and whether an approved plan made them obsolete.",
+        "operationId": "list_units_api_projects__slug__tracks__track_slug__units_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only units in this hypothesis state.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Continue before this number.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 2147483647,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_UnitIndexOut_int_"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/units/{number}": {
+      "get": {
+        "summary": "Get Unit",
+        "description": "One unit: its hypothesis with the plan fields, context and brief it was\nlast approved with.",
+        "operationId": "get_unit_api_projects__slug__units__number__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/units/{number}/history": {
+      "get": {
+        "summary": "Get Unit History",
+        "description": "A unit's hypothesis revisions, with the plan revision that wrote each one,\nand the alignment entries approved plans made about it, oldest first.",
+        "operationId": "get_unit_history_api_projects__slug__units__number__history_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnitHistoryOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -12184,6 +13956,55 @@
   },
   "components": {
     "schemas": {
+      "AlignmentOut": {
+        "type": "object",
+        "description": "What a plan revision decides about a done or in-flight unit.",
+        "required": [
+          "number",
+          "title",
+          "state",
+          "decision",
+          "reason"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "pattern": "^(keep|obsolete|redo)$"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlignmentSet": {
+        "type": "object",
+        "description": "An alignment entry for a done or in-flight unit.",
+        "required": [
+          "decision",
+          "reason"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string",
+            "pattern": "^(keep|obsolete|redo)$"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "ArtifactManifestRequest": {
         "type": "object",
         "required": [
@@ -12346,6 +14167,17 @@
               }
             ]
           },
+          "context": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ContextBundleRef",
+                "description": "Where to read the attempt's context bundle, and its size; absent\nwith `plan`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "failures": {
             "type": "array",
             "items": {
@@ -12397,6 +14229,17 @@
           },
           "origin": {
             "$ref": "#/components/schemas/Origin"
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlanRef",
+                "description": "The plan revision the attempt pinned at its claim; absent when its\ntrack had no approved plan then."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "predecessor_id": {
             "type": [
@@ -13284,6 +15127,17 @@
               }
             ]
           },
+          "context": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ContextBundleRef",
+                "description": "Where to read the attempt's context bundle, and its size; absent\nwith `plan`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "heartbeat_seconds": {
             "type": "integer",
             "format": "int64"
@@ -13298,6 +15152,17 @@
           },
           "lease_token": {
             "type": "string"
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlanRef",
+                "description": "The plan revision the attempt pinned at its claim; absent when its\ntrack had no approved plan then."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "workflow": {
             "oneOf": [
@@ -14175,6 +16040,59 @@
               "null"
             ]
           }
+        },
+        "additionalProperties": false
+      },
+      "ContextBundleRef": {
+        "type": "object",
+        "description": "Where to read an attempt's context bundle, and its size in bytes.",
+        "required": [
+          "ref",
+          "bytes"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ref": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContextItem": {
+        "type": "object",
+        "description": "Something a unit's performer should read: another unit (`unit`: a\nhypothesis number or a key of the same plan), an attempt's write-up\n(`writeup`: `unit` number and `attempt` sequence) or an artifact\n(`artifact`: its id). `note` says why it matters.",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "artifact": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "attempt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string",
+            "pattern": "^(unit|writeup|artifact)$"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unit": {}
         },
         "additionalProperties": false
       },
@@ -15517,12 +17435,34 @@
               }
             ]
           },
+          "context": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ContextBundleRef",
+                "description": "Where to read the attempt's context bundle, and its size; absent\nwith `plan`."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "heartbeat_seconds": {
             "type": "integer",
             "format": "int64"
           },
           "job": {
             "$ref": "#/components/schemas/ClaimedJobDocument"
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PlanRef",
+                "description": "The plan revision the attempt pinned at its claim; absent when its\ntrack had no approved plan then."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -16509,6 +18449,29 @@
         },
         "additionalProperties": false
       },
+      "Page_PlanRevisionOut_int_": {
+        "type": "object",
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanRevisionOut"
+            }
+          },
+          "next_before": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
       "Page_ProducerOut_str_": {
         "type": "object",
         "required": [
@@ -16666,6 +18629,29 @@
         },
         "additionalProperties": false
       },
+      "Page_UnitIndexOut_int_": {
+        "type": "object",
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitIndexOut"
+            }
+          },
+          "next_before": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
       "Page_UserOut_UUID_": {
         "type": "object",
         "required": [
@@ -16685,6 +18671,417 @@
               "null"
             ],
             "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanApproach": {
+        "type": "object",
+        "description": "The draft's approach: the track's shared reasoning, risks and edge cases.",
+        "required": [
+          "approach"
+        ],
+        "properties": {
+          "approach": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanCheckOut": {
+        "type": "object",
+        "description": "What blocks submitting the draft; `ready` when nothing does.",
+        "required": [
+          "revision",
+          "ready",
+          "problems"
+        ],
+        "properties": {
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanProblem"
+            }
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanOut": {
+        "type": "object",
+        "description": "One revision of a track's plan with its units and alignment entries.",
+        "required": [
+          "track",
+          "revision",
+          "state",
+          "based_on",
+          "approach",
+          "units",
+          "alignments",
+          "needs_alignment",
+          "created_by",
+          "created_by_name",
+          "via_channel",
+          "via_client",
+          "created_at",
+          "updated_at",
+          "submitted_at",
+          "review_case_id",
+          "reviewed_by_name",
+          "review_reason",
+          "reviewed_at",
+          "markdown_ref"
+        ],
+        "properties": {
+          "alignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlignmentOut"
+            }
+          },
+          "approach": {
+            "type": "string"
+          },
+          "based_on": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "markdown_ref": {
+            "type": "string",
+            "description": "The rendered Markdown view of this revision."
+          },
+          "needs_alignment": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitIndexOut"
+            },
+            "description": "For a draft: the done or in-flight units that need an alignment entry."
+          },
+          "review_case_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "review_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reviewed_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^(draft|submitted|approved|sent_back|declined)$"
+          },
+          "submitted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "track": {
+            "type": "string"
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanUnitOut"
+            }
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "via_channel": {
+            "type": "string"
+          },
+          "via_client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanProblem": {
+        "type": "object",
+        "description": "One thing that blocks submitting a draft, and where.",
+        "required": [
+          "code",
+          "path",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanRef": {
+        "type": "object",
+        "description": "The plan revision a claim or a job runs under, and where to read it.",
+        "required": [
+          "revision",
+          "ref"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanReview": {
+        "type": "object",
+        "description": "A researcher's decision on a submitted plan revision.",
+        "required": [
+          "action",
+          "reason"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "pattern": "^(approve|send_back|decline)$"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanRevisionOut": {
+        "type": "object",
+        "description": "A revision in a plan's history, without its units.",
+        "required": [
+          "revision",
+          "state",
+          "based_on",
+          "units",
+          "created_by_name",
+          "created_at",
+          "submitted_at",
+          "reviewed_by_name",
+          "review_reason",
+          "reviewed_at"
+        ],
+        "properties": {
+          "based_on": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "created_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "review_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reviewed_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "submitted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "units": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PlanUnitOut": {
+        "type": "object",
+        "description": "A unit as a plan revision lists it. `number` and `state` name its\nhypothesis once it has one; `redo_of` is the unit it redoes.",
+        "required": [
+          "key",
+          "number",
+          "state",
+          "redo_of",
+          "title",
+          "question",
+          "intervention",
+          "control",
+          "acceptance",
+          "parameters",
+          "relations",
+          "context",
+          "brief",
+          "science_revision",
+          "hypothesis_revision"
+        ],
+        "properties": {
+          "acceptance": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "brief": {
+            "type": "string"
+          },
+          "context": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextItem"
+            }
+          },
+          "control": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "hypothesis_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The hypothesis revision this entry wrote when its plan was approved."
+          },
+          "intervention": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "number": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "parameters": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "question": {
+            "type": "string"
+          },
+          "redo_of": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitRelation"
+            }
+          },
+          "science_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -17047,6 +19444,57 @@
             "description": "The project's first tracks, created with it. Each starts in `agent` mode\nwith the project default producer; `PATCH` a track to bind it.",
             "maxItems": 32,
             "minItems": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProjectLimits": {
+        "type": "object",
+        "description": "Size limits of what performers are handed, per project, in bytes (and\nitems for `context_items_max`).",
+        "required": [
+          "brief_max_bytes",
+          "plan_approach_max_bytes",
+          "unit_brief_max_bytes",
+          "context_items_max",
+          "index_line_max_bytes",
+          "context_summary_max_bytes"
+        ],
+        "properties": {
+          "brief_max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 262144,
+            "minimum": 1024
+          },
+          "context_items_max": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 256,
+            "minimum": 1
+          },
+          "context_summary_max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 2000,
+            "minimum": 80
+          },
+          "index_line_max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 1000,
+            "minimum": 40
+          },
+          "plan_approach_max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 262144,
+            "minimum": 1024
+          },
+          "unit_brief_max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "maximum": 131072,
+            "minimum": 1024
           }
         },
         "additionalProperties": false
@@ -19595,6 +22043,396 @@
           "upper": {
             "type": "number",
             "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitAlignmentOut": {
+        "type": "object",
+        "description": "An approved plan's alignment entry about a unit.",
+        "required": [
+          "plan_revision",
+          "decision",
+          "reason"
+        ],
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "plan_revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitCreate": {
+        "type": "object",
+        "description": "A new unit of a plan draft. `acceptance` is the hypothesis acceptance\nplan (splits, primary metric, criteria, gates, budget); `parameters` are\nthe project's hypothesis fields.",
+        "required": [
+          "key",
+          "title",
+          "question",
+          "intervention",
+          "acceptance"
+        ],
+        "properties": {
+          "acceptance": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "brief": {
+            "type": "string"
+          },
+          "context": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextItem"
+            }
+          },
+          "control": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "intervention": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          },
+          "parameters": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "question": {
+            "type": "string"
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitRelation"
+            }
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitHistoryOut": {
+        "type": "object",
+        "description": "A unit's revisions and the alignment entries approved about it, oldest first.",
+        "required": [
+          "number",
+          "revisions",
+          "alignments"
+        ],
+        "properties": {
+          "alignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitAlignmentOut"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "revisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitRevisionOut"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitIndexOut": {
+        "type": "object",
+        "description": "One line of a track's unit index.",
+        "required": [
+          "number",
+          "key",
+          "title",
+          "state",
+          "obsolete"
+        ],
+        "properties": {
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "obsolete": {
+            "type": "boolean",
+            "description": "An approved plan made it obsolete (or redid it)."
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitOut": {
+        "type": "object",
+        "description": "A unit: a hypothesis with the plan fields it was approved with.",
+        "required": [
+          "number",
+          "track",
+          "key",
+          "state",
+          "obsolete",
+          "revision",
+          "approved_revision",
+          "plan_revision",
+          "title",
+          "question",
+          "intervention",
+          "control",
+          "acceptance",
+          "parameters",
+          "relations",
+          "context",
+          "brief"
+        ],
+        "properties": {
+          "acceptance": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "approved_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "brief": {
+            "type": "string"
+          },
+          "context": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ContextItem"
+            }
+          },
+          "control": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "intervention": {
+            "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "obsolete": {
+            "type": "boolean"
+          },
+          "parameters": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "plan_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The approved plan revision that last listed it, if any."
+          },
+          "question": {
+            "type": "string"
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UnitRelation"
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitRelation": {
+        "type": "object",
+        "description": "A typed relation of a unit: to a hypothesis of the project (its number),\nof another project (`{project, number}`), or to another unit of the same\nplan by key. Exactly one of `hypothesis` and `unit`.",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "hypothesis": {},
+          "kind": {
+            "type": "string",
+            "pattern": "^(derived_from|supersedes|related_to)$"
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitRevisionOut": {
+        "type": "object",
+        "description": "One revision of a unit's hypothesis.",
+        "required": [
+          "revision",
+          "plan_revision",
+          "title",
+          "brief",
+          "created_at"
+        ],
+        "properties": {
+          "brief": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "plan_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The approved plan revision that wrote it, if a plan did."
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UnitUpdate": {
+        "type": "object",
+        "description": "Changes to a unit of a plan draft; omitted fields keep their value, and\n`control` or `parameters` set to null are removed.",
+        "properties": {
+          "acceptance": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "brief": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "context": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ContextItem"
+            }
+          },
+          "control": {},
+          "intervention": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "parameters": {},
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relations": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/UnitRelation"
+            }
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "additionalProperties": false

@@ -51,8 +51,9 @@ Sign-in to the web app uses any standard OIDC provider (`[auth]` in `settings.to
 | Document | Holds |
 | --- | --- |
 | [docs/guide.md](docs/guide.md) | Integrating a research project, from an empty installation to the first decided hypothesis. |
+| [docs/agents.md](docs/agents.md) | Working as an agent: planning a track, and reading an attempt's context. |
 | [docs/spec.md](docs/spec.md) | The system: roles, lifecycle, failure classes, trust rules. |
-| [docs/contracts.md](docs/contracts.md) | Every document: tracks, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock evaluator and policy steps. The JSON Schemas are in [`contracts/schemas/`](contracts/schemas). |
+| [docs/contracts.md](docs/contracts.md) | Every document: tracks, track plans, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock evaluator and policy steps. The JSON Schemas are in [`contracts/schemas/`](contracts/schemas). |
 | [docs/deploy.md](docs/deploy.md) | The image, settings, object storage, the managed database, the runner, its launchers and the stock evaluator. |
 | [docs/import.md](docs/import.md) | Importing a research history kept elsewhere. |
 | [deploy/runner-k8s/](deploy/runner-k8s/README.md) | The runner's Kubernetes manifests. |

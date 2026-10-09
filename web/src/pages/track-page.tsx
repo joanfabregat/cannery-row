@@ -11,6 +11,7 @@ import { EmptyState, LoadError, Loading, QueryView } from "@/components/query-st
 import { Collapsible, Fact, RawJson, Section } from "@/components/section";
 import { StatusChip } from "@/components/status-chip";
 import { EditTrackDialog, TransitionDialog } from "@/components/track-forms";
+import { TrackPlan } from "@/components/track-plan";
 import { formatDateTime } from "@/lib/format";
 import { humanize, label } from "@/lib/labels";
 import { useNotice } from "@/lib/navigation";
@@ -89,6 +90,12 @@ function TrackView({ project, slug }: { project: Project; slug: string }) {
             </dl>
           </div>
         </Section>
+        <TrackPlan
+          project={project.slug}
+          track={t.slug}
+          archived={t.state === "archived"}
+          isResearcher={isResearcher}
+        />
         <TrackExecution track={t} />
         <TrackHypotheses project={project.slug} track={t.slug} />
         <TrackDetails project={project.slug} track={t} />
@@ -98,6 +105,7 @@ function TrackView({ project, slug }: { project: Project; slug: string }) {
 }
 
 const TRACK_STATE_WORDS: Record<string, string> = {
+  planning: "Planning: nothing in it can start until a researcher approves its first plan.",
   active: "Active: it accepts drafts, and its queued hypotheses can start.",
   paused: "Paused: drafts can be written and reviewed, but its queued hypotheses do not start.",
   archived: "Archived: read-only; it accepts no new draft.",

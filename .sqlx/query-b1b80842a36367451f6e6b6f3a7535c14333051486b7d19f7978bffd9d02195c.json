@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.revision, r.content::text AS \"content!\", r.brief, r.science_revision,\n        r.created_at AS \"created_at!: _\",\n        (SELECT p.revision FROM plan_units u JOIN plan_revisions p ON p.id = u.plan_revision_id\n         WHERE u.hypothesis_id = r.hypothesis_id AND u.hypothesis_revision = r.revision\n           AND p.state = 'approved' LIMIT 1) AS \"plan_revision?\"\n        FROM hypothesis_revisions r WHERE r.hypothesis_id = $1 AND r.revision = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "content!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "brief",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "science_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "plan_revision?",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "b1b80842a36367451f6e6b6f3a7535c14333051486b7d19f7978bffd9d02195c"
+}

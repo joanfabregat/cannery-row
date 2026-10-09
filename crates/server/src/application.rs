@@ -277,7 +277,14 @@ fn application_with_proxy(
                 }),
         )
         .merge(contexts.hypotheses.map_or_else(Router::new, |context| {
+            let plans = context.mutations.is_some().then(|| {
+                crate::plan_routes::routes(crate::hypothesis_routes::RouteState {
+                    app: state.clone(),
+                    context: context.clone(),
+                })
+            });
             crate::hypothesis_routes::routes(state.clone(), context)
+                .merge(plans.unwrap_or_default())
         }))
         .merge(contexts.metrics.map_or_else(Router::new, |context| {
             crate::metric_routes::routes(state.clone(), context)

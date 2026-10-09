@@ -19,7 +19,7 @@ domain!(UploadState {Pending=>"pending",Receiving=>"receiving",Verified=>"verifi
 domain!(Transfer {Stream=>"stream",Single=>"single",Multipart=>"multipart"});
 domain!(Origin {Live=>"live",Imported=>"imported"});
 domain!(Stage {Agent=>"agent",Tester=>"tester",Evaluator=>"evaluator"});
-domain!(TrackState {Active=>"active",Paused=>"paused",Archived=>"archived"});
+domain!(TrackState {Planning=>"planning",Active=>"active",Paused=>"paused",Archived=>"archived"});
 domain!(Mode {Agent=>"agent",Workflow=>"workflow"});
 /// SQL NULL and a stored JSON null remain distinguishable. Consumers may ask
 /// separately for the source Python None interpretation.

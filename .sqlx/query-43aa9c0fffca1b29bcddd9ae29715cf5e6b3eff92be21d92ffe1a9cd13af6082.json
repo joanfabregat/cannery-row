@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE hypotheses SET state = 'cancelled', updated_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "43aa9c0fffca1b29bcddd9ae29715cf5e6b3eff92be21d92ffe1a9cd13af6082"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT revision FROM plan_revisions WHERE track_id = $1 AND state IN ('draft', 'submitted')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "22694214b153b1e7612ffa77ad0a4cab138d0fec9d757a5dc62e19fbd1d2a73e"
+}

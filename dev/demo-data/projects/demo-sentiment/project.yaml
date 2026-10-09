@@ -19,9 +19,23 @@ tracks:
   - slug: linear-baselines
     title: Linear baselines
     description: Bag-of-words and n-gram features with linear classifiers. Cheap, fast and the yardstick for everything else.
+    plan:
+      by: ben
+      approach: |
+        Start from the TF-IDF unigram control and change one feature family at a time: word bigrams first, then character n-grams, then the classifier. Every unit keeps the tokenizer and the C grid of the control, so a gain can be traced to the feature change.
+
+        Risks: sarcastic reviews (about 3%) cap any lexical model; a feature set that helps movies and hurts products does not count, so every unit reports the `domain` slice.
+      review: {by: ada, reason: "One change per unit against the same control, and the domain slice is required everywhere. Approved."}
   - slug: small-encoders
     title: Small encoders
     description: Fine-tuning distilled transformer encoders under a 2 GPU-hour budget per run.
+    plan:
+      by: ada
+      approach: |
+        Fine-tune one distilled encoder against the bigram linear reference, then spend the remaining budget on what the first run shows: longer training, seed variance and an int8 version that meets the CPU latency budget.
+
+        Edge cases: the 200 reviews a second constraint is measured on one CPU core, so an encoder that wins on macro-F1 but misses latency is a negative result, not a partial win.
+      review: {by: ben, reason: "Follows from the encoder result and stays within the GPU budget."}
   - slug: augmentation
     title: Data augmentation
     description: Back-translation and synonym replacement to stretch the 9,600 training reviews.

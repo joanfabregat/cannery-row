@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE hypotheses SET revision = revision + 1, approved_revision = revision + 1,\n        title = $2, approved_at = now(), updated_at = now()\n        WHERE id = $1 AND state = 'queued' RETURNING revision",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0031a533ba1f83ba11a8e447fdc89116b04b1ff5bc7c4a11e729f5cf8b5d1f39"
+}

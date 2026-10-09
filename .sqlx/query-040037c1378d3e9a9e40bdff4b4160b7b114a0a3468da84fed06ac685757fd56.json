@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO hypotheses (project_id, number, track_id, state, revision, approved_revision,\n        title, created_by_user, approved_at) VALUES ($1, $2, $3, 'queued', 1, 1, $4, $5, now())\n        RETURNING id AS \"id!: HypothesisId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: HypothesisId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "040037c1378d3e9a9e40bdff4b4160b7b114a0a3468da84fed06ac685757fd56"
+}

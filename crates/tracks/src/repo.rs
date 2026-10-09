@@ -17,6 +17,8 @@ pub struct JsonContext {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TrackState {
+    /// Waiting for its first approved plan; nothing in it can be claimed.
+    Planning,
     Active,
     Paused,
     Archived,
@@ -25,6 +27,7 @@ impl TrackState {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::Planning => "planning",
             Self::Active => "active",
             Self::Paused => "paused",
             Self::Archived => "archived",
@@ -35,6 +38,7 @@ impl TryFrom<&str> for TrackState {
     type Error = TrackError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
+            "planning" => Ok(Self::Planning),
             "active" => Ok(Self::Active),
             "paused" => Ok(Self::Paused),
             "archived" => Ok(Self::Archived),
@@ -278,7 +282,7 @@ fn integer(value: Option<&BigInt>) -> Result<Option<String>, TrackError> {
         .transpose()
 }
 
-/// Insert, returning `None` only for an existing project/slug pair.
+/// Insert in `planning`, returning `None` only for an existing project/slug pair.
 /// # Errors
 /// Returns sanitized database, text or JSON failures. No transaction is started.
 pub async fn create_track(
@@ -291,8 +295,8 @@ pub async fn create_track(
     let description = text(input.description)?;
     let producer = json_parameter(input.producer, context)?;
     let workflow = json_parameter(input.workflow, context)?;
-    let raw=sqlx::query_as!(RawTrack,r#"INSERT INTO tracks(project_id,slug,title,description,producer,mode,workflow,created_by)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+    let raw=sqlx::query_as!(RawTrack,r#"INSERT INTO tracks(project_id,slug,title,description,producer,mode,workflow,created_by,state)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,'planning')
 ON CONFLICT(project_id,slug) DO NOTHING RETURNING
 id AS "id!: _",project_id AS "project_id!: _",slug,title,description,producer::text AS producer,mode,workflow::text AS workflow,state,revision,created_by AS "created_by!: _",created_at AS "created_at!: _",updated_at AS "updated_at!: _""#,input.project_id as ProjectId,slug,title,description,producer as _,input.mode.as_str(),workflow as _,input.created_by as UserId).fetch_optional(connection).await?;
     optional(raw, context)
@@ -375,6 +379,21 @@ pub async fn count_open_hypotheses(
     id: TrackId,
 ) -> Result<i64, TrackError> {
     Ok(sqlx::query_scalar!(r#"SELECT count(*) AS "count!" FROM hypotheses WHERE track_id=$1 AND state=ANY(ARRAY['draft','queued','active','awaiting_human_review']::text[])"#,id as TrackId).fetch_one(connection).await?)
+}
+
+/// Every hypothesis of the track, whatever its state.
+/// # Errors
+/// Returns a sanitized database failure.
+pub async fn count_hypotheses(
+    connection: &mut PgConnection,
+    id: TrackId,
+) -> Result<i64, TrackError> {
+    Ok(sqlx::query_scalar!(
+        r#"SELECT count(*) AS "count!" FROM hypotheses WHERE track_id = $1"#,
+        id as TrackId
+    )
+    .fetch_one(connection)
+    .await?)
 }
 
 #[allow(unused_imports)]

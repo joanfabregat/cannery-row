@@ -495,6 +495,824 @@
     }
   },
   {
+    "name": "start_plan_revision",
+    "title": "Start a plan revision",
+    "description": "Open the next revision of a track's plan as a draft (researchers; acting for one, you are recorded as the channel). A revision starts from the approved plan, or from a newer revision sent back: its approach, its new units and its units still queued. needs_alignment lists the done and in-flight units the revision must say something about with set_alignment. One open revision per track.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "StartPlanRevision",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Start a plan revision",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_plan",
+    "title": "Get a track's plan",
+    "description": "One revision of a track's plan: its approach, its units with their acceptance, parameters, relations, context and brief, its alignment entries and its review. revision is a number, \"draft\" (the open revision) or \"current\" (the approved plan, else the newest revision; the default).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "enum": [
+                "draft",
+                "current"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A revision number, draft or current; omitted, current.",
+          "title": "Revision"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "GetPlan",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a track's plan",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_plan_revisions",
+    "title": "List plan revisions",
+    "description": "The revisions of a track's plan, newest first, with their state and review, without their units.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue before this revision.",
+          "title": "Before"
+        },
+        "limit": {
+          "default": 50,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "ListPlanRevisions",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List plan revisions",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "set_plan_approach",
+    "title": "Set the plan's approach",
+    "description": "Replace the draft's approach: the track's shared reasoning, the edge cases and risks you found, and how the units fit together, as Markdown. Refused over the project's approach limit (64 KiB by default).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "approach": {
+          "maxLength": 262144,
+          "title": "Approach",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track",
+        "approach"
+      ],
+      "title": "SetPlanApproach",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Set the plan's approach",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "add_unit",
+    "title": "Add a unit to the plan",
+    "description": "Add a unit (a hypothesis to run) to the draft. acceptance is the hypothesis acceptance plan (selection_splits, confirmation_splits, primary_metric, required_slices, success_criteria, falsification_criteria, regression_gates, compute_budget), checked against the project's metric registry; parameters are the project's hypothesis fields. relations name a hypothesis number ({kind, hypothesis}) or another unit of this plan ({kind, unit: key}). context lists what its performer should read: {kind: unit, unit: number or key}, {kind: writeup, unit: number, attempt: sequence} or {kind: artifact, artifact: id}, each with an optional note. brief is the unit's own Markdown for whoever runs it. Refused over the project's limits (unit brief 32 KiB, 64 context items by default).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "key": {
+          "description": "The unit's key in the plan: lowercase letters, digits and hyphens.",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "intervention": {
+          "minLength": 1,
+          "title": "Intervention",
+          "type": "string"
+        },
+        "control": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "{kind: baseline, id, revision}.",
+          "title": "Control"
+        },
+        "acceptance": {
+          "additionalProperties": true,
+          "title": "Acceptance",
+          "type": "object"
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The project's hypothesis fields.",
+          "title": "Parameters"
+        },
+        "relations": {
+          "default": [],
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Relations",
+          "type": "array"
+        },
+        "context": {
+          "default": [],
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Context",
+          "type": "array"
+        },
+        "brief": {
+          "default": "",
+          "title": "Brief",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track",
+        "key",
+        "title",
+        "question",
+        "intervention",
+        "acceptance"
+      ],
+      "title": "AddUnit",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Add a unit to the plan",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "update_unit",
+    "title": "Update a unit of the plan",
+    "description": "Change a new or queued unit of the draft. Omitted fields keep their value; control or parameters set to null are removed. Checked as add_unit checks a new unit.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "key": {
+          "description": "The unit's key in the plan.",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+          "title": "Key",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "intervention": {
+          "minLength": 1,
+          "title": "Intervention",
+          "type": "string"
+        },
+        "control": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Control"
+        },
+        "acceptance": {
+          "additionalProperties": true,
+          "title": "Acceptance",
+          "type": "object"
+        },
+        "parameters": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parameters"
+        },
+        "relations": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Relations",
+          "type": "array"
+        },
+        "context": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Context",
+          "type": "array"
+        },
+        "brief": {
+          "title": "Brief",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track",
+        "key"
+      ],
+      "title": "UpdateUnit",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Update a unit of the plan",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "drop_unit",
+    "title": "Drop a unit from the plan",
+    "description": "Drop a new or queued unit from the draft; returns the draft. A queued unit the approved plan listed is cancelled when this revision is approved.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "key": {
+          "description": "The unit's key in the plan.",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+          "title": "Key",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track",
+        "key"
+      ],
+      "title": "DropUnit",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Drop a unit from the plan",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "set_alignment",
+    "title": "Align a done or in-flight unit",
+    "description": "Say what the draft does with a done or in-flight unit, with a reason: keep it; make it obsolete (an in-flight unit's attempt is cancelled and kept; a decided unit keeps its decision); or redo it (obsolete, plus a new unit derived from it, added to the draft with the old unit's fields for you to change). Every done or in-flight unit needs one before submit_plan.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "number": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "decision": {
+          "enum": [
+            "keep",
+            "obsolete",
+            "redo"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track",
+        "number",
+        "decision",
+        "reason"
+      ],
+      "title": "SetAlignment",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Align a done or in-flight unit",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "check_plan",
+    "title": "Check the plan draft",
+    "description": "What blocks submitting the draft: no project brief (the first plan approval in a project needs one), no approach, missing alignment entries, unknown unit keys, units no longer queued, limits exceeded. ready when nothing does.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "CheckPlan",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Check the plan draft",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "submit_plan",
+    "title": "Submit the plan for review",
+    "description": "Freeze the draft and open its plan review case; a researcher then approves it, sends it back or declines it. Refused with check_plan's problems while there are any.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "SubmitPlan",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Submit the plan for review",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "review_plan",
+    "title": "Review a submitted plan",
+    "description": "A researcher's decision on a submitted plan revision, with a reason. approve creates the new units as queued hypotheses, revises the changed ones, cancels the queued ones it drops, applies the alignment entries and activates a planning track, in one transaction; send_back asks for another revision; decline closes it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "action": {
+          "enum": [
+            "approve",
+            "send_back",
+            "decline"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "track",
+        "revision",
+        "action",
+        "reason"
+      ],
+      "title": "ReviewPlan",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Review a submitted plan",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_units",
+    "title": "List a track's units",
+    "description": "A track's units (hypotheses), newest first: number, plan key, title, state, and whether an approved plan made them obsolete.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "description": "Track slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Track",
+          "type": "string"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "draft",
+                "queued",
+                "active",
+                "awaiting_human_review",
+                "promoted",
+                "rejected",
+                "inconclusive",
+                "declined",
+                "failed",
+                "cancelled"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue before this number.",
+          "title": "Before"
+        },
+        "limit": {
+          "default": 50,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "track"
+      ],
+      "title": "ListUnits",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List a track's units",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_unit",
+    "title": "Get a unit",
+    "description": "One unit by hypothesis number: its fields, acceptance, parameters, relations, context and brief as last approved, its state, and whether a plan made it obsolete.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "GetUnit",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a unit",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_unit_history",
+    "title": "Get a unit's history",
+    "description": "A unit's hypothesis revisions, with the plan revision that wrote each, and the alignment entries approved plans made about it, oldest first.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "GetUnitHistory",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a unit's history",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "create_draft",
     "title": "Create a hypothesis draft",
     "description": "Create a hypothesis draft (researchers and the project's agents). Search for prior related work first. The draft waits for a researcher's review.",

@@ -21,7 +21,8 @@ project
 ├── brief (revisioned): goal, domain, constraints, conventions; every attempt pins a revision
 ├── science revision (immutable, versioned): metrics, datasets, interfaces, scorer, evaluator, limits…
 ├── producers and experiment steps (registered step manifests, each revision immutable)
-└── track (agent or workflow mode)
+└── track (agent or workflow mode; planning → active once its first plan is approved)
+    ├── plan (revisioned): approach + units, each a hypothesis with its brief and context
     └── hypothesis  #12          draft → (human approval) → queued → active → … → decided
         └── attempt  #12.1       claimed under a lease, then three stages:
             1. experiment  → candidate artifacts + claimed result sheet   (agent, or runner's experiment kind)
@@ -42,7 +43,7 @@ Who holds which token, and what it may do:
 | --- | --- | --- | --- |
 | User, `viewer` | Personal token, or the web session | Read the project, reports, metrics, verdicts, decisions; search. | Download artifacts other than `report_asset`. |
 | User, `member` | same | Viewer rights, plus comment and download artifacts. | Draft or decide. |
-| User, `researcher` | same | Member rights, plus write the brief, create and revise drafts, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, and record every human decision. | Claim in `workflow` mode. |
+| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, create and revise drafts, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, and record every human decision. | Claim in `workflow` mode. |
 | User, installation admin | same | Create projects, grant memberships, register science and dashboard revisions, producers and experiment steps, create service accounts and their tokens. Admin is not a project role: an admin also needs a membership to act as a researcher. | |
 | Service account `agent` | Service token | Create and revise drafts, claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; read the project. | Claim in `workflow` mode, comment, decide. |
 | Service account `experimenter` | Service token, held by a runner only | Claim in `workflow` mode only, heartbeat, upload, submit, read the predecessor attempt's artifacts, release with a failure `code`, `step` and `logs` (trusted). | Draft, comment, decide, claim in `agent` mode. |
@@ -57,7 +58,7 @@ A claimed job also returns a **job lease token**, which can only read that job's
 | --- | --- |
 | Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; edit and review drafts; decide results and failures; read everything; comment; search. |
 | REST (`/api/…`) | Everything, and the only way to register science and dashboard revisions (`POST /api/projects/{slug}/config/science`), producers (`…/producers`) and experiment steps (`…/experiment-steps`), and to create drafts besides MCP. Authenticate with `Authorization: Bearer <token>`. `GET /api/me` shows who a token is. |
-| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `create_draft`, `revise_draft`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, and the researcher's `revise_brief`, `review_draft`, `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
+| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `create_draft`, `revise_draft`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `check_plan`, `submit_plan`, `review_plan`), `review_draft`, `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
 | CLI (`cannery`) | `migrate`, `serve`, `db` (dump, restore, upgrade), `runner`, `evaluator` (the stock evaluator alone), `import`, `openapi`. |
 
 Every error answer has the shape `{"error": {"code", "message", "details"}}`; `details` holds JSON Pointers into the request. See [Troubleshooting](#troubleshooting).
@@ -68,7 +69,7 @@ The order matters: each step is checked against the ones before it.
 
 1. **Install and sign in.** Deploy the image and run `migrate` ([deploy.md](deploy.md#running)), with `CANNERY_AUTH_BOOTSTRAP_ADMIN_EMAILS` naming the first admin. Sign in once in the web app: users exist only after their first login.
 2. **Create the project with its first track** (web app, or `POST /api/projects` with `{"slug", "title", "description", "tracks": [{"slug", "title", "description"}]}`, at least one track) and grant memberships (`PUT /api/projects/{slug}/members/{user_id}` with `{"role": "researcher"}`; `GET /api/users` finds a user id). Give yourself `researcher` if you will write the brief, create tracks or decide.
-3. **Write the brief** (below).
+3. **Write the brief** (below). A track's first plan cannot be approved without one.
 4. **Register the science revision** (below).
 5. **Register producers** and, for `workflow` tracks, **experiment steps** (below).
 6. **Create the other tracks**, and bind producers and workflows.
@@ -146,7 +147,26 @@ A track is a line of research (one architecture against another). A project's fi
 - `producer` binds the producer that tests this track's candidates; omitted, `default_producer` applies. Its output interface must equal the scorer's `from: step` input interface.
 - `mode` is `agent` (default) or `workflow`; a `workflow` track also names `workflow: {"steps": [{"name", "revision"}, …]}` (1 to 16 registered experiment steps, run in order). See `examples/fixture/workflow-track.json` and [the rules](contracts.md#the-workflow).
 - Changing `producer`, `mode` or `workflow` is `PATCH /api/projects/{slug}/tracks/{track}` with `expected_revision`, the fields and a non-empty `reason`; attempts already claimed keep what they pinned.
-- States are `active`, `paused` (nothing is claimed) and `archived`, changed with `POST …/tracks/{track}/transitions` (`to_state`, `expected_revision`, `reason`).
+- States are `planning` (new tracks: nothing is claimed until a researcher approves the first [plan](#planning-a-track)), `active`, `paused` (nothing is claimed) and `archived`, changed with `POST …/tracks/{track}/transitions` (`to_state`, `expected_revision`, `reason`).
+
+### Planning a track
+
+A track's plan sets its approach and the units (hypotheses) it runs. It is built step by step through REST or MCP, by a researcher or by an agent working with one ([the routes](contracts.md#track-plans), [the planner's steps](agents.md#planning)); the web app's track page shows the plan, its revisions and the review, and **Edit the draft** opens the editor.
+
+```sh
+TRACK=$API/tracks/lexical
+curl -sf -X POST "$TRACK/plans" -H "Authorization: Bearer $RESEARCHER"
+curl -sf -X PUT "$TRACK/plans/draft/approach" -H "Authorization: Bearer $RESEARCHER" \
+  -H 'Content-Type: application/json' -d '{"approach": "Establish a baseline, then vary one thing at a time."}'
+curl -sf -X POST "$TRACK/plans/draft/units" -H "Authorization: Bearer $RESEARCHER" \
+  -H 'Content-Type: application/json' -d @unit.json
+curl -sf "$TRACK/plans/draft/check" -H "Authorization: Bearer $RESEARCHER"
+curl -sf -X POST "$TRACK/plans/draft/submission" -H "Authorization: Bearer $RESEARCHER"
+curl -sf -X POST "$TRACK/plans/1/review" -H "Authorization: Bearer $RESEARCHER" \
+  -H 'Content-Type: application/json' -d '{"action": "approve", "reason": "Ready to run."}'
+```
+
+Approval creates a queued hypothesis per new unit and activates a `planning` track. A later revision starts from the approved one; every unit already done or in flight needs an alignment (`keep`, `obsolete` or `redo`, with a reason) before it can be submitted. Per-hypothesis drafts still work beside plans. The project's size limits (`GET $API/limits`) apply at each write.
 
 ### Service accounts and tokens
 
@@ -353,7 +373,7 @@ The image digest is that of `node:22-slim` when this guide was written; pin the 
 An outside agent (a Codex or Claude Code session) runs the experiment itself, through REST or MCP, with an `agent` service token or a researcher's personal token.
 
 1. **Draft.** `POST /api/projects/{slug}/hypotheses` (MCP `create_draft`) with a hypothesis document (`examples/fixture/hypothesis.json`), optionally with an `Idempotency-Key` header. Search first (`GET /api/search`, MCP `search`) for prior related work. A researcher approves it (`POST …/hypotheses/{number}/draft-review` with `{"draft_revision", "action": "approve", "reason"}`, or the web app).
-2. **Claim.** `POST /api/projects/{slug}/claims` with `{}` or `{"hypothesis": 12}` or `{"track": "lexical"}` (MCP `claim_hypothesis`). The answer holds the `attempt`, `lease_token` and `lease_generation` (send them as `X-Lease-Token` and `X-Lease-Generation` on every attempt call), `heartbeat_seconds`, and `brief`, the brief revision to read (`GET` its `ref`, or MCP `get_brief` with that `revision`).
+2. **Claim.** `POST /api/projects/{slug}/claims` with `{}` or `{"hypothesis": 12}` or `{"track": "lexical"}` (MCP `claim_hypothesis`). The answer holds the `attempt`, `lease_token` and `lease_generation` (send them as `X-Lease-Token` and `X-Lease-Generation` on every attempt call), `heartbeat_seconds`, and `brief`, the brief revision to read (`GET` its `ref`, or MCP `get_brief` with that `revision`). In a planned track it also names `plan`, the plan revision the attempt pinned, and `context`, the attempt's [context bundle](contracts.md#the-context-bundle) (`ref` and `bytes`): read it first.
 3. **Heartbeat** `POST …/hypotheses/{number}/attempts/{sequence}/heartbeat` at least every `heartbeat_seconds` (a third of the lease TTL, `leases.ttl_seconds`, 900 seconds by default).
 4. **Upload** each file: `POST …/attempts/{sequence}/uploads` with `{role, name, size_bytes, sha256, media_type}`, then send the bytes as the grant says (a `PUT upload_url`, or the `direct` presigned requests and `POST finish_url`; [the protocol](contracts.md#uploads-and-downloads)). The role is what the track's producer reads (`from: attempt`), plus every role in `required_artifact_roles.attempt`.
 5. **Post the manifest** of the verified uploads (`POST …/manifest`, MCP `post_manifest`), which answers `{ref, sha256}`.
@@ -506,7 +526,7 @@ From an empty CR to the first decided hypothesis:
 8. Put the datasets and baselines in the runner's data root at `datasets/<id>/<revision>/` and `baselines/<id>/<revision>/`. [deploy.md](deploy.md#runner)
 9. Write `runner.toml`, choose the launcher, give it the GitHub credential, start `cannery runner --config runner.toml` and check it with `--once`. [Running the runner](#running-the-runner)
 10. Optionally import the history. [Importing history](#importing-history)
-11. Draft a hypothesis and approve it. [Agent mode](#agent-mode)
+11. Plan each track and approve the plan, or draft a hypothesis and approve it. [Planning a track](#planning-a-track), [Agent mode](#agent-mode)
 12. Run the experiment: an agent claims and submits, or the experiment kind does. [Experiment stage](#experiment-stage)
 13. Watch the test and evaluation jobs (`GET …/attempts/{sequence}/jobs`, the web app's attempt page).
 14. A researcher reviews the result case (`GET /api/projects/{slug}/review-cases`, then `POST …/review-cases/{case_id}/decisions` with `review_case_id`, `evidence_revision`, `action` and `reason`, or the web app) and records `promote`, `reject` or `inconclusive`.

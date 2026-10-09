@@ -30,13 +30,15 @@ export function isHypothesisState(value: string | null): value is HypothesisStat
   return value !== null && (HYPOTHESIS_STATES as readonly string[]).includes(value);
 }
 
-export const TRACK_STATES = ["active", "paused", "archived"] as const;
+export const TRACK_STATES = ["planning", "active", "paused", "archived"] as const;
 
 /** Allowed track transitions, as the backend enforces them. */
 export const TRACK_TRANSITIONS: Record<
   string,
   readonly components["schemas"]["TrackTransitionRequestToState"][]
 > = {
+  // A planning track becomes active when its first plan is approved.
+  planning: ["paused", "archived"],
   active: ["paused", "archived"],
   paused: ["active", "archived"],
   archived: ["active"],

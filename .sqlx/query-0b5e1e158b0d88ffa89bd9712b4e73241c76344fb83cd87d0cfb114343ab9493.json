@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE plan_revisions SET approach = $2, updated_at = now() WHERE id = $1 AND state = 'draft'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0b5e1e158b0d88ffa89bd9712b4e73241c76344fb83cd87d0cfb114343ab9493"
+}
