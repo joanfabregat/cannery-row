@@ -542,7 +542,21 @@ async fn expire_job(
         reason,
         logs: &empty,
     };
-    let rerun = if job.phase == jobs::Phase::Document {
+    let rerun = if job.phase == jobs::Phase::Decide {
+        // A decide job reruns within its budget; then researchers decide.
+        crate::decide_jobs::fail(
+            &mut tx,
+            Attribution::System(None),
+            &attempt,
+            &job,
+            failure,
+            &s.lifecycle,
+            r,
+        )
+        .await
+        .map_err(|_| SweepError::Transition)?
+        .is_some()
+    } else if job.phase == jobs::Phase::Document {
         // A document job is queued again: only a researcher skips it.
         crate::document_jobs::requeue(
             &mut tx,

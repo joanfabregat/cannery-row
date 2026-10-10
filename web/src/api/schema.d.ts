@@ -313,7 +313,9 @@ export interface paths {
          *     track whose workflow (or producer) cannot be pinned under the current
          *     science revision is skipped, so the other tracks' hypotheses still flow;
          *     when only such tracks have queued hypotheses, ``409 workflow_unavailable``
-         *     names them.
+         *     names them. While an open concern about a track's plan blocks it, its
+         *     hypotheses are not claimed; when only such tracks have queued hypotheses,
+         *     ``409 concern_open`` names them.
          */
         post: operations["claim_api_projects__slug__claims_post"];
         delete?: never;
@@ -378,6 +380,70 @@ export interface paths {
         get: operations["list_comparisons_api_projects__slug__comparisons_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/concerns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Concerns
+         * @description The concerns raised about the project's plans, newest first: of one track
+         *     when `track` is given. `state=open` lists those waiting for a plan revision
+         *     or a dismissal.
+         */
+        get: operations["list_concerns_api_projects__slug__concerns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/concerns/{concern_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Concern
+         * @description One concern: its document, who raised it, and how it was closed.
+         */
+        get: operations["get_concern_api_projects__slug__concerns__concern_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/concerns/{concern_id}/dismissal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Concern
+         * @description A researcher dismisses an open concern without revising the plan, with a
+         *     reason the raiser and the track see. The track's hypotheses can be claimed
+         *     again once no concern about its plan is open.
+         */
+        post: operations["dismiss_concern_api_projects__slug__concerns__concern_id__dismissal_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -969,6 +1035,11 @@ export interface paths {
          *     the oldest waiting document job: it writes up a hypothesis whose last
          *     attempt was verified, or that a researcher stopped after a failure.
          *
+         *     With `phase: decide`, the decider service account a science revision
+         *     registers names the revision of its step and claims the oldest waiting
+         *     decide job registered to it: it decides a written-up hypothesis on its
+         *     decision case.
+         *
          *     Replaying an ``Idempotency-Key`` while its claim still holds the lease
          *     reissues the lease token under the next lease generation (the first
          *     response may have been lost); the earlier token and every upload grant
@@ -1024,6 +1095,12 @@ export interface paths {
          *     and no manifest: it covers every attempt of the hypothesis and cites the
          *     verification report the job names. The hypothesis then awaits its
          *     decision. An invalid write-up is refused and the lease is kept.
+         *
+         *     A decide job is completed by its decider with the decision document
+         *     (``decision.schema.json``) and no manifest: it is recorded on the
+         *     hypothesis's decision case with the decider as its actor. A promotion
+         *     requires a `pass` verdict. An invalid decision document is refused and
+         *     the lease is kept.
          */
         post: operations["complete_job_api_projects__slug__jobs__job_id__completion_post"];
         delete?: never;
@@ -1499,6 +1576,37 @@ export interface paths {
         patch: operations["update_track_api_projects__slug__tracks__track_slug__patch"];
         trace?: never;
     };
+    "/api/projects/{slug}/tracks/{track_slug}/concerns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Track Concerns
+         * @description The concerns raised about a track's plan, newest first.
+         */
+        get: operations["list_track_concerns_api_projects__slug__tracks__track_slug__concerns_get"];
+        put?: never;
+        /**
+         * Raise Concern
+         * @description Raise a concern about the track's plan: a wrong assumption, a better idea,
+         *     a blocker. The document is Markdown with YAML front matter
+         *     (`concern.schema.json`): its `kind` and, when it comes from one, the
+         *     `hypothesis` (number) and `attempt` (sequence) of the track, with the
+         *     argument as its body (at most 16 KiB). Members, researchers and the
+         *     project's service accounts raise concerns. While one is open, no new
+         *     hypothesis of the track is claimed (`409 concern_open`); work already
+         *     claimed continues. A plan revision answers it, or a researcher dismisses it.
+         */
+        post: operations["raise_concern_api_projects__slug__tracks__track_slug__concerns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/tracks/{track_slug}/history": {
         parameters: {
             query?: never;
@@ -1537,8 +1645,8 @@ export interface paths {
          * @description Open the next revision of a track's plan as a draft. A revision starts from
          *     the approved plan (or from a newer revision sent back): its approach, its
          *     new units and the units still queued. `needs_alignment` lists the done and
-         *     in-flight units every revision says something about. Researchers only;
-         *     one open revision per track.
+         *     in-flight units every revision says something about, and `needs_answer`
+         *     the open concerns it answers. Researchers only; one open revision per track.
          */
         post: operations["start_plan_revision_api_projects__slug__tracks__track_slug__plans_post"];
         delete?: never;
@@ -1565,6 +1673,33 @@ export interface paths {
         put: operations["set_alignment_api_projects__slug__tracks__track_slug__plans_draft_alignments__number__put"];
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/answers/{concern_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Answer Concern
+         * @description Say how this revision answers an open concern about the track's plan.
+         *     Approving the revision closes the concern as answered; every open concern
+         *     is answered before the draft can be submitted, unless a researcher
+         *     dismisses it.
+         */
+        put: operations["answer_concern_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__put"];
+        post?: never;
+        /**
+         * Drop Answer
+         * @description Remove the draft's answer to a concern and return the draft.
+         */
+        delete: operations["drop_answer_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1602,7 +1737,7 @@ export interface paths {
          * Check Plan
          * @description What blocks submitting the draft: no project brief, no approach, missing
          *     alignment entries, unknown unit keys, units no longer queued, limits
-         *     exceeded. `ready` when nothing does.
+         *     exceeded, open concerns it does not answer. `ready` when nothing does.
          */
         get: operations["check_plan_api_projects__slug__tracks__track_slug__plans_draft_check_get"];
         put?: never;
@@ -2052,6 +2187,18 @@ export interface components {
             decision: string;
             reason: string;
         };
+        /** @description One concern a plan revision answers, and how. */
+        AnswerOut: {
+            /** Format: uuid */
+            concern: string;
+            how: string;
+            kind: string;
+            state: string;
+        };
+        /** @description How a plan revision answers a concern. */
+        AnswerSet: {
+            how: string;
+        };
         ArtifactManifestRequest: {
             attempt_id: string;
             objects: components["schemas"]["RequestArtifactManifestObject"][];
@@ -2227,6 +2374,11 @@ export interface components {
             attempt_ref: string | null;
             /** Format: uuid */
             case_id: string;
+            /**
+             * @description A decision case a decider decides: the decider, while its decide
+             *     job waits or runs. A researcher corrects its decision once recorded.
+             */
+            decider?: string | null;
             failure_code: string | null;
             failure_reason: string | null;
             failure_stage: string | null;
@@ -2396,6 +2548,51 @@ export interface components {
             id: string;
             kind: string;
         };
+        /**
+         * @description What a decision document cites: the verification report and the
+         *     write-up, each absent when there is none (the document cites null).
+         */
+        ClaimedDecideInputs: {
+            verification?: components["schemas"]["RequestCommonContentRef"] | null;
+            writeup?: components["schemas"]["RequestCommonContentRef"] | null;
+        };
+        /**
+         * @description A claimed decide job: the decision case its decision document resolves,
+         *     what that document cites, the registered decider and the lease.
+         */
+        ClaimedDecideJob: {
+            /** @description The hypothesis's last attempt. */
+            attempt_id: string;
+            /** Format: date-time */
+            deadline: string;
+            /** @description The registered decider and the revision of its step. */
+            decider: components["schemas"]["ClaimedJobPinnedRef"];
+            /** Format: int64 */
+            hypothesis: number;
+            inputs: components["schemas"]["ClaimedDecideInputs"];
+            job_id: string;
+            lease: components["schemas"]["ClaimedJobLease"];
+            limits: components["schemas"]["ClaimedDecideLimits"];
+            output_prefix: string;
+            performer: components["schemas"]["ClaimedDecidePerformer"];
+            phase: components["schemas"]["ClaimedDecidePhase"];
+            /** Format: uuid */
+            review_case_id: string;
+            schema_version: components["schemas"]["RequestCommonSchemaVersion"];
+            science_revision: string;
+            track: string;
+        };
+        ClaimedDecideLimits: {
+            /**
+             * Format: int64
+             * @description The bytes the job may upload in total (its step logs).
+             */
+            max_output_bytes: number;
+        };
+        /** @enum {string} */
+        ClaimedDecidePerformer: "runner";
+        /** @enum {string} */
+        ClaimedDecidePhase: "decide";
         /** @description What a write-up covers and cites. */
         ClaimedDocumentInputs: {
             /**
@@ -2427,8 +2624,8 @@ export interface components {
         ClaimedDocumentPerformer: "agent";
         /** @enum {string} */
         ClaimedDocumentPhase: "document";
-        /** @description The claimed job: a verify job, or a hypothesis's document job. */
-        ClaimedJobDocument: components["schemas"]["ClaimedVerifyJob"] | components["schemas"]["ClaimedDocumentJob"];
+        /** @description The claimed job: a verify job, or a hypothesis's document or decide job. */
+        ClaimedJobDocument: components["schemas"]["ClaimedVerifyJob"] | components["schemas"]["ClaimedDocumentJob"] | components["schemas"]["ClaimedDecideJob"];
         ClaimedJobInputs: {
             baselines: components["schemas"]["ClaimedJobPinnedRef"][];
             datasets: components["schemas"]["ClaimedJobPinnedRef"][];
@@ -2606,6 +2803,64 @@ export interface components {
             value: number;
             verdict: components["schemas"]["Verdict"];
         };
+        /** @description A researcher dismisses a concern without revising the plan, and says why. */
+        ConcernDismissal: {
+            reason: string;
+        };
+        /** @description A concern about a track's plan, who raised it and how it was closed. */
+        ConcernOut: {
+            /**
+             * Format: int64
+             * @description The approved plan revision that answered it.
+             */
+            answered_by_revision: number | null;
+            /**
+             * Format: int64
+             * @description The attempt of that hypothesis the concern comes from.
+             */
+            attempt: number | null;
+            /** @description The argument, as Markdown. */
+            body: string;
+            /** Format: date-time */
+            closed_at: string | null;
+            dismissal_reason: string | null;
+            dismissed_by_name: string | null;
+            front_matter: {
+                [key: string]: unknown;
+            };
+            /**
+             * Format: int64
+             * @description The hypothesis the concern comes from.
+             */
+            hypothesis: number | null;
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            /** Format: date-time */
+            raised_at: string;
+            /** Format: uuid */
+            raised_by: string;
+            /** @description `user` or `service`. */
+            raised_by_kind: string;
+            raised_by_name: string | null;
+            sha256: string;
+            /**
+             * @description `open` blocks new claims in the track; `answered` by a plan revision;
+             *     `dismissed` by a researcher.
+             */
+            state: string;
+            track: string;
+            via_channel: string;
+            via_client: string | null;
+        };
+        /**
+         * @description A concern about a track's plan: Markdown with YAML front matter
+         *     (`concern.schema.json`) naming its kind and, when it comes from one, the
+         *     hypothesis or attempt; the argument as its body.
+         */
+        ConcernRaise: {
+            document: string;
+        };
         ConfigDocument: components["schemas"]["ConfigRevisionRequest"];
         ConfigOut: {
             content: components["schemas"]["ConfigDocument"];
@@ -2672,10 +2927,20 @@ export interface components {
         };
         DecisionOut: {
             action: string;
-            /** Format: uuid */
-            actor_user_id: string;
+            /**
+             * Format: uuid
+             * @description The decider service account that recorded an automatic decision.
+             */
+            actor_service_id?: string | null;
+            /**
+             * Format: uuid
+             * @description The researcher who decided; null for an automatic decision.
+             */
+            actor_user_id: string | null;
             /** Format: date-time */
             decided_at: string;
+            /** @description The revision of the decider step that wrote an automatic decision. */
+            decider_revision?: string | null;
             /** Format: uuid */
             id: string;
             origin: components["schemas"]["Origin"];
@@ -2950,7 +3215,10 @@ export interface components {
             plan?: components["schemas"]["PlanRef"] | null;
         };
         JobClaimRequest: {
-            /** @description The phase to claim a job of: `verify` (the default) or `document`. */
+            /**
+             * @description The phase to claim a job of: `verify` (the default), `document`, or
+             *     `decide` (a decider service account).
+             */
             phase?: string | null;
             revision?: string | null;
         };
@@ -3165,6 +3433,11 @@ export interface components {
             /** Format: int64 */
             next_before: number | null;
         };
+        Page_ConcernOut_UUID_: {
+            items: components["schemas"]["ConcernOut"][];
+            /** Format: uuid */
+            next_before: string | null;
+        };
         Page_ConfigOut_int_: {
             items: components["schemas"]["ConfigOut"][];
             /** Format: int64 */
@@ -3245,6 +3518,8 @@ export interface components {
         /** @description One revision of a track's plan with its units and alignment entries. */
         PlanOut: {
             alignments: components["schemas"]["AlignmentOut"][];
+            /** @description The concerns this revision answers, and how. */
+            answers: components["schemas"]["AnswerOut"][];
             approach: string;
             /** Format: int64 */
             based_on: number | null;
@@ -3257,6 +3532,8 @@ export interface components {
             markdown_ref: string;
             /** @description For a draft: the done or in-flight units that need an alignment entry. */
             needs_alignment: components["schemas"]["UnitIndexOut"][];
+            /** @description For a draft: the track's open concerns it does not answer yet. */
+            needs_answer: components["schemas"]["ConcernOut"][];
             /** Format: uuid */
             review_case_id: string | null;
             review_reason: string | null;
@@ -3753,6 +4030,7 @@ export interface components {
             baselines: components["schemas"]["ScienceRevisionRequestBaselinesItem"][];
             code_repositories?: components["schemas"]["ScienceRevisionRequestCodeRepositories"];
             datasets: components["schemas"]["ScienceRevisionRequestDatasetsItem"][];
+            decide?: components["schemas"]["ScienceRevisionRequestDecide"];
             default_producer: components["schemas"]["RequestCommonProducerRef"];
             hypothesis_fields?: {
                 [key: string]: unknown;
@@ -3784,6 +4062,22 @@ export interface components {
         ScienceRevisionRequestDatasetsItem: {
             description?: string;
             held_out_labels: boolean;
+            id: string;
+            revision: string;
+        };
+        /**
+         * @description Who decides a written-up hypothesis: a researcher (the default when
+         *     absent), or the registered decider service account running its decider
+         *     step, which promotes only on a `pass` verdict.
+         */
+        ScienceRevisionRequestDecide: {
+            decider?: components["schemas"]["ScienceRevisionRequestDecider"];
+            performer: components["schemas"]["ScienceRevisionRequestDecidePerformer"];
+        };
+        /** @enum {string} */
+        ScienceRevisionRequestDecidePerformer: "researcher" | "step";
+        /** @description The decider service account and the revision of its decider step. */
+        ScienceRevisionRequestDecider: {
             id: string;
             revision: string;
         };
@@ -3900,7 +4194,7 @@ export interface components {
             project: string;
         };
         /** @enum {string} */
-        ServiceKind: "agent" | "experimenter" | "verifier";
+        ServiceKind: "agent" | "experimenter" | "verifier" | "decider";
         StepManifestRequest: {
             apiVersion: components["schemas"]["StepManifestRequestApiVersion"];
             kind: components["schemas"]["StepManifestRequestKind"];
@@ -3971,7 +4265,7 @@ export interface components {
             path: string;
         };
         /** @enum {string} */
-        StepManifestRequestSpecRole: "producer" | "scorer" | "validator" | "experiment" | "policy";
+        StepManifestRequestSpecRole: "producer" | "scorer" | "validator" | "experiment" | "policy" | "decider";
         StepManifestRequestSpecSetup: {
             /** Format: int64 */
             activeDeadlineSeconds?: number;
@@ -6268,6 +6562,231 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_concerns_api_projects__slug__concerns_get: {
+        parameters: {
+            query?: {
+                /** @description Only concerns about this track's plan. */
+                track?: string;
+                /** @description Only concerns in this state: `open`, `answered` or `dismissed`. */
+                state?: string;
+                /** @description Continue before this concern. */
+                before?: string;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ConcernOut_UUID_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    get_concern_api_projects__slug__concerns__concern_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                concern_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConcernOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    dismiss_concern_api_projects__slug__concerns__concern_id__dismissal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                concern_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConcernDismissal"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConcernOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
         };
@@ -12394,6 +12913,162 @@ export interface operations {
             };
         };
     };
+    list_track_concerns_api_projects__slug__tracks__track_slug__concerns_get: {
+        parameters: {
+            query?: {
+                /** @description Only concerns in this state: `open`, `answered` or `dismissed`. */
+                state?: string;
+                /** @description Continue before this concern. */
+                before?: string;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_ConcernOut_UUID_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    raise_concern_api_projects__slug__tracks__track_slug__concerns_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConcernRaise"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConcernOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     track_history_api_projects__slug__tracks__track_slug__history_get: {
         parameters: {
             query?: {
@@ -12659,6 +13334,166 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlignmentOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    answer_concern_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                concern_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnswerOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    drop_answer_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                track_slug: string;
+                concern_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanOut"];
                 };
             };
             /** @description Authentication required */

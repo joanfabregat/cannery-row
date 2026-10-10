@@ -399,6 +399,32 @@ pub async fn read_json(mut response: Response) -> Result<Value, RuntimeError> {
     cannery_core::json::decode(&bytes, 128).map_err(|_| RuntimeError::Contract)?;
     serde_json::from_slice(&bytes).map_err(|_| RuntimeError::Contract)
 }
+/// Read a successful text response (a context bundle) of at most 16 MiB.
+/// # Errors
+/// Refuses a failed status, an oversized body or invalid UTF-8.
+pub async fn read_text(mut response: Response) -> Result<String, RuntimeError> {
+    const MAX_BYTES: usize = 16 * 1024 * 1024;
+    checked_status(&response)?;
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_BYTES as u64)
+    {
+        return Err(RuntimeError::Contract);
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if chunk.len() > MAX_BYTES - bytes.len() {
+            return Err(RuntimeError::Contract);
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    String::from_utf8(bytes).map_err(|_| RuntimeError::Contract)
+}
+/// A decide job's completion: the decision document and no manifest.
+#[must_use]
+pub fn decision(job: &Value, document: &str) -> Value {
+    json!({"schema_version":"0.2", "job_id":job["job_id"], "document":document})
+}
 /// Build a verify job's completion: the verification report and the job's
 /// output manifest, never including lease/API credentials.
 #[must_use]

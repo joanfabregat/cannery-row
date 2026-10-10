@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE concerns SET state = 'answered', answered_by = $1, closed_at = now()\n        WHERE state = 'open' AND id IN (\n            SELECT concern_id FROM plan_answers WHERE plan_revision_id = $1)\n        RETURNING id AS \"id!: ConcernId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: ConcernId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "29fb5ee63c354a1d588240f93acfa1d1df9747925c58af73967e8c66ae020809"
+}

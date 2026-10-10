@@ -344,7 +344,7 @@ impl Input<'_> {
             None => self.revision_equal(d.subject_revision),
         };
         supersedes
-            && d.actor_user_id == user.user_id
+            && d.actor_user_id == Some(user.user_id)
             && d.action == self.action
             && d.reason == self.reason
             && subject
@@ -567,6 +567,23 @@ async fn decision(
             return Err(violation(
                 "/supersedes",
                 "a pending case has no decision to supersede",
+            ));
+        }
+        // A project that registers a decider step decides automatically; a
+        // researcher corrects that decision once it is recorded.
+        if let Some(job) = jobs::decide_job(c, case.hypothesis_id, s.jobs)
+            .await
+            .map_err(|_| internal(r, "review decide job"))?
+            .filter(|job| matches!(job.state, jobs::State::Pending | jobs::State::Claimed))
+        {
+            return Err(domain(
+                ErrorCode::Conflict,
+                format!(
+                    "decider {} decides this hypothesis (decide job {} is {}); once its decision is recorded, a researcher may correct it with supersedes",
+                    job.verifier_id.as_deref().unwrap_or_default(),
+                    job.id,
+                    job.state.as_str()
+                ),
             ));
         }
         (None, "deciding")

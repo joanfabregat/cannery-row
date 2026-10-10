@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT t.slug FROM hypotheses h JOIN tracks t ON t.id = h.track_id\n        WHERE h.project_id = $1 AND h.state = 'queued' AND t.state = 'active' AND t.mode = $2\n          AND ($3::integer IS NULL OR h.number = $3) AND ($4::text IS NULL OR t.slug = $4)\n          AND EXISTS (SELECT 1 FROM concerns c WHERE c.track_id = t.id AND c.state = 'open')\n        ORDER BY t.slug",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "slug",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0c5c2592da46ea1f0f3d1779ce5cc66154b65238dc340f887cc7511aa2a4a379"
+}

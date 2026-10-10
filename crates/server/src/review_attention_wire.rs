@@ -181,6 +181,7 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
                     .map(|v| v.as_utf8().ok_or(ModelEncodeError::Encoding))
                     .transpose()?,
                 origin: convert(v.origin.as_str())?,
+                decider: v.decider.clone(),
             })
         }))?)?,
         running_count: convert(d.running_count)?,

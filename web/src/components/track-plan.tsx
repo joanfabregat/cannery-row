@@ -102,6 +102,23 @@ function Alignments({ plan }: { plan: Plan }) {
   );
 }
 
+/** The concerns a revision answers, and how. */
+export function Answers({ plan }: { plan: Plan }) {
+  if (plan.answers.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium">Concerns this revision answers</h3>
+      <ul className="flex flex-col gap-1 text-sm">
+        {plan.answers.map((a) => (
+          <li key={a.concern}>
+            <span className="font-medium">{label("concernKind", a.kind)}</span>: {a.how}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 const REVIEW_CHOICES: DecisionChoice<"approve" | "send_back" | "decline">[] = [
   {
     action: "approve",
@@ -187,6 +204,7 @@ function OpenRevision({
             {open.approach.trim() ? <Markdown>{open.approach}</Markdown> : null}
             <PlanUnits plan={open} />
             <Alignments plan={open} />
+            <Answers plan={open} />
             {isResearcher ? <PlanReview project={project} track={track} plan={open} /> : null}
           </>
         ) : null}
@@ -311,6 +329,7 @@ export function TrackPlan({
                   <PlanUnits plan={approved} />
                 </div>
                 <Alignments plan={approved} />
+                <Answers plan={approved} />
                 <dl className="grid gap-4 sm:grid-cols-3">
                   <Fact term="Written by">{writtenBy(approved)}</Fact>
                   <Fact term="Review reason">{approved.review_reason ?? "None"}</Fact>

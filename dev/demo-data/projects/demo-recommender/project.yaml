@@ -5,6 +5,12 @@
 # Agents verify here (verify.performer agent in science.json): a researcher
 # verifies an attempt the agent ran (the attempt's verifier, default
 # brief.by), and the agent service account an attempt a researcher ran.
+#
+# Decisions are automatic here (decide.performer step in science.json): the
+# demo-decider service account plays the decider step, claiming each decide
+# job and completing it with the decision document (by: decider). A
+# researcher may correct a recorded decision; the last write-up is left for
+# the decider, so its decision case waits on the decide job.
 slug: demo-recommender
 title: "Demo: shop recommender"
 description: >-
@@ -126,7 +132,7 @@ hypotheses:
             ## What it means
 
             Collaborative filtering is worth it here; new users still need a fallback.
-        decision: {by: ben, action: promote, reason: "Large, consistent gain for returning users without hurting new ones. ALS-64 is the reference model of this project."}
+        decision: {by: decider, action: promote, reason: "Large, consistent gain for returning users without hurting new ones. ALS-64 is the reference model of this project."}
     comments:
       - {by: chloe, on: hypothesis, body: "Coverage going from 0.3% to 21% is the number merchandising will care about most."}
 
@@ -190,7 +196,7 @@ hypotheses:
             ## What it means
 
             Item-kNN stays useful where explanations matter, not for the main ranking.
-        decision: {by: ada, action: reject, reason: "Clearly below ALS. Keep item-kNN for the explainable 'similar items' widget only, outside this ranking."}
+        decision: {by: decider, action: reject, reason: "Clearly below ALS. Keep item-kNN for the explainable 'similar items' widget only, outside this ranking."}
 
   - key: bpr
     doc:
@@ -249,7 +255,7 @@ hypotheses:
             ## What it means
 
             Nothing here justifies replacing ALS; a rerun would need the scorer fixed first.
-        decision: {by: ben, action: inconclusive, reason: "Within noise and a missing slice. Not worth another run unless ALS stalls."}
+        decision: {by: decider, action: inconclusive, reason: "Within noise and a missing slice. Not worth another run unless ALS stalls."}
 
   - key: als-128
     doc:
@@ -322,6 +328,18 @@ hypotheses:
           reason: New-user recall@10 rises by 0.033 and returning users are unchanged.
           compare:
             - {metric: recall_at_10, split: validation, dims: {user_segment: new}, reference: {value: 0.064, label: Popularity, kind: baseline, ref: popularity}}
+        # Written up and left for the decider: its decide job waits.
+        writeup:
+          by: chloe
+          summary: Per-category popularity lifts new-user recall@10 from 0.064 to 0.097 and leaves returning users unchanged.
+          body: |-
+            ## What was found
+
+            New-user recall@10 is 0.097 against 0.064 for global popularity; returning users keep ALS-64 at 0.185. 9% of new users have no category view and fall back to global popularity.
+
+            ## What it means
+
+            A single category view is enough to beat popularity for new users; subcategories are the next thing to try.
     comments:
       - {by: ben, on: 1, body: "Looks good. I'll decide after checking the 9% fallback users by hand."}
 

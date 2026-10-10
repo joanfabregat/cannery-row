@@ -321,6 +321,10 @@ pub struct AttentionReview {
     #[schema(required = true)]
     pub failure_reason: Option<String>,
     pub origin: Origin,
+    /// A decision case a decider decides: the decider, while its decide
+    /// job waits or runs. A researcher corrects its decision once recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decider: Option<String>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -614,6 +618,10 @@ pub struct PlanOut {
     pub alignments: Vec<AlignmentOut>,
     /// For a draft: the done or in-flight units that need an alignment entry.
     pub needs_alignment: Vec<UnitIndexOut>,
+    /// The concerns this revision answers, and how.
+    pub answers: Vec<AnswerOut>,
+    /// For a draft: the track's open concerns it does not answer yet.
+    pub needs_answer: Vec<ConcernOut>,
     #[schema(format = "uuid")]
     pub created_by: String,
     #[schema(required = true)]
@@ -701,6 +709,100 @@ pub struct PlanCheckOut {
     pub revision: i64,
     pub ready: bool,
     pub problems: Vec<PlanProblem>,
+}
+
+/// A concern about a track's plan: Markdown with YAML front matter
+/// (`concern.schema.json`) naming its kind and, when it comes from one, the
+/// hypothesis or attempt; the argument as its body.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConcernRaise {
+    #[schema(min_length = 1, max_length = 1_048_576)]
+    pub document: String,
+}
+
+/// A researcher dismisses a concern without revising the plan, and says why.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConcernDismissal {
+    #[schema(min_length = 1, max_length = 4000)]
+    pub reason: String,
+}
+
+/// A concern about a track's plan, who raised it and how it was closed.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConcernOut {
+    #[schema(format = "uuid")]
+    pub id: String,
+    pub track: String,
+    #[schema(pattern = "^(wrong_assumption|better_idea|blocker|other)$")]
+    pub kind: String,
+    /// The hypothesis the concern comes from.
+    #[schema(required = true)]
+    pub hypothesis: Option<i64>,
+    /// The attempt of that hypothesis the concern comes from.
+    #[schema(required = true)]
+    pub attempt: Option<i64>,
+    pub front_matter: BTreeMap<String, serde_json::Value>,
+    /// The argument, as Markdown.
+    pub body: String,
+    #[schema(pattern = "^[0-9a-f]{64}$")]
+    pub sha256: String,
+    /// `user` or `service`.
+    #[schema(pattern = "^(user|service)$")]
+    pub raised_by_kind: String,
+    #[schema(format = "uuid")]
+    pub raised_by: String,
+    #[schema(required = true)]
+    pub raised_by_name: Option<String>,
+    pub via_channel: String,
+    #[schema(required = true)]
+    pub via_client: Option<String>,
+    #[schema(format = "date-time")]
+    pub raised_at: String,
+    /// `open` blocks new claims in the track; `answered` by a plan revision;
+    /// `dismissed` by a researcher.
+    #[schema(pattern = "^(open|answered|dismissed)$")]
+    pub state: String,
+    /// The approved plan revision that answered it.
+    #[schema(required = true)]
+    pub answered_by_revision: Option<i64>,
+    #[schema(required = true)]
+    pub dismissed_by_name: Option<String>,
+    #[schema(required = true)]
+    pub dismissal_reason: Option<String>,
+    #[schema(format = "date-time", required = true)]
+    pub closed_at: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Page_ConcernOut_UUID_ {
+    pub items: Vec<ConcernOut>,
+    #[schema(format = "uuid", required = true)]
+    pub next_before: Option<String>,
+}
+
+/// How a plan revision answers a concern.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AnswerSet {
+    #[schema(min_length = 1, max_length = 16384)]
+    pub how: String,
+}
+
+/// One concern a plan revision answers, and how.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AnswerOut {
+    #[schema(format = "uuid")]
+    pub concern: String,
+    #[schema(pattern = "^(wrong_assumption|better_idea|blocker|other)$")]
+    pub kind: String,
+    #[schema(pattern = "^(open|answered|dismissed)$")]
+    pub state: String,
+    pub how: String,
 }
 
 /// A researcher's decision on a submitted plan revision.
@@ -981,8 +1083,16 @@ pub struct DecisionOut {
     pub action: String,
     pub subject_revision: i64,
     pub reason: String,
+    /// The researcher who decided; null for an automatic decision.
+    #[schema(format = "uuid", required = true)]
+    pub actor_user_id: Option<String>,
+    /// The decider service account that recorded an automatic decision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schema(format = "uuid")]
-    pub actor_user_id: String,
+    pub actor_service_id: Option<String>,
+    /// The revision of the decider step that wrote an automatic decision.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decider_revision: Option<String>,
     pub via_channel: String,
     #[schema(required = true)]
     pub via_client: Option<String>,
@@ -1220,7 +1330,8 @@ pub struct JobClaimOut {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct JobClaimRequest {
-    /// The phase to claim a job of: `verify` (the default) or `document`.
+    /// The phase to claim a job of: `verify` (the default), `document`, or
+    /// `decide` (a decider service account).
     #[serde(default)]
     pub phase: Option<String>,
     #[serde(default)]
@@ -1995,6 +2106,8 @@ pub enum ServiceKind {
     Experimenter,
     #[serde(rename = "verifier")]
     Verifier,
+    #[serde(rename = "decider")]
+    Decider,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3147,6 +3260,8 @@ pub enum StepManifestRequestSpecRole {
     Experiment,
     #[serde(rename = "policy")]
     Policy,
+    #[serde(rename = "decider")]
+    Decider,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3359,6 +3474,13 @@ pub struct ScienceRevisionRequest {
     #[schema(nullable = false)]
     pub code_repositories: Option<ScienceRevisionRequestCodeRepositories>,
     pub verify: ScienceRevisionRequestVerify,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub decide: Option<ScienceRevisionRequestDecide>,
     pub required_artifact_roles: ScienceRevisionRequestRequiredArtifactRoles,
     #[serde(
         default,
@@ -3412,6 +3534,38 @@ pub enum ScienceRevisionRequestVerifyPerformer {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScienceRevisionRequestVerifier {
+    pub id: String,
+    pub revision: String,
+}
+
+/// Who decides a written-up hypothesis: a researcher (the default when
+/// absent), or the registered decider service account running its decider
+/// step, which promotes only on a `pass` verdict.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ScienceRevisionRequestDecide {
+    pub performer: ScienceRevisionRequestDecidePerformer,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub decider: Option<ScienceRevisionRequestDecider>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub enum ScienceRevisionRequestDecidePerformer {
+    #[serde(rename = "researcher")]
+    Researcher,
+    #[serde(rename = "step")]
+    Step,
+}
+
+/// The decider service account and the revision of its decider step.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ScienceRevisionRequestDecider {
     pub id: String,
     pub revision: String,
 }
@@ -3860,12 +4014,64 @@ mod request_tests {
     }
 }
 
-/// The claimed job: a verify job, or a hypothesis's document job.
+/// The claimed job: a verify job, or a hypothesis's document or decide job.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(untagged)]
 pub enum ClaimedJobDocument {
     Verify(Box<ClaimedVerifyJob>),
     Document(Box<ClaimedDocumentJob>),
+    Decide(Box<ClaimedDecideJob>),
+}
+/// A claimed decide job: the decision case its decision document resolves,
+/// what that document cites, the registered decider and the lease.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimedDecideJob {
+    pub schema_version: RequestCommonSchemaVersion,
+    pub job_id: String,
+    pub phase: ClaimedDecidePhase,
+    /// The hypothesis's last attempt.
+    pub attempt_id: String,
+    pub performer: ClaimedDecidePerformer,
+    /// The registered decider and the revision of its step.
+    pub decider: ClaimedJobPinnedRef,
+    pub track: String,
+    pub hypothesis: i64,
+    pub science_revision: String,
+    #[schema(format = "uuid")]
+    pub review_case_id: String,
+    pub inputs: ClaimedDecideInputs,
+    pub output_prefix: String,
+    #[schema(format = "date-time")]
+    pub deadline: String,
+    pub limits: ClaimedDecideLimits,
+    pub lease: ClaimedJobLease,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub enum ClaimedDecidePhase {
+    #[serde(rename = "decide")]
+    Decide,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub enum ClaimedDecidePerformer {
+    #[serde(rename = "runner")]
+    Runner,
+}
+/// What a decision document cites: the verification report and the
+/// write-up, each absent when there is none (the document cites null).
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimedDecideInputs {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification: Option<RequestCommonContentRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub writeup: Option<RequestCommonContentRef>,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimedDecideLimits {
+    /// The bytes the job may upload in total (its step logs).
+    pub max_output_bytes: i64,
 }
 /// A claimed document job: what the write-up covers and cites, and the lease.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

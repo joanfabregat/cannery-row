@@ -1,0 +1,37 @@
+{
+  "apiVersion": "cannery-row/v1",
+  "kind": "Step",
+  "metadata": {
+    "name": "pass-decider"
+  },
+  "spec": {
+    "role": "decider",
+    "container": {
+      "image": "docker.io/library/python@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "command": [
+        "python",
+        "/opt/decide.py"
+      ],
+      "resources": {
+        "limits": {
+          "cpu": "1",
+          "memory": "1Gi"
+        }
+      }
+    },
+    "activeDeadlineSeconds": 600,
+    "network": "none",
+    "sandbox": "Stock Python image, no network; reads the decide context bundle.",
+    "inputs": {
+      "artifacts": []
+    },
+    "outputs": {
+      "artifacts": [
+        {
+          "name": "decision",
+          "path": "/cr/outputs/decision"
+        }
+      ]
+    }
+  }
+}

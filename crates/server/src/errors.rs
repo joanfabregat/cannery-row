@@ -52,6 +52,7 @@ impl IntoResponse for ApiError {
             ErrorCode::Conflict => "conflict",
             ErrorCode::NothingToClaim => "nothing_to_claim",
             ErrorCode::WorkflowUnavailable => "workflow_unavailable",
+            ErrorCode::ConcernOpen => "concern_open",
             ErrorCode::StaleRevision => "stale_revision",
             ErrorCode::StaleLease => "stale_lease",
             ErrorCode::UploadExpired => "upload_expired",

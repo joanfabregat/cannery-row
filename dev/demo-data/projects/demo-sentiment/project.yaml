@@ -70,6 +70,24 @@ brief:
     - Report macro-F1 overall and per `domain` slice; a hypothesis that helps one domain and hurts the other does not count.
     - Controls are named baselines (`tfidf-unigram-lr` r1) or earlier promoted hypotheses.
 
+# Concerns about the plans, raised once the attempts are done: an open one
+# holds up the small-encoders track, and a member's idea was dismissed.
+concerns:
+  - track: small-encoders
+    by: agent
+    from: {hypothesis: quantized-encoder, attempt: 1}
+    kind: wrong_assumption
+    body: |
+      The plan measures the 200 reviews a second budget on one CPU core, and the quantized unit assumes that core runs int8 matrix products natively. The benchmark machine has no VNNI instructions: the int8 kernels fall back to a slower path, so quantization cannot halve p95 latency there whatever it does to macro-F1.
+
+      I would measure latency on the production CPU type, or drop the quantized unit and plan a smaller encoder instead.
+  - track: linear-baselines
+    by: chloe
+    kind: better_idea
+    body: |
+      Instead of one feature family at a time, a single run with a feature-selection sweep over unigrams, bigrams and character n-grams would find the best combination in one go.
+    dismissed: {by: ben, reason: "The track changes one feature family at a time on purpose, so each gain can be traced to its change; a joint sweep would hide that."}
+
 hypotheses:
   - key: bigrams
     doc:

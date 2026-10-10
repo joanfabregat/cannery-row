@@ -31,12 +31,14 @@ pub mod comment_mutations;
 mod comment_request;
 pub mod comment_routes;
 pub mod comparison_routes;
+mod concern_routes;
 pub mod config_routes;
 pub mod config_wire;
 #[cfg(feature = "conformance-testing")]
 mod conformance_hooks;
 mod context_bundle;
 pub mod datetime_query;
+mod decide_jobs;
 mod document_jobs;
 mod documentation;
 pub mod errors;
@@ -167,6 +169,8 @@ pub use documentation::OPENAPI;
         plan_routes::update_unit,
         plan_routes::drop_unit,
         plan_routes::set_alignment,
+        plan_routes::set_answer,
+        plan_routes::drop_answer,
         plan_routes::check,
         plan_routes::submit,
         plan_routes::review,
@@ -175,6 +179,11 @@ pub use documentation::OPENAPI;
         plan_routes::unit_history,
         plan_routes::limits,
         plan_routes::set_limits,
+        concern_routes::raise,
+        concern_routes::track_list,
+        concern_routes::list,
+        concern_routes::read,
+        concern_routes::dismiss,
         context_bundle::route,
         attempt_claim_routes::claim,
         attempt_read_routes::hypothesis,

@@ -101,6 +101,7 @@ pub(crate) fn service_out(account: &ServiceAccount, project: &str) -> ServiceAcc
         cannery_core::principal::ServiceKind::Agent => "agent",
         cannery_core::principal::ServiceKind::Experimenter => "experimenter",
         cannery_core::principal::ServiceKind::Verifier => "verifier",
+        cannery_core::principal::ServiceKind::Decider => "decider",
     };
     ServiceAccountOut {
         id: account.id.to_string(),
@@ -479,6 +480,9 @@ fn service_account_create_body(body: &DecodedBody) -> Result<ServiceAccountCreat
             }
             crate::api_models::ServiceKind::Verifier => {
                 cannery_core::principal::ServiceKind::Verifier
+            }
+            crate::api_models::ServiceKind::Decider => {
+                cannery_core::principal::ServiceKind::Decider
             }
         },
     })

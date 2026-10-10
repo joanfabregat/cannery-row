@@ -30,6 +30,8 @@ export type PlanUnit = Schemas["PlanUnitOut"];
 export type PlanRevision = Schemas["PlanRevisionOut"];
 export type PlanCheck = Schemas["PlanCheckOut"];
 export type UnitIndex = Schemas["UnitIndexOut"];
+export type Concern = Schemas["ConcernOut"];
+export type ConcernAnswer = Schemas["AnswerOut"];
 
 export type Comment = Schemas["CommentOut"];
 export type CommentRevision = Schemas["CommentRevisionOut"];

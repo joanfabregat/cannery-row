@@ -41,6 +41,8 @@ function plan(overrides: Partial<Schemas["PlanOut"]> = {}): Schemas["PlanOut"] {
     units: [unit()],
     alignments: [],
     needs_alignment: [],
+    answers: [],
+    needs_answer: [],
     created_by: RESEARCHER,
     created_by_name: "Ada Lovelace",
     via_channel: "mcp",

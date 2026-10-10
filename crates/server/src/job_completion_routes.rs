@@ -217,7 +217,7 @@ fn contract(
     path = "/api/projects/{slug}/jobs/{job_id}/completion",
     operation_id = "complete_job_api_projects__slug__jobs__job_id__completion_post",
     summary = "Complete Job",
-    description = "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the hypothesis waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the hypothesis and cites the\nverification report the job names. The hypothesis then awaits its\ndecision. An invalid write-up is refused and the lease is kept.",
+    description = "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the hypothesis waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the hypothesis and cites the\nverification report the job names. The hypothesis then awaits its\ndecision. An invalid write-up is refused and the lease is kept.\n\nA decide job is completed by its decider with the decision document\n(``decision.schema.json``) and no manifest: it is recorded on the\nhypothesis's decision case with the decider as its actor. A promotion\nrequires a `pass` verdict. An invalid decision document is refused and\nthe lease is kept.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -518,6 +518,88 @@ async fn document_mutation(
         .ok_or_else(|| internal(r, "document job outcome missing"))?;
     Ok((done, false, None))
 }
+/// Complete a decide job with its decision document, or fail it.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "The leased job's transaction, identity and replay stay explicit"
+)]
+async fn decide_mutation(
+    c: &mut PgConnection,
+    p: &Principal,
+    a: &Attempt,
+    j: &Job,
+    document: &Document,
+    completion: bool,
+    key: Option<&str>,
+    (actor, hash): (&str, &[u8]),
+    s: &JobLifecycleContext,
+    r: &RequestContext,
+) -> Result<(Job, bool, Option<Failure>), Failure> {
+    let value = flow::value(document, &s.flow, r)?;
+    if value["job_id"] != j.id.to_string() {
+        return Err(invalid("/job_id", format!("this is job {}", j.id)));
+    }
+    if completion {
+        contract(document, ContractKind::JobCompletion, s, r)?;
+        crate::api_models::request_document::<crate::api_models::JobCompletionRequest>(document)
+            .map_err(failure)?;
+        if value.get("manifest").is_some() {
+            return Err(invalid(
+                "/manifest",
+                "a decide job records its decision document and no manifest",
+            ));
+        }
+        let text = value["document"]
+            .as_str()
+            .ok_or_else(|| internal(r, "decision text"))?;
+        crate::decide_jobs::complete(c, p, a, j, text, key, &s.phases, &s.flow, r).await?;
+        if let Some(key) = key {
+            remember(c, actor, key, hash, j.id, r).await?;
+        }
+    } else {
+        let artifacts = Repository::new(c, s.flow.attempts)
+            .list_job_artifacts(j.id)
+            .await
+            .map_err(|_| internal(r, "decide job failure logs"))?;
+        for (i, log) in value["logs"].as_array().into_iter().flatten().enumerate() {
+            if !artifacts.iter().any(|a| {
+                log["key"] == a.key
+                    && log["size_bytes"] == a.size_bytes
+                    && log["sha256"] == a.sha256
+            }) {
+                return Err(invalid(
+                    &format!("/logs/{i}"),
+                    "not a verified output of this job",
+                ));
+            }
+        }
+        let logs = flow::document(&value["logs"], &s.flow, r)?;
+        crate::decide_jobs::fail(
+            c,
+            cannery_core::audit::Attribution::Principal(p),
+            a,
+            j,
+            jobs::Failure {
+                step: value.get("step").and_then(Value::as_str),
+                code: value["error_code"]
+                    .as_str()
+                    .ok_or_else(|| internal(r, "failure code"))?,
+                reason: value["reason"]
+                    .as_str()
+                    .ok_or_else(|| internal(r, "failure reason"))?,
+                logs: &logs,
+            },
+            &s.flow,
+            r,
+        )
+        .await?;
+    }
+    let done = jobs::get_job(c, j.id, false, s.flow.jobs)
+        .await
+        .map_err(|_| internal(r, "decide job outcome"))?
+        .ok_or_else(|| internal(r, "decide job outcome missing"))?;
+    Ok((done, false, None))
+}
 #[allow(
     clippy::too_many_lines,
     reason = "Authorization, fencing, replay, commit and durable failure order remain visible"
@@ -654,6 +736,21 @@ async fn mutate(
             &r,
         )
         .await?;
+        if job.phase == jobs::Phase::Decide {
+            return decide_mutation(
+                &mut tx,
+                &auth.principal,
+                &attempt,
+                &job,
+                document,
+                completion,
+                key.as_deref(),
+                (actor.as_str(), hash.as_slice()),
+                &s.context,
+                &r,
+            )
+            .await;
+        }
         if job.phase == jobs::Phase::Document {
             return document_mutation(
                 &mut tx,

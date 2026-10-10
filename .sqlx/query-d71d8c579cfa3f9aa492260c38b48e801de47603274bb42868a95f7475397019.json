@@ -1,0 +1,121 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_service_id,decider_revision,via_channel,via_client,front_matter,sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::text::jsonb,$10) RETURNING id AS \"id!: _\", review_case_id AS \"review_case_id!: _\", action AS \"action\", subject_revision AS \"subject_revision\", reason AS \"reason\", actor_user_id AS \"actor_user_id?: _\", actor_service_id AS \"actor_service_id?: _\", decider_revision, via_channel AS \"via_channel\", via_client AS \"via_client\", decided_at AS \"decided_at!: _\", supersedes AS \"supersedes: _\", origin AS \"origin\", source_ref AS \"source_ref\", front_matter::text AS \"front_matter\", sha256 AS \"sha256\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "review_case_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "action",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "actor_user_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "actor_service_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "decider_revision",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "via_channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "via_client",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "decided_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "supersedes: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "origin",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "source_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "front_matter",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "sha256",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      null,
+      true
+    ]
+  },
+  "hash": "d71d8c579cfa3f9aa492260c38b48e801de47603274bb42868a95f7475397019"
+}

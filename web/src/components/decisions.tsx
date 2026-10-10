@@ -27,7 +27,15 @@ function entries(reviews: HypothesisReview[]): Entry[] {
     .sort((a, b) => b.decision.decided_at.localeCompare(a.decision.decided_at));
 }
 
-/** Every human decision on a hypothesis, newest first, each with its reason. */
+/** Who recorded a decision: a person, or the decider step of an automatic decision. */
+function decidedBy(decision: Decision, person: (userId: string | null) => string): string {
+  if (decision.actor_user_id === null && decision.decider_revision) {
+    return `Decided automatically by the decider step (revision ${decision.decider_revision})`;
+  }
+  return person(decision.actor_user_id);
+}
+
+/** Every decision on a hypothesis, newest first, each with its reason. */
 export function DecisionList({ reviews }: { reviews: HypothesisReview[] }) {
   const person = usePeople();
   const list = entries(reviews);
@@ -50,7 +58,7 @@ export function DecisionList({ reviews }: { reviews: HypothesisReview[] }) {
             <span className="sr-only">Reason: </span>“{decision.reason}”
           </p>
           <p className="text-xs text-muted-foreground">
-            {person(decision.actor_user_id)} · {formatDateTime(decision.decided_at)} ·{" "}
+            {decidedBy(decision, person)} · {formatDateTime(decision.decided_at)} ·{" "}
             {label("channel", decision.via_channel)}
           </p>
         </li>

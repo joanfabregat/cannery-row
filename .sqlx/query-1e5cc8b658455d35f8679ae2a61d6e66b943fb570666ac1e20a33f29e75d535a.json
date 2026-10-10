@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id AS \"id!: _\", review_case_id AS \"review_case_id!: _\", action AS \"action\", subject_revision AS \"subject_revision\", reason AS \"reason\", actor_user_id AS \"actor_user_id!: _\", via_channel AS \"via_channel\", via_client AS \"via_client\", decided_at AS \"decided_at!: _\", supersedes AS \"supersedes: _\", origin AS \"origin\", source_ref AS \"source_ref\", front_matter::text AS \"front_matter\", sha256 AS \"sha256\" FROM decisions WHERE review_case_id=ANY($1) ORDER BY decided_at",
+  "query": "INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_user_id,via_channel,via_client,supersedes,front_matter,sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::text::jsonb,$10) RETURNING id AS \"id!: _\", review_case_id AS \"review_case_id!: _\", action AS \"action\", subject_revision AS \"subject_revision\", reason AS \"reason\", actor_user_id AS \"actor_user_id?: _\", actor_service_id AS \"actor_service_id?: _\", decider_revision, via_channel AS \"via_channel\", via_client AS \"via_client\", decided_at AS \"decided_at!: _\", supersedes AS \"supersedes: _\", origin AS \"origin\", source_ref AS \"source_ref\", front_matter::text AS \"front_matter\", sha256 AS \"sha256\"",
   "describe": {
     "columns": [
       {
@@ -30,53 +30,72 @@
       },
       {
         "ordinal": 5,
-        "name": "actor_user_id!: _",
+        "name": "actor_user_id?: _",
         "type_info": "Uuid"
       },
       {
         "ordinal": 6,
-        "name": "via_channel",
-        "type_info": "Text"
+        "name": "actor_service_id?: _",
+        "type_info": "Uuid"
       },
       {
         "ordinal": 7,
-        "name": "via_client",
+        "name": "decider_revision",
         "type_info": "Text"
       },
       {
         "ordinal": 8,
+        "name": "via_channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "via_client",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
         "name": "decided_at!: _",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "supersedes: _",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "origin",
         "type_info": "Text"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "source_ref",
         "type_info": "Text"
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "front_matter",
         "type_info": "Text"
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "sha256",
         "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "UuidArray"
+        "Uuid",
+        "Text",
+        "Int4",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -85,7 +104,9 @@
       false,
       false,
       false,
-      false,
+      true,
+      true,
+      true,
       false,
       true,
       false,
@@ -96,5 +117,5 @@
       true
     ]
   },
-  "hash": "d3769fcbe0d9e692afa9317fa3e664281d22fc54c8cee31c839730042dcb21e9"
+  "hash": "1e5cc8b658455d35f8679ae2a61d6e66b943fb570666ac1e20a33f29e75d535a"
 }

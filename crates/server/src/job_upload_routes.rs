@@ -77,7 +77,7 @@ pub(crate) fn live(a: &Attempt, j: Option<&Job>, u: &Upload, now: Timestamp) -> 
                 && a.lease_expires_at.is_some_and(|v| v.0 > now.0)
         },
         |j| {
-            a.state == cannery_attempts::model::State::Verifying
+            (a.state == cannery_attempts::model::State::Verifying || j.phase == jobs::Phase::Decide)
                 && j.state == jobs::State::Claimed
                 && j.lease_generation == u.lease_generation
                 && j.lease_expires_at.is_some_and(|v| v.0 > now.0)
@@ -295,7 +295,17 @@ pub(crate) async fn create(
             &r,
         )
         .await?;
-        jobs_http::require_verifying(&attempt)?;
+        // A decide job uploads its step's logs only, whatever the attempt's state.
+        if job.phase == jobs::Phase::Decide {
+            if body.interface.is_some() || !body.role.ends_with("_log") {
+                return Err(domain(
+                    ErrorCode::ValidationFailed,
+                    "a decide job uploads its step logs only",
+                ));
+            }
+        } else {
+            jobs_http::require_verifying(&attempt)?;
+        }
         if let Some(reference) = &body.interface {
             crate::job_output_interface::load(&mut tx, &attempt, reference, &s.lifecycle, &r)
                 .await?;

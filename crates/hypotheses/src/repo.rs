@@ -497,7 +497,12 @@ pub struct Decision {
     pub action: DecisionAction,
     pub subject_revision: i32,
     pub reason: String,
-    pub actor_user_id: UserId,
+    /// The researcher who decided; absent for an automatic decision.
+    pub actor_user_id: Option<UserId>,
+    /// The decider service account of an automatic decision, and the
+    /// revision of its step.
+    pub actor_service_id: Option<ServiceAccountId>,
+    pub decider_revision: Option<String>,
     pub via_channel: ViaChannel,
     pub via_client: Option<String>,
     pub decided_at: Timestamp,
@@ -519,7 +524,9 @@ struct RawDecision {
     action: String,
     subject_revision: i32,
     reason: String,
-    actor_user_id: UserId,
+    actor_user_id: Option<UserId>,
+    actor_service_id: Option<ServiceAccountId>,
+    decider_revision: Option<String>,
     via_channel: String,
     via_client: Option<String>,
     decided_at: Timestamp,
@@ -537,6 +544,8 @@ fn decode_decision(r: &RawDecision, context: JsonContext) -> Result<Decision, Hy
         subject_revision: r.subject_revision,
         reason: String::from(&r.reason),
         actor_user_id: r.actor_user_id,
+        actor_service_id: r.actor_service_id,
+        decider_revision: r.decider_revision.clone(),
         via_channel: decode_channel(&r.via_channel),
         via_client: r.via_client.as_deref().map(String::from),
         decided_at: r.decided_at,
@@ -895,7 +904,40 @@ pub async fn record_decision(
     let reason = text(input.reason)?;
     let client = client(input.principal.via.client.as_deref())?;
     let (front_matter, sha256) = input.document.unzip();
-    let row = checked_query!(as RawDecision, r#"INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_user_id,via_channel,via_client,supersedes,front_matter,sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::text::jsonb,$10) RETURNING id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id!: _", via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref", front_matter::text AS "front_matter", sha256 AS "sha256""#, (input.case_id as ReviewCaseId,input.action.as_str(),revision as _,reason,input.principal.user_id as UserId,channel(input.principal.via.channel),client,input.supersedes as Option<DecisionId>,front_matter,sha256), fetch_optional, &mut *connection)?;
+    let row = checked_query!(as RawDecision, r#"INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_user_id,via_channel,via_client,supersedes,front_matter,sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::text::jsonb,$10) RETURNING id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id?: _", actor_service_id AS "actor_service_id?: _", decider_revision, via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref", front_matter::text AS "front_matter", sha256 AS "sha256""#, (input.case_id as ReviewCaseId,input.action.as_str(),revision as _,reason,input.principal.user_id as UserId,channel(input.principal.via.channel),client,input.supersedes as Option<DecisionId>,front_matter,sha256), fetch_optional, &mut *connection)?;
+    let decision = decode_decision(&row.ok_or(HypothesisError::Invariant)?, context)?;
+    checked_query!(exec Execute, "UPDATE review_cases SET state='resolved',resolved_at=now() WHERE id=$1 AND state='pending'", (input.case_id as ReviewCaseId), execute, connection)?;
+    Ok(decision)
+}
+/// An automatic decision: the decision document a decider step wrote,
+/// recorded on its pending decision case by the decider service account.
+pub struct RecordAutomaticDecision<'a> {
+    pub case_id: ReviewCaseId,
+    pub action: DecisionAction,
+    pub subject_revision: &'a BigInt,
+    pub reason: &'a String,
+    pub decider: ServiceAccountId,
+    /// The revision of the decider's step.
+    pub revision: &'a str,
+    pub via_channel: Channel,
+    pub via_client: Option<&'a str>,
+    /// The decision document's front matter as JSON text, and its SHA-256.
+    pub document: (&'a str, &'a str),
+}
+/// Record an automatic decision and resolve its case.
+/// # Errors
+/// Returns sanitized driver, server, JSON or invariant failures.
+pub async fn record_automatic_decision(
+    connection: &mut PgConnection,
+    input: RecordAutomaticDecision<'_>,
+    context: JsonContext,
+) -> Result<Decision, HypothesisError> {
+    let revision = integer(input.subject_revision)?;
+    let reason = text(input.reason)?;
+    let decider_revision = text(&String::from(input.revision))?;
+    let client = client(input.via_client)?;
+    let (front_matter, sha256) = input.document;
+    let row = checked_query!(as RawDecision, r#"INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_service_id,decider_revision,via_channel,via_client,front_matter,sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::text::jsonb,$10) RETURNING id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id?: _", actor_service_id AS "actor_service_id?: _", decider_revision, via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref", front_matter::text AS "front_matter", sha256 AS "sha256""#, (input.case_id as ReviewCaseId,input.action.as_str(),revision as _,reason,input.decider as ServiceAccountId,decider_revision,channel(input.via_channel),client,front_matter,sha256), fetch_optional, &mut *connection)?;
     let decision = decode_decision(&row.ok_or(HypothesisError::Invariant)?, context)?;
     checked_query!(exec Execute, "UPDATE review_cases SET state='resolved',resolved_at=now() WHERE id=$1 AND state='pending'", (input.case_id as ReviewCaseId), execute, connection)?;
     Ok(decision)
@@ -925,7 +967,7 @@ pub async fn list_decisions(
         return Ok(Vec::new());
     }
     let ids = case_ids.iter().map(|id| id.0).collect::<Vec<_>>();
-    let rows = checked_query!(as RawDecision, r#"SELECT id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id!: _", via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref", front_matter::text AS "front_matter", sha256 AS "sha256" FROM decisions WHERE review_case_id=ANY($1) ORDER BY decided_at"#, (&ids as _), fetch_all, connection)?;
+    let rows = checked_query!(as RawDecision, r#"SELECT id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id?: _", actor_service_id AS "actor_service_id?: _", decider_revision, via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref", front_matter::text AS "front_matter", sha256 AS "sha256" FROM decisions WHERE review_case_id=ANY($1) ORDER BY decided_at"#, (&ids as _), fetch_all, connection)?;
     rows.into_iter()
         .map(|r| decode_decision(&r, context))
         .collect()

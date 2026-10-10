@@ -132,7 +132,7 @@ fn repr(value: &str, context: &RequestContext) -> Result<String, Failure> {
     path = "/api/projects/{slug}/claims",
     operation_id = "claim_api_projects__slug__claims_post",
     summary = "Claim",
-    description = "Claim a queued hypothesis.\n\n``409 nothing_to_claim`` when none is available. In ``workflow`` mode a\ntrack whose workflow (or producer) cannot be pinned under the current\nscience revision is skipped, so the other tracks' hypotheses still flow;\nwhen only such tracks have queued hypotheses, ``409 workflow_unavailable``\nnames them.",
+    description = "Claim a queued hypothesis.\n\n``409 nothing_to_claim`` when none is available. In ``workflow`` mode a\ntrack whose workflow (or producer) cannot be pinned under the current\nscience revision is skipped, so the other tracks' hypotheses still flow;\nwhen only such tracks have queued hypotheses, ``409 workflow_unavailable``\nnames them. While an open concern about a track's plan blocks it, its\nhypotheses are not claimed; when only such tracks have queued hypotheses,\n``409 concern_open`` names them.",
     params(("slug" = String, Path)),
     request_body(content = crate::api_models::ClaimRequest, content_type = "application/json"),
     responses((status = 201, description = "Successful Response", body = crate::api_models::ClaimOut, content_type = "application/json"),
@@ -188,13 +188,14 @@ pub(crate) async fn claim(
         .map_err(|_| internal(&context, "claim transaction"))?;
     let result = async {
         let mut unavailable = BTreeMap::<String, step_binding::Validation>::new();
+        let mut blocked = Vec::<String>::new();
         loop {
             // UTF-8 conversion belongs to the driver's first parameter adaptation, after authorization/mode/mint.
             let track = body.track.as_ref()
                 .map(|value| value.as_utf8()
                     .ok_or_else(|| internal(&context, "claim track encoding")))
                 .transpose()?;
-            let skip = unavailable.keys().cloned().collect::<Vec<_>>();
+            let skip = unavailable.keys().chain(blocked.iter()).cloned().collect::<Vec<_>>();
             let id = Repository::new(&mut tx, state.profile.repository)
                 .pick_claimable(project.id, body.hypothesis.as_ref(), track.as_deref(), mode.as_str(), &skip)
                 .await.map_err(|_| internal(&context, "claim pick"))?;
@@ -212,6 +213,19 @@ pub(crate) async fn claim(
                     return Err(failure(ApiError::from(
                         DomainError::new(ErrorCode::WorkflowUnavailable, message)
                             .with_details(serde_json::json!(details))
+                    )));
+                }
+                let number = body.hypothesis.as_ref().map(|n| i32::try_from(n).unwrap_or(0));
+                let mut waiting = cannery_tracks::concerns::blocked_queued(
+                    &mut tx, project.id, mode.as_str(), number, track.as_deref()
+                ).await.map_err(|_| internal(&context, "claim concern lookup"))?;
+                waiting.extend(blocked.iter().cloned());
+                waiting.sort();
+                waiting.dedup();
+                if !waiting.is_empty() {
+                    let tracks = waiting.join(", ");
+                    return Err(domain(ErrorCode::ConcernOpen, format!(
+                        "queued hypotheses wait in tracks with an open concern about their plan: {tracks}; a plan revision that answers it, or a researcher dismissing it, unblocks them"
                     )));
                 }
                 let suffix = if mode.as_str() == "agent" { "" } else { " in workflow mode" };
@@ -237,6 +251,13 @@ pub(crate) async fn claim(
                 return Err(domain(ErrorCode::Conflict, format!(
                     "track {} is now in {} mode", repr(&track.slug, &context)?, track.mode.as_str()
                 )));
+            }
+            // A concern raised while the pick ran is seen once the track is pinned.
+            if cannery_tracks::concerns::blocks(&mut tx, project.id, &track.slug)
+                .await.map_err(|_| internal(&context, "claim concern check"))?
+            {
+                blocked.push(track.slug);
+                continue;
             }
             let binding = BindingContext {
                 rendering: state.profile.rendering,

@@ -1,6 +1,7 @@
-//! Who may work on a verify job: a verifier service account on the runner jobs registered to
-//! its name, and an agent service account or a researcher on agent jobs of attempts it did not
-//! run. Every job route after the claim also requires the caller to hold the job's claim.
+//! Who may work on a job: a verifier service account on the runner verify jobs registered to
+//! its name, a decider service account on the decide jobs registered to its name, and an agent
+//! service account or a researcher on agent jobs (never a verify job of an attempt it ran).
+//! Every job route after the claim also requires the caller to hold the job's claim.
 use crate::{
     attempt_lease_routes::{Failure, domain, failure},
     requests::RequestContext,
@@ -9,7 +10,7 @@ use cannery_core::{
     errors::ErrorCode,
     principal::{Principal, Role, ServiceKind},
 };
-use cannery_jobs::repo::{Claimant, Job, Performer};
+use cannery_jobs::repo::{Claimant, Job, Performer, Phase};
 use cannery_projects::{authz, repo::Project};
 use sqlx::PgConnection;
 
@@ -25,7 +26,11 @@ pub(crate) async fn worker(
         p,
         slug,
         Some(Role::Researcher),
-        &[ServiceKind::Agent, ServiceKind::Verifier],
+        &[
+            ServiceKind::Agent,
+            ServiceKind::Verifier,
+            ServiceKind::Decider,
+        ],
         true,
     )
     .await
@@ -36,7 +41,9 @@ pub(crate) async fn worker(
 /// The performer a caller verifies as: a verifier runs runner jobs, everyone else agent jobs.
 pub(crate) fn performer(p: &Principal) -> Performer {
     match p {
-        Principal::Service(s) if s.kind == ServiceKind::Verifier => Performer::Runner,
+        Principal::Service(s) if matches!(s.kind, ServiceKind::Verifier | ServiceKind::Decider) => {
+            Performer::Runner
+        }
         _ => Performer::Agent,
     }
 }
@@ -52,6 +59,7 @@ pub(crate) fn actor(p: &Principal) -> String {
 fn caller(p: &Principal) -> &'static str {
     match p {
         Principal::Service(s) if s.kind == ServiceKind::Verifier => "a verifier service account",
+        Principal::Service(s) if s.kind == ServiceKind::Decider => "a decider service account",
         Principal::Service(_) => "an agent service account",
         Principal::User(_) => "a researcher",
     }
@@ -77,6 +85,15 @@ pub(crate) fn may_verify(job: &Job, p: &Principal) -> Result<(), Failure> {
         return Err(domain(
             ErrorCode::Forbidden,
             "this verify job is registered to another verifier",
+        ));
+    }
+    if let Principal::Service(s) = p
+        && job.performer == Performer::Runner
+        && (s.kind == ServiceKind::Decider) != (job.phase == Phase::Decide)
+    {
+        return Err(domain(
+            ErrorCode::Forbidden,
+            "a verifier works on verify jobs and a decider on decide jobs",
         ));
     }
     Ok(())

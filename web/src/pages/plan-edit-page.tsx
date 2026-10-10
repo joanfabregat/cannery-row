@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useId, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 import { api, unwrap } from "@/api/client";
 import { planKey, usePlan } from "@/api/queries";
-import type { Plan, PlanCheck, PlanUnit, UnitIndex } from "@/api/types";
+import type { Concern, ConcernAnswer, Plan, PlanCheck, PlanUnit, UnitIndex } from "@/api/types";
+import { ConcernLine } from "@/components/concerns";
 import { Markdown } from "@/components/markdown";
 import { PageHeader } from "@/components/page-header";
 import { ProjectPage } from "@/components/project-page";
@@ -173,6 +174,7 @@ function DraftForms({ project, track, draft }: { project: string; track: string;
         </div>
       </Section>
       <AlignmentSection project={project} track={track} draft={draft} />
+      <AnswerSection project={project} track={track} draft={draft} />
       <SubmitSection project={project} track={track} />
     </div>
   );
@@ -592,6 +594,131 @@ function AlignmentForm({
         <Button type="submit" size="sm" disabled={save.isPending || !decision || !reason.trim()}>
           Save #{unit.number}
         </Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * The open concerns about the track's plan and how this revision answers
+ * each. The concern the track page sent the researcher here for comes first.
+ */
+function AnswerSection({ project, track, draft }: { project: string; track: string; draft: Plan }) {
+  const [params] = useSearchParams();
+  const first = params.get("answer");
+  const entries: { id: string; concern: Concern | null; answer: ConcernAnswer | null }[] = [
+    ...draft.needs_answer.map((concern) => ({ id: concern.id, concern, answer: null })),
+    ...draft.answers.map((answer) => ({ id: answer.concern, concern: null, answer })),
+  ].sort((a, b) => Number(b.id === first) - Number(a.id === first));
+  if (entries.length === 0) return null;
+  return (
+    <Section
+      title="Concerns this revision answers"
+      description="Every open concern about the plan needs an answer before the draft can be submitted: say how this revision answers it. Approving the revision closes the concerns it answers."
+    >
+      <div className="flex flex-col gap-4">
+        {entries.map(({ id, concern, answer }) => (
+          <AnswerForm
+            key={id}
+            project={project}
+            track={track}
+            id={id}
+            concern={concern}
+            answer={answer}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function AnswerForm({
+  project,
+  track,
+  id,
+  concern,
+  answer,
+}: {
+  project: string;
+  track: string;
+  id: string;
+  concern: Concern | null;
+  answer: ConcernAnswer | null;
+}) {
+  const [how, setHow] = useState(answer?.how ?? "");
+  const refresh = useRefresh(project, track);
+  const path = { slug: project, track_slug: track, concern_id: id };
+  const save = useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.PUT("/api/projects/{slug}/tracks/{track_slug}/plans/draft/answers/{concern_id}", {
+          params: { path },
+          body: { how },
+        }),
+      ),
+    onSuccess: refresh,
+  });
+  const drop = useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.DELETE(
+          "/api/projects/{slug}/tracks/{track_slug}/plans/draft/answers/{concern_id}",
+          { params: { path } },
+        ),
+      ),
+    onSuccess: refresh,
+  });
+  const kind = concern?.kind ?? answer?.kind ?? "other";
+  return (
+    <form
+      className="flex flex-col gap-2 rounded-md border p-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        save.mutate();
+      }}
+    >
+      {concern ? (
+        <>
+          <ConcernLine concern={concern} />
+          <Markdown>{concern.body}</Markdown>
+        </>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="font-medium">{label("concernKind", kind)}</span>
+          {answer ? <StatusChip domain="concern" value={answer.state} /> : null}
+        </div>
+      )}
+      <Field
+        label={`How this revision answers the ${label("concernKind", kind).toLowerCase()} concern`}
+      >
+        {(fieldId) => (
+          <Textarea
+            id={fieldId}
+            value={how}
+            onChange={(event) => {
+              setHow(event.target.value);
+            }}
+          />
+        )}
+      </Field>
+      <ErrorLine error={save.error ?? drop.error} />
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={save.isPending || !how.trim()}>
+          Save the answer
+        </Button>
+        {answer ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={drop.isPending}
+            onClick={() => {
+              drop.mutate();
+            }}
+          >
+            Remove the answer
+          </Button>
+        ) : null}
       </div>
     </form>
   );

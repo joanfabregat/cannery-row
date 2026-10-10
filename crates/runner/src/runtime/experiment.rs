@@ -48,7 +48,7 @@ impl Experiment {
         if status == 409
             && matches!(
                 claim["error"]["code"].as_str(),
-                Some("nothing_to_claim" | "workflow_unavailable")
+                Some("nothing_to_claim" | "workflow_unavailable" | "concern_open")
             )
         {
             return Ok(None);

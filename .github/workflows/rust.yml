@@ -173,6 +173,7 @@ jobs:
           "$launch" selected -- "$(executable verify_http)" --ignored --exact verify_http_and_owned_process_lifecycle --nocapture --test-threads=1
           "$launch" selected -- "$(executable verify_http)" --ignored --exact installed_runner_verify_kind_completes_fails_and_retries --nocapture --test-threads=1
           cargo test --locked --offline -p cannery-runner --test experiment_http -- --ignored
+          cargo test --locked --offline -p cannery-runner --test decide_http -- --ignored
           CANNERY_RUNNER_BINARY="$PWD/target/debug/cannery" cargo test --locked --offline \
             -p cannery-runner --test container_backends -- --ignored --exact \
             installed_container_factories_start_clients_and_claim_with_separate_credentials

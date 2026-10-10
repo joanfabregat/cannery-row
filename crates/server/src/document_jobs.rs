@@ -292,6 +292,7 @@ async fn deciding(
     writeup: Option<uuid::Uuid>,
     reason: Option<&str>,
     key: Option<&str>,
+    s: &flow::Context,
     r: &RequestContext,
 ) -> Result<ReviewCaseId, Failure> {
     hypotheses::set_state(c, a.hypothesis_id, HypothesisState::Deciding, None)
@@ -337,6 +338,8 @@ async fn deciding(
     )
     .await
     .map_err(|_| internal(r, "deciding hypothesis audit"))?;
+    // A registered decider step decides it; otherwise a researcher does.
+    crate::decide_jobs::create(c, actor, a, case, jobs::Origin::Submission, None, s, r).await?;
     Ok(case)
 }
 
@@ -398,6 +401,7 @@ pub(crate) async fn publish(
         Some(id.0),
         writeup.front_matter["summary"].as_str(),
         key,
+        s,
         r,
     )
     .await
@@ -450,6 +454,7 @@ pub(crate) async fn skip(
         None,
         Some(reason),
         key,
+        s,
         r,
     )
     .await?;

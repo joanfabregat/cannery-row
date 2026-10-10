@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.2",
+  "job_id": "decide-job-1",
+  "phase": "decide",
+  "attempt_id": "attempt-id",
+  "performer": "runner",
+  "decider": {"id": "pass-decider", "revision": "r1"},
+  "track": "compact-sparse",
+  "hypothesis": 12,
+  "science_revision": "3",
+  "review_case_id": "review-case-id",
+  "inputs": {
+    "verification": {"ref": "verification-id", "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+    "writeup": {"ref": "writeup-id", "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"}
+  },
+  "output_prefix": "projects/pilchards/attempts/attempt-id/decide-runs/decide-job-1/",
+  "deadline": "2026-09-29T06:00:00Z",
+  "limits": {"max_output_bytes": 1048576},
+  "lease": {"token": "opaque", "generation": 1, "expires_at": "2026-09-29T00:10:00Z"}
+}

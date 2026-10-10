@@ -113,6 +113,7 @@ enum Case {
     SubmissionRetry,
     Success,
     StepFailed,
+    Concern,
     Invalid,
     Tamper,
     LinkTamper,
@@ -154,6 +155,9 @@ fn step(name: &str, script: &str, output: &str, inputs: &Value) -> Value {
 fn claim(case: Case) -> Value {
     let script = match case {
         Case::StepFailed => "echo observed-failure; exit 7",
+        Case::Concern => {
+            "mkdir -p \"$CR_ROOT/outputs/concern\"; printf '%s\\n' --- 'kind: blocker' --- 'The plan assumes a GPU.' > \"$CR_ROOT/outputs/concern/concern.md\"; exit 7"
+        }
         Case::Invalid => "printf '[]' > \"$CR_ROOT/outputs/run/run.md\"",
         Case::LeaseLost | Case::Cancel => {
             "sleep 30 & child=$!; printf '%s %s' \"$$\" \"$child\" > \"$CR_ROOT/../../../pids\"; wait; printf '%s\\n' --- --- > \"$CR_ROOT/outputs/run/run.md\""
@@ -343,6 +347,9 @@ fn peer(case: Case) -> Result<Peer, Error> {
                         continue;
                     }
                     json!({"state":"testing"})
+                } else if path.ends_with("/tracks/workflow/concerns") {
+                    status = 201;
+                    json!({"state":"open"})
                 } else if path.ends_with("/release") {
                     release_replies += 1;
                     if matches!(case, Case::StepFailed) && release_replies == 1 {
@@ -392,6 +399,7 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
         Case::SubmissionRetry,
         Case::Success,
         Case::StepFailed,
+        Case::Concern,
         Case::Invalid,
         Case::Tamper,
         Case::LinkTamper,
@@ -534,6 +542,31 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
                     .all(|r| r.body["role"] != "run" && r.body.get("path").is_none())
             );
         }
+        let concerns: Vec<_> = requests
+            .iter()
+            .filter(|r| r.path.ends_with("/concerns"))
+            .collect();
+        if matches!(case, Case::Concern) {
+            // Raised before the failed step's release, naming the attempt.
+            assert_eq!(concerns.len(), 1);
+            assert_eq!(
+                concerns[0].path,
+                "/api/projects/fixture/tracks/workflow/concerns"
+            );
+            let document = cannery_core::front_matter::parse(
+                concerns[0].body["document"]
+                    .as_str()
+                    .ok_or("concern without a document")?,
+                cannery_core::front_matter::Limits::default(),
+            )?;
+            assert_eq!(
+                Value::Object(document.front_matter),
+                json!({"kind":"blocker","hypothesis":1,"attempt":1})
+            );
+            assert_eq!(document.body, "The plan assumes a GPU.\n");
+        } else {
+            assert!(concerns.is_empty(), "{case:?}");
+        }
         if matches!(case, Case::SubmissionRetry) {
             let retries: Vec<_> = requests
                 .iter()
@@ -567,7 +600,7 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
             );
             assert!(release.body["logs"].is_array());
             let code = match case {
-                Case::StepFailed => "step_failed",
+                Case::StepFailed | Case::Concern => "step_failed",
                 Case::Invalid => "invalid_step_output",
                 Case::Grant422 => "invalid_output",
                 Case::Grant401 | Case::Grant403 | Case::Grant409 => "runner_error",

@@ -9,6 +9,7 @@ use super::{
 use crate::{
     config::{self, ProcessConfig},
     launcher::PosixPath,
+    policy::DeciderStep,
 };
 
 use clap::{Args, ValueEnum};
@@ -331,6 +332,9 @@ pub async fn run(args: RunnerArgs) -> Result<i32, RuntimeError> {
                 .data_root
                 .as_ref()
                 .ok_or(RuntimeError::Configuration)?;
+            if let config::KindConfig::Decide(envelope) = &entry.kind {
+                decider(envelope)?;
+            }
             if let config::KindConfig::Verify(policy) = &entry.kind {
                 applied(policy)?;
             }
@@ -364,6 +368,22 @@ fn applied(policy: &config::VerifyPolicy) -> Result<AppliedPolicy, RuntimeError>
             AppliedPolicy::Step(Arc::new(step))
         }
     })
+}
+/// Parse a decide kind's decider envelope as the worker runs it; its step
+/// must be a valid step manifest.
+fn decider(envelope: &Arc<cannery_core::json::Document>) -> Result<DeciderStep, RuntimeError> {
+    let entry_point = crate::cli_depth::PolicyEntryPoint::RunnerVerifyKind;
+    let step = crate::policy::parse_decider(envelope, entry_point, 256)
+        .map_err(|_| RuntimeError::Configuration)?;
+    let validator = cannery_core::contracts::ContractValidator::new()
+        .map_err(|_| RuntimeError::Configuration)?;
+    if !validator.is_valid(
+        cannery_core::contracts::ContractKind::StepManifest,
+        &step.document,
+    ) {
+        return Err(RuntimeError::Configuration);
+    }
+    Ok(step)
 }
 /// # Errors
 /// Validate all factories before claiming work; installed commands share this path.
@@ -438,6 +458,10 @@ async fn run_config_with_policy(
             config::KindConfig::Verify(policy) => {
                 Arc::new(Verifier::new(resources, applied(policy)?)?)
             }
+            config::KindConfig::Decide(envelope) => Arc::new(super::decide::Decider::new(
+                resources,
+                Arc::new(decider(envelope)?),
+            )?),
         };
         workers.push(worker);
     }

@@ -90,6 +90,7 @@ impl TryFrom<DbService> for ServiceAccount {
             "agent" => ServiceKind::Agent,
             "experimenter" => ServiceKind::Experimenter,
             "verifier" => ServiceKind::Verifier,
+            "decider" => ServiceKind::Decider,
             _ => return Err(IdentityError::CorruptData("service kind")),
         };
         Ok(Self {
@@ -109,6 +110,7 @@ fn service_kind(kind: ServiceKind) -> &'static str {
         ServiceKind::Agent => "agent",
         ServiceKind::Experimenter => "experimenter",
         ServiceKind::Verifier => "verifier",
+        ServiceKind::Decider => "decider",
     }
 }
 

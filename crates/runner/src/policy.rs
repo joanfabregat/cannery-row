@@ -313,21 +313,25 @@ fn identifier(s: &String) -> bool {
 /// Manual envelope checks precede whole manifest validation and input semantics.
 /// # Errors
 /// Source configuration, diagnostic value/recursion, or arena invariant failure.
-#[allow(clippy::too_many_lines)] // Envelope checks, then the manifest, then input semantics, in order.
-pub fn parse_step_policy(
-    envelope: Arc<Document>,
+/// A step registration envelope's checks, in order: its keys, its schema
+/// version, the registration under `key` (`{id, revision}`), then the step
+/// manifest and its role. Returns the registration and the manifest.
+fn step_envelope(
+    envelope: &Document,
     point: PolicyEntryPoint,
     budget: usize,
-) -> Result<StepPolicy, PolicyError> {
-    let d = &*envelope;
+    key: &str,
+    role: &str,
+) -> Result<(Vec<String>, Arc<Document>), PolicyError> {
+    let d = envelope;
     let root = d.root();
     let Some(Node::Object(entries)) = d.node(root) else {
         return Err(fail(ErrorKind::Configuration, ""));
     };
-    if let Some((key, _)) = entries
+    if let Some((unknown, _)) = entries
         .iter()
         .filter(|(k, _)| {
-            !["schema_version", "verifier", "step"]
+            !["schema_version", key, "step"]
                 .iter()
                 .any(|s| k.equals_utf8(s))
         })
@@ -335,7 +339,7 @@ pub fn parse_step_policy(
     {
         return Err(PolicyError {
             kind: ErrorKind::Configuration,
-            paths: vec![joined(&[&String::from("/"), key])],
+            paths: vec![joined(&[&String::from("/"), unknown])],
             violations: Vec::new(),
             display_limit: None,
         });
@@ -346,22 +350,23 @@ pub fn parse_step_policy(
     {
         return Err(fail(ErrorKind::Configuration, "/schema_version"));
     }
-    let verifier = d
-        .field(root, "verifier")
-        .ok_or_else(|| fail(ErrorKind::Configuration, "/verifier"))?;
-    let fields = object(d, verifier).map_err(|_| fail(ErrorKind::Configuration, "/verifier"))?;
+    let at = format!("/{key}");
+    let registered = d
+        .field(root, key)
+        .ok_or_else(|| fail(ErrorKind::Configuration, &at))?;
+    let fields = object(d, registered).map_err(|_| fail(ErrorKind::Configuration, &at))?;
     if fields.len() != 2
-        || d.field(verifier, "id").is_none()
-        || d.field(verifier, "revision").is_none()
+        || d.field(registered, "id").is_none()
+        || d.field(registered, "revision").is_none()
     {
-        return Err(fail(ErrorKind::Configuration, "/verifier"));
+        return Err(fail(ErrorKind::Configuration, &at));
     }
     let mut registration = Vec::new();
-    for key in ["id", "revision"] {
-        let s = text(d, field(d, verifier, key)?)
-            .map_err(|_| fail(ErrorKind::Configuration, &format!("/verifier/{key}")))?;
+    for name in ["id", "revision"] {
+        let s = text(d, field(d, registered, name)?)
+            .map_err(|_| fail(ErrorKind::Configuration, &format!("{at}/{name}")))?;
         if !identifier(&s) {
-            return Err(fail(ErrorKind::Configuration, &format!("/verifier/{key}")));
+            return Err(fail(ErrorKind::Configuration, &format!("{at}/{name}")));
         }
         registration.push(s);
     }
@@ -379,11 +384,85 @@ pub fn parse_step_policy(
         budget,
         "/step",
     )?;
-    let root = document.root();
-    let spec = field(&document, root, "spec")?;
-    if !text(&document, field(&document, spec, "role")?)?.equals_utf8("policy") {
+    let spec = field(&document, document.root(), "spec")?;
+    if !text(&document, field(&document, spec, "role")?)?.equals_utf8(role) {
         return Err(fail(ErrorKind::Configuration, "/step/spec/role"));
     }
+    Ok((registration, document))
+}
+fn step_name(document: &Document) -> Result<String, PolicyError> {
+    text(
+        document,
+        field(
+            document,
+            field(document, document.root(), "metadata")?,
+            "name",
+        )?,
+    )
+}
+/// A decider step and its registration: the decider service account name
+/// and the revision of its step. `document` is the step manifest.
+pub struct DeciderStep {
+    pub decider_id: String,
+    pub revision: String,
+    pub document: Arc<Document>,
+    pub name: String,
+}
+/// A decider registration envelope (`{schema_version, decider: {id,
+/// revision}, step}`): its checks, then the step manifest's, whose role is
+/// `decider`.
+/// # Errors
+/// Source configuration, diagnostic value/recursion, or arena invariant failure.
+pub fn parse_decider(
+    envelope: &Document,
+    point: PolicyEntryPoint,
+    budget: usize,
+) -> Result<DeciderStep, PolicyError> {
+    let (mut registration, document) =
+        step_envelope(envelope, point, budget, "decider", "decider")?;
+    // A decider step reads the context bundle, never artifacts, and its only
+    // output is the decision document.
+    let spec = field(&document, document.root(), "spec")?;
+    let inputs = field(&document, field(&document, spec, "inputs")?, "artifacts")?;
+    if !array(&document, inputs)?.is_empty() {
+        return Err(fail(
+            ErrorKind::Configuration,
+            "/step/spec/inputs/artifacts",
+        ));
+    }
+    let outputs = array(
+        &document,
+        field(&document, field(&document, spec, "outputs")?, "artifacts")?,
+    )?;
+    if outputs.len() != 1
+        || !text(&document, field(&document, outputs[0], "name")?)?.equals_utf8("decision")
+    {
+        return Err(fail(
+            ErrorKind::Configuration,
+            "/step/spec/outputs/artifacts",
+        ));
+    }
+    let name = step_name(&document)?;
+    Ok(DeciderStep {
+        decider_id: registration.remove(0),
+        revision: registration.remove(0),
+        document,
+        name,
+    })
+}
+/// Manual envelope checks precede whole manifest validation and input semantics.
+/// # Errors
+/// Source configuration, diagnostic value/recursion, or arena invariant failure.
+#[allow(clippy::too_many_lines)] // Envelope checks, then the manifest, then input semantics, in order.
+pub fn parse_step_policy(
+    envelope: Arc<Document>,
+    point: PolicyEntryPoint,
+    budget: usize,
+) -> Result<StepPolicy, PolicyError> {
+    let (mut registration, document) =
+        step_envelope(&envelope, point, budget, "verifier", "policy")?;
+    let root = document.root();
+    let spec = field(&document, root, "spec")?;
     // A policy step reads the producer's and the scorer's outputs, datasets
     // and baselines; never the attempt's own artifacts.
     let inputs = field(&document, field(&document, spec, "inputs")?, "artifacts")?;
@@ -445,17 +524,15 @@ pub struct FilePolicyLoader {
     pub repr_nesting_budget: usize,
 }
 impl FilePolicyLoader {
-    /// Strict UTF8, universal newlines and JSON text parsing, then source dispatch.
-    /// # Errors
-    /// Configuration errors differ from uncaught encoding/value/recursion failures.
-    pub fn load_policy(&self, path: &PosixPath) -> Result<Policy, PolicyError> {
+    /// Strict UTF8, universal newlines and JSON text parsing.
+    fn read(path: &PosixPath) -> Result<Document, PolicyError> {
         let native = native_path(&path.text())?;
         let bytes = fs::read(native).map_err(|_| fail(ErrorKind::Configuration, ""))?;
         let text = std::str::from_utf8(&bytes)
             .map_err(|_| fail(ErrorKind::Configuration, ""))?
             .replace("\r\n", "\n")
             .replace('\r', "\n");
-        let d = json::decode_str(&text, cli_depth::JSON_CONTAINERS).map_err(|e| {
+        json::decode_str(&text, cli_depth::JSON_CONTAINERS).map_err(|e| {
             fail(
                 match e {
                     json::DecodeError::IntegerLimit => ErrorKind::Value,
@@ -466,8 +543,33 @@ impl FilePolicyLoader {
                 },
                 "",
             )
-        })?;
-        parse(Arc::new(d), self.entry_point, self.repr_nesting_budget)
+        })
+    }
+    /// Strict UTF8, universal newlines and JSON text parsing, then source dispatch.
+    /// # Errors
+    /// Configuration errors differ from uncaught encoding/value/recursion failures.
+    pub fn load_policy(&self, path: &PosixPath) -> Result<Policy, PolicyError> {
+        parse(
+            Arc::new(Self::read(path)?),
+            self.entry_point,
+            self.repr_nesting_budget,
+        )
+    }
+    /// A decide kind's decider registration envelope, checked as the worker applies it.
+    /// # Errors
+    /// Configuration errors differ from uncaught encoding/value/recursion failures.
+    pub fn load_decider_envelope(&self, path: &PosixPath) -> Result<Arc<Document>, PolicyError> {
+        let envelope = Self::read(path)?;
+        parse_decider(&envelope, self.entry_point, self.repr_nesting_budget)?;
+        Ok(Arc::new(envelope))
+    }
+}
+const fn load_error(error: &PolicyError) -> PolicyLoadError {
+    match error.kind {
+        ErrorKind::Configuration | ErrorKind::Invariant => PolicyLoadError::Configuration,
+        ErrorKind::Encoding => PolicyLoadError::Encoding,
+        ErrorKind::Value => PolicyLoadError::Value,
+        ErrorKind::Recursion => PolicyLoadError::Recursion,
     }
 }
 impl PolicyLoader for FilePolicyLoader {
@@ -477,12 +579,10 @@ impl PolicyLoader for FilePolicyLoader {
                 Policy::Stock(p) => VerifyPolicy::Stock(p.document),
                 Policy::Step(p) => VerifyPolicy::Step(p.envelope),
             })
-            .map_err(|e| match e.kind {
-                ErrorKind::Configuration | ErrorKind::Invariant => PolicyLoadError::Configuration,
-                ErrorKind::Encoding => PolicyLoadError::Encoding,
-                ErrorKind::Value => PolicyLoadError::Value,
-                ErrorKind::Recursion => PolicyLoadError::Recursion,
-            })
+            .map_err(|e| load_error(&e))
+    }
+    fn load_decider(&self, path: &PosixPath) -> Result<Arc<Document>, PolicyLoadError> {
+        self.load_decider_envelope(path).map_err(|e| load_error(&e))
     }
 }
 fn native_path(text: &String) -> Result<std::path::PathBuf, PolicyError> {

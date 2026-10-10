@@ -2,13 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/job_completion.schema.json",
   "title": "Job completion",
-  "description": "What a performer posts to complete a job, with the current lease token in the request. A verify job is completed with its verification report and the manifest of the outputs it uploaded; a document job with the write-up and no manifest. A second completion of the same job is idempotent.",
+  "description": "What a performer posts to complete a job, with the current lease token in the request. A verify job is completed with its verification report and the manifest of the outputs it uploaded; a document job with the write-up and no manifest; a decide job with the decision document and no manifest. A second completion of the same job is idempotent.",
   "type": "object",
   "properties": {
     "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
     "job_id": {"$ref": "common.schema.json#/$defs/identifier"},
     "document": {
-      "description": "Markdown with YAML front matter: the verification report of a verify job (`verification.schema.json`, optional body), or the write-up of a document job (`writeup.schema.json`, non-empty body).",
+      "description": "Markdown with YAML front matter: the verification report of a verify job (`verification.schema.json`, optional body), the write-up of a document job (`writeup.schema.json`, non-empty body), or the decision document of a decide job (`decision.schema.json`, its reason as the body).",
       "type": "string",
       "minLength": 1,
       "maxLength": 1048576

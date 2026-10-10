@@ -60,6 +60,9 @@ pub struct EvidenceId(pub Uuid);
 #[derive(Clone, Copy, Debug, Eq, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct ManifestId(pub Uuid);
+#[derive(Clone, Copy, Debug, Eq, PartialEq, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct DecisionId(pub Uuid);
 macro_rules! domain {
     ($name:ident { $($variant:ident => $text:literal),+ }) => {
         #[derive(Clone,Copy,Debug,Eq,PartialEq)] pub enum $name { $($variant),+ }
@@ -69,7 +72,7 @@ macro_rules! domain {
         }
     };
 }
-domain!(Phase {Verify=>"verify",Document=>"document"});
+domain!(Phase {Verify=>"verify",Document=>"document",Decide=>"decide"});
 domain!(Performer {Runner=>"runner",Agent=>"agent"});
 domain!(State {Pending=>"pending",Claimed=>"claimed",Completed=>"completed",Failed=>"failed",Skipped=>"skipped"});
 domain!(Origin {Submission=>"submission",AutoRetry=>"auto_retry",HumanRetry=>"human_retry"});
@@ -422,6 +425,30 @@ pub async fn pick_pending_runner(
     .map_err(|e| JobError::database(&e))?
     .map(|r| r.id))
 }
+/// The oldest waiting decide job registered to `decider` under its step `revision`,
+/// of a hypothesis still awaiting its decision.
+/// # Errors
+/// Reports sanitized database or source text-adaptation failure.
+pub async fn pick_pending_decider(
+    conn: &mut PgConnection,
+    project: ProjectId,
+    decider: &str,
+    revision: &str,
+) -> Result<Option<JobId>, JobError> {
+    text(decider)?;
+    text(revision)?;
+    Ok(sqlx::query_file_as!(
+        RawPicked,
+        "src/sql/pick_pending_decider.sql",
+        project as ProjectId,
+        decider,
+        revision
+    )
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| JobError::database(&e))?
+    .map(|r| r.id))
+}
 /// The service account or the user a claim or a lease belongs to.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Claimant {
@@ -610,6 +637,42 @@ pub async fn complete_job(
     .map_err(|e| JobError::database(&e))?
     .ok_or(JobError::StaleLease)?
     .decode(c)
+}
+/// Complete a claimed decide job with the decision it recorded.
+/// # Errors
+/// Reports stale, SQL constraint or post-write decoding failure.
+pub async fn complete_decide_job(
+    conn: &mut PgConnection,
+    id: JobId,
+    decision: DecisionId,
+    c: JsonContext,
+) -> Result<Job, JobError> {
+    sqlx::query_file_as!(
+        RawJob,
+        "src/sql/complete_decide_job.sql",
+        decision as DecisionId,
+        id as JobId
+    )
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| JobError::database(&e))?
+    .ok_or(JobError::StaleLease)?
+    .decode(c)
+}
+/// A hypothesis's latest decide job, whatever its state.
+/// # Errors
+/// Reports sanitized database or row-decoding failure.
+pub async fn decide_job(
+    conn: &mut PgConnection,
+    hypothesis: HypothesisId,
+    c: JsonContext,
+) -> Result<Option<Job>, JobError> {
+    sqlx::query_file_as!(RawJob, "src/sql/decide_job.sql", hypothesis as HypothesisId)
+        .fetch_optional(conn)
+        .await
+        .map_err(|e| JobError::database(&e))?
+        .map(|r| r.decode(c))
+        .transpose()
 }
 /// A researcher skips a hypothesis's document job, pending or claimed, with
 /// a reason; the skip ends any lease on it.

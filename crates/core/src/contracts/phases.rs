@@ -29,15 +29,19 @@ pub enum Phase {
     /// A hypothesis's decision: its outcome and the verification report and
     /// write-up it cites, with the reason as the body.
     Decision,
+    /// A concern about a track's plan: its kind and the hypothesis or attempt
+    /// it comes from, with the argument as the body.
+    Concern,
 }
 
 impl Phase {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Brief,
         Self::Run,
         Self::Verification,
         Self::Writeup,
         Self::Decision,
+        Self::Concern,
     ];
 
     /// The phase named in a URL or a tool argument; unknown names are absent.
@@ -55,6 +59,7 @@ impl Phase {
             Self::Verification => "verification",
             Self::Writeup => "writeup",
             Self::Decision => "decision",
+            Self::Concern => "concern",
         }
     }
 }
@@ -363,6 +368,29 @@ mod tests {
             json!({"outcome": "reject", "verification": {"ref": "v1"}, "writeup": null}),
         ] {
             assert!(!accepts(&schemas, Phase::Decision, &invalid), "{invalid}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn concern_front_matter_is_checked() -> Result {
+        let schemas = schemas()?;
+        let document = schemas.parse(
+            Phase::Concern,
+            "---\nkind: wrong_assumption\nhypothesis: 12\nattempt: 2\n---\n\nThe tokenizer is not the bottleneck.\n",
+            Limits::default(),
+        )?;
+        assert_eq!(document.front_matter["kind"], "wrong_assumption");
+        assert!(accepts(&schemas, Phase::Concern, &json!({"kind": "other"})));
+        for invalid in [
+            json!({}),
+            json!({"kind": "question"}),
+            json!({"kind": "blocker", "attempt": 1}),
+            json!({"kind": "blocker", "hypothesis": 0}),
+            json!({"kind": "blocker", "hypothesis": "#12"}),
+            json!({"kind": "blocker", "unit": 12}),
+        ] {
+            assert!(!accepts(&schemas, Phase::Concern, &invalid), "{invalid}");
         }
         Ok(())
     }
