@@ -208,7 +208,9 @@ async fn item_line(
             };
             (
                 format!("write-up of #{unit}.{attempt}: {text}"),
-                format!("/api/projects/{slug}/units/{unit}/attempts/{attempt}/report"),
+                format!(
+                    "/api/projects/{slug}/units/{unit}/writeup; the run's report: /api/projects/{slug}/units/{unit}/attempts/{attempt}/report"
+                ),
             )
         }
         _ => {
@@ -245,12 +247,15 @@ async fn item_line(
     })
 }
 
-/// What a bundle holds: the performer's full or compact bundle, or the
-/// documenter's and the decider's, which add the unit's record.
+/// What a bundle holds: the performer's full or compact bundle, the
+/// verifier's, which says what its verify job must produce instead of what
+/// to submit, or the documenter's and the decider's, which add the unit's
+/// record.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Detail {
     Full,
     Compact,
+    Verify,
     Document,
     Decide,
 }
@@ -344,16 +349,31 @@ async fn record(
             "### Attempt #{number}.{sequence} ({})\n",
             attempt.state
         );
+        // A verification report is the `verification` of the job that
+        // published it; one without a job (imported) is the report's.
+        let jobs = cannery_jobs::repo::list_jobs(
+            &mut *conn,
+            AttemptId(attempt.id),
+            None,
+            None,
+            cannery_jobs::repo::JsonContext {
+                encode_nesting_budget: cannery_core::json::MAX_DEPTH,
+                decode_nesting_budget: cannery_core::json::MAX_DEPTH,
+            },
+        )
+        .await
+        .map_err(|_| internal(context, "bundle record jobs"))?;
         let mut empty = true;
         for output in outputs
             .iter()
             .filter(|output| output.attempt_id == attempt.id && output.stage != "writeup")
         {
             empty = false;
+            let report = format!("/api/projects/{slug}/units/{number}/attempts/{sequence}/report");
             let (title, reference) = if output.stage == "agent" {
                 (
                     format!("Run document (revision {})", output.revision),
-                    format!("/api/projects/{slug}/units/{number}/attempts/{sequence}/report"),
+                    report,
                 )
             } else {
                 (
@@ -363,7 +383,14 @@ async fn record(
                         output.id,
                         output.sha256.as_deref().unwrap_or_default()
                     ),
-                    format!("/api/projects/{slug}/units/{number}/attempts/{sequence}"),
+                    jobs.iter()
+                        .find(|job| job.evidence_id.is_some_and(|id| id.0 == output.id))
+                        .map_or_else(
+                            || format!("{report}, its `verification`"),
+                            |job| {
+                                format!("/api/projects/{slug}/jobs/{}, its `verification`", job.id)
+                            },
+                        ),
                 )
             };
             let front_matter: Value =
@@ -446,6 +473,21 @@ async fn record(
         .fetch_optional(&mut *conn)
         .await
         .map_err(fail)?;
+        // What the decision document cites, as its decision case does: the
+        // pinned attempt's latest verification report when it was
+        // verified, and the write-up, null when it was skipped.
+        let verified = attempts
+            .iter()
+            .any(|attempt| attempt.id == pins.attempt_id.0 && attempt.state == "verified");
+        let verification = outputs
+            .iter()
+            .filter(|output| {
+                verified && output.attempt_id == pins.attempt_id.0 && output.stage == "verification"
+            })
+            .max_by_key(|output| output.revision)
+            .map(|output| (output.id, output.sha256.clone().unwrap_or_default()));
+        let cited = writeup.map(|output| (output.id, output.sha256.clone().unwrap_or_default()));
+        let written = writeup.is_some() || skipped.is_some();
         match (writeup, skipped) {
             (Some(writeup), _) => {
                 let front_matter: Value =
@@ -464,6 +506,39 @@ async fn record(
             }
             (None, None) => body.push_str("Not written yet.\n\n"),
         }
+        let cite = |cited: Option<&(uuid::Uuid, String)>| {
+            cited.map_or_else(
+                || String::from("null"),
+                |(id, sha256)| format!("{{ref: \"{id}\", sha256: \"{sha256}\"}}"),
+            )
+        };
+        body.push_str("## Deciding\n\n");
+        let _ = writeln!(
+            body,
+            "The decision document is Markdown with YAML front matter (`get_schema` `decision`) and the reason as its body, sent with `record_decision` on the unit's decision case or `complete_job` for a decide job. `outcome` is `promote` (only on a `pass` verdict), `reject` or `inconclusive`, or `failed` for a unit stopped after a failure, which has no verification report. It cites the verification report and the write-up exactly{}:\n\n{}\n",
+            if written {
+                ""
+            } else {
+                " (the write-up is not written yet; the decision case opens once it is, or once a researcher skips it)"
+            },
+            fenced_as(
+                "markdown",
+                &format!(
+                    "---\noutcome: {}\nverification: {}\nwriteup: {}\n---\n\nWhy this outcome.",
+                    if verification.is_some() {
+                        "<promote, reject or inconclusive>"
+                    } else {
+                        "failed"
+                    },
+                    cite(verification.as_ref()),
+                    if written {
+                        cite(cited.as_ref())
+                    } else {
+                        String::from("<the write-up, once written>")
+                    }
+                )
+            )
+        );
     }
     Ok(())
 }
@@ -762,6 +837,27 @@ async fn earlier_attempts(
     Ok(())
 }
 
+/// The science revision an attempt pinned: its number and its content.
+/// # Errors
+/// Fails when the attempt or its revision is missing or unreadable.
+pub(crate) async fn pinned_science(
+    conn: &mut PgConnection,
+    attempt: AttemptId,
+) -> Result<(i32, Value), ()> {
+    let row = sqlx::query!(
+        r#"SELECT a.science_revision, c.content::text AS "content!"
+           FROM attempts a JOIN config_revisions c ON c.project_id = a.project_id
+             AND c.kind = 'science' AND c.revision = a.science_revision
+           WHERE a.id = $1"#,
+        attempt.0 as _
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|_| ())?;
+    let science: Value = serde_json::from_str(&row.content).map_err(|_| ())?;
+    Ok((row.science_revision, science))
+}
+
 /// What the attempt must submit, from the science revision it pinned: the
 /// steps, the artifact roles its manifest needs, the metrics it may claim,
 /// the datasets and interfaces, and an example manifest and run document.
@@ -777,25 +873,11 @@ async fn submitting(
     body: &mut String,
     context: &RequestContext,
 ) -> Result<(), Failure> {
-    let row = sqlx::query!(
-        r#"SELECT a.science_revision, c.content::text AS "content!"
-           FROM attempts a JOIN config_revisions c ON c.project_id = a.project_id
-             AND c.kind = 'science' AND c.revision = a.science_revision
-           WHERE a.id = $1"#,
-        pins.attempt_id.0 as _
-    )
-    .fetch_one(&mut *conn)
-    .await
-    .map_err(|_| internal(context, "bundle science revision"))?;
-    let science: Value =
-        serde_json::from_str(&row.content).map_err(|_| internal(context, "bundle science"))?;
-    let revision = row.science_revision;
-    let roles: Vec<&str> = science["required_artifact_roles"]["attempt"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .collect();
+    let (revision, science) = pinned_science(conn, pins.attempt_id)
+        .await
+        .map_err(|()| internal(context, "bundle science revision"))?;
+    let required = crate::job_outputs::required_roles(&science, "attempt");
+    let roles = crate::job_outputs::names(&required);
     let metrics = science["metrics"].as_array().cloned().unwrap_or_default();
     let quoted = |items: &[&str]| {
         items
@@ -813,15 +895,23 @@ async fn submitting(
          3. Submit the run document with `submit_attempt`: YAML front matter (`get_schema` `run`) and run notes as the body.\n\n\
          A document the server refuses fails the attempt with `invalid_submission` and the reason, so check it against this section first. A run that failed releases the attempt (`release_attempt`) with a failure report instead.\n"
     );
-    let _ = writeln!(
-        body,
-        "Required artifact roles (the manifest needs an object of each): {}\n",
-        if roles.is_empty() {
-            String::from("none")
-        } else {
-            quoted(&roles)
-        }
-    );
+    if compact || required.iter().all(|role| role.description.is_none()) {
+        let _ = writeln!(
+            body,
+            "Required artifact roles (the manifest needs an object of each): {}\n",
+            if roles.is_empty() {
+                String::from("none")
+            } else {
+                quoted(&roles)
+            }
+        );
+    } else {
+        let _ = writeln!(
+            body,
+            "Required artifact roles (the manifest needs an object of each):{}",
+            crate::job_outputs::role_list(&required)
+        );
+    }
     if compact {
         let keys: Vec<&str> = metrics
             .iter()
@@ -980,6 +1070,238 @@ async fn submitting(
     Ok(())
 }
 
+/// What the attempt's verify job must produce, from its latest verify job
+/// and the science revision the attempt pinned: who runs what, the inputs,
+/// the roles its manifest needs, every field of the verification report
+/// with the values it must name, and an example completion.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The section follows the order of the steps it describes"
+)]
+async fn verifying(
+    conn: &mut PgConnection,
+    pins: &AttemptPins,
+    body: &mut String,
+    context: &RequestContext,
+) -> Result<(), Failure> {
+    let jobs = cannery_jobs::repo::list_jobs(
+        &mut *conn,
+        pins.attempt_id,
+        None,
+        None,
+        cannery_jobs::repo::JsonContext {
+            encode_nesting_budget: cannery_core::json::MAX_DEPTH,
+            decode_nesting_budget: cannery_core::json::MAX_DEPTH,
+        },
+    )
+    .await
+    .map_err(|_| internal(context, "bundle verify jobs"))?;
+    body.push_str("## Verifying\n\n");
+    let Some(job) = jobs
+        .into_iter()
+        .filter(|job| job.phase == cannery_jobs::repo::Phase::Verify)
+        .max_by_key(|job| job.run_number)
+    else {
+        body.push_str(
+            "The attempt has no verify job: it is verified once its run is submitted.\n\n",
+        );
+        return Ok(());
+    };
+    let expected = crate::job_outputs::load_verify(conn, &job)
+        .await
+        .ok_or_else(|| internal(context, "bundle verify expectations"))?;
+    let spec = cannery_core::json::to_value(&job.spec)
+        .map_err(|_| internal(context, "bundle verify job"))?;
+    let steps: Vec<String> = spec["steps"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|step| {
+            format!(
+                "`{}` revision {} ({})",
+                step["name"].as_str().unwrap_or_default(),
+                step["revision"],
+                step["manifest"]["spec"]["role"].as_str().unwrap_or("step")
+            )
+        })
+        .collect();
+    let number = pins.number;
+    let sequence = pins.sequence;
+    let _ = writeln!(
+        body,
+        "Attempt #{number}.{sequence} is verified by job `{}` (run {}), under science revision {}.\n",
+        job.id, job.run_number, expected.science_revision
+    );
+    match expected.performer {
+        cannery_jobs::repo::Performer::Agent => {
+            let _ = writeln!(
+                body,
+                "Its performer is `agent`: an agent service account or a researcher who did not run the attempt checks the run's claims against its artifacts, and writes the verification report. You run none of the job's `steps` ({}): they are what a runner verifier would run, and their containers and `cr-evidence` outputs are not yours to produce.\n",
+                steps.join(", ")
+            );
+        }
+        cannery_jobs::repo::Performer::Runner => {
+            let _ = writeln!(
+                body,
+                "Its performer is `runner`: the verifier service account `{}` runs the job's steps ({}) under its policy revision `{}` and writes the verification report from the scorer's evidence (`cannery runner`, kind `verify`).\n",
+                job.verifier_id.as_deref().unwrap_or_default(),
+                steps.join(", "),
+                expected.policy_revision
+            );
+        }
+    }
+    let roles = &expected.roles;
+    let _ = writeln!(
+        body,
+        "1. Read the inputs with `get_job_input` under the job's lease: `run` (the run document's front matter: its claims and provenance), `manifest` (the run's verified manifest) and `artifacts` (each input artifact with its `download_url`: GET it with the same `Authorization: Bearer` header as the API, or use `get_artifact`). The run notes are not an input: judge the claims against the artifacts.\n\
+         2. Heartbeat (`heartbeat_job`) while you work, and upload what you produce under the job's output prefix (`create_job_upload`), one object per file.\n\
+         3. Complete the job (`complete_job`) with the verification report and the manifest of your uploads. Only the uploads the manifest lists are the job's outputs. A report the server refuses keeps your lease: correct it and complete again.\n\
+         4. If you cannot verify, fail the job (`fail_job`) with a reason. That is not a verdict: the job is queued again for another verifier while the science revision's `max_auto_retries` allows (1 by default), then the attempt fails with a `verify` failure and a researcher decides whether to retry it. A run whose claims do not hold gets a `fail` verdict in a completed report instead.\n"
+    );
+    let _ = writeln!(
+        body,
+        "Required output roles (the completion's manifest needs an object of each):{}",
+        crate::job_outputs::role_list(roles)
+    );
+    let datasets = expected.dataset_list();
+    let control = expected.control.as_ref().map_or_else(
+        || String::from("leave it out: the unit has no control"),
+        |(id, revision)| {
+            format!("\"{revision}\", the bare revision of the unit's control `{id}` (not `{id}@{revision}`)")
+        },
+    );
+    let dataset = if datasets.is_empty() {
+        String::from("leave it out: the scorer reads no registered dataset")
+    } else {
+        format!(
+            "{}, a dataset revision the scorer reads",
+            crate::job_outputs::quoted_list(&datasets)
+        )
+    };
+    let source = expected.source_revision.as_str().map_or_else(
+        || expected.source_revision.to_string(),
+        |text| format!("\"{text}\""),
+    );
+    let policy = match expected.performer {
+        cannery_jobs::repo::Performer::Agent => format!(
+            "\"{}\", the pinned science revision, which registers agent verification",
+            expected.policy_revision
+        ),
+        cannery_jobs::repo::Performer::Runner => format!(
+            "\"{}\", the policy revision the science revision registers for the verifier",
+            expected.policy_revision
+        ),
+    };
+    let (_, science) = pinned_science(conn, pins.attempt_id)
+        .await
+        .map_err(|()| internal(context, "bundle verify science"))?;
+    let slices = crate::job_completion_checks::required_slices(&science);
+    let json = |value: &Value| serde_json::to_string(value).unwrap_or_default();
+    let required = if slices.is_empty() {
+        String::from("No slice is required: `[]` when you measured none.")
+    } else {
+        format!(
+            "Report one measurement of each required slice, whose only dimension is the slice's: {}.",
+            slices
+                .iter()
+                .map(|slice| format!(
+                    "`{}` on {} with {} = {}",
+                    slice.metric["key"].as_str().unwrap_or_default(),
+                    json(slice.split),
+                    json(slice.dimension),
+                    json(slice.value)
+                ))
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    };
+    let mut measured = String::new();
+    for slice in &slices {
+        let claimed = expected
+            .claims
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|claim| slice.matches(claim))
+            .map(|claim| &claim["value"])
+            .filter(|value| value.is_number());
+        let _ = write!(
+            measured,
+            "\n  - metric: {}\n    split: {}\n    dimensions: {{{}: {}}}\n    authority: tester_verified\n    unit: {}\n    direction: {}\n    {}",
+            json(&slice.metric["key"]),
+            json(slice.split),
+            json(slice.dimension),
+            json(slice.value),
+            json(&slice.metric["unit"]),
+            json(&slice.metric["direction"]),
+            claimed.map_or_else(
+                || String::from("missing_reason: <why you could not measure it>"),
+                |value| format!("value: {value}")
+            )
+        );
+    }
+    if measured.is_empty() {
+        measured.push_str(" []");
+    }
+    let _ = writeln!(
+        body,
+        "### The verification report\n\n\
+         Markdown with YAML front matter (`get_schema` `verification`) and your observations as an optional body (at most the science revision's `limits.report_max_bytes`). The front matter:\n\n\
+         - `verdict`: `pass`, `fail` or `inconclusive`. A `pass` needs every gate passed; `inconclusive` when the artifacts cannot settle the claims.\n\
+         - `reason`: why this verdict, in a sentence or two.\n\
+         - `policy_revision`: {policy}.\n\
+         - `gates`: at least one `{{id, result, detail}}`: each check you applied (a slug), its `result` (`pass`, `fail` or `unknown`) and, in `detail`, the values it used.\n\
+         - `measurements`: the metric values you measured yourself, each with `metric`, `authority: tester_verified`, the metric's `unit` and `direction`, `split`, `dimensions` for a slice, and `value` (or `missing_reason`, never a zero). {required}\n\
+         - `discrepancies`: where a claim disagrees with what you measured: `metric`, `split`, `dimensions`, `claimed_value`, `verified_value` and a `description`.\n\
+         - `comparisons`: what you compared, one per metric, split and slice: the `value` (one of your measurements, `source: tester`) and the `reference` it was compared against (`value`, `label`, `kind`).\n\
+         - `provenance`: `science_revision` \"{}\"; `source_revision` {source}, the run's; `control_revision` {control}; `dataset_revision` {dataset}.\n\
+         - `artifact_roles`: the roles of your manifest the report refers to.\n",
+        expected.science_revision
+    );
+    let mut provenance = format!(
+        "  science_revision: \"{}\"\n  source_revision: {source}\n",
+        expected.science_revision
+    );
+    if let Some((_, revision)) = &expected.control {
+        let _ = writeln!(provenance, "  control_revision: \"{revision}\"");
+    }
+    if let Some(revision) = datasets.first() {
+        let _ = writeln!(provenance, "  dataset_revision: \"{revision}\"");
+    }
+    let names = crate::job_outputs::names(roles);
+    let report = format!(
+        "---\nverdict: pass\nreason: Every claim matches what the artifacts show.\npolicy_revision: \"{}\"\ngates:\n  - id: claims-reproduce\n    result: pass\n    detail: <the values the check used>\nmeasurements:{measured}\ndiscrepancies: []\nprovenance:\n{provenance}artifact_roles: [{}]\n---\n\nWhat you checked and what you saw.",
+        expected.policy_revision,
+        names.join(", ")
+    );
+    let completion = serde_json::json!({
+        "schema_version": "0.2",
+        "job_id": job.id.to_string(),
+        "document": report,
+        "manifest": {
+            "schema_version": "0.2",
+            "attempt_id": pins.attempt_id.0.to_string(),
+            "objects": names.iter().map(|role| serde_json::json!({
+                "role": role,
+                "storage": {"backend": "<as create_job_upload returned it>", "bucket": "<as returned>", "key": "<as returned>"},
+                "size_bytes": 1234,
+                "sha256": "<hex SHA-256 of the bytes>",
+                "media_type": "text/plain"
+            })).collect::<Vec<_>>()
+        }
+    });
+    let _ = writeln!(
+        body,
+        "### Completion\n\nThe `document` argument of `complete_job` (`get_schema` `job_completion`): the report above as one string, and the manifest of your uploads. For example (each measured value in it is the run's claim: replace it with what you measured):\n\n{}\n\nThe report as Markdown, for reading:\n\n{}\n",
+        fenced_as(
+            "json",
+            &serde_json::to_string_pretty(&completion).unwrap_or_default()
+        ),
+        fenced_as("markdown", &report)
+    );
+    Ok(())
+}
+
 /// Build an attempt's bundle with the given detail.
 #[allow(
     clippy::too_many_lines,
@@ -1109,6 +1431,9 @@ pub(crate) async fn build_for(
     if matches!(detail, Detail::Full | Detail::Compact) {
         submitting(conn, pins, compact, &mut body, context).await?;
     }
+    if detail == Detail::Verify {
+        verifying(conn, pins, &mut body, context).await?;
+    }
     let index = plans::track_units(conn, pins.track_id, None, None, i64::MAX)
         .await
         .map_err(persistence(context))?;
@@ -1168,11 +1493,12 @@ pub(crate) async fn build_for(
                         {
                             Some((sequence, state, text)) => format!(
                                 "#{number} {} ({}): #{number}.{sequence} {state}: {} \
-                                 (/api/projects/{}/units/{number}/attempts/{sequence}/report)",
+                                 (/api/projects/{slug}/units/{number}/writeup; the run's report: \
+                                 /api/projects/{slug}/units/{number}/attempts/{sequence}/report)",
                                 unit.title,
                                 unit.state,
                                 text.map(|text| first_line(&text)).unwrap_or_default(),
-                                project.slug
+                                slug = project.slug
                             ),
                             None => format!(
                                 "#{number} {} ({}): no outputs yet (/api/projects/{}/units/{number})",
@@ -1218,6 +1544,7 @@ pub(crate) async fn build_for(
             match detail {
                 Detail::Full => "full",
                 Detail::Compact => "compact",
+                Detail::Verify => "verify",
                 Detail::Document => "document",
                 Detail::Decide => "decide",
             }
@@ -1276,12 +1603,13 @@ fn detail(query: &str) -> Result<Detail, Failure> {
             }
             "phase" if phase.is_none() => {
                 phase = Some(match value {
+                    "verify" => Detail::Verify,
                     "document" => Detail::Document,
                     "decide" => Detail::Decide,
                     _ => {
                         return Err(crate::plan_routes::invalid(
                             "query/phase",
-                            "Input should be 'document' or 'decide'",
+                            "Input should be 'verify', 'document' or 'decide'",
                         ));
                     }
                 });
@@ -1289,7 +1617,7 @@ fn detail(query: &str) -> Result<Detail, Failure> {
             _ => {
                 return Err(crate::plan_routes::invalid(
                     &format!("query/{name}"),
-                    "Name detail ('full' or 'compact') or phase ('document' or 'decide'), each at most once",
+                    "Name detail ('full' or 'compact') or phase ('verify', 'document' or 'decide'), each at most once",
                 ));
             }
         }
@@ -1297,7 +1625,7 @@ fn detail(query: &str) -> Result<Detail, Failure> {
     match (phase, detail) {
         (Some(_), Some(true)) => Err(crate::plan_routes::invalid(
             "query/detail",
-            "The documenter's and the decider's bundles have no compact form",
+            "The verifier's, the documenter's and the decider's bundles have no compact form",
         )),
         (Some(phase), _) => Ok(phase),
         (None, Some(true)) => Ok(Detail::Compact),
@@ -1310,10 +1638,10 @@ fn detail(query: &str) -> Result<Detail, Failure> {
     path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md",
     operation_id = "get_context_api_projects__slug__units__number__attempts__sequence__context_md_get",
     summary = "Get Context Bundle",
-    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from; what to\nsubmit (the required artifact roles, the metrics, datasets and interfaces\nof the pinned science revision, an example manifest and run document); and\nhow the unit's earlier attempts ended, with the decisions' reasons, their\nsteering notes, questions and answers. The front matter states its size in\nbytes. `detail=compact` keeps the brief's goal, the unit, what to submit,\nthe index and the earlier attempts, capped at 16 KiB. Over MCP:\n`get_context`. `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
+    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from; what to\nsubmit (the required artifact roles, the metrics, datasets and interfaces\nof the pinned science revision, an example manifest and run document); and\nhow the unit's earlier attempts ended, with the decisions' reasons, their\nsteering notes, questions and answers. The front matter states its size in\nbytes. `detail=compact` keeps the brief's goal, the unit, what to submit,\nthe index and the earlier attempts, capped at 16 KiB. Over MCP:\n`get_context`. `phase=verify` is the\nverifier's bundle: the full bundle with, instead of what to submit, what\nthe attempt's verify job must produce (who runs which steps, the inputs,\nthe roles its manifest needs, each field of the verification report\nwith the values it must name, and an example completion). `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
     params(("slug" = String, Path), ("number" = i64, Path), ("sequence" = i64, Path),
         ("detail" = Option<String>, Query, description = "`full` (the default) or `compact`."),
-        ("phase" = Option<String>, Query, description = "`document` or `decide`: the documenter's or the decider's bundle.")),
+        ("phase" = Option<String>, Query, description = "`verify`, `document` or `decide`: the verifier's, the documenter's or the decider's bundle.")),
     responses((status = 200, description = "Successful Response", body = String, content_type = "text/markdown"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),

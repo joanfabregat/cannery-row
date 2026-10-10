@@ -192,8 +192,13 @@ async fn a_track_is_planned_reviewed_and_claimed() -> Result<()> {
     let (status, page) = call(&app, "viewer", "GET", plans, None).await?;
     assert_eq!(status, 200, "{page}");
     assert_eq!(page["items"], json!([]));
-    let (status, _) = call(&app, "viewer", "GET", &format!("{plans}/current"), None).await?;
+    let (status, missing) = call(&app, "viewer", "GET", &format!("{plans}/current"), None).await?;
     assert_eq!(status, 404);
+    assert_eq!(missing["error"]["code"], "not_found");
+    assert_eq!(
+        missing["error"]["message"],
+        "the alpha track has no plan yet: start its first revision with start_plan_revision"
+    );
     let (status, claimed) = call(
         &app,
         "agent",

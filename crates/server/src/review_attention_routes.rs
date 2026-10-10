@@ -88,19 +88,39 @@ pub(crate) async fn case_detail(
     } else {
         None
     };
+    let mut cited_verification = None;
     let verification = if let Some(id) = case.evidence_id {
         let attempt = case
             .attempt_id
             .ok_or_else(|| internal(r, "review attempt invariant"))?;
-        let (record, body, _) = Repository::new(c, s.attempts)
+        let (record, body, sha256) = Repository::new(c, s.attempts)
             .get_output_by_id(attempt, EvidenceId(id.0))
             .await
             .map_err(|_| internal(r, "review evidence"))?
             .ok_or_else(|| internal(r, "review evidence invariant"))?;
+        cited_verification = Some((id.0.to_string(), sha256));
         match record {
             StoredJson::SqlNull => None,
             StoredJson::Value(v) => Some((v, body)),
         }
+    } else {
+        None
+    };
+    // What a decision on a decision case cites: the verification report
+    // and the write-up, each by id and SHA-256, or null.
+    let cites = if case.kind == cannery_reviews::CaseKind::Decision {
+        let writeup = match (case.writeup_id, case.attempt_id) {
+            (Some(id), Some(attempt)) => {
+                let (_, sha256) = Repository::new(c, s.attempts)
+                    .get_evidence_by_id(attempt, EvidenceId(id.0))
+                    .await
+                    .map_err(|_| internal(r, "review write-up"))?
+                    .ok_or_else(|| internal(r, "review write-up invariant"))?;
+                Some((id.0.to_string(), sha256))
+            }
+            _ => None,
+        };
+        Some((cited_verification, writeup))
     } else {
         None
     };
@@ -111,6 +131,7 @@ pub(crate) async fn case_detail(
         case,
         failure,
         verification,
+        cites,
         decisions,
     };
     d.validate().map_err(|_| internal(r, "review model"))?;

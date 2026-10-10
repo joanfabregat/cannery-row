@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT h.id AS \"id!: UnitId\", h.state AS \"unit_state!\", t.slug AS \"track!\",\n               t.state AS \"track_state!\",\n               EXISTS (SELECT 1 FROM concerns c\n                       WHERE c.track_id = t.id AND c.state = 'open') AS \"concern_open!\"\n        FROM units h JOIN tracks t ON t.id = h.track_id\n        WHERE h.id = ANY($1::uuid[])\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: UnitId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "track!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "track_state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "concern_open!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "1d3eda89d4c88c6679b4ed6799088bcb67d1b1ddb1fac7aef386ac15ec1ceb39"
+}

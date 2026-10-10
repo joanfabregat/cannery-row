@@ -239,10 +239,22 @@ async fn read(
         };
         let projected =
             job_read_wire::prepare(row, state.profile.response).map_err(|_| internal(&context))?;
-        let artifacts = attempts
+        let mut artifacts = attempts
             .list_job_artifacts(row.id)
             .await
             .map_err(|_| internal(&context))?;
+        // A completed verify job's outputs are what its completion manifest
+        // lists, not every upload made under its output prefix.
+        if row.phase == repo::Phase::Verify
+            && row.state == repo::State::Completed
+            && let Some(id) = row.manifest_id
+            && let Some(manifest) = attempts
+                .get_manifest(row.attempt_id, cannery_attempts::model::ManifestId(id.0))
+                .await
+                .map_err(|_| internal(&context))?
+        {
+            crate::job_outputs::keep_listed(&manifest.content, &mut artifacts);
+        }
         output.push(
             job_read_wire::job(
                 row,

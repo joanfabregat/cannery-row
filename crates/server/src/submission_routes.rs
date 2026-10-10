@@ -180,8 +180,41 @@ async fn check_run(
     if text(&sheet, provenance, "science_revision") != Some(attempt.science_revision.to_string()) {
         return Ok(Err(invalid(
             "/provenance/science_revision",
-            "the run must use the pinned science revision",
+            &format!(
+                "the run must use the pinned science revision, \"{}\"",
+                attempt.science_revision
+            ),
         )));
+    }
+    // A control is named the way a verification report names it: its bare
+    // revision, as the unit pins it.
+    if let Some(given) = front_matter["provenance"].get("control_revision") {
+        let unit = cannery_units::repo::get_revision(
+            c,
+            attempt.unit_id,
+            &num_bigint::BigInt::from(attempt.unit_revision),
+            profile.lifecycle.units,
+        )
+        .await
+        .map_err(|_| internal(request, "submission pinned unit"))?
+        .ok_or_else(|| internal(request, "submission pinned unit missing"))?;
+        let unit = job_lifecycle::value(&unit.content, &profile.lifecycle, request)?;
+        let control = &unit["control"];
+        let revision = match &control["revision"] {
+            Value::String(text) => Some(text.clone()),
+            Value::Number(number) => Some(number.to_string()),
+            _ => None,
+        };
+        if let (Some(id), Some(revision)) = (control["id"].as_str(), revision)
+            && given.as_str() != Some(revision.as_str())
+        {
+            return Ok(Err(invalid(
+                "/provenance/control_revision",
+                &format!(
+                    "must be \"{revision}\", the revision of the unit's pinned control {id} (the bare revision, not \"{id}@{revision}\")"
+                ),
+            )));
+        }
     }
     let reference = sheet
         .field(sheet.root(), "manifest")
@@ -239,12 +272,14 @@ async fn check_run(
     }
     let raw = job_lifecycle::science(c, attempt, &profile.lifecycle, request).await?;
     let registration = job_lifecycle::value(&raw.content, &profile.lifecycle, request)?;
-    let required = registration["required_artifact_roles"]["attempt"]
-        .as_array()
-        .ok_or_else(|| internal(request, "submission required roles"))?;
+    if !registration["required_artifact_roles"]["attempt"].is_array() {
+        return Err(internal(request, "submission required roles"));
+    }
+    let required = crate::job_outputs::required_roles(&registration, "attempt");
+    let required = crate::job_outputs::names(&required);
     let missing: Vec<&str> = required
         .iter()
-        .filter_map(Value::as_str)
+        .copied()
         .filter(|role| !roles.contains(*role))
         .collect();
     if !missing.is_empty() {
@@ -252,11 +287,7 @@ async fn check_run(
             "the manifest lacks the required artifact role{} {}: a run must cite a manifest with an object of each role the science revision requires ({})",
             if missing.len() == 1 { "" } else { "s" },
             missing.join(", "),
-            required
-                .iter()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(", ")
+            required.join(", ")
         );
         return Ok(Err(DomainError::new(
             ErrorCode::ValidationFailed,

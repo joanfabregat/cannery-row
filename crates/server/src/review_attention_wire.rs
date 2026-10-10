@@ -3,8 +3,9 @@ use crate::{
     api_contract::{convert, decode, encode},
     api_models::{
         AttentionFailure, AttentionOut, AttentionOutcome, AttentionReview, AttentionRunning,
-        AttentionStalledVerification, AttentionWriteup, ReviewCasePage, VerificationDocument,
-        cannery_row__reviews__routes__FailureOut, cannery_row__reviews__routes__ReviewCaseOut,
+        AttentionStalledVerification, AttentionWriteup, RequestCommonContentRef, ReviewCaseCites,
+        ReviewCasePage, VerificationDocument, cannery_row__reviews__routes__FailureOut,
+        cannery_row__reviews__routes__ReviewCaseOut,
     },
 };
 use cannery_attention::{
@@ -37,10 +38,15 @@ fn mapping(d: &Document, p: ResponseContext) -> Result<Vec<u8>> {
     }
     model::encode_model_mapping(d, d.root(), p.inferred_nesting_budget)
 }
+/// A cited document: its id and SHA-256, or none.
+pub(crate) type Cited = Option<(String, String)>;
 pub(crate) struct CaseDetail {
     pub case: Case,
     pub failure: Option<Failure>,
     pub verification: Option<(std::sync::Arc<Document>, String)>,
+    /// A decision case's cited verification report and write-up, each its
+    /// id and SHA-256 or none; none for other cases.
+    pub cites: Option<(Cited, Cited)>,
     pub decisions: Vec<Decision>,
 }
 impl CaseDetail {
@@ -114,6 +120,18 @@ pub(crate) fn case(d: &CaseDetail, p: ResponseContext) -> Result<Vec<u8>> {
                 })
             })
             .transpose()?,
+        cites: d.cites.as_ref().map(|(verification, writeup)| {
+            let cited = |cited: &Option<(String, String)>| {
+                cited.as_ref().map(|(id, sha256)| RequestCommonContentRef {
+                    r#ref: id.clone(),
+                    sha256: sha256.clone(),
+                })
+            };
+            ReviewCaseCites {
+                verification: cited(verification),
+                writeup: cited(writeup),
+            }
+        }),
         decisions: decode(&array(d.decisions.iter().map(crate::unit_wire::decision))?)?,
     })
 }

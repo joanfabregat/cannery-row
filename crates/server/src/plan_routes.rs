@@ -478,6 +478,15 @@ async fn named_revision(
             format!("the {} plan has no revision '{name}'", track.slug),
         )
     };
+    let unplanned = || {
+        domain(
+            ErrorCode::NotFound,
+            format!(
+                "the {} track has no plan yet: start its first revision with start_plan_revision",
+                track.slug
+            ),
+        )
+    };
     let revision = match name {
         "draft" => plans::open(conn, track.id, false)
             .await
@@ -488,9 +497,12 @@ async fn named_revision(
             .map_err(track_error(context))?
         {
             Some(revision) => Some(revision),
-            None => plans::latest_revision(conn, track.id)
-                .await
-                .map_err(track_error(context))?,
+            None => Some(
+                plans::latest_revision(conn, track.id)
+                    .await
+                    .map_err(track_error(context))?
+                    .ok_or_else(unplanned)?,
+            ),
         },
         number => Some(
             number
@@ -1043,7 +1055,7 @@ pub(crate) async fn list(
     path = "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}",
     operation_id = "get_plan_api_projects__slug__tracks__track_slug__plans__revision__get",
     summary = "Get Plan",
-    description = "One revision of a track's plan with its units and alignment entries.\n`revision` is a number, `draft` (the open revision) or `current` (the\napproved plan, else the newest revision).",
+    description = "One revision of a track's plan with its units and alignment entries.\n`revision` is a number, `draft` (the open revision) or `current` (the\napproved plan, else the newest revision). A track with no plan revision\nyet answers 404: start its first revision with `start_plan_revision`.",
     params(("slug" = String, Path), ("track_slug" = String, Path), ("revision" = String, Path)),
     responses((status = 200, description = "Successful Response", body = crate::api_models::PlanOut, content_type = "application/json"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),

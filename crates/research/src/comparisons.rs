@@ -5,14 +5,14 @@ use std::collections::BTreeSet;
 #[derive(Debug, thiserror::Error)]
 pub enum ComparisonError {
     #[error("invalid comparison at {path}: {message}")]
-    Invalid { path: String, message: &'static str },
+    Invalid { path: String, message: String },
     #[error("invalid comparison input shape")]
     Shape,
 }
-fn invalid(path: &str, message: &'static str) -> ComparisonError {
+fn invalid(path: &str, message: impl Into<String>) -> ComparisonError {
     ComparisonError::Invalid {
         path: path.to_owned(),
-        message,
+        message: message.into(),
     }
 }
 fn array<'a>(value: &'a Value, key: &str) -> Result<&'a [Value], ComparisonError> {
@@ -143,7 +143,10 @@ pub fn check(science: &Value, report: &Value, verified: &Value) -> Result<(), Co
         {
             return Err(invalid(
                 &format!("{path}/value"),
-                "does not match the verified measurement",
+                format!(
+                    "must be the cited verified measurement's value, {}",
+                    expected["value"]
+                ),
             ));
         }
     }

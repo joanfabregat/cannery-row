@@ -195,7 +195,7 @@
           "$ref": "common.schema.json#/$defs/open_object"
         },
         "steps": {
-          "description": "The producer and the scorer the job verifies with. The runner executes them; an agent may run them or verify another way.",
+          "description": "The producer and the scorer the job verifies with. A runner verifier executes them; for an agent verifier they are what a runner would run, not steps it runs or outputs it produces: it checks the claims its own way and writes the verification report.",
           "type": "array",
           "minItems": 1,
           "items": {

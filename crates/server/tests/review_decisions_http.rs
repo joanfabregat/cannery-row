@@ -519,7 +519,7 @@ fn compare(
         expected_response = output(native_validation_error(r)?);
     }
     assert_eq!(
-        projected(result.2, &s.ids, &s.clocks),
+        projected(without_cites(result.2)?, &s.ids, &s.clocks),
         projected(expected_response, &BTreeMap::new(), &BTreeMap::new()),
         "response {}",
         r["name"]
@@ -565,7 +565,20 @@ fn compare(
                 r["native_response_profile"].is_null()
                     || (r["name"] == "fixed-current-other-user" && result.0 == 404)
             );
-            assert_eq!(result.3, wire, "wire {}", r["name"]);
+            let bytes = result
+                .3
+                .as_bytes()
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| Ok(u8::from_str_radix(std::str::from_utf8(pair)?, 16)?))
+                .collect::<Result<Vec<u8>>>()?;
+            assert_eq!(
+                hex(&bytes_without_cites(&bytes)?)?,
+                wire,
+                "wire {}",
+                r["name"]
+            );
         }
     }
     Ok(())
@@ -961,4 +974,78 @@ async fn off_type_verdicts_reject_and_replay(app: &Router, pool: &PgPool) -> Res
         assert_eq!(raw_storage(pool).await?, committed);
     }
     Ok(())
+}
+/// A review case response without `cites`, which the frozen corpus
+/// predates, after checking it: only a decision case states it, and each
+/// citation is null or a `{ref, sha256}` with a 64-hex digest.
+fn without_cites(mut value: Value) -> Result<Value> {
+    match &mut value {
+        Value::Object(fields) => {
+            if let Some(cites) = fields.remove("cites") {
+                assert_eq!(fields.get("kind"), Some(&json!("decision")), "{cites}");
+                let cites = cites.as_object().ok_or("cites object")?;
+                assert_eq!(cites.len(), 2, "{cites:?}");
+                for key in ["verification", "writeup"] {
+                    let document = cites.get(key).ok_or("cited document")?;
+                    if !document.is_null() {
+                        assert!(document["ref"].is_string(), "{document}");
+                        assert!(
+                            document["sha256"]
+                                .as_str()
+                                .is_some_and(|sha| sha.len() == 64
+                                    && sha.bytes().all(|b| b.is_ascii_hexdigit())),
+                            "{document}"
+                        );
+                    }
+                }
+            } else if fields.contains_key("subject_revision") && fields.contains_key("unit_ref") {
+                assert_ne!(
+                    fields.get("kind"),
+                    Some(&json!("decision")),
+                    "a decision case states cites"
+                );
+            }
+            for field in fields.values_mut() {
+                *field = without_cites(field.take())?;
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                *item = without_cites(item.take())?;
+            }
+        }
+        _ => {}
+    }
+    Ok(value)
+}
+/// The response bytes without the `,"cites":{…}` members `without_cites`
+/// drops; the object holds no braces inside its strings.
+fn bytes_without_cites(bytes: &[u8]) -> Result<Vec<u8>> {
+    let marker = b",\"cites\":{";
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i..].starts_with(marker) {
+            let mut depth = 0_usize;
+            let mut j = i + marker.len() - 1;
+            loop {
+                match bytes.get(j).ok_or("unterminated cites")? {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            i = j + 1;
+            continue;
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    Ok(out)
 }

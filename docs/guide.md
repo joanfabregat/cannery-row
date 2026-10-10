@@ -121,7 +121,7 @@ The science revision is the project's rules, as one immutable JSON document (`sc
 | `scorer` | The project's one scorer step manifest (`role: scorer`), shared by every track so metrics are computed identically. |
 | `default_producer` | `{name, revision}` of the producer a track without its own binding uses. Register it right after the revision. |
 | `code_repositories` | `{"candidate": [...], "trusted": [...]}`: the GitHub repositories (`owner/name`) steps may run code from, per trust class. A class not listed runs no repository code. |
-| `required_artifact_roles` | `{"attempt": [...], "verify": [...]}`: roles a submission's manifest and a verify job's output manifest must include. |
+| `required_artifact_roles` | `{"attempt": [...], "verify": [...]}`: roles a submission's manifest and a verify job's output manifest must include. Each entry is a role name, or `{"role": ..., "description": ...}` saying what goes in it, which the context bundles and job claims show the performer. |
 | `limits` | `resource_ceilings` (per step; a step may only ask for a resource that has a ceiling, so list `nvidia.com/gpu` for GPU steps), `max_deadline_seconds` (every step's and setup's deadline must fit it; also the time a runner verify job keeps for its policy and the whole deadline of an agent verify job, one hour when unset), `report_max_bytes` (the body of a run document or a verification report, at most 1 MiB), `max_output_bytes`. |
 | `max_auto_retries` | Automatic reruns of a failed verify job (and requeues of a failed runner-driven experiment) before a human failure review. Default 1. |
 | `retention`, `result_extensions` | Optional. |

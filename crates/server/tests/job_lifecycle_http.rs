@@ -503,7 +503,7 @@ async fn rerun_budget(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     );
     assert_eq!(
         value["error"]["message"],
-        "must match the registered verifier's policy revision; another run was queued"
+        "must be the registered verifier's policy revision, \"policy-1\"; another run was queued"
     );
     let (id,origin,previous):(uuid::Uuid,String,uuid::Uuid)=sqlx::query_as("SELECT id,origin,previous_run_id FROM jobs WHERE attempt_id='00000000-0000-0000-0000-000000002405' AND run_number=2").fetch_one(pool).await?;
     assert_eq!(origin, "auto_retry");
@@ -656,7 +656,7 @@ INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha
 INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006108',project_id,'00000000-0000-0000-0000-000000002406','verify',1,'claimed',3,'agent',NULL,jsonb_set((spec-'verifier')||'{"performer":"agent"}','{inputs,run,ref}','"00000000-0000-0000-0000-000000003406"'),600,'00000000-0000-0000-0000-000000000020','api',1,sha256(convert_to('agent-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006006';
 "#).execute(pool).await?;
     // An agent's invalid report is refused, and the agent keeps the lease to correct it.
-    let mut front_matter = verification("agent-checklist-1", true);
+    let mut front_matter = verification("3", true);
     front_matter["provenance"]["science_revision"] = json!("4");
     let invalid = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","document":report(&front_matter)});
     let (status, value, _) = call(
@@ -672,11 +672,32 @@ INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revisio
     assert_eq!(status, 422, "{value}");
     assert_eq!(
         value["error"]["message"],
-        "must match the job's pinned science revision"
+        "must be the job's pinned science revision, \"3\""
+    );
+    // An agent's report names its pinned science revision as its policy
+    // revision, and a refusal says so.
+    let invalid = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","document":report(&verification("agent-checklist-1", true))});
+    let (status, value, _) = call(
+        app,
+        "completion",
+        "agent",
+        "agent-held",
+        "1",
+        &invalid,
+        Some("agent-invalid-policy"),
+    )
+    .await?;
+    assert_eq!(status, 422, "{value}");
+    assert_eq!(value["error"]["details"][0]["path"], "/policy_revision");
+    assert!(
+        value["error"]["message"]
+            .as_str()
+            .is_some_and(|message| message.starts_with("must be \"3\"")),
+        "{value}"
     );
     let kept:(String,String,i64,i64)=sqlx::query_as("SELECT j.state,a.state,(SELECT count(*) FROM jobs WHERE attempt_id=a.id),(SELECT count(*) FROM attempt_failures WHERE attempt_id=a.id) FROM jobs j JOIN attempts a ON a.id=j.attempt_id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
     assert_eq!(kept, ("claimed".into(), "verifying".into(), 1, 0));
-    let record = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","document":report(&verification("agent-checklist-1", true))});
+    let record = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","document":report(&verification("3", true))});
     let (first, second) = tokio::join!(
         call(
             app,
@@ -726,7 +747,7 @@ INSERT INTO attempts(id,project_id,unit_id,sequence,state,unit_revision,science_
 INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003416','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002416','agent','completed','{"provenance":{"source_revision":"source-1"}}',repeat('a',64),'00000000-0000-0000-0000-000000000020','api');
 INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_user,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006118',project_id,'00000000-0000-0000-0000-000000002416','verify',1,'claimed',5,'agent',NULL,jsonb_set(spec,'{inputs,run,ref}','"00000000-0000-0000-0000-000000003416"'),600,'00000000-0000-0000-0000-000000000002','api',1,sha256(convert_to('researcher-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006108';
 "#).execute(pool).await?;
-    let mut front_matter = verification("reviewer-checklist-2", true);
+    let mut front_matter = verification("5", true);
     front_matter["provenance"]["science_revision"] = json!("5");
     front_matter["measurements"] = json!([{"metric":"mrr","split":"dev","dimensions":{},"authority":"tester_verified","value":0.42,"unit":"ratio","direction":"higher"}]);
     front_matter["comparisons"] = json!([{"metric":"mrr","split":"dev","dimensions":{},"source":"tester","value":0.42,"reference":{"value":0.4,"label":"baseline","kind":"baseline"}}]);

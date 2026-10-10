@@ -83,6 +83,74 @@ fn raw(hex: &str) -> Result<Vec<u8>> {
         .map(|v| Ok(u8::from_str_radix(std::str::from_utf8(v)?, 16)?))
         .collect()
 }
+/// A unit response without `claimable` and `claimable_reason`, which the
+/// frozen corpus predates, after checking that they agree: a unit is
+/// claimable exactly when no reason is given, and one that is not queued
+/// never is.
+fn without_claimability(mut value: Value) -> Result<Value> {
+    match &mut value {
+        Value::Object(fields) => {
+            if let Some(claimable) = fields.remove("claimable") {
+                let reason = fields
+                    .remove("claimable_reason")
+                    .ok_or("claimable_reason")?;
+                assert_eq!(claimable.as_bool(), Some(reason.is_null()), "{reason}");
+                if fields.get("state").and_then(Value::as_str) != Some("queued") {
+                    assert_eq!(claimable, json!(false));
+                    assert!(
+                        reason
+                            .as_str()
+                            .is_some_and(|reason| reason.starts_with("the unit is ")),
+                        "{reason}"
+                    );
+                }
+            }
+            for field in fields.values_mut() {
+                *field = without_claimability(field.take())?;
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                *item = without_claimability(item.take())?;
+            }
+        }
+        _ => {}
+    }
+    Ok(value)
+}
+/// The response bytes without the claimability fields
+/// `without_claimability` drops, which the serializer writes as
+/// `,"claimable":<bool>,"claimable_reason":<null or string>`.
+fn wire_without_claimability(hex_bytes: &str) -> Result<String> {
+    let bytes = raw(hex_bytes)?;
+    let marker = b",\"claimable\":";
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i..].starts_with(marker) {
+            let reason = b",\"claimable_reason\":";
+            let start = i
+                + bytes[i..]
+                    .windows(reason.len())
+                    .position(|w| w == reason)
+                    .ok_or("claimable_reason bytes")?
+                + reason.len();
+            i = if bytes[start..].starts_with(b"null") {
+                start + 4
+            } else {
+                let mut j = start + 1;
+                while bytes[j] != b'"' {
+                    j += if bytes[j] == b'\\' { 2 } else { 1 };
+                }
+                j + 1
+            };
+            continue;
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    Ok(hex(&out))
+}
 async fn call(app: &Router, recipe: &Value) -> Result<(u16, Option<String>, Value, String)> {
     let mut request = Request::builder()
         .method(recipe["method"].as_str().ok_or("method")?)
@@ -353,7 +421,7 @@ async fn units_match_production() -> Result<()> {
         assert_eq!(json!(allow), r["allow"], "allow {}", r["id"]);
         let (ids, stored) = storage(&state.pool).await?;
         assert_eq!(
-            canonical(output, &ids),
+            canonical(without_claimability(output)?, &ids),
             canonical(r["output"].clone(), &BTreeMap::new()),
             "body {}",
             r["id"]
@@ -381,7 +449,12 @@ async fn units_match_production() -> Result<()> {
                 assert!(!text.contains("\\u00e9"));
                 assert!(serde_json::from_slice::<Value>(&raw(expected)?).is_ok());
             } else {
-                assert_eq!(wire, expected, "model bytes {}", r["id"]);
+                assert_eq!(
+                    wire_without_claimability(&wire)?,
+                    expected,
+                    "model bytes {}",
+                    r["id"]
+                );
             }
         }
     }

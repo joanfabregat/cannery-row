@@ -135,19 +135,20 @@
       "additionalProperties": false
     },
     "required_artifact_roles": {
+      "description": "The roles each manifest must have an object of: a role's name, or the role with a description of what goes in it, which the context bundles and job claims show to whoever produces it.",
       "type": "object",
       "properties": {
         "attempt": {
           "description": "Roles a submission's artifact manifest must include.",
           "type": "array",
           "uniqueItems": true,
-          "items": {"$ref": "common.schema.json#/$defs/name"}
+          "items": {"$ref": "#/$defs/required_role"}
         },
         "verify": {
           "description": "Roles a verify job's output manifest must include.",
           "type": "array",
           "uniqueItems": true,
-          "items": {"$ref": "common.schema.json#/$defs/name"}
+          "items": {"$ref": "#/$defs/required_role"}
         }
       },
       "required": ["attempt", "verify"],
@@ -210,6 +211,21 @@
   ],
   "additionalProperties": false,
   "$defs": {
+    "required_role": {
+      "description": "A required artifact role: its name, or `{role, description}` with what an object of that role holds.",
+      "oneOf": [
+        {"$ref": "common.schema.json#/$defs/name"},
+        {
+          "type": "object",
+          "properties": {
+            "role": {"$ref": "common.schema.json#/$defs/name"},
+            "description": {"$ref": "common.schema.json#/$defs/text"}
+          },
+          "required": ["role", "description"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "metric": {
       "type": "object",
       "properties": {

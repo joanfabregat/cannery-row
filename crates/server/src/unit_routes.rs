@@ -158,7 +158,13 @@ pub(crate) async fn detail(
     let backlinks = repo::backlinks(c, h.id, s.repository)
         .await
         .map_err(|_| internal(r, "unit backlinks"))?;
+    let unclaimable = crate::unit_claimability::reasons(c, &[h.id])
+        .await
+        .map_err(|_| internal(r, "unit claimability"))?
+        .remove(&h.id)
+        .ok_or_else(|| internal(r, "unit claimability invariant"))?;
     let d = Detail {
+        unclaimable,
         unit: h,
         revision,
         project: project.slug.clone(),
@@ -254,8 +260,14 @@ async fn reading(
         } else {
             None
         };
+        let unclaimable = crate::unit_claimability::reasons(
+            &mut auth.connection,
+            &rows.iter().map(|h| h.id).collect::<Vec<_>>(),
+        )
+        .await
+        .map_err(|_| internal(&c, "unit claimability"))?;
         return Ok(response(
-            unit_wire::summaries(&rows, next, s.context.response)
+            unit_wire::summaries(&rows, &unclaimable, next, s.context.response)
                 .map_err(|_| internal(&c, "unit page serialization"))?,
         ));
     }

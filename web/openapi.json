@@ -10500,7 +10500,7 @@
     "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}": {
       "get": {
         "summary": "Get Plan",
-        "description": "One revision of a track's plan with its units and alignment entries.\n`revision` is a number, `draft` (the open revision) or `current` (the\napproved plan, else the newest revision).",
+        "description": "One revision of a track's plan with its units and alignment entries.\n`revision` is a number, `draft` (the open revision) or `current` (the\napproved plan, else the newest revision). A track with no plan revision\nyet answers 404: start its first revision with `start_plan_revision`.",
         "operationId": "get_plan_api_projects__slug__tracks__track_slug__plans__revision__get",
         "parameters": [
           {
@@ -11878,7 +11878,7 @@
     "/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md": {
       "get": {
         "summary": "Get Context Bundle",
-        "description": "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from; what to\nsubmit (the required artifact roles, the metrics, datasets and interfaces\nof the pinned science revision, an example manifest and run document); and\nhow the unit's earlier attempts ended, with the decisions' reasons, their\nsteering notes, questions and answers. The front matter states its size in\nbytes. `detail=compact` keeps the brief's goal, the unit, what to submit,\nthe index and the earlier attempts, capped at 16 KiB. Over MCP:\n`get_context`. `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
+        "description": "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from; what to\nsubmit (the required artifact roles, the metrics, datasets and interfaces\nof the pinned science revision, an example manifest and run document); and\nhow the unit's earlier attempts ended, with the decisions' reasons, their\nsteering notes, questions and answers. The front matter states its size in\nbytes. `detail=compact` keeps the brief's goal, the unit, what to submit,\nthe index and the earlier attempts, capped at 16 KiB. Over MCP:\n`get_context`. `phase=verify` is the\nverifier's bundle: the full bundle with, instead of what to submit, what\nthe attempt's verify job must produce (who runs which steps, the inputs,\nthe roles its manifest needs, each field of the verification report\nwith the values it must name, and an example completion). `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
         "operationId": "get_context_api_projects__slug__units__number__attempts__sequence__context_md_get",
         "parameters": [
           {
@@ -11919,7 +11919,7 @@
           {
             "name": "phase",
             "in": "query",
-            "description": "`document` or `decide`: the documenter's or the decider's bundle.",
+            "description": "`verify`, `document` or `decide`: the verifier's, the documenter's or the decider's bundle.",
             "required": false,
             "schema": {
               "type": "string"
@@ -16603,6 +16603,26 @@
         },
         "additionalProperties": false
       },
+      "ArtifactRoleOut": {
+        "type": "object",
+        "description": "An artifact role a science revision requires, with what goes in it.",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What an object of this role holds, when the science revision says."
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "AttemptDetail": {
         "type": "object",
         "required": [
@@ -19774,6 +19794,7 @@
           "job",
           "attempt_ref",
           "heartbeat_seconds",
+          "output",
           "protocol"
         ],
         "properties": {
@@ -19808,6 +19829,10 @@
           },
           "job": {
             "$ref": "#/components/schemas/ClaimedJobDocument"
+          },
+          "output": {
+            "$ref": "#/components/schemas/JobOutputGuide",
+            "description": "What `complete_job` takes for this job: its document's contract, the\nroles its manifest needs and, for a verify job, the values its\nreport must name, all from the job's pinned science revision."
           },
           "plan": {
             "oneOf": [
@@ -20233,6 +20258,45 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobOutputGuide": {
+        "type": "object",
+        "description": "What `complete_job` takes for a claimed job.",
+        "required": [
+          "document",
+          "manifest",
+          "required_roles"
+        ],
+        "properties": {
+          "document": {
+            "type": "string",
+            "description": "The contract of the completion's `document` (`get_schema` name):\n`verification` for a verify job, `writeup` for a document job,\n`decision` for a decide job.",
+            "pattern": "^(verification|writeup|decision)$"
+          },
+          "expected": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VerificationExpected",
+                "description": "The values a verify job's report must name; absent for other jobs."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest": {
+            "type": "boolean",
+            "description": "Whether the completion carries a `manifest` of the job's uploads: a\nverify job's does (only the uploads it lists count as the job's\noutputs); a document or decide job's never."
+          },
+          "required_roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRoleOut"
+            },
+            "description": "The roles the completion's manifest needs an object of, from the\nscience revision's `required_artifact_roles.verify`; empty when it\nneeds none."
           }
         },
         "additionalProperties": false
@@ -23238,6 +23302,39 @@
           "inconclusive"
         ]
       },
+      "ReviewCaseCites": {
+        "type": "object",
+        "description": "The documents a decision on a decision case cites, each by id and\nSHA-256, as `make_decision` takes them in `verification` and `writeup`.",
+        "required": [
+          "verification",
+          "writeup"
+        ],
+        "properties": {
+          "verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RequestCommonContentRef",
+                "description": "The verification report the case is about; null when it has none."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "writeup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RequestCommonContentRef",
+                "description": "The write-up; null when the document phase was skipped."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "ReviewCasePage": {
         "type": "object",
         "required": [
@@ -23652,6 +23749,22 @@
         },
         "additionalProperties": false
       },
+      "ScienceRevisionRequestDescribedRole": {
+        "type": "object",
+        "required": [
+          "role",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "ScienceRevisionRequestLimits": {
         "type": "object",
         "required": [
@@ -23694,17 +23807,28 @@
           "attempt": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ScienceRevisionRequestRequiredRole"
             }
           },
           "verify": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ScienceRevisionRequestRequiredRole"
             }
           }
         },
         "additionalProperties": false
+      },
+      "ScienceRevisionRequestRequiredRole": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/components/schemas/ScienceRevisionRequestDescribedRole"
+          }
+        ],
+        "description": "A required artifact role: its name, or the role with a description of\nwhat an object of that role holds."
       },
       "ScienceRevisionRequestRetentionItem": {
         "type": "object",
@@ -25144,6 +25268,7 @@
         "properties": {
           "compute_budget": {
             "type": "object",
+            "description": "Upper bounds named `<resource>_max`: conventionally `gpu_hours_max`,\n`cpu_hours_max`, `wall_clock_hours_max` and `cost_usd_max`; any\nother snake-case `<resource>_max` is accepted.",
             "additionalProperties": {
               "type": "number",
               "format": "double"
@@ -25321,6 +25446,8 @@
           "source_ref",
           "external_id",
           "imported",
+          "claimable",
+          "claimable_reason",
           "id",
           "project",
           "document",
@@ -25349,6 +25476,17 @@
             "items": {
               "$ref": "#/components/schemas/LinkOut"
             }
+          },
+          "claimable": {
+            "type": "boolean",
+            "description": "Whether `claim_unit` could claim the unit now: it is queued, its\ntrack is active and no concern is open on the track. A claim also\nneeds the caller's mode to match the track's."
+          },
+          "claimable_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the unit cannot be claimed now; null when it can."
           },
           "created_at": {
             "type": "string",
@@ -25663,7 +25801,9 @@
           "origin",
           "source_ref",
           "external_id",
-          "imported"
+          "imported",
+          "claimable",
+          "claimable_reason"
         ],
         "properties": {
           "approved_at": {
@@ -25679,6 +25819,17 @@
               "null"
             ],
             "format": "int64"
+          },
+          "claimable": {
+            "type": "boolean",
+            "description": "Whether `claim_unit` could claim the unit now: it is queued, its\ntrack is active and no concern is open on the track. A claim also\nneeds the caller's mode to match the track's."
+          },
+          "claimable_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the unit cannot be claimed now; null when it can."
           },
           "created_at": {
             "type": "string",
@@ -25994,6 +26145,49 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VerificationExpected": {
+        "type": "object",
+        "description": "The values a verify job's verification report must name.",
+        "required": [
+          "policy_revision",
+          "science_revision",
+          "source_revision",
+          "control_revision",
+          "dataset_revisions"
+        ],
+        "properties": {
+          "control_revision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`provenance.control_revision`: the revision of the unit's pinned\ncontrol, bare (`r1`, not `popularity@r1`); null when the unit has\nno control, and the report then leaves it out."
+          },
+          "dataset_revisions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`provenance.dataset_revision` names one of these; empty when the\nscorer reads no registered dataset, and the report then leaves it\nout."
+          },
+          "policy_revision": {
+            "type": "string",
+            "description": "`policy_revision`: a runner's registered policy revision (the job's\n`verifier.revision`); for an agent verify job, the pinned science\nrevision, which registers agent verification."
+          },
+          "science_revision": {
+            "type": "string",
+            "description": "`provenance.science_revision`: the job's pinned science revision."
+          },
+          "source_revision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`provenance.source_revision`: the run's own."
           }
         },
         "additionalProperties": false
@@ -26520,6 +26714,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "cites": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ReviewCaseCites",
+                "description": "On a decision case, what a decision cites. Absent on a failure case."
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "decisions": {

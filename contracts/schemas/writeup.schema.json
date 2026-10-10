@@ -3,7 +3,7 @@
   "$id": "https://cannery-row.invalid/schemas/0.2/writeup.schema.json",
   "$comment": "SPDX-License-Identifier: Apache-2.0",
   "title": "Write-up front matter",
-  "description": "The front matter of a write-up, whose Markdown is the document's body. A unit's write-up covers every attempt, failed ones included, and cites the verification report it reports on: the summary is the one sentence its page opens with. An imported write-up is the retrospective report of an imported attempt, with who wrote it and when.",
+  "description": "The front matter of a write-up, whose Markdown is the document's body. A unit's write-up covers every attempt, failed ones included, and cites the verification report it reports on: the summary is the one sentence its page opens with. An imported write-up is the retrospective report of an imported attempt, with who wrote it and when: a documenter, agent or researcher, always writes the first variant, `Write-up`, and only imports use `Imported write-up`.",
   "oneOf": [
     {
       "title": "Write-up",
