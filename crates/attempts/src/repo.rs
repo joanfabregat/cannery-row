@@ -904,7 +904,10 @@ impl<'a> Repository<'a> {
         if !is_open(attempt.state) {
             return Err(AttemptError::Conflict);
         }
-        if matches!(attempt.state, State::Claimed | State::Running) {
+        if matches!(
+            attempt.state,
+            State::Claimed | State::Running | State::WaitingOnHuman
+        ) {
             self.end_lease(attempt.id, "failed").await?;
         } else {
             self.move_attempt(attempt.id, state, "failed").await?;
@@ -1021,7 +1024,10 @@ fn channel(channel: Channel) -> &'static str {
     }
 }
 fn is_open(state: State) -> bool {
-    matches!(state, State::Claimed | State::Running | State::Verifying)
+    matches!(
+        state,
+        State::Claimed | State::Running | State::WaitingOnHuman | State::Verifying
+    )
 }
 fn truthy(value: &StoredJson) -> bool {
     match value {

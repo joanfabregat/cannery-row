@@ -45,6 +45,8 @@ const unitState = {
 const attemptState = {
   claimed: s("Started", "info", "progress"),
   running: s("Running", "info", "progress"),
+  // A blocking question stopped its lease clock until a researcher answers.
+  waiting_on_human: s("Waiting for an answer", "attention", "paused"),
   verifying: s("Verifying", "info", "progress"),
   verified: s("Verified", "success", "verified"),
   failed: s("Failed", "danger", "failure"),
@@ -133,6 +135,13 @@ const concern = {
   dismissed: s("Dismissed", "neutral", "stopped"),
 };
 
+/** A performer's question about its unit. */
+const question = {
+  open: s("Waiting for an answer", "attention", "waiting"),
+  answered: s("Answered", "success", "success"),
+  escalated: s("Raised as a concern", "neutral", "review"),
+};
+
 const token = {
   active: s("Active", "success", "success"),
   expired: s("Expired", "neutral", "stopped"),
@@ -157,6 +166,7 @@ export const statusDomains = {
   writeup,
   decision,
   concern,
+  question,
   token,
   account,
 } satisfies Record<string, Record<string, StatusMeta>>;
@@ -206,6 +216,18 @@ export const labels = {
     verification: "Verification report",
     decision_reason: "Decision reason",
     comment: "Comment",
+    message: "Question or steering note",
+  },
+  /** What happened at one point of an agent's transcript. */
+  transcriptKind: {
+    assistant: "Agent",
+    user: "Prompt",
+    tool_call: "Tool call",
+    tool_result: "Tool result",
+    note: "Note",
+    question: "Question",
+    answer: "Answer",
+    steer: "Steering note",
   },
   searchFacet: {
     kind: "Type",

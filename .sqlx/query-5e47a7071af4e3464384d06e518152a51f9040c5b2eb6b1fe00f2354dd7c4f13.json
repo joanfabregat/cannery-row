@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE attempts SET state = 'waiting_on_human', started_at = coalesce(started_at, now())\n        WHERE id = $1 AND state IN ('claimed', 'running', 'waiting_on_human')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5e47a7071af4e3464384d06e518152a51f9040c5b2eb6b1fe00f2354dd7c4f13"
+}

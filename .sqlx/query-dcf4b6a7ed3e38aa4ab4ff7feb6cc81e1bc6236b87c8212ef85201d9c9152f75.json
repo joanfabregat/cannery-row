@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id AS \"id: Uuid\",coalesce(deadline<=now(),false) AS \"deadline_passed!\" FROM jobs WHERE id=$1 AND state='claimed' AND (lease_expires_at<=now() OR deadline<=now()) FOR UPDATE SKIP LOCKED",
+  "query": "SELECT id AS \"id: Uuid\",coalesce(deadline<=now(),false) AS \"deadline_passed!\" FROM jobs WHERE id=$1 AND state='claimed' AND NOT EXISTS (SELECT 1 FROM lease_pauses p WHERE p.job_id=jobs.id) AND (lease_expires_at<=now() OR deadline<=now()) FOR UPDATE SKIP LOCKED",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       null
     ]
   },
-  "hash": "976c19e99450fd3f14122f1b81d4b3dd10665a2f026087aedd5fbba345888c8c"
+  "hash": "dcf4b6a7ed3e38aa4ab4ff7feb6cc81e1bc6236b87c8212ef85201d9c9152f75"
 }

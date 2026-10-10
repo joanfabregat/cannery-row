@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!: MessageId\", acknowledged_at IS NOT NULL AS \"done!\"\n        FROM messages WHERE project_id = $1 AND id = ANY($2::uuid[])",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: MessageId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "done!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "dc98dd3801b74a32c2a27c49b09f216fc4ee91773130350b59324b970e2af5fd"
+}

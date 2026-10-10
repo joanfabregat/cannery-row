@@ -26,7 +26,7 @@ macro_rules! domain {
 domain!(Stage {Agent=>"agent",Verification=>"verification"});
 domain!(Status {Completed=>"completed",Failed=>"failed"});
 domain!(Origin {Live=>"live",Imported=>"imported"});
-domain!(AttemptState {Claimed=>"claimed",Running=>"running",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+domain!(AttemptState {Claimed=>"claimed",Running=>"running",WaitingOnHuman=>"waiting_on_human",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 domain!(ImportedKind {Retrospective=>"retrospective"});
 /// Calibrated source decoder profile; no universal native default is inferred.
 #[derive(Clone, Copy, Debug)]

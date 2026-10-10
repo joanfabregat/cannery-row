@@ -1991,7 +1991,7 @@
   {
     "name": "heartbeat_attempt",
     "title": "Extend an attempt's lease",
-    "description": "Extend the claimed attempt's lease.",
+    "description": "Extend the claimed attempt's lease, and read the answers and steering notes you have not acknowledged (answers, steering): act on them, then ack_steering. While a blocking question waits (waiting_on_human), the lease clock is stopped and a heartbeat changes nothing.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2526,7 +2526,7 @@
   {
     "name": "heartbeat_job",
     "title": "Extend a job's lease",
-    "description": "Extend the claimed job's lease.",
+    "description": "Extend the claimed job's lease, and read the answers to your questions you have not acknowledged (answers). While a blocking question waits (waiting_on_human), the lease clock is stopped.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3760,7 +3760,8 @@
             "verification",
             "writeup",
             "decision_reason",
-            "comment"
+            "comment",
+            "message"
           ],
           "type": "string"
         },
@@ -4450,6 +4451,832 @@
     },
     "annotations": {
       "title": "Query verification comparisons",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "ask",
+    "title": "Ask a question about your unit",
+    "description": "Ask a researcher a question about the unit under your attempt's lease (agent mode). A blocking question stops your lease clock until it is answered: wait with wait_for_answer or keep heartbeating, and do nothing else on the attempt meanwhile. A non-blocking question states the default you proceed on until it is answered (default is required). Raise a concern instead when the track's plan itself is wrong.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Unit number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the unit (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "lease_token": {
+          "description": "The lease token the claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The lease generation the claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "body": {
+          "description": "What you need, as Markdown.",
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "blocking": {
+          "description": "Whether you stop until it is answered.",
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What you assume and proceed on until answered; required when the question does not block.",
+          "title": "Default"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "lease_token",
+        "lease_generation",
+        "body",
+        "blocking"
+      ],
+      "title": "Ask",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Ask a question about your unit",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "ask_job",
+    "title": "Ask a question about your job's unit",
+    "description": "Ask a researcher a question about the unit under your job's lease, as ask does for an attempt. A blocking question stops the job's lease clock until it is answered; a non-blocking one states the default you proceed on.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "lease_token": {
+          "description": "The job lease token the job claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The job lease generation the job claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "body": {
+          "description": "What you need, as Markdown.",
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "blocking": {
+          "description": "Whether you stop until it is answered.",
+          "title": "Blocking",
+          "type": "boolean"
+        },
+        "default": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What you assume and proceed on until answered; required when the question does not block.",
+          "title": "Default"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project",
+        "job_id",
+        "lease_token",
+        "lease_generation",
+        "body",
+        "blocking"
+      ],
+      "title": "AskJob",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Ask a question about your job's unit",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_questions",
+    "title": "List questions",
+    "description": "The questions performers asked about the project's units, newest first, with their answers: of one track when track is given, in one state when state is given (open ones wait for a researcher).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "track": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Track slug.",
+          "title": "Track"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "enum": [
+                "open",
+                "answered",
+                "escalated"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "State"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue before this question.",
+          "title": "Before"
+        },
+        "limit": {
+          "default": 50,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ListQuestions",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List questions",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_question",
+    "title": "Read a question",
+    "description": "One question: who asked it, under which attempt or job, whether it blocks, the default it proceeds on, and its answer once given.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "question_id": {
+          "format": "uuid",
+          "title": "Question Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "question_id"
+      ],
+      "title": "GetQuestion",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Read a question",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "wait_for_answer",
+    "title": "Wait for an answer",
+    "description": "Wait up to wait seconds (default 30, at most 60) for a question to be answered or escalated, then return it with its answer, or with answer null when the wait ran out: call again. An answer to your own question is acknowledged as it is returned.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "question_id": {
+          "format": "uuid",
+          "title": "Question Id",
+          "type": "string"
+        },
+        "wait": {
+          "default": 30,
+          "description": "Seconds to wait for the answer.",
+          "maximum": 60,
+          "minimum": 0,
+          "title": "Wait",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "question_id"
+      ],
+      "title": "WaitForAnswer",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Wait for an answer",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "answer_question",
+    "title": "Answer a question",
+    "description": "Answer an open question, as Markdown (researchers). The performer reads it with wait_for_answer or in its next heartbeat; a blocking question's attempt or job gets a fresh lease and runs on.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "question_id": {
+          "format": "uuid",
+          "title": "Question Id",
+          "type": "string"
+        },
+        "body": {
+          "description": "The answer, as Markdown.",
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "question_id",
+        "body"
+      ],
+      "title": "AnswerQuestion",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Answer a question",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "escalate_question",
+    "title": "Escalate a question into a concern",
+    "description": "Turn an open question into a concern about the plan of its unit's track (researchers): the concern takes the kind and the note and quotes the question, and blocks new claims on the track until a plan revision answers it or it is dismissed. The note answers the question.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "question_id": {
+          "format": "uuid",
+          "title": "Question Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "wrong_assumption",
+            "better_idea",
+            "blocker",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "note": {
+          "description": "Why the question is about the plan, as Markdown.",
+          "maxLength": 8000,
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "question_id",
+        "kind",
+        "note"
+      ],
+      "title": "EscalateQuestion",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Escalate a question into a concern",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_steering",
+    "title": "Read steering notes",
+    "description": "The steering notes researchers posted to an attempt, oldest first; only those not yet acknowledged with pending true. Your heartbeat responses carry the same unacknowledged notes.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Unit number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the unit (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "pending": {
+          "default": false,
+          "description": "Only notes not yet acknowledged.",
+          "title": "Pending",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence"
+      ],
+      "title": "GetSteering",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Read steering notes",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "post_steering",
+    "title": "Steer a running attempt",
+    "description": "Post a steering note to a running agent-mode attempt, unasked, as Markdown (researchers). The agent reads it in its next heartbeat or with get_steering and acknowledges it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Unit number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the unit (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "body": {
+          "description": "The note, as Markdown.",
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "body"
+      ],
+      "title": "PostSteering",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Steer a running attempt",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "ack_steering",
+    "title": "Acknowledge steering notes and answers",
+    "description": "Acknowledge the steering notes and answers you have read, by id, once you act on them; heartbeat responses stop carrying them. Acknowledging twice is harmless.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "minItems": 1,
+          "title": "Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "project",
+        "ids"
+      ],
+      "title": "AckSteering",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Acknowledge steering notes and answers",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_messages",
+    "title": "List a unit's questions and steering",
+    "description": "The questions, answers and steering notes of a unit, newest first: of one attempt when attempt (its sequence) is given.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Unit number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "attempt": {
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Attempt sequence within the unit (#12.3 is 3).",
+          "title": "Attempt"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue before this message.",
+          "title": "Before"
+        },
+        "limit": {
+          "default": 50,
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "ListMessages",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List a unit's questions and steering",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "append_transcript",
+    "title": "Append to your transcript",
+    "description": "Append events to your attempt's transcript under its lease (agent mode), as you go: each event is {ts, kind, content} with kind assistant, user, tool_call, tool_result, note, question, answer or steer (transcript.schema.json), at most 1000 per call. Redact secrets first. Submitting the attempt seals the transcript; an append over the project's transcript_max_bytes is refused with its size and the limit.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Unit number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the unit (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "lease_token": {
+          "description": "The lease token the claim returned.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Lease Token",
+          "type": "string"
+        },
+        "lease_generation": {
+          "description": "The lease generation the claim returned.",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Lease Generation",
+          "type": "integer"
+        },
+        "events": {
+          "items": {
+            "type": "object"
+          },
+          "maxItems": 1000,
+          "minItems": 1,
+          "title": "Events",
+          "type": "array"
+        },
+        "idempotency_key": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
+          "title": "Idempotency Key"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence",
+        "lease_token",
+        "lease_generation",
+        "events"
+      ],
+      "title": "AppendTranscript",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Append to your transcript",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_transcript",
+    "title": "Read an attempt's transcript",
+    "description": "A page of an attempt's transcript, oldest event first, from the event after after (an index from 0); next_after names where the next page starts while more wait, and a running attempt is followed by asking again after the last index read. sealed says whether the attempt was submitted.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Unit number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the unit (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "after": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Continue after this event index.",
+          "title": "After"
+        },
+        "limit": {
+          "default": 200,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence"
+      ],
+      "title": "GetTranscript",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Read an attempt's transcript",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,

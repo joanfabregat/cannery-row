@@ -134,6 +134,8 @@ pub enum AttemptState {
     Claimed,
     #[serde(rename = "running")]
     Running,
+    #[serde(rename = "waiting_on_human")]
+    WaitingOnHuman,
     #[serde(rename = "verifying")]
     Verifying,
     #[serde(rename = "verified")]
@@ -788,6 +790,221 @@ pub struct Page_ConcernOut_UUID_ {
     pub next_before: Option<String>,
 }
 
+/// A question about a unit from the performer of one of its phases. A
+/// blocking one stops the performer's lease clock until a researcher
+/// answers it; a non-blocking one names the default the performer
+/// proceeds on meanwhile.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct QuestionAsk {
+    /// What the performer needs, as Markdown.
+    #[schema(min_length = 1, max_length = 16384)]
+    pub body: String,
+    pub blocking: bool,
+    /// What the performer assumes and proceeds on until answered; required
+    /// when the question does not block.
+    #[serde(default)]
+    #[schema(min_length = 1, max_length = 4000)]
+    pub default: Option<String>,
+}
+
+/// A researcher's answer to a question, as Markdown.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AnswerIn {
+    #[schema(min_length = 1, max_length = 16384)]
+    pub body: String,
+}
+
+/// Escalate a question into a concern about its track's plan: the concern's
+/// kind and a note, which also answers the question.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EscalationIn {
+    #[schema(pattern = "^(wrong_assumption|better_idea|blocker|other)$")]
+    pub kind: String,
+    #[schema(min_length = 1, max_length = 8000)]
+    pub note: String,
+}
+
+/// A researcher's steering note to a running attempt, as Markdown.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SteeringIn {
+    #[schema(min_length = 1, max_length = 16384)]
+    pub body: String,
+}
+
+/// Answers and steering notes the performer has read.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AcknowledgementIn {
+    #[schema(min_items = 1, max_items = 200)]
+    pub ids: Vec<String>,
+}
+
+/// The messages newly acknowledged.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AcknowledgementOut {
+    pub acknowledged: Vec<String>,
+}
+
+/// The answer to a question.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct QuestionAnswerOut {
+    #[schema(format = "uuid")]
+    pub id: String,
+    pub body: String,
+    #[schema(format = "uuid")]
+    pub author: String,
+    #[schema(required = true)]
+    pub author_name: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+    #[schema(format = "date-time", required = true)]
+    pub acknowledged_at: Option<String>,
+}
+
+/// A question, an answer or a steering note about a unit, who wrote it and
+/// where it stands.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MessageOut {
+    #[schema(format = "uuid")]
+    pub id: String,
+    pub track: String,
+    pub unit: i64,
+    pub attempt: i64,
+    /// The job whose performer asked the question; none for the attempt's.
+    #[schema(format = "uuid", required = true)]
+    pub job: Option<String>,
+    #[schema(required = true)]
+    pub job_phase: Option<String>,
+    #[schema(pattern = "^(question|answer|steer)$")]
+    pub kind: String,
+    /// Whether a question blocks its performer; none for other kinds.
+    #[schema(required = true)]
+    pub blocking: Option<bool>,
+    /// What the performer of a question proceeds on until answered.
+    #[schema(required = true)]
+    pub default: Option<String>,
+    pub body: String,
+    #[schema(pattern = "^[0-9a-f]{64}$")]
+    pub sha256: String,
+    /// The question an answer answers.
+    #[schema(format = "uuid", required = true)]
+    pub question: Option<String>,
+    #[schema(pattern = "^(user|service)$")]
+    pub author_kind: String,
+    #[schema(format = "uuid")]
+    pub author: String,
+    #[schema(required = true)]
+    pub author_name: Option<String>,
+    pub via_channel: String,
+    #[schema(required = true)]
+    pub via_client: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+    /// A question's state: `open`, `answered` or `escalated`.
+    #[schema(pattern = "^(open|answered|escalated)$", required = true)]
+    pub state: Option<String>,
+    #[schema(format = "date-time", required = true)]
+    pub closed_at: Option<String>,
+    /// The concern an escalated question became.
+    #[schema(format = "uuid", required = true)]
+    pub concern: Option<String>,
+    /// When the attempt or job waiting on this blocking question was
+    /// released because it went unanswered.
+    #[schema(format = "date-time", required = true)]
+    pub released_at: Option<String>,
+    /// When the performer acknowledged this answer or steering note.
+    #[schema(format = "date-time", required = true)]
+    pub acknowledged_at: Option<String>,
+    /// A question's answer, once given.
+    #[schema(required = true)]
+    pub answer: Option<QuestionAnswerOut>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Page_MessageOut_UUID_ {
+    pub items: Vec<MessageOut>,
+    #[schema(format = "uuid", required = true)]
+    pub next_before: Option<String>,
+}
+
+/// Messages, oldest first.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct MessagesOut {
+    pub items: Vec<MessageOut>,
+}
+
+/// Where the working protocol is served, and what it is.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProtocolRef {
+    pub r#ref: String,
+    pub version: String,
+    #[schema(pattern = "^[0-9a-f]{64}$")]
+    pub sha256: String,
+    pub bytes: i64,
+}
+
+/// Transcript events to append, each one line of
+/// `transcript.schema.json`.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TranscriptAppend {
+    #[schema(min_items = 1, max_items = 1000)]
+    pub events: Vec<serde_json::Value>,
+}
+
+/// What a transcript holds after an append.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TranscriptAppendOut {
+    /// The chunk this append stored, from 1.
+    pub chunk: i64,
+    /// Events in the transcript.
+    pub events: i64,
+    /// Bytes in the transcript.
+    pub bytes: i64,
+    /// The project's transcript limit, in bytes.
+    pub limit: i64,
+}
+
+/// One event of a transcript and its index, from 0.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TranscriptEventOut {
+    pub index: i64,
+    pub event: serde_json::Value,
+}
+
+/// A page of an attempt's transcript, oldest event first.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct TranscriptOut {
+    pub unit: i64,
+    pub attempt: i64,
+    pub events: Vec<TranscriptEventOut>,
+    /// Continue after this index; none at the end.
+    #[schema(required = true)]
+    pub next_after: Option<i64>,
+    /// Events in the transcript.
+    pub total_events: i64,
+    /// Bytes in the transcript.
+    pub bytes: i64,
+    /// Whether the attempt was submitted and its transcript sealed.
+    pub sealed: bool,
+    /// The sealed `transcript` artifact.
+    #[schema(format = "uuid", required = true)]
+    pub artifact: Option<String>,
+}
+
 /// How a plan revision answers a concern.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -897,6 +1114,16 @@ pub struct ProjectLimits {
     pub index_line_max_bytes: i64,
     #[schema(minimum = 80, maximum = 2000)]
     pub context_summary_max_bytes: i64,
+    /// How long a blocking question waits for an answer before its attempt
+    /// or job is released, in seconds. Kept when a write omits it.
+    #[serde(default)]
+    #[schema(minimum = 60, maximum = 2_592_000)]
+    pub question_wait_seconds: Option<i64>,
+    /// The largest transcript of an attempt, in bytes. Kept when a write
+    /// omits it.
+    #[serde(default)]
+    #[schema(minimum = 65_536, maximum = 1_073_741_824)]
+    pub transcript_max_bytes: Option<i64>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -946,6 +1173,9 @@ pub struct ClaimOut {
     /// with `plan`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<ContextBundleRef>,
+    /// The working protocol every performer follows: when to ask, when to
+    /// raise a concern, steering and transcripts.
+    pub protocol: ProtocolRef,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -1329,6 +1559,9 @@ pub struct JobClaimOut {
     /// with `plan`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<ContextBundleRef>,
+    /// The working protocol every performer follows: when to ask, when to
+    /// raise a concern, steering and transcripts.
+    pub protocol: ProtocolRef,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -1351,6 +1584,11 @@ pub struct JobLeaseOut {
     pub lease_expires_at: String,
     #[schema(format = "date-time")]
     pub deadline: String,
+    /// The job asked a blocking question still open: its lease clock is
+    /// stopped until a researcher answers it.
+    pub waiting_on_human: bool,
+    /// Answers to the job's questions it has not acknowledged yet.
+    pub answers: Vec<MessageOut>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -1447,6 +1685,13 @@ pub struct LeaseOut {
     pub lease_generation: i64,
     #[schema(format = "date-time")]
     pub lease_expires_at: String,
+    /// The attempt waits on an answer to a blocking question: its lease
+    /// clock is stopped, and a fresh lease starts once it is answered.
+    pub waiting_on_human: bool,
+    /// Answers to the attempt's questions not acknowledged yet.
+    pub answers: Vec<MessageOut>,
+    /// Steering notes posted to the attempt not acknowledged yet.
+    pub steering: Vec<MessageOut>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -2425,6 +2670,8 @@ pub enum cannery_row__search__routes__Kind {
     DecisionReason,
     #[serde(rename = "comment")]
     Comment,
+    #[serde(rename = "message")]
+    Message,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

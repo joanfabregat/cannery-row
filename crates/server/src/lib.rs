@@ -59,6 +59,7 @@ pub mod job_upload_routes;
 mod job_workers;
 pub mod manifest_routes;
 pub mod mcp;
+mod message_routes;
 mod metric_request;
 pub mod metric_routes;
 mod metric_wire;
@@ -72,6 +73,7 @@ mod plan_routes;
 mod plan_units;
 pub mod predecessor_input_routes;
 mod project_routes;
+pub mod protocol;
 pub mod report_routes;
 pub mod report_wire;
 pub mod request_context;
@@ -92,6 +94,7 @@ mod track_audit;
 mod track_binding;
 pub mod track_routes;
 pub mod track_wire;
+mod transcript_routes;
 mod transport;
 mod unit_idempotency;
 pub mod unit_mutations;
@@ -184,6 +187,20 @@ pub use documentation::OPENAPI;
         concern_routes::list,
         concern_routes::read,
         concern_routes::dismiss,
+        message_routes::ask,
+        message_routes::ask_job,
+        message_routes::list_questions,
+        message_routes::get_question,
+        message_routes::wait_for_answer,
+        message_routes::answer,
+        message_routes::escalate,
+        message_routes::get_steering,
+        message_routes::post_steering,
+        message_routes::acknowledge,
+        message_routes::list_messages,
+        transcript_routes::append,
+        transcript_routes::read,
+        protocol::protocol,
         context_bundle::route,
         attempt_claim_routes::claim,
         attempt_read_routes::unit,

@@ -140,7 +140,7 @@ pub(crate) async fn release(
         .await
         .map_err(|_| internal(&context, "release transaction"))?;
     let result = async {
-        let attempt = attempt_lease_routes::leased(
+        let attempt = attempt_lease_routes::leased_or_waiting(
             &mut tx,
             &auth.principal,
             &project,

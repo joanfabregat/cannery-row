@@ -12,6 +12,7 @@ import {
 import type { Attempt, Unit, Link as LinkOut } from "@/api/types";
 import { CommentsSection } from "@/components/comments";
 import { DecisionList } from "@/components/decisions";
+import { UnitQuestions } from "@/components/messages";
 import { ReportSection, VerificationSection } from "@/components/evidence";
 import { Notice } from "@/components/notice";
 import { OutcomeCard } from "@/components/outcome-card";
@@ -149,6 +150,8 @@ function UnitView({ project, number }: { project: Project; number: number }) {
             <AttemptList number={h.number} attempts={attempts.data.items} />
           )}
         </Section>
+
+        <UnitQuestions project={slug} number={h.number} isResearcher={isResearcher} />
 
         {latest !== null && report.data ? (
           <>

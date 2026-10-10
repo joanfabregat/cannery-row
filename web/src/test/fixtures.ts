@@ -391,12 +391,14 @@ export function unitApi(
     [`GET ${base}/attempts`]: () => json(page(attempts)),
     [`GET ${base}/comments`]: () => json(page(comments)),
     [`GET ${base}/revisions`]: () => json(page([])),
+    [`GET ${base}/messages`]: () => json(page([])),
     [`GET /api/projects/${project}/members`]: () => json(page(members)),
   };
   for (const a of attempts) {
     handlers[`GET ${base}/attempts/${a.sequence}`] = () => json(a);
     handlers[`GET ${base}/attempts/${a.sequence}/jobs`] = () => json(page(jobs[a.sequence] ?? []));
     handlers[`GET ${base}/attempts/${a.sequence}/comments`] = () => json(page([]));
+    handlers[`GET ${base}/attempts/${a.sequence}/steering`] = () => json({ items: [] });
     const r = reports[a.sequence];
     handlers[`GET ${base}/attempts/${a.sequence}/report`] = () =>
       r
@@ -404,6 +406,37 @@ export function unitApi(
         : json({ error: { code: "not_found", message: "no report", details: null } }, 404);
   }
   return handlers;
+}
+
+/** A question, answer or steering note of attempt #12.1. */
+export function message(overrides: Partial<Schemas["MessageOut"]> = {}): Schemas["MessageOut"] {
+  return {
+    id: uuid(),
+    track: "tokenizer",
+    unit: 12,
+    attempt: 1,
+    job: null,
+    job_phase: null,
+    kind: "question",
+    blocking: false,
+    default: "Keep the seed fixed.",
+    body: "Should the variant also change the learning rate?",
+    sha256: "0".repeat(64),
+    question: null,
+    author_kind: "service",
+    author: "00000000-0000-4000-8000-0000000000a9",
+    author_name: "nightly-agent",
+    via_channel: "mcp",
+    via_client: "codex",
+    created_at: "2026-03-02T11:00:00Z",
+    state: "open",
+    closed_at: null,
+    concern: null,
+    released_at: null,
+    acknowledged_at: null,
+    answer: null,
+    ...overrides,
+  };
 }
 
 /** A unit a researcher accepted, with its attempt and report. */

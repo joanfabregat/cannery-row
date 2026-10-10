@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE messages SET closed_at = now(), concern_id = $2,\n        state = CASE WHEN $2::uuid IS NULL THEN 'answered' ELSE 'escalated' END\n        WHERE id = $1 AND kind = 'question' AND state = 'open'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "58fe646040b5a98b2c8cd0a4eea56b91c330a3e4f9f73ee1db308065d34a6cb1"
+}

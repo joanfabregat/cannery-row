@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM lease_pauses WHERE attempt_id = $1 AND job_id IS NOT DISTINCT FROM $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c19bfd424edc891fc61377fce2610082b4cb4c2efa68efe5d0d3d066bbc06fdf"
+}

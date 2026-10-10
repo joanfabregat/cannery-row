@@ -254,12 +254,14 @@ async fn mcp_stateless_http() -> Result<()> {
         );
         assert_eq!(json!(allow), recipe["allow"], "{}", recipe["name"]);
         assert_eq!(json!(challenge), recipe["challenge"], "{}", recipe["name"]);
-        assert_eq!(
-            projection(value, recipe["name"] == "registry")?,
-            recipe["output"],
-            "{}",
-            recipe["name"]
-        );
+        let mut projected = projection(value, recipe["name"] == "registry")?;
+        // The instructions are the working protocol, docs/agents.md; the
+        // reference names it rather than freezing its text.
+        if let Some(instructions) = projected.pointer_mut("/result/instructions") {
+            assert_eq!(instructions.as_str(), Some(crate::protocol::TEXT));
+            *instructions = json!("@protocol");
+        }
+        assert_eq!(projected, recipe["output"], "{}", recipe["name"]);
         assert_eq!(
             i64::from(touches(&state).await?),
             recipe["touches"].as_i64().ok_or("touches")?,

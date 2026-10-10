@@ -21,7 +21,7 @@ impl Tool {
     }
     #[allow(
         clippy::too_many_lines,
-        reason = "All 64 canonical tool mappings are reviewed together"
+        reason = "All 77 canonical tool mappings are reviewed together"
     )]
     pub fn request(&self, args: &Map<String, Value>) -> Result<ToolRequest, ()> {
         let mut args = args.clone();
@@ -149,6 +149,41 @@ impl Tool {
                 } else {
                     (Method::GET, format!("{base}/concerns/{id}"))
                 }
+            }
+            "ask" | "get_steering" | "post_steering" | "append_transcript" | "get_transcript" => {
+                let number = take_path(&mut args, "number");
+                let sequence = take_path(&mut args, "sequence");
+                let (method, suffix) = match name {
+                    "ask" => (Method::POST, "/questions"),
+                    "get_steering" => (Method::GET, "/steering"),
+                    "post_steering" => (Method::POST, "/steering"),
+                    "append_transcript" => (Method::POST, "/transcript"),
+                    _ => (Method::GET, "/transcript"),
+                };
+                (
+                    method,
+                    format!("{base}/units/{number}/attempts/{sequence}{suffix}"),
+                )
+            }
+            "ask_job" => {
+                let id = take_path(&mut args, "job_id");
+                (Method::POST, format!("{base}/jobs/{id}/questions"))
+            }
+            "list_questions" => (Method::GET, format!("{base}/questions")),
+            "get_question" | "wait_for_answer" | "answer_question" | "escalate_question" => {
+                let id = take_path(&mut args, "question_id");
+                let (method, suffix) = match name {
+                    "wait_for_answer" => (Method::GET, "/answer"),
+                    "answer_question" => (Method::POST, "/answer"),
+                    "escalate_question" => (Method::POST, "/escalation"),
+                    _ => (Method::GET, ""),
+                };
+                (method, format!("{base}/questions/{id}{suffix}"))
+            }
+            "ack_steering" => (Method::POST, format!("{base}/messages/acknowledgements")),
+            "list_messages" => {
+                let number = take_path(&mut args, "number");
+                (Method::GET, format!("{base}/units/{number}/messages"))
             }
             "list_units" => (Method::GET, format!("{base}/units")),
             "get_unit" | "list_unit_revisions" => {
@@ -344,7 +379,7 @@ pub(super) fn encode(value: &str) -> String {
 pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
     let values: Vec<Value> =
         serde_json::from_str(include_str!("tools.json")).map_err(|_| StartupError::Registry)?;
-    if values.len() != 64 {
+    if values.len() != 77 {
         return Err(StartupError::Registry);
     }
     values

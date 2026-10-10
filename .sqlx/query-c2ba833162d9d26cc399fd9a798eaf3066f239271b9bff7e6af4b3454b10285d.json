@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO messages (project_id, unit_id, attempt_id, job_id, kind, blocking,\n        default_text, body, sha256, question_id, author_user, author_service, via_channel,\n        via_client, state)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,\n                CASE WHEN $5 = 'question' THEN 'open' END)\n        RETURNING id AS \"id!: MessageId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: MessageId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Bool",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c2ba833162d9d26cc399fd9a798eaf3066f239271b9bff7e6af4b3454b10285d"
+}

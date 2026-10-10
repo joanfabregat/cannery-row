@@ -5,6 +5,7 @@ import type { AttemptDetail, AttemptFailure, Report } from "@/api/types";
 import { CommentsSection } from "@/components/comments";
 import { ArtifactList, ReportSection, VerificationSection } from "@/components/evidence";
 import { AttemptExecution } from "@/components/execution";
+import { AttemptConversation } from "@/components/messages";
 import { ImportedBadge } from "@/components/imported-badge";
 import { PageHeader } from "@/components/page-header";
 import { ProjectPage } from "@/components/project-page";
@@ -51,6 +52,7 @@ function AttemptView({
   const unit = useUnit(slug, number);
   const attempt = useAttempt(slug, number, sequence);
   const report = useReport(slug, number, sequence);
+  const { isResearcher } = usePermissions();
   const title = `Attempt #${number}.${sequence}`;
 
   if (attempt.isPending) {
@@ -107,6 +109,15 @@ function AttemptView({
         )}
         {a.origin === "imported" ? null : (
           <AttemptExecution project={slug} number={number} attempt={a} />
+        )}
+        {a.origin === "imported" || a.mode === "workflow" ? null : (
+          <AttemptConversation
+            project={slug}
+            number={number}
+            sequence={sequence}
+            state={a.state}
+            isResearcher={isResearcher}
+          />
         )}
         <FilesSection project={slug} attempt={a} />
         <CommentsSection project={slug} target={{ number, sequence }} />

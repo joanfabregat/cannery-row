@@ -918,7 +918,7 @@ pub async fn cancel_in_flight(
     let attempts = sqlx::query_scalar!(
         r#"UPDATE attempts SET state = 'cancelled', lease_token_hash = NULL, lease_expires_at = NULL,
         finished_at = coalesce(finished_at, now())
-        WHERE unit_id = $1 AND state IN ('claimed', 'running', 'verifying')
+        WHERE unit_id = $1 AND state IN ('claimed', 'running', 'waiting_on_human', 'verifying')
         RETURNING id AS "id!: AttemptId""#,
         unit as UnitId
     )
@@ -981,6 +981,11 @@ pub struct Limits {
     pub context_items_max: i32,
     pub index_line_max_bytes: i32,
     pub context_summary_max_bytes: i32,
+    /// How long a blocking question waits for an answer before its
+    /// attempt or job is released.
+    pub question_wait_seconds: i32,
+    /// The largest transcript of an attempt.
+    pub transcript_max_bytes: i64,
 }
 
 impl Default for Limits {
@@ -992,6 +997,8 @@ impl Default for Limits {
             context_items_max: 64,
             index_line_max_bytes: 100,
             context_summary_max_bytes: 300,
+            question_wait_seconds: 86_400,
+            transcript_max_bytes: 67_108_864,
         }
     }
 }
@@ -1003,7 +1010,8 @@ pub async fn limits(conn: &mut PgConnection, project: ProjectId) -> Result<Limit
     Ok(sqlx::query_as!(
         Limits,
         r#"SELECT brief_max_bytes, plan_approach_max_bytes, unit_brief_max_bytes,
-        context_items_max, index_line_max_bytes, context_summary_max_bytes
+        context_items_max, index_line_max_bytes, context_summary_max_bytes,
+        question_wait_seconds, transcript_max_bytes
         FROM project_limits WHERE project_id = $1"#,
         project as ProjectId
     )
@@ -1024,13 +1032,16 @@ pub async fn set_limits(
     sqlx::query!(
         r#"INSERT INTO project_limits (project_id, brief_max_bytes, plan_approach_max_bytes,
         unit_brief_max_bytes, context_items_max, index_line_max_bytes, context_summary_max_bytes,
-        updated_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        question_wait_seconds, transcript_max_bytes, updated_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (project_id) DO UPDATE SET brief_max_bytes = EXCLUDED.brief_max_bytes,
         plan_approach_max_bytes = EXCLUDED.plan_approach_max_bytes,
         unit_brief_max_bytes = EXCLUDED.unit_brief_max_bytes,
         context_items_max = EXCLUDED.context_items_max,
         index_line_max_bytes = EXCLUDED.index_line_max_bytes,
         context_summary_max_bytes = EXCLUDED.context_summary_max_bytes,
+        question_wait_seconds = EXCLUDED.question_wait_seconds,
+        transcript_max_bytes = EXCLUDED.transcript_max_bytes,
         updated_by = EXCLUDED.updated_by, updated_at = now()"#,
         project as ProjectId,
         limits.brief_max_bytes,
@@ -1039,6 +1050,8 @@ pub async fn set_limits(
         limits.context_items_max,
         limits.index_line_max_bytes,
         limits.context_summary_max_bytes,
+        limits.question_wait_seconds,
+        limits.transcript_max_bytes,
         by as UserId
     )
     .execute(conn)

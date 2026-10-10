@@ -4,6 +4,7 @@ import { useAttention, useBrief, useConcerns } from "@/api/queries";
 import type { Attention } from "@/api/types";
 import { ConcernLine } from "@/components/concerns";
 import { ImportedBadge } from "@/components/imported-badge";
+import { QuestionQueue } from "@/components/messages";
 import { PageHeader } from "@/components/page-header";
 import { ProjectPage } from "@/components/project-page";
 import { EmptyState, QueryView } from "@/components/query-state";
@@ -41,6 +42,7 @@ function Attention({ project }: { project: Project }) {
       {(data) => (
         <div className="flex flex-col gap-6">
           <BriefCard project={project.slug} />
+          {isResearcher ? <QuestionQueue project={project.slug} /> : null}
           {isResearcher ? <ConcernQueue project={project.slug} /> : null}
           {isResearcher ? <ReviewQueue data={data} /> : null}
           {isResearcher ? <WriteupQueue data={data} /> : null}

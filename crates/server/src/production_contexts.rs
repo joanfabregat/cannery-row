@@ -213,6 +213,7 @@ pub(super) fn contexts(
             ),
         })),
         submissions: Some(Arc::new(crate::submission_routes::SubmissionContext {
+            transcripts: Some(store.clone()),
             lifecycle: lifecycle.clone(),
             phases: cannery_core::contracts::phases::PhaseSchemas::new()
                 .map_err(|_| ServerError::Contracts)?,
@@ -367,6 +368,12 @@ pub(super) fn contexts(
                     .map_err(|_| crate::ServerError::Contracts)?,
             },
         )),
+        messages: Some(Arc::new(crate::message_routes::MessageContext {
+            attempts: attempts(),
+            jobs: jobs(),
+            store: store.clone(),
+            contracts: validator()?,
+        })),
         search: Some(Arc::new(crate::search_routes::SearchContext {
             cursor_decode_budget: DEPTH,
         })),

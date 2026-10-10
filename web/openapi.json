@@ -4996,6 +4996,158 @@
         }
       }
     },
+    "/api/projects/{slug}/jobs/{job_id}/questions": {
+      "post": {
+        "summary": "Ask Job",
+        "description": "Ask a question about the job's unit under the job's lease, as `ask` does\nfor an attempt. A blocking question stops the job's lease clock until a\nresearcher answers it; unanswered after the project's\n`question_wait_seconds`, the job fails (`unanswered_question`) as an\nexpired one does.",
+        "operationId": "ask_job_api_projects__slug__jobs__job_id__questions_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Lease-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "X-Lease-Generation",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/jobs/{job_id}/uploads": {
       "post": {
         "summary": "Create Job Upload",
@@ -5662,6 +5814,95 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/messages/acknowledgements": {
+      "post": {
+        "summary": "Ack Steering",
+        "description": "Acknowledge steering notes and answers you have read, by id: a note posted\nto an attempt you hold, an answer to a question you asked, or an answer to\na released question of the unit whose attempt you now hold. Heartbeat\nresponses stop carrying them. Acknowledging twice is harmless.",
+        "operationId": "ack_steering_api_projects__slug__messages_acknowledgements_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcknowledgementIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcknowledgementOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -6406,6 +6647,537 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/questions": {
+      "get": {
+        "summary": "List Questions",
+        "description": "The questions performers asked about the project's units, newest first,\nwith their answers: of one track when `track` is given. `state=open`\nlists those waiting for a researcher.",
+        "operationId": "list_questions_api_projects__slug__questions_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track",
+            "in": "query",
+            "description": "Only questions about units of this track.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only questions in this state: `open`, `answered` or `escalated`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Continue before this question.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MessageOut_UUID_"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/questions/{question_id}": {
+      "get": {
+        "summary": "Get Question",
+        "description": "One question: who asked it, under which attempt or job, whether it blocks,\nthe default it proceeds on, and its answer once given.",
+        "operationId": "get_question_api_projects__slug__questions__question_id__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/questions/{question_id}/answer": {
+      "get": {
+        "summary": "Wait For Answer",
+        "description": "Wait up to `wait` seconds (default 30, at most 60) for a question to be\nanswered or escalated, then return it, with its `answer` once given\n(`null` when the wait ran out: ask again). When you asked the question, the\nanswer returned is acknowledged.",
+        "operationId": "wait_for_answer_api_projects__slug__questions__question_id__answer_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "description": "Seconds to wait for the answer.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 60,
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Answer Question",
+        "description": "A researcher answers an open question, as Markdown (at most 16 KiB). The\nperformer reads it with `wait_for_answer` or in its next heartbeat\nresponse; a blocking question's attempt or job gets a fresh lease and runs\non. A question whose attempt was released is still answered: the answer\nreaches the unit's next attempt.",
+        "operationId": "answer_question_api_projects__slug__questions__question_id__answer_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/questions/{question_id}/escalation": {
+      "post": {
+        "summary": "Escalate Question",
+        "description": "A researcher escalates an open question into a concern about the plan of\nthe unit's track: the concern takes the `kind` and the `note`, quoting the\nquestion, and blocks new claims on the track until a plan revision answers\nit or a researcher dismisses it. The question closes as `escalated`, and the\nnote is its answer: the performer reads it as any answer and its lease\nclock restarts.",
+        "operationId": "escalate_question_api_projects__slug__questions__question_id__escalation_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EscalationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -11702,6 +12474,167 @@
         }
       }
     },
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/questions": {
+      "post": {
+        "summary": "Ask",
+        "description": "Ask a question about the unit under the attempt's lease (agent mode only):\nwhat you need, as Markdown (at most 16 KiB). A blocking question puts the\nattempt in `waiting_on_human` and stops its lease clock: neither the lease\nnor the deadline expires while it waits, and a fresh lease starts once a\nresearcher answers it. Unanswered after the project's\n`question_wait_seconds`, the attempt is released (`unanswered_question`)\nand the unit queued again, the question attached for the next attempt. A\nnon-blocking question states the `default` you proceed on until it is\nanswered. Read the answer with `wait_for_answer` or in the next heartbeat\nresponse. With an `Idempotency-Key`, a retry returns the same question.",
+        "operationId": "ask_api_projects__slug__units__number__attempts__sequence__questions_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "X-Lease-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "X-Lease-Generation",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/units/{number}/attempts/{sequence}/release": {
       "post": {
         "summary": "Release",
@@ -11989,6 +12922,227 @@
         }
       }
     },
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/steering": {
+      "get": {
+        "summary": "Get Steering",
+        "description": "The steering notes posted to an attempt, oldest first; only those not yet\nacknowledged with `pending=true`. Heartbeat responses carry the same\nunacknowledged notes.",
+        "operationId": "get_steering_api_projects__slug__units__number__attempts__sequence__steering_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "pending",
+            "in": "query",
+            "description": "Only notes not yet acknowledged.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagesOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Post Steering",
+        "description": "A researcher posts a steering note to a running attempt in agent mode,\nunasked, as Markdown (at most 16 KiB). The agent reads it in its next\nheartbeat response or with `get_steering`, and acknowledges it; until then\nit shows as unacknowledged on the attempt.",
+        "operationId": "post_steering_api_projects__slug__units__number__attempts__sequence__steering_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SteeringIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/units/{number}/attempts/{sequence}/submission": {
       "post": {
         "summary": "Submit",
@@ -12083,6 +13237,305 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/transcript": {
+      "get": {
+        "summary": "Get Transcript",
+        "description": "A page of the attempt's transcript, oldest event first, from the event\nafter `after` (an index, from 0): `next_after` names where the next page\nstarts while more events wait; follow a running attempt by asking again\nafter the last index read. `sealed` says whether the attempt was\nsubmitted and its transcript stored as its `transcript` artifact.",
+        "operationId": "get_transcript_api_projects__slug__units__number__attempts__sequence__transcript_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "description": "Continue after this event index.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Events per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 1000,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Append Transcript",
+        "description": "Append events to the attempt's transcript under its lease (agent mode\nonly), as you go: each event is one line of `transcript.schema.json` (`ts`,\n`kind`, `content`), at most 1000 per append. The transcript is stored as\nJSON Lines and read live with `get_transcript`; submitting the attempt seals\nit as its `transcript` artifact. An append that would take the transcript\nover the project's `transcript_max_bytes` is refused with its `size` and the\n`limit`. Redact secrets before appending. With an `Idempotency-Key`, a retry\nappends nothing twice.",
+        "operationId": "append_transcript_api_projects__slug__units__number__attempts__sequence__transcript_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "sequence",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "X-Lease-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "X-Lease-Generation",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptAppend"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Replayed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptAppendOut"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptAppendOut"
                 }
               }
             }
@@ -12616,6 +14069,127 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UnitHistoryOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/units/{number}/messages": {
+      "get": {
+        "summary": "List Messages",
+        "description": "The questions, answers and steering notes of a unit, newest first: of one\nattempt when `attempt` (its sequence) is given.",
+        "operationId": "list_messages_api_projects__slug__units__number__messages_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "attempt",
+            "in": "query",
+            "description": "Only messages of this attempt.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Continue before this message.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_MessageOut_UUID_"
                 }
               }
             }
@@ -13438,6 +15012,28 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/protocol": {
+      "get": {
+        "summary": "Get Protocol",
+        "description": "The working protocol every performer follows, as Markdown: when to ask a\nquestion and when to proceed on a stated default, when to raise a concern\ninstead, reading and acknowledging steering at each heartbeat, and\nappending the transcript. Every claim and job claim names it as `protocol`\nwith its `sha256`, also sent as the `ETag`; the MCP server sends the same\ntext as its instructions. No authentication.",
+        "operationId": "get_protocol_api_protocol_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/markdown": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified"
           }
         }
       }
@@ -14601,6 +16197,40 @@
   },
   "components": {
     "schemas": {
+      "AcknowledgementIn": {
+        "type": "object",
+        "description": "Answers and steering notes the performer has read.",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "AcknowledgementOut": {
+        "type": "object",
+        "description": "The messages newly acknowledged.",
+        "required": [
+          "acknowledged"
+        ],
+        "properties": {
+          "acknowledged": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "AlignmentOut": {
         "type": "object",
         "description": "What a plan revision decides about a done or in-flight unit.",
@@ -14646,6 +16276,21 @@
           },
           "reason": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnswerIn": {
+        "type": "object",
+        "description": "A researcher's answer to a question, as Markdown.",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 16384,
+            "minLength": 1
           }
         },
         "additionalProperties": false
@@ -15172,6 +16817,7 @@
         "enum": [
           "claimed",
           "running",
+          "waiting_on_human",
           "verifying",
           "verified",
           "failed",
@@ -15890,7 +17536,8 @@
           "lease_token",
           "lease_generation",
           "lease_expires_at",
-          "heartbeat_seconds"
+          "heartbeat_seconds",
+          "protocol"
         ],
         "properties": {
           "attempt": {
@@ -15943,6 +17590,10 @@
                 "type": "null"
               }
             ]
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolRef",
+            "description": "The working protocol every performer follows: when to ask, when to\nraise a concern, steering and transcripts."
           },
           "workflow": {
             "oneOf": [
@@ -17503,6 +19154,26 @@
         },
         "additionalProperties": false
       },
+      "EscalationIn": {
+        "type": "object",
+        "description": "Escalate a question into a concern about its track's plan: the concern's\nkind and a note, which also answers the question.",
+        "required": [
+          "kind",
+          "note"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "pattern": "^(wrong_assumption|better_idea|blocker|other)$"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
       "EvidenceEnvelopeRequest": {
         "type": "object",
         "required": [
@@ -17894,7 +19565,8 @@
         "required": [
           "job",
           "attempt_ref",
-          "heartbeat_seconds"
+          "heartbeat_seconds",
+          "protocol"
         ],
         "properties": {
           "attempt_ref": {
@@ -17939,6 +19611,10 @@
                 "type": "null"
               }
             ]
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolRef",
+            "description": "The working protocol every performer follows: when to ask, when to\nraise a concern, steering and transcripts."
           }
         },
         "additionalProperties": false
@@ -18050,9 +19726,18 @@
         "required": [
           "lease_generation",
           "lease_expires_at",
-          "deadline"
+          "deadline",
+          "waiting_on_human",
+          "answers"
         ],
         "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "description": "Answers to the job's questions it has not acknowledged yet."
+          },
           "deadline": {
             "type": "string",
             "format": "date-time"
@@ -18064,6 +19749,10 @@
           "lease_generation": {
             "type": "integer",
             "format": "int64"
+          },
+          "waiting_on_human": {
+            "type": "boolean",
+            "description": "The job asked a blocking question still open: its lease clock is\nstopped until a researcher answers it."
           }
         },
         "additionalProperties": false
@@ -18324,9 +20013,19 @@
         "type": "object",
         "required": [
           "lease_generation",
-          "lease_expires_at"
+          "lease_expires_at",
+          "waiting_on_human",
+          "answers",
+          "steering"
         ],
         "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "description": "Answers to the attempt's questions not acknowledged yet."
+          },
           "lease_expires_at": {
             "type": "string",
             "format": "date-time"
@@ -18334,6 +20033,17 @@
           "lease_generation": {
             "type": "integer",
             "format": "int64"
+          },
+          "steering": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "description": "Steering notes posted to the attempt not acknowledged yet."
+          },
+          "waiting_on_human": {
+            "type": "boolean",
+            "description": "The attempt waits on an answer to a blocking question: its lease\nclock is stopped, and a fresh lease starts once it is answered."
           }
         },
         "additionalProperties": false
@@ -18582,6 +20292,194 @@
         "properties": {
           "role": {
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MessageOut": {
+        "type": "object",
+        "description": "A question, an answer or a steering note about a unit, who wrote it and\nwhere it stands.",
+        "required": [
+          "id",
+          "track",
+          "unit",
+          "attempt",
+          "job",
+          "job_phase",
+          "kind",
+          "blocking",
+          "default",
+          "body",
+          "sha256",
+          "question",
+          "author_kind",
+          "author",
+          "author_name",
+          "via_channel",
+          "via_client",
+          "created_at",
+          "state",
+          "closed_at",
+          "concern",
+          "released_at",
+          "acknowledged_at",
+          "answer"
+        ],
+        "properties": {
+          "acknowledged_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the performer acknowledged this answer or steering note."
+          },
+          "answer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/QuestionAnswerOut",
+                "description": "A question's answer, once given."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attempt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "author": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author_kind": {
+            "type": "string",
+            "pattern": "^(user|service)$"
+          },
+          "author_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "blocking": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether a question blocks its performer; none for other kinds."
+          },
+          "body": {
+            "type": "string"
+          },
+          "closed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "concern": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The concern an escalated question became."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the performer of a question proceeds on until answered."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "job": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The job whose performer asked the question; none for the attempt's."
+          },
+          "job_phase": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "pattern": "^(question|answer|steer)$"
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The question an answer answers."
+          },
+          "released_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the attempt or job waiting on this blocking question was\nreleased because it went unanswered."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A question's state: `open`, `answered` or `escalated`.",
+            "pattern": "^(open|answered|escalated)$"
+          },
+          "track": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "via_channel": {
+            "type": "string"
+          },
+          "via_client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "MessagesOut": {
+        "type": "object",
+        "description": "Messages, oldest first.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            }
           }
         },
         "additionalProperties": false
@@ -18921,6 +20819,29 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MemberOut"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Page_MessageOut_UUID_": {
+        "type": "object",
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
             }
           },
           "next_before": {
@@ -19990,6 +21911,26 @@
             "maximum": 262144,
             "minimum": 1024
           },
+          "question_wait_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "How long a blocking question waits for an answer before its attempt\nor job is released, in seconds. Kept when a write omits it.",
+            "maximum": 2592000,
+            "minimum": 60
+          },
+          "transcript_max_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The largest transcript of an attempt, in bytes. Kept when a write\nomits it.",
+            "maximum": 1073741824,
+            "minimum": 65536
+          },
           "unit_brief_max_bytes": {
             "type": "integer",
             "format": "int64",
@@ -20059,6 +22000,105 @@
             "type": "string",
             "minLength": 1,
             "pattern": "\\S"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProtocolRef": {
+        "type": "object",
+        "description": "Where the working protocol is served, and what it is.",
+        "required": [
+          "ref",
+          "version",
+          "sha256",
+          "bytes"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuestionAnswerOut": {
+        "type": "object",
+        "description": "The answer to a question.",
+        "required": [
+          "id",
+          "body",
+          "author",
+          "author_name",
+          "created_at",
+          "acknowledged_at"
+        ],
+        "properties": {
+          "acknowledged_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "author": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "QuestionAsk": {
+        "type": "object",
+        "description": "A question about a unit from the performer of one of its phases. A\nblocking one stops the performer's lease clock until a researcher\nanswers it; a non-blocking one names the default the performer\nproceeds on meanwhile.",
+        "required": [
+          "body",
+          "blocking"
+        ],
+        "properties": {
+          "blocking": {
+            "type": "boolean"
+          },
+          "body": {
+            "type": "string",
+            "description": "What the performer needs, as Markdown.",
+            "maxLength": 16384,
+            "minLength": 1
+          },
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the performer assumes and proceeds on until answered; required\nwhen the question does not block.",
+            "maxLength": 4000,
+            "minLength": 1
           }
         },
         "additionalProperties": false
@@ -21748,6 +23788,21 @@
           "decider"
         ]
       },
+      "SteeringIn": {
+        "type": "object",
+        "description": "A researcher's steering note to a running attempt, as Markdown.",
+        "required": [
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 16384,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
       "StepManifestRequest": {
         "type": "object",
         "required": [
@@ -22484,6 +24539,132 @@
                 "type": "null"
               }
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "TranscriptAppend": {
+        "type": "object",
+        "description": "Transcript events to append, each one line of\n`transcript.schema.json`.",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {},
+            "maxItems": 1000,
+            "minItems": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "TranscriptAppendOut": {
+        "type": "object",
+        "description": "What a transcript holds after an append.",
+        "required": [
+          "chunk",
+          "events",
+          "bytes",
+          "limit"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes in the transcript."
+          },
+          "chunk": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The chunk this append stored, from 1."
+          },
+          "events": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Events in the transcript."
+          },
+          "limit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The project's transcript limit, in bytes."
+          }
+        },
+        "additionalProperties": false
+      },
+      "TranscriptEventOut": {
+        "type": "object",
+        "description": "One event of a transcript and its index, from 0.",
+        "required": [
+          "index",
+          "event"
+        ],
+        "properties": {
+          "event": {},
+          "index": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TranscriptOut": {
+        "type": "object",
+        "description": "A page of an attempt's transcript, oldest event first.",
+        "required": [
+          "unit",
+          "attempt",
+          "events",
+          "next_after",
+          "total_events",
+          "bytes",
+          "sealed",
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The sealed `transcript` artifact."
+          },
+          "attempt": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes in the transcript."
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptEventOut"
+            }
+          },
+          "next_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Continue after this index; none at the end."
+          },
+          "sealed": {
+            "type": "boolean",
+            "description": "Whether the attempt was submitted and its transcript sealed."
+          },
+          "total_events": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Events in the transcript."
+          },
+          "unit": {
+            "type": "integer",
+            "format": "int64"
           }
         },
         "additionalProperties": false
@@ -24114,7 +26295,8 @@
           "report",
           "verification",
           "decision_reason",
-          "comment"
+          "comment",
+          "message"
         ]
       },
       "cannery_row__units__routes__ReviewCaseOut": {

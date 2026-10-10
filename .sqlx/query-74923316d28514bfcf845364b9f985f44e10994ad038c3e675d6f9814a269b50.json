@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO lease_pauses (attempt_id) VALUES ($1)\n            ON CONFLICT (attempt_id) WHERE job_id IS NULL DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "74923316d28514bfcf845364b9f985f44e10994ad038c3e675d6f9814a269b50"
+}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.id AS \"id!: MessageId\" FROM messages m\n        LEFT JOIN messages q ON q.id = m.question_id\n        WHERE m.acknowledged_at IS NULL AND (\n            (m.kind = 'steer' AND m.attempt_id = $1 AND $2::uuid IS NULL)\n            OR (m.kind = 'answer' AND q.attempt_id = $1 AND q.job_id IS NOT DISTINCT FROM $2)\n            OR (m.kind = 'answer' AND $2::uuid IS NULL AND q.job_id IS NULL\n                AND q.released_at IS NOT NULL AND q.attempt_id <> $1\n                AND q.unit_id = (SELECT unit_id FROM attempts WHERE id = $1)))\n        ORDER BY m.created_at, m.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: MessageId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "30784e6b5a1a0d1f5a6ebb28018d099148c7725a717f02c6610c894fe5edf30b"
+}

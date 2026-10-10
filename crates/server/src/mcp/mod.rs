@@ -26,7 +26,8 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
-const INSTRUCTIONS: &str = "Cannery Row manages units of research work, the plans that define them, their attempts, independent verification, and human decisions. Read the project brief (get_brief, or the brief resource) and search before working. To plan a track: read the brief and the track, and when re-planning the plan and the done and in-flight units (get_plan, list_track_units, get_unit_plan); refine the idea with the researcher; check references and outside material with search and the read tools; list edge cases and risks into the approach and unit briefs; define units with their acceptance and the context each needs (start_plan_revision, set_plan_approach, add_unit, set_alignment, and answer_concern for every open concern, saying how the revision answers it); then check_plan and submit_plan; a researcher approves. Concerns: raise a concern (raise_concern) when your work shows that the track's plan itself is wrong, whatever phase you are in: a wrong assumption the plan relies on, a better idea than the plan's for testing the track's idea, or a blocker that stops the plan from being carried out as written. The concern is Markdown with YAML front matter (GET /api/schemas/concern): its kind (wrong_assumption, better_idea, blocker or other) and, when it comes from one, the unit number and the attempt sequence, with the argument as the body (at most 16 KiB): what you saw, why it matters to the plan, and what you would change. A runner step raises one by writing /cr/outputs/concern/concern.md. Otherwise, just continue: a failure of your own run is a failure report, a disagreement with a run's claims is the verification report, an unexpected result is the write-up, and a question about one unit is a comment. A concern holds up the whole track: while one is open, no new unit of the track can be claimed (409 concern_open); work already claimed continues through run, verify, document and decide, so finish what you hold. A plan revision answers the concern (answer_concern in the draft; check_plan lists every open concern the draft does not answer, and approval closes those it answers), or a researcher dismisses it with a reason (dismiss_concern). list_concerns and get_concern read them. To run a unit: claim, read the context bundle the claim names (the context resource), heartbeat, upload, record the manifest and submit the run document under the lease you were given: front matter with the claims, provenance and verified manifest (GET /api/schemas/run), run notes as the body. A run that failed releases the attempt with a failure report instead. Verify: a submitted run is verified before a researcher decides on it. When the science revision's verify performer is agent, an agent service account or a researcher who did not run the attempt verifies it; a claim never hands out a job of an attempt you ran yourself. Claim a verify job (claim_job with {\"phase\": \"verify\"}); the answer names the job, the attempt, the brief, the plan and the context bundle, which holds the unit. Read the inputs (get_job_input): run, the run document's front matter with its claims and provenance, and manifest, the run's verified artifacts (download them with object). The run notes are not an input: judge the claims against the artifacts, not the narrative. Heartbeat (heartbeat_job) and upload what you produce (create_job_upload). Complete the job (complete_job) with the verification report: front matter with the verdict (pass, fail or inconclusive), reason, policy revision, gates, verified measurements, discrepancies, comparisons and provenance (GET /api/schemas/verification), and your observations as an optional body. A pass needs every gate passed, and a comparison cites a measurement of the same report. An invalid report is refused with the details and the lease is kept: correct it and complete again. A valid one marks the attempt verified, and the unit waits for its write-up. If you cannot verify, fail the job (fail_job) with a reason. Document: every unit is written up once: after its last attempt is verified, whatever the verdict, or after a researcher stops it following a failure. An agent service account or a researcher writes it up; only a researcher may skip it, with a reason. Claim a document job (claim_job with {\"phase\": \"document\"}); list_writeups shows what waits. The answer names the unit, its last attempt, what the write-up covers and cites (inputs: the attempts and the verification report) and the documenter's context bundle. Read the bundle: the attempt's bundle, then every attempt's run document and notes, the failures and their logs, the verification reports and the comments. Read it at the claim's context ref (?phase=document), or as the resource cannery-row://projects/{project}/units/{number}/attempts/{sequence}/context/document. Heartbeat (heartbeat_job) while you write. Complete the job (complete_job) with the write-up and no manifest: front matter with a one-sentence summary, the attempts it covers (every attempt of the unit) and the verification it cites (the job's inputs.verification, null for a stopped unit) (GET /api/schemas/writeup), and a body: what was tried, what was found and what it means. An invalid write-up is refused with the details and the lease is kept: correct it and complete again. A valid one sends the unit to its decision. If you cannot write it, fail the job (fail_job) with a reason: it is queued again. A researcher writes a unit up with write_up (\"Write it up\" in the web app), which claims and completes the job in one action, and skips it with skip_writeup. Decide: a researcher decides each unit on its decision case (list_review_cases, get_review_case, record_decision) with a decision document: front matter with the outcome (promote, reject, inconclusive, or failed for a unit stopped after a failure) and the verification and writeup it cites ({ref, sha256}, null when there is none) (GET /api/schemas/decision), and the reason as its body. A promotion needs a pass verdict. The decider's bundle (?phase=decide, or the resource ending in /context/decide) adds the write-up, or the reason it was skipped. When the science revision's decide performer is step, the decider service account it registers decides instead: its runner claims a decide job (claim_job with {\"phase\": \"decide\"} and its step revision), runs its decider step on the decider's bundle and completes the job (complete_job) with the decision document, under the same rules; it promotes only on a pass verdict. While the decide job waits or runs, the case is not a researcher's to decide; once the decision is recorded, a researcher corrects it with supersedes. A decide job that keeps failing after its automatic reruns leaves the case to researchers. A failure case is resolved with retry or stop and a reason: stop sends the unit to be written up, then decided failed. Actor and via are taken from your token; plans and decisions need a person with the researcher role.";
+/// The working protocol, `docs/agents.md`, as `/api/protocol` serves it.
+const INSTRUCTIONS: &str = crate::protocol::TEXT;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
@@ -595,9 +596,9 @@ mod tests {
     #[test]
     fn registry_has_all_source_tools_and_complete_validation() {
         let tools = registry::tools().expect("compiled registry");
-        assert_eq!(tools.len(), 64);
+        assert_eq!(tools.len(), 77);
         let names: std::collections::BTreeSet<_> = tools.iter().map(registry::Tool::name).collect();
-        assert_eq!(names.len(), 64);
+        assert_eq!(names.len(), 77);
         for tool in &tools {
             assert!(
                 tool.invalid_arguments(&json!({"unexpected":"secret"}))
@@ -744,6 +745,89 @@ mod tests {
         assert_eq!(units.uri.path(), "/api/projects/matrix/tracks/t/units");
         let history = build("get_unit_history", json!({"project":"matrix","number":3}));
         assert_eq!(history.uri, "/api/projects/matrix/units/3/history");
+        let ask = build(
+            "ask",
+            json!({"project":"matrix","number":3,"sequence":1,"lease_token":"x","lease_generation":1,"body":"Which year?","blocking":true,"idempotency_key":"q1"}),
+        );
+        assert_eq!(ask.method, axum::http::Method::POST);
+        assert_eq!(ask.uri, "/api/projects/matrix/units/3/attempts/1/questions");
+        assert_eq!(ask.headers["x-lease-token"], "x");
+        assert_eq!(ask.headers["idempotency-key"], "q1");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&ask.body).expect("body"),
+            json!({"body":"Which year?","blocking":true})
+        );
+        let asked = build(
+            "ask_job",
+            json!({"project":"matrix","job_id":"uuid","lease_token":"x","lease_generation":1,"body":"B","blocking":false,"default":"D"}),
+        );
+        assert_eq!(asked.uri, "/api/projects/matrix/jobs/uuid/questions");
+        let wait = build(
+            "wait_for_answer",
+            json!({"project":"matrix","question_id":"uuid"}),
+        );
+        assert_eq!(wait.method, axum::http::Method::GET);
+        assert_eq!(
+            wait.uri,
+            "/api/projects/matrix/questions/uuid/answer?wait=30"
+        );
+        let answer = build(
+            "answer_question",
+            json!({"project":"matrix","question_id":"uuid","body":"2024"}),
+        );
+        assert_eq!(answer.method, axum::http::Method::POST);
+        assert_eq!(answer.uri, "/api/projects/matrix/questions/uuid/answer");
+        let escalate = build(
+            "escalate_question",
+            json!({"project":"matrix","question_id":"uuid","kind":"blocker","note":"N"}),
+        );
+        assert_eq!(
+            escalate.uri,
+            "/api/projects/matrix/questions/uuid/escalation"
+        );
+        let steering = build(
+            "get_steering",
+            json!({"project":"matrix","number":3,"sequence":1,"pending":true}),
+        );
+        assert_eq!(
+            steering.uri,
+            "/api/projects/matrix/units/3/attempts/1/steering?pending=true"
+        );
+        let steer = build(
+            "post_steering",
+            json!({"project":"matrix","number":3,"sequence":1,"body":"Try B"}),
+        );
+        assert_eq!(steer.method, axum::http::Method::POST);
+        let ack = build("ack_steering", json!({"project":"matrix","ids":["uuid"]}));
+        assert_eq!(ack.uri, "/api/projects/matrix/messages/acknowledgements");
+        let listed = build(
+            "list_messages",
+            json!({"project":"matrix","number":3,"attempt":1}),
+        );
+        assert_eq!(listed.uri.path(), "/api/projects/matrix/units/3/messages");
+        let appended = build(
+            "append_transcript",
+            json!({"project":"matrix","number":3,"sequence":1,"lease_token":"x","lease_generation":1,"events":[{"ts":"t","kind":"note","content":"c"}]}),
+        );
+        assert_eq!(
+            appended.uri,
+            "/api/projects/matrix/units/3/attempts/1/transcript"
+        );
+        let transcript = build(
+            "get_transcript",
+            json!({"project":"matrix","number":3,"sequence":1}),
+        );
+        assert_eq!(
+            transcript.uri.path(),
+            "/api/projects/matrix/units/3/attempts/1/transcript"
+        );
+        let questions = build("list_questions", json!({"project":"matrix","state":"open"}));
+        assert_eq!(questions.uri.path(), "/api/projects/matrix/questions");
+        let question = build(
+            "get_question",
+            json!({"project":"matrix","question_id":"uuid"}),
+        );
+        assert_eq!(question.uri, "/api/projects/matrix/questions/uuid");
         let edit = build(
             "edit_comment",
             json!({"project":"matrix","comment_id":"uuid","expected_revision":1,"body_markdown":"é"}),
