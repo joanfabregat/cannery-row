@@ -136,14 +136,8 @@ pub enum AttemptState {
     Running,
     #[serde(rename = "verifying")]
     Verifying,
-    #[serde(rename = "awaiting_human_review")]
-    AwaitingHumanReview,
-    #[serde(rename = "promoted")]
-    Promoted,
-    #[serde(rename = "rejected")]
-    Rejected,
-    #[serde(rename = "inconclusive")]
-    Inconclusive,
+    #[serde(rename = "verified")]
+    Verified,
     #[serde(rename = "failed")]
     Failed,
     #[serde(rename = "cancelled")]
@@ -180,6 +174,110 @@ pub struct AttentionOut {
     pub recent_failures: Vec<AttentionFailure>,
     pub stalled_verification_count: i64,
     pub stalled_verifications: Vec<AttentionStalledVerification>,
+    /// Hypotheses waiting for their write-up.
+    pub pending_writeup_count: i64,
+    pub pending_writeups: Vec<AttentionWriteup>,
+}
+
+/// The hypotheses waiting for their write-up, oldest first.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WriteupQueueOut {
+    pub total: i64,
+    pub items: Vec<AttentionWriteup>,
+}
+
+/// A hypothesis's write-up: whether it is still to write, being written,
+/// written or skipped, and what it covers and cites.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WriteupOut {
+    pub hypothesis: i64,
+    pub hypothesis_ref: String,
+    pub hypothesis_state: String,
+    /// `pending`, `claimed`, `written` or `skipped`.
+    pub status: String,
+    /// The document job; absent for an imported write-up.
+    #[schema(format = "uuid", required = true)]
+    pub job_id: Option<String>,
+    /// The attempt the write-up is filed on: the hypothesis's last.
+    pub attempt_ref: String,
+    /// The service account that claimed the document job.
+    #[schema(format = "uuid", required = true)]
+    pub claimed_by: Option<String>,
+    /// The researcher who claimed or skipped the document job.
+    #[schema(format = "uuid", required = true)]
+    pub claimed_by_user: Option<String>,
+    /// What the write-up covers and cites; absent for an imported write-up.
+    #[schema(required = true)]
+    pub inputs: Option<ClaimedDocumentInputs>,
+    /// The documenter's context bundle; absent when the attempt pinned no plan.
+    #[schema(required = true)]
+    pub context: Option<String>,
+    #[schema(required = true)]
+    pub writeup: Option<WriteupRecordOut>,
+    /// Why a researcher skipped the write-up.
+    #[schema(required = true)]
+    pub skip_reason: Option<String>,
+}
+
+/// A published write-up.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WriteupRecordOut {
+    #[schema(format = "uuid")]
+    pub id: String,
+    pub sha256: String,
+    pub front_matter: BTreeMap<String, serde_json::Value>,
+    pub body_markdown: String,
+    #[schema(format = "uuid", required = true)]
+    pub written_by_user: Option<String>,
+    #[schema(format = "uuid", required = true)]
+    pub written_by_service: Option<String>,
+    #[schema(format = "date-time")]
+    pub created_at: String,
+}
+
+/// A researcher writes a hypothesis up: the write-up, Markdown with YAML
+/// front matter (`writeup.schema.json`).
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WriteupRequest {
+    #[schema(min_length = 1, max_length = 1_048_576)]
+    pub document: String,
+}
+
+/// A researcher skips a hypothesis's write-up, and says why.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WriteupSkipRequest {
+    #[schema(min_length = 1, max_length = 4000)]
+    pub reason: String,
+}
+
+/// A hypothesis waiting for its write-up, and its document job.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AttentionWriteup {
+    pub hypothesis: i64,
+    pub hypothesis_ref: String,
+    pub title: String,
+    pub track: String,
+    /// The hypothesis's last attempt, verified or stopped after a failure.
+    pub attempt_ref: String,
+    pub attempt_state: String,
+    #[schema(format = "uuid")]
+    pub job_id: String,
+    /// `pending`, or `claimed` while someone writes it.
+    pub job_state: String,
+    /// The service account writing it.
+    #[schema(format = "uuid", required = true)]
+    pub claimed_by: Option<String>,
+    /// The researcher writing it.
+    #[schema(format = "uuid", required = true)]
+    pub claimed_by_user: Option<String>,
+    #[schema(format = "date-time")]
+    pub waiting_since: String,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -697,8 +795,8 @@ pub struct ProjectLimits {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum CaseKind {
-    #[serde(rename = "result")]
-    Result,
+    #[serde(rename = "decision")]
+    Decision,
     #[serde(rename = "failure")]
     Failure,
 }
@@ -1056,8 +1154,10 @@ pub enum HypothesisState {
     Queued,
     #[serde(rename = "active")]
     Active,
-    #[serde(rename = "awaiting_human_review")]
-    AwaitingHumanReview,
+    #[serde(rename = "documenting")]
+    Documenting,
+    #[serde(rename = "deciding")]
+    Deciding,
     #[serde(rename = "promoted")]
     Promoted,
     #[serde(rename = "rejected")]
@@ -1120,7 +1220,7 @@ pub struct JobClaimOut {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct JobClaimRequest {
-    /// The phase to claim a job of; only `verify` today.
+    /// The phase to claim a job of: `verify` (the default) or `document`.
     #[serde(default)]
     pub phase: Option<String>,
     #[serde(default)]
@@ -1191,7 +1291,18 @@ pub struct JobOut {
     /// The verification report the job published.
     #[schema(required = true)]
     pub verification: Option<VerificationDocument>,
+    /// The write-up a document job published.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub writeup: Option<WriteupDocument>,
     pub outputs: Vec<ArtifactOut>,
+}
+
+/// A published write-up: its front matter and its Markdown body.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WriteupDocument {
+    pub front_matter: BTreeMap<String, serde_json::Value>,
+    pub body_markdown: String,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -1332,6 +1443,8 @@ pub enum DocumentPhase {
     Verification,
     #[serde(rename = "writeup")]
     Writeup,
+    #[serde(rename = "decision")]
+    Decision,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -2251,11 +2364,44 @@ where
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
+/// A decision on a review case. A decision case takes the decision
+/// document (and `supersedes` for a correction); a failure case takes
+/// `action`, `evidence_revision` and `reason`.
 pub struct HumanDecisionRequest {
     pub review_case_id: String,
-    pub evidence_revision: i64,
-    pub action: HumanDecisionRequestAction,
-    pub reason: String,
+    /// Failure case: the failure revision decided on.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub evidence_revision: Option<i64>,
+    /// Failure case: `retry` or `stop`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub action: Option<HumanDecisionRequestAction>,
+    /// Failure case: why.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub reason: Option<String>,
+    /// Decision case: the decision document, Markdown with YAML front matter
+    /// (`decision.schema.json`) whose body is the reason.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false, min_length = 1, max_length = 1_048_576)]
+    pub document: Option<String>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -2267,16 +2413,10 @@ pub struct HumanDecisionRequest {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum HumanDecisionRequestAction {
-    #[serde(rename = "promote")]
-    Promote,
-    #[serde(rename = "reject")]
-    Reject,
-    #[serde(rename = "inconclusive")]
-    Inconclusive,
     #[serde(rename = "retry")]
     Retry,
-    #[serde(rename = "close_failed")]
-    CloseFailed,
+    #[serde(rename = "stop")]
+    Stop,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3720,10 +3860,58 @@ mod request_tests {
     }
 }
 
+/// The claimed job: a verify job, or a hypothesis's document job.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(untagged)]
+pub enum ClaimedJobDocument {
+    Verify(Box<ClaimedVerifyJob>),
+    Document(Box<ClaimedDocumentJob>),
+}
+/// A claimed document job: what the write-up covers and cites, and the lease.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimedDocumentJob {
+    pub schema_version: RequestCommonSchemaVersion,
+    pub job_id: String,
+    pub phase: ClaimedDocumentPhase,
+    /// The hypothesis's last attempt, verified or stopped after a failure.
+    pub attempt_id: String,
+    pub performer: ClaimedDocumentPerformer,
+    pub track: String,
+    pub hypothesis: i64,
+    pub science_revision: String,
+    pub inputs: ClaimedDocumentInputs,
+    pub output_prefix: String,
+    #[schema(format = "date-time")]
+    pub deadline: String,
+    pub lease: ClaimedJobLease,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub enum ClaimedDocumentPhase {
+    #[serde(rename = "document")]
+    Document,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub enum ClaimedDocumentPerformer {
+    #[serde(rename = "agent")]
+    Agent,
+}
+/// What a write-up covers and cites.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimedDocumentInputs {
+    /// The sequence numbers of every attempt of the hypothesis: the
+    /// write-up's `attempts`.
+    pub attempts: Vec<i64>,
+    /// The verification report the write-up cites as its `verification`;
+    /// absent for a stopped hypothesis, whose write-up cites null.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verification: Option<RequestCommonContentRef>,
+}
 /// Fixed published job contract, including its claimed lease and pinned inputs.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ClaimedJobDocument {
+pub struct ClaimedVerifyJob {
     pub schema_version: RequestCommonSchemaVersion,
     pub job_id: String,
     pub phase: ClaimedJobPhase,

@@ -27,7 +27,7 @@ pub(super) fn templates() -> Value {
         {"uriTemplate":format!("{PREFIX}{{project}}/brief/revisions/{{revision}}"),"name":"brief_revision","title":"Project brief revision",
          "description":"One revision of the project's brief, as claims and jobs name it.","mimeType":MARKDOWN},
         {"uriTemplate":format!("{PREFIX}{{project}}/hypotheses/{{number}}/attempts/{{sequence}}/context"),"name":"context","title":"Attempt context bundle",
-         "description":"What an attempt's performer reads first, assembled from the revisions it pinned at its claim: the brief, the plan's approach, the unit's fields and brief, an index of the track's other units, and a summary line and reference for each context item. Append /compact for the brief's goal, the unit and the index only, capped at 16 KiB.","mimeType":MARKDOWN},
+         "description":"What an attempt's performer reads first, assembled from the revisions it pinned at its claim: the brief, the plan's approach, the unit's fields and brief, an index of the track's other units, and a summary line and reference for each context item. Append /compact for the brief's goal, the unit and the index only, capped at 16 KiB. Append /document for the documenter's bundle, which adds every attempt's run document and notes, failures and their logs, verification reports and the comments; /decide adds the write-up too.","mimeType":MARKDOWN},
     ]})
 }
 
@@ -154,16 +154,23 @@ fn number(value: &str) -> bool {
 fn context_path(uri: &str) -> Option<String> {
     let rest = uri.strip_prefix(PREFIX)?;
     let parts: Vec<_> = rest.split('/').collect();
-    let (slug, number_, sequence, compact) = match parts.as_slice() {
-        [slug, "hypotheses", n, "attempts", s, "context"] => (slug, n, s, false),
-        [slug, "hypotheses", n, "attempts", s, "context", "compact"] => (slug, n, s, true),
+    let (slug, number_, sequence, query) = match parts.as_slice() {
+        [slug, "hypotheses", n, "attempts", s, "context"] => (slug, n, s, ""),
+        [slug, "hypotheses", n, "attempts", s, "context", "compact"] => {
+            (slug, n, s, "?detail=compact")
+        }
+        [slug, "hypotheses", n, "attempts", s, "context", "document"] => {
+            (slug, n, s, "?phase=document")
+        }
+        [slug, "hypotheses", n, "attempts", s, "context", "decide"] => {
+            (slug, n, s, "?phase=decide")
+        }
         _ => return None,
     };
     (!slug.is_empty() && number(number_) && number(sequence)).then(|| {
         format!(
-            "/api/projects/{}/hypotheses/{number_}/attempts/{sequence}/context.md{}",
+            "/api/projects/{}/hypotheses/{number_}/attempts/{sequence}/context.md{query}",
             encode(slug),
-            if compact { "?detail=compact" } else { "" }
         )
     })
 }

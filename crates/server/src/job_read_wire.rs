@@ -1,7 +1,10 @@
 //! Ordinary job models preserve Python projection and Pydantic construction order.
 use crate::{
     api_contract::{convert, decode, encode},
-    api_models::{JobOut, Page_JobOut_UUID_, StepRef, StepRefRevisionValue, VerificationDocument},
+    api_models::{
+        JobOut, Page_JobOut_UUID_, StepRef, StepRefRevisionValue, VerificationDocument,
+        WriteupDocument,
+    },
 };
 use cannery_attempts::model::{Artifact, StoredJson};
 use cannery_core::{
@@ -196,7 +199,20 @@ pub(crate) fn job(
         error_code: convert(&job.error_code)?,
         error_reason: convert(&job.error_reason)?,
         logs,
-        verification,
+        // A document job's output is its write-up.
+        writeup: if job.phase == cannery_jobs::repo::Phase::Document {
+            verification.clone().map(|document| WriteupDocument {
+                front_matter: document.front_matter,
+                body_markdown: document.body_markdown,
+            })
+        } else {
+            None
+        },
+        verification: if job.phase == cannery_jobs::repo::Phase::Document {
+            None
+        } else {
+            verification
+        },
         outputs: outputs
             .iter()
             .map(crate::attempt_read_wire::artifact_model)

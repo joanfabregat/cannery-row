@@ -1,10 +1,10 @@
 {
   "reason": "'actor' was unexpected",
   "document": {
-    "review_case_id": "rc-0193",
+    "review_case_id": "rc-0201",
     "evidence_revision": 1,
-    "action": "promote",
-    "reason": "All gates pass and the per-language breakdown is convincing.",
+    "action": "retry",
+    "reason": "The verifier lost its storage mount; run it again.",
     "actor": "joan"
   }
 }

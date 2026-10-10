@@ -281,9 +281,18 @@ async fn operation(conn: &mut PgConnection, recipe: &Value) -> Result<Value, Job
             ))
         }
         "pick" if recipe["performer"] == "agent" => Ok(value!(
-            repo::pick_pending_agent(conn, ProjectId(id(2)), claimant(recipe))
-                .await?
-                .map(|id| id.to_string())
+            repo::pick_pending_agent(
+                conn,
+                ProjectId(id(2)),
+                claimant(recipe),
+                if recipe["phase"] == "document" {
+                    repo::Phase::Document
+                } else {
+                    repo::Phase::Verify
+                }
+            )
+            .await?
+            .map(|id| id.to_string())
         )),
         "pick" => Ok(value!(
             repo::pick_pending_runner(

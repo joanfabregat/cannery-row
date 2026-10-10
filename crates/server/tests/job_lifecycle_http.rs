@@ -282,6 +282,7 @@ async fn job_lifecycle_integrity() -> Result<()> {
     rerun_budget(&app, &state.pool).await?;
     agent_publication_race(&app, &state.pool).await?;
     researcher_comparison_publication(&app, &state.pool).await?;
+    document_and_skip(&app, &state.pool).await?;
     uploads.cancellation.drain().await?;
     state.pool.close().await;
     Ok(())
@@ -451,9 +452,12 @@ async fn publication_and_upload(
     assert_eq!(status, 409, "{value}");
     let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='verification'),(SELECT count(*) FROM manifests WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='verify'),(SELECT count(*) FROM idempotency_keys WHERE scope='job.complete')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
-    // Publication hands the verified attempt to review.
-    let (attempt,cases):(String,i64)=sqlx::query_as("SELECT a.state,(SELECT count(*) FROM review_cases c WHERE c.attempt_id=a.id AND c.kind='result') FROM attempts a WHERE a.id='00000000-0000-0000-0000-000000002006'").fetch_one(pool).await?;
-    assert_eq!((attempt, cases), ("awaiting_human_review".into(), 1));
+    // Publication marks the attempt verified and queues the hypothesis's write-up.
+    let (attempt,hypothesis,cases,jobs):(String,String,i64,i64)=sqlx::query_as("SELECT a.state,h.state,(SELECT count(*) FROM review_cases c WHERE c.attempt_id=a.id),(SELECT count(*) FROM jobs j WHERE j.attempt_id=a.id AND j.phase='document' AND j.state='pending') FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id='00000000-0000-0000-0000-000000002006'").fetch_one(pool).await?;
+    assert_eq!(
+        (attempt, hypothesis, cases, jobs),
+        ("verified".into(), "documenting".into(), 0, 1)
+    );
     Ok(())
 }
 async fn rerun_budget(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
@@ -679,17 +683,14 @@ INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revisio
     assert_eq!(first.0, 200, "{}", first.1);
     assert_eq!(second.0, 200, "{}", second.1);
     assert_ne!(first.2, second.2);
-    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND stage='verification'),(SELECT count(*) FROM review_cases WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND kind='result'),(SELECT count(*) FROM audit_events WHERE action='attempt.verified' AND subject_id='00000000-0000-0000-0000-000000002406')").fetch_one(pool).await?;
+    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND stage='verification'),(SELECT count(*) FROM jobs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND phase='document' AND state='pending'),(SELECT count(*) FROM audit_events WHERE action='attempt.verified' AND subject_id='00000000-0000-0000-0000-000000002406')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
     let (attempt,hypothesis):(String,String)=sqlx::query_as("SELECT a.state,h.state FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id='00000000-0000-0000-0000-000000002406'").fetch_one(pool).await?;
     assert_eq!(
         (attempt, hypothesis),
-        (
-            "awaiting_human_review".into(),
-            "awaiting_human_review".into()
-        )
+        ("verified".into(), "documenting".into())
     );
-    let linked:bool=sqlx::query_scalar("SELECT j.evidence_id=c.evidence_id AND c.subject_revision=e.revision AND c.resolved_at IS NULL AND e.producer_service='00000000-0000-0000-0000-000000000020' FROM jobs j JOIN phase_outputs e ON e.id=j.evidence_id JOIN review_cases c ON c.evidence_id=e.id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
+    let linked:bool=sqlx::query_scalar("SELECT e.producer_service='00000000-0000-0000-0000-000000000020' AND NOT EXISTS (SELECT 1 FROM review_cases c WHERE c.attempt_id=j.attempt_id) FROM jobs j JOIN phase_outputs e ON e.id=j.evidence_id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
     assert!(linked);
     Ok(())
 }
@@ -730,6 +731,209 @@ INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revisio
     assert_eq!(
         producer.map(|v| v.to_string()).as_deref(),
         Some("00000000-0000-0000-0000-000000000002")
+    );
+    Ok(())
+}
+/// A write-up of `attempts` citing the verification report on `attempt`.
+async fn writeup(
+    pool: &sqlx::PgPool,
+    attempt: &str,
+    attempts: &str,
+    summary: &str,
+) -> Result<String> {
+    let (id, sha256): (uuid::Uuid, String) = sqlx::query_as("SELECT id,sha256 FROM phase_outputs WHERE attempt_id=$1::uuid AND stage='verification' AND status='completed'")
+        .bind(attempt)
+        .fetch_one(pool)
+        .await?;
+    Ok(format!(
+        "---\nsummary: \"{summary}\"\nattempts: [{attempts}]\nverification: {{\"ref\":\"{id}\",\"sha256\":\"{sha256}\"}}\n---\n\n## Results\n\nThe verifier confirmed the run.\n"
+    ))
+}
+async fn researcher(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    body: Option<&Value>,
+) -> Result<(u16, Value)> {
+    let request = Request::builder()
+        .method(method)
+        .uri(format!("/api/projects/matrix{uri}"))
+        .header("authorization", bearer("researcher"))
+        .header("content-type", "application/json");
+    let response = app
+        .clone()
+        .oneshot(request.body(body.map_or_else(Body::empty, |v| Body::from(v.to_string())))?)
+        .await?;
+    let status = response.status().as_u16();
+    let bytes = to_bytes(response.into_body(), 1024 * 1024).await?;
+    Ok((
+        status,
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| json!({"wire":String::from_utf8_lossy(&bytes)})),
+    ))
+}
+/// The hypothesis's state, its open decision cases and the write-up the case cites.
+async fn deciding(pool: &sqlx::PgPool, number: i32) -> Result<(String, i64, Option<uuid::Uuid>)> {
+    Ok(sqlx::query_as("SELECT h.state,(SELECT count(*) FROM review_cases c WHERE c.hypothesis_id=h.id AND c.kind='decision' AND c.state='pending'),(SELECT max(c.writeup_id::text)::uuid FROM review_cases c WHERE c.hypothesis_id=h.id AND c.kind='decision') FROM hypotheses h WHERE h.project_id='00000000-0000-0000-0000-000000000010' AND h.number=$1")
+        .bind(number)
+        .fetch_one(pool)
+        .await?)
+}
+async fn waiting(app: &Router) -> Result<Vec<i64>> {
+    let (status, queue) = researcher(app, "GET", "/writeups", None).await?;
+    assert_eq!(status, 200, "{queue}");
+    Ok(queue["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item["hypothesis"].as_i64())
+        .collect())
+}
+async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
+    // Hypotheses 6, 1406 and 1416 were verified above and wait for their write-up.
+    let queue = waiting(app).await?;
+    assert!(
+        [6, 1406, 1416].iter().all(|n| queue.contains(n)),
+        "{queue:?}"
+    );
+    let (status, pending) = researcher(app, "GET", "/hypotheses/1406/writeup", None).await?;
+    assert_eq!(status, 200, "{pending}");
+    assert_eq!(pending["status"], "pending");
+    assert_eq!(pending["inputs"]["attempts"], json!([1]));
+    let job = pending["job_id"].as_str().ok_or("document job")?.to_owned();
+    // The agent service account holds the document job and completes it like any job.
+    sqlx::query("UPDATE jobs SET state='claimed',claimed_by_service='00000000-0000-0000-0000-000000000020',lease_generation=1,lease_token_hash=sha256(convert_to('documenter-held','UTF8')),lease_expires_at=now()+interval '1 hour',claimed_at=now(),deadline=now()+interval '2 hours' WHERE id=$1::uuid")
+        .bind(&job)
+        .execute(pool)
+        .await?;
+    let attempt = "00000000-0000-0000-0000-000000002406";
+    let wrong = json!({"schema_version":"0.2","job_id":job,"document":writeup(pool, attempt, "1, 2", "The agent verified the run.").await?});
+    let (status, value, _) = call(
+        app,
+        "completion",
+        "agent",
+        "documenter-held",
+        "1",
+        &wrong,
+        None,
+    )
+    .await?;
+    assert_eq!(status, 422, "{value}");
+    let record = json!({"schema_version":"0.2","job_id":job,"document":writeup(pool, attempt, "1", "The agent verified the run.").await?});
+    let (status, value, _) = call(
+        app,
+        "completion",
+        "agent",
+        "documenter-held",
+        "1",
+        &record,
+        Some("writeup-once"),
+    )
+    .await?;
+    assert_eq!(status, 200, "{value}");
+    let (state, open, writeup_id) = deciding(pool, 1406).await?;
+    assert_eq!((state.as_str(), open), ("deciding", 1));
+    let (status, written) = researcher(app, "GET", "/hypotheses/1406/writeup", None).await?;
+    assert_eq!(status, 200, "{written}");
+    assert_eq!(written["status"], "written");
+    assert_eq!(
+        written["writeup"]["front_matter"]["summary"],
+        "The agent verified the run."
+    );
+    assert_eq!(
+        written["writeup"]["id"].as_str(),
+        writeup_id.map(|id| id.to_string()).as_deref()
+    );
+    // A researcher writes hypothesis 6 up: the job is claimed and completed in one action.
+    let attempt = "00000000-0000-0000-0000-000000002006";
+    let (status, value) = researcher(
+        app,
+        "POST",
+        "/hypotheses/6/writeup",
+        Some(&json!({"document":"   "})),
+    )
+    .await?;
+    assert_eq!(status, 422, "{value}");
+    let document = writeup(pool, attempt, "1", "The researcher wrote the run up.").await?;
+    let (status, value) = researcher(
+        app,
+        "POST",
+        "/hypotheses/6/writeup",
+        Some(&json!({ "document": document })),
+    )
+    .await?;
+    assert_eq!(status, 201, "{value}");
+    assert_eq!(
+        (&value["status"], &value["hypothesis_state"]),
+        (&json!("written"), &json!("deciding"))
+    );
+    assert_eq!(
+        value["writeup"]["written_by_user"],
+        "00000000-0000-0000-0000-000000000002"
+    );
+    let (status, value) = researcher(
+        app,
+        "POST",
+        "/hypotheses/6/writeup",
+        Some(&json!({ "document": document })),
+    )
+    .await?;
+    assert_eq!(status, 409, "{value}");
+    let (state, open, writeup_id) = deciding(pool, 6).await?;
+    assert_eq!(
+        (state.as_str(), open, writeup_id.is_some()),
+        ("deciding", 1, true)
+    );
+    // A researcher skips hypothesis 1416's write-up, and says why.
+    let (status, value) = researcher(
+        app,
+        "POST",
+        "/hypotheses/1416/writeup/skip",
+        Some(&json!({"reason":" "})),
+    )
+    .await?;
+    assert_eq!(status, 422, "{value}");
+    let (status, value) = researcher(
+        app,
+        "POST",
+        "/hypotheses/1416/writeup/skip",
+        Some(&json!({"reason":"The comparison says it all."})),
+    )
+    .await?;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(
+        (&value["status"], &value["skip_reason"]),
+        (&json!("skipped"), &json!("The comparison says it all."))
+    );
+    let (state, open, writeup_id) = deciding(pool, 1416).await?;
+    assert_eq!((state.as_str(), open, writeup_id), ("deciding", 1, None));
+    let (status, value) = researcher(
+        app,
+        "POST",
+        "/hypotheses/1416/writeup/skip",
+        Some(&json!({"reason":"Again."})),
+    )
+    .await?;
+    assert_eq!(status, 409, "{value}");
+    let queue = waiting(app).await?;
+    assert!(
+        [6, 1406, 1416].iter().all(|n| !queue.contains(n)),
+        "{queue:?}"
+    );
+    let audits: Vec<String> = sqlx::query_scalar("SELECT action FROM audit_events WHERE subject_type='job' AND subject_id IN (SELECT id::text FROM jobs WHERE phase='document') ORDER BY action")
+        .fetch_all(pool)
+        .await?;
+    assert_eq!(
+        audits,
+        vec![
+            "job.claimed",
+            "job.completed",
+            "job.completed",
+            "job.created",
+            "job.created",
+            "job.created",
+            "job.skipped"
+        ]
     );
     Ok(())
 }

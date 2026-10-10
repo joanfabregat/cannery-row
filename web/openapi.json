@@ -4370,7 +4370,7 @@
     "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md": {
       "get": {
         "summary": "Get Context Bundle",
-        "description": "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB.",
+        "description": "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB. `phase=document` is the\ndocumenter's bundle: the full bundle and the hypothesis's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
         "operationId": "get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get",
         "parameters": [
           {
@@ -4403,6 +4403,15 @@
             "name": "detail",
             "in": "query",
             "description": "`full` (the default) or `compact`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "phase",
+            "in": "query",
+            "description": "`document` or `decide`: the documenter's or the decider's bundle.",
             "required": false,
             "schema": {
               "type": "string"
@@ -6249,10 +6258,332 @@
         }
       }
     },
+    "/api/projects/{slug}/hypotheses/{number}/writeup": {
+      "get": {
+        "summary": "Get Write-up",
+        "description": "The hypothesis's write-up: `pending` or `claimed` while its document job\nwaits or is being written, `written` with the write-up, or `skipped` with\nthe researcher's reason. `inputs` is what the write-up covers and cites,\nand `context` the documenter's context bundle.",
+        "operationId": "get_writeup_api_projects__slug__hypotheses__number__writeup_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WriteupOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Write Up",
+        "description": "A researcher writes the hypothesis up: the document job is claimed and\ncompleted in one action. The write-up is Markdown with YAML front matter\n(``writeup.schema.json``): a one-sentence `summary`, the `attempts` it\ncovers (every attempt of the hypothesis) and the `verification` report it\ncites (null for a hypothesis stopped after a failure), as the write-up's\n`inputs` name them, and a body. The hypothesis then awaits its decision.\nA job another documenter holds is `409 conflict`.",
+        "operationId": "write_up_api_projects__slug__hypotheses__number__writeup_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WriteupOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/hypotheses/{number}/writeup/skip": {
+      "post": {
+        "summary": "Skip Write-up",
+        "description": "A researcher skips the hypothesis's write-up, waiting or being written,\nwith a reason: the hypothesis then awaits its decision without one, and\nits decision shows \"No write-up: <reason>\". Nothing skips a write-up\nautomatically.",
+        "operationId": "skip_writeup_api_projects__slug__hypotheses__number__writeup_skip_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WriteupSkipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WriteupOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/jobs/claims": {
       "post": {
         "summary": "Claim Job",
-        "description": "Claim the oldest waiting verify job the caller may verify.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
+        "description": "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a hypothesis whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
         "operationId": "claim_job_api_projects__slug__jobs_claims_post",
         "parameters": [
           {
@@ -6499,7 +6830,7 @@
     "/api/projects/{slug}/jobs/{job_id}/completion": {
       "post": {
         "summary": "Complete Job",
-        "description": "Publish the verification report with the manifest of the job's outputs.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt then awaits human review in a ``result``\ncase. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.",
+        "description": "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the hypothesis waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the hypothesis and cites the\nverification report the job names. The hypothesis then awaits its\ndecision. An invalid write-up is refused and the lease is kept.",
         "operationId": "complete_job_api_projects__slug__jobs__job_id__completion_post",
         "parameters": [
           {
@@ -6661,7 +6992,7 @@
     "/api/projects/{slug}/jobs/{job_id}/failure": {
       "post": {
         "summary": "Fail Job",
-        "description": "Report that the job failed: never with metrics, always with a reason.\n\nThe job runs again automatically, from the failed step, while reruns\nremain; then the attempt fails with a ``verify`` failure and a review case\nopens. A policy crash is such a failure, never a `fail` or `inconclusive`\nverdict. An `invalid_step_output` naming a producer step is the agent's\nfailure (the attempt fails at once for review, with no rerun) only when\nthe API itself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the verifier's failure.",
+        "description": "Report that the job failed: never with metrics, always with a reason.\n\nThe job runs again automatically, from the failed step, while reruns\nremain; then the attempt fails with a ``verify`` failure and a review case\nopens. A policy crash is such a failure, never a `fail` or `inconclusive`\nverdict. A failed document job is queued again for another documenter. An `invalid_step_output` naming a producer step is the agent's\nfailure (the attempt fails at once for review, with no rerun) only when\nthe API itself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the verifier's failure.",
         "operationId": "fail_job_api_projects__slug__jobs__job_id__failure_post",
         "parameters": [
           {
@@ -9221,7 +9552,7 @@
     "/api/projects/{slug}/review-cases/{case_id}/decisions": {
       "post": {
         "summary": "Decide",
-        "description": "Record a researcher's reasoned decision on a pending review case.",
+        "description": "Record a researcher's decision on a pending review case.\n\nA decision case is decided with a decision document: Markdown with YAML\nfront matter (``decision.schema.json``) naming the outcome (`promote`,\n`reject`, `inconclusive`, or `failed` for a hypothesis stopped after a\nfailure) and citing the case's verification report and write-up, each\nnull when there is none; its body is the reason. A promotion requires a\n`pass` verdict. A decided case is corrected with `supersedes`.\n\nA failure case is decided with `retry` or `stop`, the failure revision and\na reason: `stop` sends the hypothesis to be written up, then decided.",
         "operationId": "decide_api_projects__slug__review_cases__case_id__decisions_post",
         "parameters": [
           {
@@ -12262,6 +12593,97 @@
         }
       }
     },
+    "/api/projects/{slug}/writeups": {
+      "get": {
+        "summary": "List Write-ups To Do",
+        "description": "The hypotheses waiting for their write-up, oldest first, with their\ndocument job: `pending` until an agent or a researcher claims it.",
+        "operationId": "list_writeups_api_projects__slug__writeups_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items to return.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WriteupQueueOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/schemas/{phase}": {
       "get": {
         "summary": "Phase Schema",
@@ -13950,10 +14372,7 @@
           "claimed",
           "running",
           "verifying",
-          "awaiting_human_review",
-          "promoted",
-          "rejected",
-          "inconclusive",
+          "verified",
           "failed",
           "cancelled",
           "unreviewed"
@@ -14023,7 +14442,9 @@
           "recent_outcomes",
           "recent_failures",
           "stalled_verification_count",
-          "stalled_verifications"
+          "stalled_verifications",
+          "pending_writeup_count",
+          "pending_writeups"
         ],
         "properties": {
           "pending_counts": {
@@ -14040,6 +14461,17 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AttentionReview"
+            }
+          },
+          "pending_writeup_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Hypotheses waiting for their write-up."
+          },
+          "pending_writeups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttentionWriteup"
             }
           },
           "recent_failures": {
@@ -14307,6 +14739,74 @@
         },
         "additionalProperties": false
       },
+      "AttentionWriteup": {
+        "type": "object",
+        "description": "A hypothesis waiting for its write-up, and its document job.",
+        "required": [
+          "hypothesis",
+          "hypothesis_ref",
+          "title",
+          "track",
+          "attempt_ref",
+          "attempt_state",
+          "job_id",
+          "job_state",
+          "claimed_by",
+          "claimed_by_user",
+          "waiting_since"
+        ],
+        "properties": {
+          "attempt_ref": {
+            "type": "string",
+            "description": "The hypothesis's last attempt, verified or stopped after a failure."
+          },
+          "attempt_state": {
+            "type": "string"
+          },
+          "claimed_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The service account writing it."
+          },
+          "claimed_by_user": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The researcher writing it."
+          },
+          "hypothesis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hypothesis_ref": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "job_state": {
+            "type": "string",
+            "description": "`pending`, or `claimed` while someone writes it."
+          },
+          "title": {
+            "type": "string"
+          },
+          "track": {
+            "type": "string"
+          },
+          "waiting_since": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "Author": {
         "type": "object",
         "required": [
@@ -14530,7 +15030,7 @@
       "CaseKind": {
         "type": "string",
         "enum": [
-          "result",
+          "decision",
           "failure"
         ]
       },
@@ -14697,98 +15197,26 @@
         },
         "additionalProperties": false
       },
-      "ClaimedJobDocument": {
+      "ClaimedDocumentInputs": {
         "type": "object",
-        "description": "Fixed published job contract, including its claimed lease and pinned inputs.",
+        "description": "What a write-up covers and cites.",
         "required": [
-          "schema_version",
-          "job_id",
-          "phase",
-          "attempt_id",
-          "performer",
-          "track",
-          "parameters",
-          "steps",
-          "science_revision",
-          "inputs",
-          "output_prefix",
-          "deadline",
-          "limits",
-          "lease"
+          "attempts"
         ],
         "properties": {
-          "attempt_id": {
-            "type": "string"
-          },
-          "control": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ClaimedJobPinnedRef"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "deadline": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "inputs": {
-            "$ref": "#/components/schemas/ClaimedJobInputs"
-          },
-          "job_id": {
-            "type": "string"
-          },
-          "lease": {
-            "$ref": "#/components/schemas/ClaimedJobLease"
-          },
-          "limits": {
-            "$ref": "#/components/schemas/ClaimedJobLimits"
-          },
-          "output_prefix": {
-            "type": "string"
-          },
-          "parameters": {
-            "description": "Frozen project fields can contain scalar legacy values."
-          },
-          "performer": {
-            "$ref": "#/components/schemas/ClaimedJobPerformer"
-          },
-          "phase": {
-            "$ref": "#/components/schemas/ClaimedJobPhase"
-          },
-          "resume": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ClaimedJobResume",
-                "description": "Present on an automatic rerun that starts from a failed step."
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "schema_version": {
-            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
-          },
-          "science_revision": {
-            "type": "string"
-          },
-          "steps": {
+          "attempts": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ClaimedJobStep"
-            }
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "The sequence numbers of every attempt of the hypothesis: the\nwrite-up's `attempts`."
           },
-          "track": {
-            "type": "string"
-          },
-          "verifier": {
+          "verification": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/ClaimedJobService",
-                "description": "The registered verifier and policy revision; runner jobs only."
+                "$ref": "#/components/schemas/RequestCommonContentRef",
+                "description": "The verification report the write-up cites as its `verification`;\nabsent for a stopped hypothesis, whose write-up cites null."
               },
               {
                 "type": "null"
@@ -14797,6 +15225,89 @@
           }
         },
         "additionalProperties": false
+      },
+      "ClaimedDocumentJob": {
+        "type": "object",
+        "description": "A claimed document job: what the write-up covers and cites, and the lease.",
+        "required": [
+          "schema_version",
+          "job_id",
+          "phase",
+          "attempt_id",
+          "performer",
+          "track",
+          "hypothesis",
+          "science_revision",
+          "inputs",
+          "output_prefix",
+          "deadline",
+          "lease"
+        ],
+        "properties": {
+          "attempt_id": {
+            "type": "string",
+            "description": "The hypothesis's last attempt, verified or stopped after a failure."
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hypothesis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/ClaimedDocumentInputs"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "lease": {
+            "$ref": "#/components/schemas/ClaimedJobLease"
+          },
+          "output_prefix": {
+            "type": "string"
+          },
+          "performer": {
+            "$ref": "#/components/schemas/ClaimedDocumentPerformer"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/ClaimedDocumentPhase"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
+          },
+          "science_revision": {
+            "type": "string"
+          },
+          "track": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimedDocumentPerformer": {
+        "type": "string",
+        "enum": [
+          "agent"
+        ]
+      },
+      "ClaimedDocumentPhase": {
+        "type": "string",
+        "enum": [
+          "document"
+        ]
+      },
+      "ClaimedJobDocument": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ClaimedVerifyJob"
+          },
+          {
+            "$ref": "#/components/schemas/ClaimedDocumentJob"
+          }
+        ],
+        "description": "The claimed job: a verify job, or a hypothesis's document job."
       },
       "ClaimedJobInputs": {
         "type": "object",
@@ -15001,6 +15512,107 @@
           }
         ],
         "description": "What an attempt claimed: a run document's front matter, or a claimed result\nsheet submitted before run documents."
+      },
+      "ClaimedVerifyJob": {
+        "type": "object",
+        "description": "Fixed published job contract, including its claimed lease and pinned inputs.",
+        "required": [
+          "schema_version",
+          "job_id",
+          "phase",
+          "attempt_id",
+          "performer",
+          "track",
+          "parameters",
+          "steps",
+          "science_revision",
+          "inputs",
+          "output_prefix",
+          "deadline",
+          "limits",
+          "lease"
+        ],
+        "properties": {
+          "attempt_id": {
+            "type": "string"
+          },
+          "control": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClaimedJobPinnedRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/ClaimedJobInputs"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "lease": {
+            "$ref": "#/components/schemas/ClaimedJobLease"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ClaimedJobLimits"
+          },
+          "output_prefix": {
+            "type": "string"
+          },
+          "parameters": {
+            "description": "Frozen project fields can contain scalar legacy values."
+          },
+          "performer": {
+            "$ref": "#/components/schemas/ClaimedJobPerformer"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/ClaimedJobPhase"
+          },
+          "resume": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClaimedJobResume",
+                "description": "Present on an automatic rerun that starts from a failed step."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
+          },
+          "science_revision": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimedJobStep"
+            }
+          },
+          "track": {
+            "type": "string"
+          },
+          "verifier": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClaimedJobService",
+                "description": "The registered verifier and policy revision; runner jobs only."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
       },
       "ClaimedWorkflow": {
         "type": "object",
@@ -15735,7 +16347,8 @@
           "brief",
           "run",
           "verification",
-          "writeup"
+          "writeup",
+          "decision"
         ]
       },
       "EmptyReportDocument": {
@@ -16026,22 +16639,29 @@
       },
       "HumanDecisionRequest": {
         "type": "object",
+        "description": "A decision on a review case. A decision case takes the decision\ndocument (and `supersedes` for a correction); a failure case takes\n`action`, `evidence_revision` and `reason`.",
         "required": [
-          "review_case_id",
-          "evidence_revision",
-          "action",
-          "reason"
+          "review_case_id"
         ],
         "properties": {
           "action": {
-            "$ref": "#/components/schemas/HumanDecisionRequestAction"
+            "$ref": "#/components/schemas/HumanDecisionRequestAction",
+            "description": "Failure case: `retry` or `stop`."
+          },
+          "document": {
+            "type": "string",
+            "description": "Decision case: the decision document, Markdown with YAML front matter\n(`decision.schema.json`) whose body is the reason.",
+            "maxLength": 1048576,
+            "minLength": 1
           },
           "evidence_revision": {
             "type": "integer",
-            "format": "int64"
+            "format": "int64",
+            "description": "Failure case: the failure revision decided on."
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "description": "Failure case: why."
           },
           "review_case_id": {
             "type": "string"
@@ -16055,11 +16675,8 @@
       "HumanDecisionRequestAction": {
         "type": "string",
         "enum": [
-          "promote",
-          "reject",
-          "inconclusive",
           "retry",
-          "close_failed"
+          "stop"
         ]
       },
       "HypothesisDocument": {
@@ -16374,7 +16991,8 @@
         "enum": [
           "queued",
           "active",
-          "awaiting_human_review",
+          "documenting",
+          "deciding",
           "promoted",
           "rejected",
           "inconclusive",
@@ -16634,7 +17252,7 @@
               "string",
               "null"
             ],
-            "description": "The phase to claim a job of; only `verify` today."
+            "description": "The phase to claim a job of: `verify` (the default) or `document`."
           },
           "revision": {
             "type": [
@@ -16944,6 +17562,17 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "writeup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WriteupDocument",
+                "description": "The write-up a document job published."
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -21854,6 +22483,227 @@
             "items": {
               "type": "string"
             }
+          }
+        },
+        "additionalProperties": false
+      },
+      "WriteupDocument": {
+        "type": "object",
+        "description": "A published write-up: its front matter and its Markdown body.",
+        "required": [
+          "front_matter",
+          "body_markdown"
+        ],
+        "properties": {
+          "body_markdown": {
+            "type": "string"
+          },
+          "front_matter": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "WriteupOut": {
+        "type": "object",
+        "description": "A hypothesis's write-up: whether it is still to write, being written,\nwritten or skipped, and what it covers and cites.",
+        "required": [
+          "hypothesis",
+          "hypothesis_ref",
+          "hypothesis_state",
+          "status",
+          "job_id",
+          "attempt_ref",
+          "claimed_by",
+          "claimed_by_user",
+          "inputs",
+          "context",
+          "writeup",
+          "skip_reason"
+        ],
+        "properties": {
+          "attempt_ref": {
+            "type": "string",
+            "description": "The attempt the write-up is filed on: the hypothesis's last."
+          },
+          "claimed_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The service account that claimed the document job."
+          },
+          "claimed_by_user": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The researcher who claimed or skipped the document job."
+          },
+          "context": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The documenter's context bundle; absent when the attempt pinned no plan."
+          },
+          "hypothesis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hypothesis_ref": {
+            "type": "string"
+          },
+          "hypothesis_state": {
+            "type": "string"
+          },
+          "inputs": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClaimedDocumentInputs",
+                "description": "What the write-up covers and cites; absent for an imported write-up."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The document job; absent for an imported write-up."
+          },
+          "skip_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why a researcher skipped the write-up."
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `claimed`, `written` or `skipped`."
+          },
+          "writeup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WriteupRecordOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "WriteupQueueOut": {
+        "type": "object",
+        "description": "The hypotheses waiting for their write-up, oldest first.",
+        "required": [
+          "total",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttentionWriteup"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WriteupRecordOut": {
+        "type": "object",
+        "description": "A published write-up.",
+        "required": [
+          "id",
+          "sha256",
+          "front_matter",
+          "body_markdown",
+          "written_by_user",
+          "written_by_service",
+          "created_at"
+        ],
+        "properties": {
+          "body_markdown": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "front_matter": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "written_by_service": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "written_by_user": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WriteupRequest": {
+        "type": "object",
+        "description": "A researcher writes a hypothesis up: the write-up, Markdown with YAML\nfront matter (`writeup.schema.json`).",
+        "required": [
+          "document"
+        ],
+        "properties": {
+          "document": {
+            "type": "string",
+            "maxLength": 1048576,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "WriteupSkipRequest": {
+        "type": "object",
+        "description": "A researcher skips a hypothesis's write-up, and says why.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1
           }
         },
         "additionalProperties": false

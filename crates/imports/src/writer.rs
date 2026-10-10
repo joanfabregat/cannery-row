@@ -137,7 +137,7 @@ impl Writer<'_> {
         numbers: &mut BTreeMap<String, i32>,
     ) -> Result<()> {
         let value = &entry.content;
-        let state = text(value, "state")?;
+        let state = stored_state(value)?;
         let created = time::moment(text(value, "created_at")?)?;
         let times = time::attempts(value)?;
         let decision = time::decided(value, &times)?;
@@ -209,7 +209,7 @@ impl Writer<'_> {
                 target.0 as _,
             ).execute(&mut *self.connection).await?;
         }
-        let state = text(value, "state")?;
+        let state = stored_state(value)?;
         let decision = value.get("decision");
         let attempts = items(value, "attempts");
         let times = time::attempts(value)?;
@@ -218,8 +218,12 @@ impl Writer<'_> {
         for (index, (attempt, times)) in attempts.iter().zip(&times).enumerate() {
             let last = index + 1 == attempts.len();
             let has_decision = last && decision.is_some();
-            let attempt_state = if last && state == "awaiting_human_review" || has_decision {
-                state
+            let pending = last && matches!(state, "documenting" | "deciding");
+            // A decided or pending attempt ends verified; one closed as failed stays failed.
+            let attempt_state = if has_decision && state == "failed" {
+                "failed"
+            } else if pending || has_decision {
+                "verified"
             } else if attempt["status"] == "failed" {
                 "failed"
             } else {
@@ -261,7 +265,7 @@ impl Writer<'_> {
                 attempt_id,
                 attempt,
                 times,
-                attempt_state,
+                pending,
                 if has_decision { decision } else { None },
                 decided,
             )
@@ -282,7 +286,7 @@ impl Writer<'_> {
         )
         .await
     }
-    async fn report(&mut self, attempt: AttemptId, report: &Value) -> Result<()> {
+    async fn report(&mut self, attempt: AttemptId, report: &Value) -> Result<EvidenceId> {
         let path = text(report, "path")?;
         let written = text(report, "written_at")?;
         let day = if written.len() == 10 {
@@ -296,8 +300,8 @@ impl Writer<'_> {
             None
         };
         let body = self.reports.get(path).ok_or(Error::CorruptData)?;
-        sqlx::query!(
-            "INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,body,sha256,via_channel,via_client,origin,source_ref) VALUES($1,$2,'writeup','completed',1,jsonb_strip_nulls(jsonb_build_object('kind',$3::text,'author',$4::text,'written_on',$5::date,'written_at',$6::timestamptz)),$7,$8,'cli','cannery import','imported',$9)",
+        let id = sqlx::query_scalar!(
+            "INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,body,sha256,via_channel,via_client,origin,source_ref) VALUES($1,$2,'writeup','completed',1,jsonb_strip_nulls(jsonb_build_object('kind',$3::text,'author',$4::text,'written_on',$5::date,'written_at',$6::timestamptz)),$7,$8,'cli','cannery import','imported',$9) RETURNING id AS \"id: uuid::Uuid\"",
             self.project.0 as _,
             attempt.0 as _,
             text(report,"kind")?,
@@ -307,8 +311,40 @@ impl Writer<'_> {
             body,
             text(report,"sha256")?,
             path,
-        ).execute(&mut *self.connection).await?;
+        ).fetch_one(&mut *self.connection).await?;
         self.plan.reports += 1;
+        Ok(EvidenceId(id))
+    }
+    /// A pending document job for a hypothesis imported while it awaited a
+    /// decision without a write-up: it waits in `documenting` like any other.
+    async fn document_job(&mut self, attempt: AttemptId) -> Result<()> {
+        let row = sqlx::query!(
+            "SELECT h.number, t.slug FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id JOIN tracks t ON t.id=a.track_id WHERE a.id=$1",
+            attempt.0 as _,
+        )
+        .fetch_one(&mut *self.connection)
+        .await?;
+        let id: Uuid = sqlx::query_scalar!("SELECT gen_random_uuid() AS \"id!: uuid::Uuid\"")
+            .fetch_one(&mut *self.connection)
+            .await?;
+        let spec = json!({"performer":"agent","track":row.slug,"hypothesis":row.number,"steps":[],
+            "parameters":{},"output_prefix":format!("projects/{}/attempts/{}/document-runs/{id}/",
+            self.project.0, attempt.0)});
+        let allowance = self.science["limits"]["max_deadline_seconds"]
+            .as_i64()
+            .unwrap_or(3600);
+        let deadline = i32::try_from(300 + allowance).map_err(|_| Error::CorruptData)?;
+        sqlx::query!(
+            "INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,science_revision,performer,spec,deadline_seconds,origin) VALUES($1,$2,$3,'document',1,$4,'agent',$5,$6,'submission')",
+            id as _,
+            self.project.0 as _,
+            attempt.0 as _,
+            self.revision,
+            Json(&spec) as _,
+            deadline,
+        )
+        .execute(&mut *self.connection)
+        .await?;
         Ok(())
     }
     async fn verification(
@@ -340,7 +376,7 @@ impl Writer<'_> {
         attempt: AttemptId,
         value: &Value,
         times: &time::AttemptTimes,
-        state: &str,
+        pending: bool,
         decision: Option<&Value>,
         decided: Option<DateTime<Utc>>,
     ) -> Result<()> {
@@ -369,9 +405,11 @@ impl Writer<'_> {
         if items(value, "artifacts").is_empty() {
             self.gap("attempts without an artifact");
         }
-        if let Some(report) = value.get("report") {
-            self.report(attempt, report).await?;
-        }
+        let writeup = if let Some(report) = value.get("report") {
+            Some(self.report(attempt, report).await?)
+        } else {
+            None
+        };
         let mut provenance = json!({"science_revision":self.revision.to_string()});
         if let Some(revision) = value.get("source_revision") {
             provenance["source_revision"] = revision.clone();
@@ -461,16 +499,19 @@ impl Writer<'_> {
         } else {
             None
         };
-        if state == "awaiting_human_review" {
+        if pending && writeup.is_none() {
+            self.document_job(attempt).await?;
+        } else if pending {
             self.case(Case {
                 hypothesis,
                 attempt: Some(attempt),
-                kind: "result",
+                kind: "decision",
                 opened: times.evaluated,
                 resolved: None,
                 decision: None,
                 evidence: verification.filter(|_| verdict.is_some()),
                 failure: None,
+                writeup,
                 source: text(verdict.ok_or(Error::CorruptData)?, "source")?,
             })
             .await?;
@@ -479,7 +520,7 @@ impl Writer<'_> {
             self.case(Case {
                 hypothesis,
                 attempt: Some(attempt),
-                kind: if failed { "failure" } else { "result" },
+                kind: if failed { "failure" } else { "decision" },
                 opened: if failed {
                     times.ended()
                 } else {
@@ -489,6 +530,7 @@ impl Writer<'_> {
                 decision: Some(decision),
                 evidence: verification.filter(|_| verdict.is_some()),
                 failure,
+                writeup: writeup.filter(|_| !failed),
                 source: text(decision, "source")?,
             })
             .await?;
@@ -502,13 +544,14 @@ impl Writer<'_> {
         let attempt = case.attempt.map(|id| id.0);
         let evidence = case.evidence.map(|id| id.0);
         let failure = case.failure.map(|id| id.0);
+        let writeup = case.writeup.map(|id| id.0);
         let state = if case.decision.is_some() {
             "resolved"
         } else {
             "pending"
         };
         let id=ReviewCaseId(sqlx::query_scalar!(
-            "INSERT INTO review_cases(project_id,hypothesis_id,attempt_id,kind,subject_revision,state,opened_at,resolved_at,evidence_id,failure_id,origin,source_ref) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,'imported',$10) RETURNING id AS \"id: uuid::Uuid\"",
+            "INSERT INTO review_cases(project_id,hypothesis_id,attempt_id,kind,subject_revision,state,opened_at,resolved_at,evidence_id,failure_id,writeup_id,origin,source_ref) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,'imported',$11) RETURNING id AS \"id: uuid::Uuid\"",
             self.project.0 as _,
             case.hypothesis.0 as _,
             attempt as _,
@@ -518,6 +561,7 @@ impl Writer<'_> {
             case.resolved as _,
             evidence as _,
             failure as _,
+            writeup as _,
             case.source,
         ).fetch_one(&mut *self.connection).await?);
         if let Some(decision) = case.decision {
@@ -528,7 +572,7 @@ impl Writer<'_> {
             sqlx::query!(
                 "INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_user_id,via_channel,via_client,decided_at,origin,source_ref) VALUES($1,$2,1,$3,$4,'cli','cannery import',$5,'imported',$6)",
                 id.0 as _,
-                text(decision,"action")?,
+                stored_action(text(decision,"action")?),
                 text(decision,"reason")?,
                 actor.0 as _,
                 case.resolved as _,
@@ -548,7 +592,31 @@ struct Case<'a> {
     decision: Option<&'a Value>,
     evidence: Option<EvidenceId>,
     failure: Option<FailureId>,
+    writeup: Option<EvidenceId>,
     source: &'a str,
+}
+
+/// The state a bundle hypothesis is stored in. One awaiting a decision is
+/// written up first: it waits in `documenting`, or in `deciding` when its
+/// last attempt brings its report, which becomes the write-up.
+fn stored_state(hypothesis: &Value) -> Result<&str> {
+    let state = text(hypothesis, "state")?;
+    if state != "awaiting_human_review" {
+        return Ok(state);
+    }
+    let reported = items(hypothesis, "attempts")
+        .last()
+        .is_some_and(|attempt| attempt.get("report").is_some());
+    Ok(if reported { "deciding" } else { "documenting" })
+}
+
+/// A bundle's `close_failed` is the failure action `stop`.
+fn stored_action(action: &str) -> &str {
+    if action == "close_failed" {
+        "stop"
+    } else {
+        action
+    }
 }
 
 /// The attempt's notes become the verification report's body, exactly as written.

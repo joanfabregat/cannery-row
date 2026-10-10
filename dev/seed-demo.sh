@@ -52,7 +52,8 @@
 # The REST part drives each hypothesis of dev/demo-data/projects/*/project.yaml
 # through the real lifecycle: plans and their reviews, claims, uploads,
 # claimed run documents, verify jobs completed with a verification report,
-# human decisions, failure reviews, comments and track transitions. There is
+# write-ups (an agent's, a researcher's, a skipped one), decision documents,
+# failure reviews, comments and track transitions. There is
 # no runner: the script plays the agent and the verifier itself. A project
 # whose science revision registers a runner verifier gets a verifier service
 # account of that name; in one whose agents verify, a researcher verifies the
@@ -60,7 +61,9 @@
 # attempt left running keeps its lease for leases.ttl_seconds (15 minutes by
 # default), then the sweep fails it with lease_expired and opens a failure
 # review, as for a crashed agent; a verify job left claimed (stop: verifying)
-# goes back to waiting the same way, as for a crashed verifier.
+# goes back to waiting the same way, as for a crashed verifier. A verified or
+# stopped hypothesis whose last attempt has no writeup: is left waiting for its
+# write-up, and one with a writeup: but no decision: waits for its decision.
 #
 # Loading is not repeatable: the script refuses an instance that already has
 # a demo project. To start over, stop the instance, delete its data
@@ -483,6 +486,8 @@ run_attempt() {
       api "$by" POST "$path/release" "$(jq -c '{reason: .release}' <<<"$spec")" "$lease_file" >/dev/null
       if jq -e .failure_decision <<<"$spec" >/dev/null; then
         decide "$number" failure "$(jq -c .failure_decision <<<"$spec")"
+        # A stopped hypothesis is written up, then decided failed.
+        [[ "$(jq -r .failure_decision.action <<<"$spec")" != stop ]] || finish "$number" "$spec"
       fi
       return ;;
   esac
@@ -524,9 +529,7 @@ run_attempt() {
 
   run_verify_job "$attempt_id" "$key" "$spec"
   [[ "$stop" != verifying ]] || return 0
-  if jq -e .decision <<<"$spec" >/dev/null; then
-    decide "$number" result "$(jq -c .decision <<<"$spec")"
-  fi
+  finish "$number" "$spec"
 }
 
 # run_verify_job ATTEMPT_ID KEY SPEC: claim the attempt's verify job, upload
@@ -609,14 +612,67 @@ run_verify_job() {
       manifest: {schema_version: "0.2", attempt_id: $id, objects: $objects}}')" "$lease_file" >/dev/null
 }
 
-# decide NUMBER KIND DECISION_JSON: the pending review case of that kind.
+# decide NUMBER KIND DECISION_JSON: the pending review case of that kind. A
+# failure case takes the action and the reason; a decision case takes a
+# decision document citing the verification report and the write-up it
+# decides on (each null when there is none), with the reason as its body.
 decide() {
-  local number=$1 kind=$2 decision=$3 case
+  local number=$1 kind=$2 decision=$3 case writeup body
   case=$(api "$ADMIN" GET "$BASE/review-cases?kind=$kind&state=pending&limit=200" |
     jq -c --argjson n "$number" '[.items[] | select(.hypothesis == $n)][0] // empty')
   [[ -n "$case" ]] || die "no pending $kind review case for #$number"
-  api "$(jq -r .by <<<"$decision")" POST "$BASE/review-cases/$(jq -r .id <<<"$case")/decisions" \
-    "$(jq -c --argjson case "$case" '{review_case_id: $case.id, evidence_revision: $case.subject_revision, action, reason}' <<<"$decision")" >/dev/null
+  if [[ "$kind" == failure ]]; then
+    body=$(jq -c --argjson case "$case" '{review_case_id: $case.id, evidence_revision: $case.subject_revision, action, reason}' <<<"$decision")
+  else
+    writeup=$(api "$ADMIN" GET "$BASE/hypotheses/$number/writeup")
+    body=$(jq -c --argjson case "$case" --argjson w "$writeup" '{review_case_id: $case.id, document: (
+      "---\noutcome: \(.action)\nverification: \($w.inputs.verification // null | tojson)\nwriteup: \(
+        if $w.status == "written" then {ref: $w.writeup.id, sha256: $w.writeup.sha256} else null end | tojson)\n---\n\n\(.reason)\n")}' <<<"$decision")
+  fi
+  api "$(jq -r .by <<<"$decision")" POST "$BASE/review-cases/$(jq -r .id <<<"$case")/decisions" "$body" >/dev/null
+}
+
+# write_up NUMBER WRITEUP_JSON: the hypothesis's write-up. An agent claims the
+# document job and completes it; a researcher writes it up in one action, or
+# skips it with a reason (skip:). The front matter cites what the job names.
+write_up() {
+  local number=$1 writeup=$2 by job lease_file inputs document
+  by=$(jq -r .by <<<"$writeup")
+  if jq -e .skip <<<"$writeup" >/dev/null; then
+    api "$by" POST "$BASE/hypotheses/$number/writeup/skip" "$(jq -c '{reason: .skip}' <<<"$writeup")" >/dev/null
+    log "  #$number write-up skipped by $by"
+    return
+  fi
+  if [[ "$by" == agent ]]; then
+    job=$(api "$by" POST "$BASE/jobs/claims" '{"phase":"document"}' | jq -c .job)
+    [[ "$(jq -r .hypothesis <<<"$job")" == "$number" ]] ||
+      die "$by claimed the document job of another hypothesis; only the first write-up of a project is an agent's"
+    inputs=$(jq -c .inputs <<<"$job")
+  else
+    inputs=$(api "$by" GET "$BASE/hypotheses/$number/writeup" | jq -c .inputs)
+  fi
+  document=$(jq -r --argjson inputs "$inputs" '"---\nsummary: \(.summary | tojson)\nattempts: \($inputs.attempts | tojson)\nverification: \($inputs.verification // null | tojson)\n---\n\n\(.body)\n"' <<<"$writeup")
+  if [[ "$by" == agent ]]; then
+    lease_file=$(headers_file job-lease \
+      "X-Lease-Token: $(jq -r .lease.token <<<"$job")" \
+      "X-Lease-Generation: $(jq -r .lease.generation <<<"$job")")
+    api "$by" POST "$BASE/jobs/$(jq -r .job_id <<<"$job")/completion" "$(jq -nc --arg job "$(jq -r .job_id <<<"$job")" \
+      --arg document "$document" '{schema_version: "0.2", job_id: $job, document: $document}')" "$lease_file" >/dev/null
+  else
+    api "$by" POST "$BASE/hypotheses/$number/writeup" "$(jq -nc --arg document "$document" '{document: $document}')" >/dev/null
+  fi
+  log "  #$number written up by $by"
+}
+
+# finish NUMBER SPEC: after an attempt is verified or stopped, its write-up
+# (writeup:) and the decision (decision:), as far as the scenario goes.
+finish() {
+  local number=$1 spec=$2
+  jq -e .writeup <<<"$spec" >/dev/null || return 0
+  write_up "$number" "$(jq -c .writeup <<<"$spec")"
+  if jq -e .decision <<<"$spec" >/dev/null; then
+    decide "$number" decision "$(jq -c .decision <<<"$spec")"
+  fi
 }
 
 comments() {

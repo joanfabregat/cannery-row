@@ -101,16 +101,18 @@ async fn operation(c: &mut PgConnection, r: &Value, clock: Timestamp) -> Result<
         }
         "open" => {
             let revision = integer(r, "revision", 1)?;
-            let input = |e| OpenResultCase {
+            let default_revision = BigInt::from(1);
+            let input = |e| OpenDecisionCase {
                 project_id: project,
                 hypothesis_id: HypothesisId(id(r, "hypothesis", 43)),
                 attempt_id: AttemptId(id(r, "attempt", 113)),
-                evidence_id: EvidenceId(e),
-                evidence_revision: revision.as_ref(),
+                evidence_id: Some(EvidenceId(e)),
+                writeup_id: None,
+                subject_revision: revision.as_ref().unwrap_or(&default_revision),
             };
-            let new = open_result_case(c, input(id(r, "evidence", 213))).await?;
+            let new = open_decision_case(c, input(id(r, "evidence", 213))).await?;
             if let Some(other) = r["duplicate"].as_u64() {
-                open_result_case(c, input(identity(other))).await?;
+                open_decision_case(c, input(identity(other))).await?;
             }
             let row = get_case(c, project, new, false)
                 .await?
@@ -287,27 +289,29 @@ async fn concurrency(url: &str) -> Result<Value> {
     let joined = row.ok_or("missing joined case")?;
     let mut held = first.begin().await?;
     let one = BigInt::from(1);
-    open_result_case(
+    open_decision_case(
         &mut held,
-        OpenResultCase {
+        OpenDecisionCase {
             project_id: ProjectId(identity(2)),
             hypothesis_id: HypothesisId(identity(43)),
             attempt_id: AttemptId(identity(113)),
-            evidence_id: EvidenceId(identity(213)),
-            evidence_revision: Some(&one),
+            evidence_id: Some(EvidenceId(identity(213))),
+            writeup_id: None,
+            subject_revision: &one,
         },
     )
     .await?;
     let contender = tokio::spawn(async move {
         let one = BigInt::from(1);
-        let id = open_result_case(
+        let id = open_decision_case(
             &mut second,
-            OpenResultCase {
+            OpenDecisionCase {
                 project_id: ProjectId(identity(2)),
                 hypothesis_id: HypothesisId(identity(43)),
                 attempt_id: AttemptId(identity(113)),
-                evidence_id: EvidenceId(identity(214)),
-                evidence_revision: Some(&one),
+                evidence_id: Some(EvidenceId(identity(214))),
+                writeup_id: None,
+                subject_revision: &one,
             },
         )
         .await?;

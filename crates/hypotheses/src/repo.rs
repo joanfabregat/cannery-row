@@ -57,7 +57,8 @@ pub struct EvidenceId(pub Uuid);
 pub enum HypothesisState {
     Queued,
     Active,
-    AwaitingHumanReview,
+    Documenting,
+    Deciding,
     Promoted,
     Rejected,
     Inconclusive,
@@ -70,7 +71,8 @@ impl HypothesisState {
         match self {
             Self::Queued => "queued",
             Self::Active => "active",
-            Self::AwaitingHumanReview => "awaiting_human_review",
+            Self::Documenting => "documenting",
+            Self::Deciding => "deciding",
             Self::Promoted => "promoted",
             Self::Rejected => "rejected",
             Self::Inconclusive => "inconclusive",
@@ -85,7 +87,8 @@ impl TryFrom<&str> for HypothesisState {
         match s {
             "queued" => Ok(Self::Queued),
             "active" => Ok(Self::Active),
-            "awaiting_human_review" => Ok(Self::AwaitingHumanReview),
+            "documenting" => Ok(Self::Documenting),
+            "deciding" => Ok(Self::Deciding),
             "promoted" => Ok(Self::Promoted),
             "rejected" => Ok(Self::Rejected),
             "inconclusive" => Ok(Self::Inconclusive),
@@ -172,14 +175,14 @@ impl TryFrom<&str> for RelationKind {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum CaseKind {
-    Result,
+    Decision,
     Failure,
 }
 impl CaseKind {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Result => "result",
+            Self::Decision => "decision",
             Self::Failure => "failure",
         }
     }
@@ -188,7 +191,7 @@ impl TryFrom<&str> for CaseKind {
     type Error = HypothesisError;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
-            "result" => Ok(Self::Result),
+            "decision" => Ok(Self::Decision),
             "failure" => Ok(Self::Failure),
             _ => Err(HypothesisError::CorruptData),
         }
@@ -224,7 +227,8 @@ pub enum DecisionAction {
     Reject,
     Inconclusive,
     Retry,
-    CloseFailed,
+    Failed,
+    Stop,
 }
 impl DecisionAction {
     #[must_use]
@@ -234,7 +238,8 @@ impl DecisionAction {
             Self::Reject => "reject",
             Self::Inconclusive => "inconclusive",
             Self::Retry => "retry",
-            Self::CloseFailed => "close_failed",
+            Self::Failed => "failed",
+            Self::Stop => "stop",
         }
     }
 }
@@ -246,7 +251,8 @@ impl TryFrom<&str> for DecisionAction {
             "reject" => Ok(Self::Reject),
             "inconclusive" => Ok(Self::Inconclusive),
             "retry" => Ok(Self::Retry),
-            "close_failed" => Ok(Self::CloseFailed),
+            "failed" => Ok(Self::Failed),
+            "stop" => Ok(Self::Stop),
             _ => Err(HypothesisError::CorruptData),
         }
     }
@@ -498,6 +504,9 @@ pub struct Decision {
     pub supersedes: Option<DecisionId>,
     pub origin: Origin,
     pub source_ref: Option<String>,
+    /// The decision document of a decision case: its front matter and SHA-256;
+    /// the reason is its body. Absent for failure actions and earlier decisions.
+    pub document: Option<(Document, String)>,
 }
 impl fmt::Debug for Decision {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -517,8 +526,10 @@ struct RawDecision {
     supersedes: Option<DecisionId>,
     origin: String,
     source_ref: Option<String>,
+    front_matter: Option<String>,
+    sha256: Option<String>,
 }
-fn decode_decision(r: &RawDecision, _context: JsonContext) -> Result<Decision, HypothesisError> {
+fn decode_decision(r: &RawDecision, context: JsonContext) -> Result<Decision, HypothesisError> {
     Ok(Decision {
         id: r.id,
         review_case_id: r.review_case_id,
@@ -532,6 +543,14 @@ fn decode_decision(r: &RawDecision, _context: JsonContext) -> Result<Decision, H
         supersedes: r.supersedes,
         origin: Origin::try_from(r.origin.as_str())?,
         source_ref: r.source_ref.as_deref().map(String::from),
+        document: match (
+            decode_optional_json(r.front_matter.as_deref(), context)?,
+            &r.sha256,
+        ) {
+            (Some(front_matter), Some(sha256)) => Some((front_matter, sha256.clone())),
+            (None, None) => None,
+            _ => return Err(HypothesisError::CorruptData),
+        },
     })
 }
 /// Sanitized failures preserve server SQLSTATE without retaining driver messages.
@@ -645,6 +664,8 @@ pub struct RecordDecision<'a> {
     pub reason: &'a String,
     pub principal: &'a UserPrincipal,
     pub supersedes: Option<DecisionId>,
+    /// A decision document's front matter as JSON text, and its SHA-256.
+    pub document: Option<(&'a str, &'a str)>,
 }
 pub struct ListHypotheses<'a> {
     pub states: Option<&'a [HypothesisState]>,
@@ -873,7 +894,8 @@ pub async fn record_decision(
     let revision = integer(input.subject_revision)?;
     let reason = text(input.reason)?;
     let client = client(input.principal.via.client.as_deref())?;
-    let row = checked_query!(as RawDecision, r#"INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_user_id,via_channel,via_client,supersedes) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id!: _", via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref""#, (input.case_id as ReviewCaseId,input.action.as_str(),revision as _,reason,input.principal.user_id as UserId,channel(input.principal.via.channel),client,input.supersedes as Option<DecisionId>), fetch_optional, &mut *connection)?;
+    let (front_matter, sha256) = input.document.unzip();
+    let row = checked_query!(as RawDecision, r#"INSERT INTO decisions(review_case_id,action,subject_revision,reason,actor_user_id,via_channel,via_client,supersedes,front_matter,sha256) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::text::jsonb,$10) RETURNING id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id!: _", via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref", front_matter::text AS "front_matter", sha256 AS "sha256""#, (input.case_id as ReviewCaseId,input.action.as_str(),revision as _,reason,input.principal.user_id as UserId,channel(input.principal.via.channel),client,input.supersedes as Option<DecisionId>,front_matter,sha256), fetch_optional, &mut *connection)?;
     let decision = decode_decision(&row.ok_or(HypothesisError::Invariant)?, context)?;
     checked_query!(exec Execute, "UPDATE review_cases SET state='resolved',resolved_at=now() WHERE id=$1 AND state='pending'", (input.case_id as ReviewCaseId), execute, connection)?;
     Ok(decision)
@@ -903,7 +925,7 @@ pub async fn list_decisions(
         return Ok(Vec::new());
     }
     let ids = case_ids.iter().map(|id| id.0).collect::<Vec<_>>();
-    let rows = checked_query!(as RawDecision, r#"SELECT id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id!: _", via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref" FROM decisions WHERE review_case_id=ANY($1) ORDER BY decided_at"#, (&ids as _), fetch_all, connection)?;
+    let rows = checked_query!(as RawDecision, r#"SELECT id AS "id!: _", review_case_id AS "review_case_id!: _", action AS "action", subject_revision AS "subject_revision", reason AS "reason", actor_user_id AS "actor_user_id!: _", via_channel AS "via_channel", via_client AS "via_client", decided_at AS "decided_at!: _", supersedes AS "supersedes: _", origin AS "origin", source_ref AS "source_ref", front_matter::text AS "front_matter", sha256 AS "sha256" FROM decisions WHERE review_case_id=ANY($1) ORDER BY decided_at"#, (&ids as _), fetch_all, connection)?;
     rows.into_iter()
         .map(|r| decode_decision(&r, context))
         .collect()

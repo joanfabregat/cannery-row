@@ -140,6 +140,22 @@ async fn claim_document(
         .await
         .map_err(|_| internal(context, "job claim attempt"))?
         .ok_or_else(|| internal(context, "job claim attempt invariant"))?;
+    let heartbeat_seconds = std::cmp::max(BigInt::from(1), ttl / BigInt::from(3))
+        .to_i64()
+        .ok_or_else(|| internal(context, "job claim heartbeat"))?;
+    if job.phase == Phase::Document {
+        return document_job(
+            c,
+            project,
+            job,
+            &attempt,
+            token,
+            pins,
+            heartbeat_seconds,
+            context,
+        )
+        .await;
+    }
     let phase = String::from(job.phase.as_str());
     let science_revision = BigInt::from(job.science_revision);
     let generation = BigInt::from(job.lease_generation);
@@ -165,9 +181,91 @@ async fn claim_document(
         )
         .map_err(|_| internal(context, "job claim model"))?,
         attempt_ref: format!("#{}.{}", attempt.hypothesis_number, attempt.sequence),
-        heartbeat_seconds: std::cmp::max(BigInt::from(1), ttl / BigInt::from(3))
-            .to_i64()
-            .ok_or_else(|| internal(context, "job claim heartbeat"))?,
+        heartbeat_seconds,
+        brief: pins.brief,
+        plan: pins.plan,
+        context: pins.context,
+    })
+}
+/// A claimed document job: what its write-up covers and cites, and the
+/// documenter's context bundle.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Claim response inputs stay explicit"
+)]
+async fn document_job(
+    c: &mut PgConnection,
+    project: &Project,
+    job: &Job,
+    attempt: &cannery_attempts::model::Attempt,
+    token: &Secret,
+    mut pins: crate::context_bundle::Pins,
+    heartbeat_seconds: i64,
+    context: &RequestContext,
+) -> Result<crate::api_models::JobClaimOut, Failure> {
+    let inputs = crate::document_jobs::inputs(c, attempt, context).await?;
+    let (deadline, expires) = job
+        .deadline
+        .zip(job.lease_expires_at)
+        .ok_or_else(|| internal(context, "document job lease invariant"))?;
+    let text = |name: &str| {
+        let spec = &job.spec;
+        spec.field(spec.root(), name)
+            .and_then(|id| spec.node(id))
+            .and_then(|node| match node {
+                Node::String(value) => value.as_utf8(),
+                _ => None,
+            })
+            .ok_or_else(|| internal(context, "document job specification"))
+    };
+    if let Some(bundle) = pins.context.as_mut() {
+        bundle.r#ref.push_str("?phase=document");
+        let pinned = cannery_tracks::plans::attempt_pins_by_id(c, attempt.id)
+            .await
+            .map_err(|_| internal(context, "document job pins"))?
+            .ok_or_else(|| internal(context, "document job pins invariant"))?;
+        let built = crate::context_bundle::build_for(
+            c,
+            project,
+            &pinned,
+            crate::context_bundle::Detail::Document,
+            context,
+        )
+        .await
+        .map_err(failure)?;
+        bundle.bytes = i64::try_from(built.len()).unwrap_or(i64::MAX);
+    }
+    Ok(crate::api_models::JobClaimOut {
+        job: crate::api_models::ClaimedJobDocument::Document(Box::new(
+            crate::api_models::ClaimedDocumentJob {
+                schema_version: crate::api_models::RequestCommonSchemaVersion::Value0,
+                job_id: job.id.to_string(),
+                phase: crate::api_models::ClaimedDocumentPhase::Document,
+                attempt_id: job.attempt_id.to_string(),
+                performer: crate::api_models::ClaimedDocumentPerformer::Agent,
+                track: text("track")?,
+                hypothesis: i64::from(attempt.hypothesis_number),
+                science_revision: job.science_revision.to_string(),
+                inputs: crate::api_models::ClaimedDocumentInputs {
+                    attempts: inputs.attempts.clone(),
+                    verification: inputs.verification.as_ref().map(|cited| {
+                        crate::api_models::RequestCommonContentRef {
+                            r#ref: cited.id.to_string(),
+                            sha256: cited.sha256.clone(),
+                        }
+                    }),
+                },
+                output_prefix: text("output_prefix")?,
+                deadline: deadline.isoformat(),
+                lease: crate::api_models::ClaimedJobLease {
+                    token: String::from(token.expose()),
+                    generation: i64::from(job.lease_generation),
+                    expires_at: expires.isoformat(),
+                },
+            },
+        )),
+        attempt_ref: format!("#{}.{}", attempt.hypothesis_number, attempt.sequence),
+        heartbeat_seconds,
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
@@ -250,7 +348,7 @@ mod replay_generation_tests {
     path = "/api/projects/{slug}/jobs/claims",
     operation_id = "claim_job_api_projects__slug__jobs_claims_post",
     summary = "Claim Job",
-    description = "Claim the oldest waiting verify job the caller may verify.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
+    description = "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a hypothesis whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
     params(("slug" = String, Path),
         ("idempotency-key" = Option<String>, Header)),
     request_body(content = crate::api_models::JobClaimRequest, content_type = "application/json"),
@@ -294,6 +392,12 @@ pub(crate) async fn claim(
     .await?;
     let phase = body.phase.unwrap_or(Phase::Verify);
     let performer = job_workers::performer(&auth.principal);
+    if performer == Performer::Runner && phase == Phase::Document {
+        return Err(violation(
+            "/phase",
+            "a verifier claims verify jobs; an agent or a researcher writes hypotheses up",
+        ));
+    }
     if performer == Performer::Runner && body.revision.is_none() {
         return Err(violation(
             "/revision",
@@ -417,7 +521,7 @@ pub(crate) async fn claim(
             (Principal::Service(verifier), Some(revision)) if performer == Performer::Runner => {
                 repo::pick_pending_runner(&mut tx, project.id, &verifier.name, revision).await
             }
-            _ => repo::pick_pending_agent(&mut tx, project.id, claimant).await,
+            _ => repo::pick_pending_agent(&mut tx, project.id, claimant, phase).await,
         }
         .map_err(|_| internal(&context, "job claim selection"))?;
         let Some(id) = id else {
@@ -441,9 +545,13 @@ pub(crate) async fn claim(
                     ),
                 ));
             }
-            let own = repo::own_pending_agent(&mut tx, project.id, claimant)
-                .await
-                .map_err(|_| internal(&context, "job claim own attempts"))?;
+            let own = if phase == Phase::Verify {
+                repo::own_pending_agent(&mut tx, project.id, claimant)
+                    .await
+                    .map_err(|_| internal(&context, "job claim own attempts"))?
+            } else {
+                0
+            };
             return Err(domain(
                 ErrorCode::Conflict,
                 if own > 0 {
@@ -620,7 +728,8 @@ pub(crate) async fn heartbeat(
             .await
             .map_err(|_| internal(&context, "job heartbeat attempt"))?
             .ok_or_else(|| internal(&context, "job heartbeat attempt invariant"))?;
-        if attempt.state != cannery_attempts::model::State::Verifying {
+        if job.phase == Phase::Verify && attempt.state != cannery_attempts::model::State::Verifying
+        {
             return Err(domain(
                 ErrorCode::StaleLease,
                 format!(

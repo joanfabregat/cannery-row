@@ -164,12 +164,12 @@ function expectComparisons(scope: HTMLElement) {
 describe("the verification's comparisons on the review screen", () => {
   function awaitingResult() {
     const h = hypothesis({
-      state: "awaiting_human_review",
-      reviews: [review({ id: CASE_ID, kind: "result", state: "pending", subject_revision: 3 })],
+      state: "deciding",
+      reviews: [review({ id: CASE_ID, kind: "decision", state: "pending", subject_revision: 3 })],
     });
     return {
       ...hypothesisApi(h, {
-        attempts: [attempt({ state: "awaiting_human_review" })],
+        attempts: [attempt({ state: "verified" })],
         reports: {
           1: report({
             verification: verification({ producer: { kind: "service", id: "stock-verifier" } }),

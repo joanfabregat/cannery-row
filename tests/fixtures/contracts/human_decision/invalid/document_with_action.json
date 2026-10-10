@@ -1,0 +1,10 @@
+{
+  "reason": "a decision document is not a failure action",
+  "document": {
+    "review_case_id": "rc-0193",
+    "document": "---\noutcome: promote\n---\n\nAll gates pass.\n",
+    "action": "retry",
+    "evidence_revision": 1,
+    "reason": "All gates pass."
+  }
+}

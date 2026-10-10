@@ -196,7 +196,7 @@ A hypothesis has at most one decision, and it is about its last attempt.
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `action` | yes | `promote`, `reject`, `inconclusive` or `close_failed`. |
+| `action` | yes | `promote`, `reject`, `inconclusive` or `close_failed`. A `close_failed` is stored as the failure action `stop`. |
 | `decided_at` | yes | Not before the verdict it decides on (see the dates above). |
 | `decided_by` | yes | Email of the user who decided; a researcher of the project (see membership above). |
 | `reason` | yes | Quoted or closely summarized from the source, never invented. |
@@ -210,11 +210,11 @@ The state must be consistent with the attempts and the decision:
 
 | State | Attempts | Decision | What the import creates |
 | --- | --- | --- | --- |
-| `awaiting_human_review` | the last one completed, with a verdict | none | A pending result case on that verdict: a researcher decides it live, and promotion needs a `pass`, as for any result. |
-| `promoted`, `rejected`, `inconclusive` | the last one completed, with a verdict (`pass` for `promote`) | `promote`, `reject`, `inconclusive` | A result case on the last attempt, resolved by the decision. |
-| `failed` | the last one failed | `close_failed` | A failure case on the last attempt, resolved by the decision. |
+| `awaiting_human_review` | the last one completed, with a verdict | none | The hypothesis is written up, then decided live, like any verified hypothesis. When the last attempt brings a report, the report is its write-up and the hypothesis is stored `deciding`, with a pending decision case citing the verdict and the write-up; otherwise it is stored `documenting`, with a pending document job for an agent or a researcher. Promotion needs a `pass`, as for any decision. |
+| `promoted`, `rejected`, `inconclusive` | the last one completed, with a verdict (`pass` for `promote`) | `promote`, `reject`, `inconclusive` | A decision case on the last attempt, resolved by the decision, citing the last attempt's report as its write-up when there is one. |
+| `failed` | the last one failed | `close_failed` | A failure case on the last attempt, resolved by a `stop`. |
 
-The decided attempt takes the outcome as its state. Any other attempt ends `failed` when it failed, and otherwise `unreviewed`: a finished run with no decision of its own (another run of the hypothesis was decided, or the hypothesis awaits review). `unreviewed` exists only for imported attempts. A failed attempt records its failure; it opens no failure case unless a `close_failed` decides it.
+A decided or pending attempt that completed is stored `verified`, and one closed as failed `failed`. Any other attempt ends `failed` when it failed, and otherwise `unreviewed`: a finished run with no decision of its own (another run of the hypothesis was decided, or the hypothesis awaits review). `unreviewed` exists only for imported attempts. A failed attempt records its failure; it opens no failure case unless a `close_failed` decides it.
 
 ## What the live schema needs and the history does not have
 

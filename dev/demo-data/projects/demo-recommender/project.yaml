@@ -110,6 +110,22 @@ hypotheses:
           compare:
             - {metric: recall_at_10, split: validation, reference: {value: 0.082, label: Popularity, kind: baseline, ref: popularity}}
             - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, reference: {value: 0.091, label: Popularity, kind: baseline, ref: popularity}}
+        # The agent claims the document job and writes it up.
+        writeup:
+          by: agent
+          summary: ALS with 64 factors doubles returning-user recall@10 over popularity and holds for new users.
+          body: |-
+            ## What was tried
+
+            Implicit-feedback ALS with 64 latent factors on the purchase history.
+
+            ## What was found
+
+            The verifier measured recall@10 of 0.185 for returning users against 0.091 for popularity, and 0.066 against 0.064 for new users.
+
+            ## What it means
+
+            Collaborative filtering is worth it here; new users still need a fallback.
         decision: {by: ben, action: promote, reason: "Large, consistent gain for returning users without hurting new ones. ALS-64 is the reference model of this project."}
     comments:
       - {by: chloe, on: hypothesis, body: "Coverage going from 0.3% to 21% is the number merchandising will care about most."}
@@ -163,6 +179,17 @@ hypotheses:
           reason: Returning-user recall@10 is 0.034 below the promoted ALS model.
           compare:
             - {metric: recall_at_10, split: validation, dims: {user_segment: returning}, reference: {value: 0.185, label: "ALS-64 (#1)", kind: promoted_attempt, ref: "demo-recommender#1"}}
+        writeup:
+          by: ada
+          summary: Item-kNN is 0.034 below ALS-64 on returning-user recall@10, though it holds for new users.
+          body: |-
+            ## What was found
+
+            Returning-user recall@10 is 0.151 against 0.185 for the promoted ALS model.
+
+            ## What it means
+
+            Item-kNN stays useful where explanations matter, not for the main ranking.
         decision: {by: ada, action: reject, reason: "Clearly below ALS. Keep item-kNN for the explainable 'similar items' widget only, outside this ranking."}
 
   - key: bpr
@@ -211,6 +238,17 @@ hypotheses:
             - {id: returning-gain, result: pass}
             - {id: new-users-hold, result: unknown, detail: "new-user slice missing"}
           reason: The gain over ALS is within noise and the new-user slice is missing, so the regression gate cannot be checked.
+        writeup:
+          by: ben
+          summary: BPR's gain over ALS is within noise, and a missing new-user slice leaves the regression gate unchecked.
+          body: |-
+            ## What was found
+
+            Recall@10 is 0.152 overall (95% interval 0.146 to 0.158) and 0.188 for returning users. The scorer's new-user slice failed on 14 users with no training events.
+
+            ## What it means
+
+            Nothing here justifies replacing ALS; a rerun would need the scorer fixed first.
         decision: {by: ben, action: inconclusive, reason: "Within noise and a missing slice. Not worth another run unless ALS stalls."}
 
   - key: als-128

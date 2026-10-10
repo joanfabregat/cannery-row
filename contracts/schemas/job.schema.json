@@ -1,148 +1,361 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/job.schema.json",
-  "title": "Verify job",
-  "description": "The job document a verifier receives when it claims a verify job: a verifier service account running the runner (performer `runner`), or an agent service account or researcher who did not run the attempt (performer `agent`). The lease token authorizes only reading the listed inputs and writing under output_prefix.",
-  "type": "object",
-  "properties": {
-    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
-    "job_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "phase": {"const": "verify"},
-    "attempt_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "performer": {
-      "description": "Who verifies: the runner under the registered verifier, or an agent.",
-      "enum": ["runner", "agent"]
-    },
-    "verifier": {
-      "description": "The registered verifier: the verifier service account name and the policy revision its reports must name. Runner jobs only.",
-      "type": "object",
-      "properties": {
-        "id": {"$ref": "common.schema.json#/$defs/identifier"},
-        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
-      },
-      "required": ["id", "revision"],
-      "additionalProperties": false
-    },
-    "track": {"$ref": "common.schema.json#/$defs/slug"},
-    "control": {
-      "description": "The control the hypothesis names, pinned only when it names one. The report's control_revision must equal its revision.",
-      "$ref": "common.schema.json#/$defs/pinned_ref"
-    },
-    "parameters": {
-      "description": "The hypothesis parameters: the project_fields of the hypothesis revision the attempt pinned ({} without any), frozen when the job was created.",
-      "$ref": "common.schema.json#/$defs/open_object"
-    },
-    "steps": {
-      "description": "The producer and the scorer the job verifies with. The runner executes them; an agent may run them or verify another way.",
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"$ref": "common.schema.json#/$defs/slug"},
-          "revision": {
-            "description": "Producer manifest revision, or the science revision for the scorer.",
-            "oneOf": [
-              {"$ref": "common.schema.json#/$defs/revision_number"},
-              {"$ref": "common.schema.json#/$defs/identifier"}
-            ]
-          },
-          "manifest": {"$ref": "step_manifest.schema.json"}
-        },
-        "required": ["name", "revision", "manifest"],
-        "additionalProperties": false
+  "title": "Job",
+  "description": "The job document a performer receives when it claims a job: a verify job, or a hypothesis's document job. The lease token authorizes only reading the job's inputs and writing under output_prefix.",
+  "if": {
+    "properties": {
+      "phase": {
+        "const": "document"
       }
     },
-    "science_revision": {"$ref": "common.schema.json#/$defs/identifier"},
-    "inputs": {
+    "required": [
+      "phase"
+    ]
+  },
+  "then": {
+    "$ref": "#/$defs/document"
+  },
+  "else": {
+    "$ref": "#/$defs/verify"
+  },
+  "$defs": {
+    "verify": {
+      "title": "Verify job",
+      "description": "The job document a verifier receives when it claims a verify job: a verifier service account running the runner (performer `runner`), or an agent service account or researcher who did not run the attempt (performer `agent`). The lease token authorizes only reading the listed inputs and writing under output_prefix.",
       "type": "object",
       "properties": {
-        "run": {
-          "description": "The front matter of the frozen run document: its claims, provenance and manifest. The run notes are not an input.",
-          "$ref": "common.schema.json#/$defs/content_ref"
+        "schema_version": {
+          "$ref": "common.schema.json#/$defs/schema_version"
         },
-        "manifest": {
-          "description": "The run's verified artifact manifest.",
-          "$ref": "common.schema.json#/$defs/content_ref"
+        "job_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
         },
-        "baselines": {
-          "description": "Baselines the job's steps may stage: the control, and each baseline a step takes as input, by id from the science revision.",
-          "type": "array",
-          "items": {"$ref": "common.schema.json#/$defs/pinned_ref"}
+        "phase": {
+          "const": "verify"
         },
-        "datasets": {
+        "attempt_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "performer": {
+          "description": "Who verifies: the runner under the registered verifier, or an agent.",
+          "enum": [
+            "runner",
+            "agent"
+          ]
+        },
+        "verifier": {
+          "description": "The registered verifier: the verifier service account name and the policy revision its reports must name. Runner jobs only.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "common.schema.json#/$defs/identifier"
+            },
+            "revision": {
+              "$ref": "common.schema.json#/$defs/identifier"
+            }
+          },
+          "required": [
+            "id",
+            "revision"
+          ],
+          "additionalProperties": false
+        },
+        "track": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "control": {
+          "description": "The control the hypothesis names, pinned only when it names one. The report's control_revision must equal its revision.",
+          "$ref": "common.schema.json#/$defs/pinned_ref"
+        },
+        "parameters": {
+          "description": "The hypothesis parameters: the project_fields of the hypothesis revision the attempt pinned ({} without any), frozen when the job was created.",
+          "$ref": "common.schema.json#/$defs/open_object"
+        },
+        "steps": {
+          "description": "The producer and the scorer the job verifies with. The runner executes them; an agent may run them or verify another way.",
           "type": "array",
-          "items": {"$ref": "common.schema.json#/$defs/pinned_ref"}
-        }
-      },
-      "required": ["run", "manifest", "baselines", "datasets"],
-      "additionalProperties": false
-    },
-    "resume": {
-      "description": "Present on an automatic rerun after an infrastructure failure in a named step: the run starts from that step and reuses the verified outputs of the steps before it, readable as inputs.",
-      "type": "object",
-      "properties": {
-        "from_step": {"$ref": "common.schema.json#/$defs/slug"},
-        "outputs": {
-          "type": "array",
+          "minItems": 1,
           "items": {
             "type": "object",
             "properties": {
-              "step": {"$ref": "common.schema.json#/$defs/slug"},
-              "name": {"$ref": "common.schema.json#/$defs/name"},
-              "key": {"$ref": "common.schema.json#/$defs/object_key"},
-              "size_bytes": {"type": "integer", "minimum": 0},
-              "sha256": {"$ref": "common.schema.json#/$defs/sha256"},
-              "media_type": {"$ref": "common.schema.json#/$defs/media_type"},
-              "interface": {"$ref": "common.schema.json#/$defs/interface_ref"}
+              "name": {
+                "$ref": "common.schema.json#/$defs/slug"
+              },
+              "revision": {
+                "description": "Producer manifest revision, or the science revision for the scorer.",
+                "oneOf": [
+                  {
+                    "$ref": "common.schema.json#/$defs/revision_number"
+                  },
+                  {
+                    "$ref": "common.schema.json#/$defs/identifier"
+                  }
+                ]
+              },
+              "manifest": {
+                "$ref": "step_manifest.schema.json"
+              }
             },
-            "required": ["step", "name", "key", "size_bytes", "sha256", "media_type"],
+            "required": [
+              "name",
+              "revision",
+              "manifest"
+            ],
             "additionalProperties": false
           }
+        },
+        "science_revision": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "inputs": {
+          "type": "object",
+          "properties": {
+            "run": {
+              "description": "The front matter of the frozen run document: its claims, provenance and manifest. The run notes are not an input.",
+              "$ref": "common.schema.json#/$defs/content_ref"
+            },
+            "manifest": {
+              "description": "The run's verified artifact manifest.",
+              "$ref": "common.schema.json#/$defs/content_ref"
+            },
+            "baselines": {
+              "description": "Baselines the job's steps may stage: the control, and each baseline a step takes as input, by id from the science revision.",
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/pinned_ref"
+              }
+            },
+            "datasets": {
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/pinned_ref"
+              }
+            }
+          },
+          "required": [
+            "run",
+            "manifest",
+            "baselines",
+            "datasets"
+          ],
+          "additionalProperties": false
+        },
+        "resume": {
+          "description": "Present on an automatic rerun after an infrastructure failure in a named step: the run starts from that step and reuses the verified outputs of the steps before it, readable as inputs.",
+          "type": "object",
+          "properties": {
+            "from_step": {
+              "$ref": "common.schema.json#/$defs/slug"
+            },
+            "outputs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "step": {
+                    "$ref": "common.schema.json#/$defs/slug"
+                  },
+                  "name": {
+                    "$ref": "common.schema.json#/$defs/name"
+                  },
+                  "key": {
+                    "$ref": "common.schema.json#/$defs/object_key"
+                  },
+                  "size_bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "sha256": {
+                    "$ref": "common.schema.json#/$defs/sha256"
+                  },
+                  "media_type": {
+                    "$ref": "common.schema.json#/$defs/media_type"
+                  },
+                  "interface": {
+                    "$ref": "common.schema.json#/$defs/interface_ref"
+                  }
+                },
+                "required": [
+                  "step",
+                  "name",
+                  "key",
+                  "size_bytes",
+                  "sha256",
+                  "media_type"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "from_step",
+            "outputs"
+          ],
+          "additionalProperties": false
+        },
+        "output_prefix": {
+          "$ref": "common.schema.json#/$defs/object_prefix"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "max_output_bytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "max_output_bytes"
+          ],
+          "additionalProperties": false
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
         }
       },
-      "required": ["from_step", "outputs"],
-      "additionalProperties": false
+      "required": [
+        "schema_version",
+        "job_id",
+        "phase",
+        "attempt_id",
+        "performer",
+        "track",
+        "parameters",
+        "steps",
+        "science_revision",
+        "inputs",
+        "output_prefix",
+        "deadline",
+        "limits",
+        "lease"
+      ],
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "performer": {
+            "const": "runner"
+          }
+        },
+        "required": [
+          "performer"
+        ]
+      },
+      "then": {
+        "required": [
+          "verifier"
+        ]
+      },
+      "else": {
+        "properties": {
+          "verifier": {
+            "not": {}
+          }
+        }
+      }
     },
-    "output_prefix": {"$ref": "common.schema.json#/$defs/object_prefix"},
-    "deadline": {"$ref": "common.schema.json#/$defs/timestamp"},
-    "limits": {
+    "document": {
+      "title": "Document job",
+      "description": "The job document a documenter receives when it claims a hypothesis's document job: an agent service account or a researcher. It names what the write-up covers and cites: every attempt of the hypothesis, and the verification report, absent for a hypothesis stopped after a failure. The context bundle it names holds the brief, the plan, the unit, every attempt's run document and notes, the failures and their logs, the verification reports and the comments. The lease token authorizes only this job.",
       "type": "object",
       "properties": {
-        "max_output_bytes": {"type": "integer", "minimum": 1}
+        "schema_version": {
+          "$ref": "common.schema.json#/$defs/schema_version"
+        },
+        "job_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "phase": {
+          "const": "document"
+        },
+        "attempt_id": {
+          "description": "The hypothesis's last attempt, verified or stopped after a failure.",
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "performer": {
+          "const": "agent"
+        },
+        "track": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "hypothesis": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "science_revision": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "inputs": {
+          "type": "object",
+          "properties": {
+            "attempts": {
+              "description": "The sequence numbers of every attempt of the hypothesis: the write-up's `attempts`.",
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "verification": {
+              "description": "The verification report the write-up cites as its `verification`; absent for a stopped hypothesis, whose write-up cites null.",
+              "$ref": "common.schema.json#/$defs/content_ref"
+            }
+          },
+          "required": [
+            "attempts"
+          ],
+          "additionalProperties": false
+        },
+        "output_prefix": {
+          "$ref": "common.schema.json#/$defs/object_prefix"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
+        }
       },
-      "required": ["max_output_bytes"],
+      "required": [
+        "schema_version",
+        "job_id",
+        "phase",
+        "attempt_id",
+        "performer",
+        "track",
+        "hypothesis",
+        "science_revision",
+        "inputs",
+        "output_prefix",
+        "deadline",
+        "lease"
+      ],
       "additionalProperties": false
     },
     "lease": {
       "type": "object",
       "properties": {
-        "token": {"$ref": "common.schema.json#/$defs/text"},
-        "generation": {"type": "integer", "minimum": 1},
-        "expires_at": {"$ref": "common.schema.json#/$defs/timestamp"}
+        "token": {
+          "$ref": "common.schema.json#/$defs/text"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expires_at": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        }
       },
-      "required": ["token", "generation", "expires_at"],
+      "required": [
+        "token",
+        "generation",
+        "expires_at"
+      ],
       "additionalProperties": false
     }
-  },
-  "required": [
-    "schema_version",
-    "job_id",
-    "phase",
-    "attempt_id",
-    "performer",
-    "track",
-    "parameters",
-    "steps",
-    "science_revision",
-    "inputs",
-    "output_prefix",
-    "deadline",
-    "limits",
-    "lease"
-  ],
-  "additionalProperties": false,
-  "if": {"properties": {"performer": {"const": "runner"}}, "required": ["performer"]},
-  "then": {"required": ["verifier"]},
-  "else": {"properties": {"verifier": {"not": {}}}}
+  }
 }

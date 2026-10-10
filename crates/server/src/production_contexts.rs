@@ -363,6 +363,8 @@ pub(super) fn contexts(
                 jobs: jobs(),
                 audit_encoding_budget: DEPTH,
                 lifecycle: lifecycle.clone(),
+                phases: cannery_core::contracts::phases::PhaseSchemas::new()
+                    .map_err(|_| crate::ServerError::Contracts)?,
             },
         )),
         search: Some(Arc::new(crate::search_routes::SearchContext {

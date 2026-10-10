@@ -1,6 +1,6 @@
 //! Frozen job specifications, claim queue, lease updates and outcomes.
 use cannery_core::{
-    ids::{AttemptId, JobId, ProjectId, ServiceAccountId, UserId},
+    ids::{AttemptId, HypothesisId, JobId, ProjectId, ServiceAccountId, UserId},
     json::{self, Document},
     principal::Principal,
     timestamps::Timestamp,
@@ -69,9 +69,9 @@ macro_rules! domain {
         }
     };
 }
-domain!(Phase {Verify=>"verify"});
+domain!(Phase {Verify=>"verify",Document=>"document"});
 domain!(Performer {Runner=>"runner",Agent=>"agent"});
-domain!(State {Pending=>"pending",Claimed=>"claimed",Completed=>"completed",Failed=>"failed"});
+domain!(State {Pending=>"pending",Claimed=>"claimed",Completed=>"completed",Failed=>"failed",Skipped=>"skipped"});
 domain!(Origin {Submission=>"submission",AutoRetry=>"auto_retry",HumanRetry=>"human_retry"});
 #[derive(Clone, Copy, Debug)]
 pub struct JsonContext {
@@ -460,20 +460,23 @@ impl Job {
             .or(self.claimed_by_user.map(Claimant::User))
     }
 }
-/// The oldest waiting agent job of an attempt `claimant` did not claim itself.
+/// The oldest waiting agent job of `phase`: a verify job of an attempt
+/// `claimant` did not claim itself, or any document job.
 /// # Errors
 /// Reports sanitized database failure.
 pub async fn pick_pending_agent(
     conn: &mut PgConnection,
     project: ProjectId,
     claimant: Claimant,
+    phase: Phase,
 ) -> Result<Option<JobId>, JobError> {
     Ok(sqlx::query_file_as!(
         RawPicked,
         "src/sql/pick_pending_agent.sql",
         project as ProjectId,
         claimant.service() as Option<ServiceAccountId>,
-        claimant.user() as Option<UserId>
+        claimant.user() as Option<UserId>,
+        phase.as_str()
     )
     .fetch_optional(conn)
     .await
@@ -607,6 +610,67 @@ pub async fn complete_job(
     .map_err(|e| JobError::database(&e))?
     .ok_or(JobError::StaleLease)?
     .decode(c)
+}
+/// A researcher skips a hypothesis's document job, pending or claimed, with
+/// a reason; the skip ends any lease on it.
+/// # Errors
+/// A job no longer waiting or claimed is `StaleLease`.
+pub async fn skip_job(
+    conn: &mut PgConnection,
+    id: JobId,
+    p: &Principal,
+    reason: &str,
+    c: JsonContext,
+) -> Result<Job, JobError> {
+    let Principal::User(user) = p else {
+        return Err(JobError::Invariant);
+    };
+    text(reason)?;
+    if let Some(s) = &user.via.client {
+        text(s)?;
+    }
+    sqlx::query_file_as!(
+        RawJob,
+        "src/sql/skip_job.sql",
+        user.user_id as UserId,
+        channel(user.via.channel),
+        user.via.client.as_deref(),
+        reason,
+        id as JobId
+    )
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| JobError::database(&e))?
+    .ok_or(JobError::StaleLease)?
+    .decode(c)
+}
+/// A hypothesis's latest document job, whatever its state.
+/// # Errors
+/// Reports sanitized database or row-decoding failure.
+pub async fn document_job(
+    conn: &mut PgConnection,
+    hypothesis: HypothesisId,
+    c: JsonContext,
+) -> Result<Option<Job>, JobError> {
+    sqlx::query_file_as!(
+        RawJob,
+        "src/sql/document_job.sql",
+        hypothesis as HypothesisId
+    )
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| JobError::database(&e))?
+    .map(|r| r.decode(c))
+    .transpose()
+}
+const fn channel(channel: cannery_core::principal::Channel) -> &'static str {
+    match channel {
+        cannery_core::principal::Channel::Ui => "ui",
+        cannery_core::principal::Channel::Api => "api",
+        cannery_core::principal::Channel::Mcp => "mcp",
+        cannery_core::principal::Channel::Cli => "cli",
+        cannery_core::principal::Channel::System => "system",
+    }
 }
 pub struct Failure<'a> {
     pub step: Option<&'a str>,

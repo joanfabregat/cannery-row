@@ -1184,7 +1184,8 @@
               "enum": [
                 "queued",
                 "active",
-                "awaiting_human_review",
+                "documenting",
+                "deciding",
                 "promoted",
                 "rejected",
                 "inconclusive",
@@ -1320,7 +1321,8 @@
           "enum": [
             "queued",
             "active",
-            "awaiting_human_review",
+            "documenting",
+            "deciding",
             "promoted",
             "rejected",
             "inconclusive",
@@ -1602,10 +1604,7 @@
             "claimed",
             "running",
             "verifying",
-            "awaiting_human_review",
-            "promoted",
-            "rejected",
-            "inconclusive",
+            "verified",
             "failed",
             "cancelled",
             "unreviewed"
@@ -2192,8 +2191,8 @@
   },
   {
     "name": "claim_job",
-    "title": "Claim a verify job",
-    "description": "Claim the oldest waiting verify job the caller may perform. A verifier service account receives jobs whose science revision has the runner perform verify and names it; an agent service account or a researcher receives jobs whose verify performer is agent, never of an attempt it ran itself. The job document carries its lease token once.",
+    "title": "Claim a job",
+    "description": "Claim the oldest waiting job of a phase the caller may perform. verify (the default): a verifier service account receives jobs whose science revision has the runner perform verify and names it; an agent service account or a researcher receives jobs whose verify performer is agent, never of an attempt it ran itself. document: an agent service account or a researcher receives the oldest hypothesis waiting for its write-up. The job document carries its lease token once.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2201,7 +2200,8 @@
           "anyOf": [
             {
               "enum": [
-                "verify"
+                "verify",
+                "document"
               ],
               "type": "string"
             },
@@ -2210,7 +2210,7 @@
             }
           ],
           "default": null,
-          "description": "The phase of the job to claim; verify is the only one.",
+          "description": "The phase of the job to claim: verify (the default) or document.",
           "title": "Phase"
         },
         "revision": {
@@ -2258,7 +2258,7 @@
       "type": "object"
     },
     "annotations": {
-      "title": "Claim a verify job",
+      "title": "Claim a job",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": false,
@@ -2478,7 +2478,7 @@
   {
     "name": "complete_job",
     "title": "Complete a job",
-    "description": "Complete the claimed verify job with its verification report: Markdown with YAML front matter (GET /api/schemas/verification), and the manifest of the files the job uploaded, if any. An invalid report from an agent or a researcher is refused with the details and the lease is kept; from a runner it fails the job run.",
+    "description": "Complete the claimed job. A verify job: its verification report, Markdown with YAML front matter (GET /api/schemas/verification), and the manifest of the files the job uploaded, if any. A document job: the write-up, Markdown with YAML front matter (GET /api/schemas/writeup) covering the attempts and citing the verification report the job inputs name, and no manifest. An invalid document from an agent or a researcher is refused with the details and the lease is kept; a runner's invalid report fails the job run.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2551,7 +2551,7 @@
   {
     "name": "fail_job",
     "title": "Report a job failure",
-    "description": "Report that the claimed verify job failed, with a failure code and a reason.",
+    "description": "Report that the claimed job failed, with a failure code and a reason. A failed document job is queued again.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2609,7 +2609,7 @@
   {
     "name": "get_job",
     "title": "Get a job",
-    "description": "One verify job and its state.",
+    "description": "One job, verify or document, and its state.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2711,12 +2711,12 @@
   {
     "name": "list_review_cases",
     "title": "List review cases",
-    "description": "Result and failure review cases, filtered by kind and state.",
+    "description": "Decision and failure review cases, filtered by kind and state.",
     "inputSchema": {
       "$defs": {
         "CaseKind": {
           "enum": [
-            "result",
+            "decision",
             "failure"
           ],
           "type": "string"
@@ -2835,7 +2835,7 @@
   {
     "name": "record_decision",
     "title": "Record a human decision",
-    "description": "Record a researcher's reasoned decision on a pending result or failure review case. Only people with the researcher role may; service account tokens are refused.",
+    "description": "Record a researcher's decision on a pending review case. A decision case takes the decision document: Markdown with YAML front matter (GET /api/schemas/decision) naming the outcome (promote, reject, inconclusive, or failed for a hypothesis stopped after a failure) and citing the case's verification report and write-up, the reason as its body; supersedes corrects a decision. A failure case takes action retry or stop, the evidence revision and a reason. Only people with the researcher role may; service account tokens are refused.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2851,30 +2851,66 @@
           "title": "Case Id",
           "type": "string"
         },
+        "document": {
+          "anyOf": [
+            {
+              "maxLength": 1048576,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Decision case: the decision document, Markdown with YAML front matter whose body is the reason.",
+          "title": "Document"
+        },
         "evidence_revision": {
-          "description": "The exact evidence revision decided on.",
-          "maximum": 2147483647,
-          "minimum": 1,
-          "title": "Evidence Revision",
-          "type": "integer"
+          "anyOf": [
+            {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Failure case: the failure revision decided on.",
+          "title": "Evidence Revision"
         },
         "action": {
-          "description": "promote, reject or inconclusive on a result case; retry or close_failed on a failure case.",
-          "enum": [
-            "promote",
-            "reject",
-            "inconclusive",
-            "retry",
-            "close_failed"
+          "anyOf": [
+            {
+              "enum": [
+                "retry",
+                "stop"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Action",
-          "type": "string"
+          "default": null,
+          "description": "Failure case: retry, or stop the hypothesis; a stopped hypothesis is written up, then decided failed.",
+          "title": "Action"
         },
         "reason": {
-          "description": "Why; never empty.",
-          "minLength": 1,
-          "title": "Reason",
-          "type": "string"
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Failure case: why; never empty.",
+          "title": "Reason"
         },
         "supersedes": {
           "anyOf": [
@@ -2908,10 +2944,7 @@
       },
       "required": [
         "project",
-        "case_id",
-        "evidence_revision",
-        "action",
-        "reason"
+        "case_id"
       ],
       "title": "RecordDecision",
       "type": "object"
@@ -3044,6 +3077,169 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_writeups",
+    "title": "List write-ups to do",
+    "description": "The hypotheses waiting for their write-up, oldest first, with their document job: pending until an agent or a researcher claims it (claim_job with phase document).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "limit": {
+          "default": 50,
+          "description": "Items to return.",
+          "maximum": 200,
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "title": "ListWriteups",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List write-ups to do",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_writeup",
+    "title": "Get a hypothesis's write-up",
+    "description": "A hypothesis's write-up: pending or claimed while its document job waits or is being written, written with the write-up, or skipped with the researcher's reason; with what it covers and cites and the documenter's context bundle.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "project",
+        "number"
+      ],
+      "title": "GetWriteup",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a hypothesis's write-up",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "write_up",
+    "title": "Write a hypothesis up",
+    "description": "A researcher writes a hypothesis up in one action, claiming and completing its document job: Markdown with YAML front matter (GET /api/schemas/writeup) with a one-sentence summary, the attempts it covers and the verification report it cites, as get_writeup names them, and a body. An agent claims the document job instead (claim_job with phase document).",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "document": {
+          "maxLength": 1048576,
+          "minLength": 1,
+          "title": "Document",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "document"
+      ],
+      "title": "WriteUp",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Write a hypothesis up",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "skip_writeup",
+    "title": "Skip a hypothesis's write-up",
+    "description": "A researcher skips a hypothesis's write-up with a reason; its decision then shows \"No write-up: <reason>\". Nothing skips a write-up automatically.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Hypothesis number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "reason"
+      ],
+      "title": "SkipWriteup",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Skip a hypothesis's write-up",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
       "openWorldHint": false
     }
   },
@@ -3268,7 +3464,7 @@
   {
     "name": "search",
     "title": "Search",
-    "description": "Search tracks, hypotheses, attempts, reports, verification reports, decision reasons and comments across the projects the caller can read. Use it to find prior related work before planning.",
+    "description": "Search tracks, hypotheses, attempts, reports, verification reports, write-ups, decision reasons and comments across the projects the caller can read. Use it to find prior related work before planning.",
     "inputSchema": {
       "$defs": {
         "AttemptState": {
@@ -3276,10 +3472,7 @@
             "claimed",
             "running",
             "verifying",
-            "awaiting_human_review",
-            "promoted",
-            "rejected",
-            "inconclusive",
+            "verified",
             "failed",
             "cancelled",
             "unreviewed"
@@ -3290,7 +3483,8 @@
           "enum": [
             "queued",
             "active",
-            "awaiting_human_review",
+            "documenting",
+            "deciding",
             "promoted",
             "rejected",
             "inconclusive",
@@ -3306,6 +3500,7 @@
             "attempt",
             "report",
             "verification",
+            "writeup",
             "decision_reason",
             "comment"
           ],
@@ -3315,7 +3510,8 @@
           "enum": [
             "promote",
             "reject",
-            "inconclusive"
+            "inconclusive",
+            "failed"
           ],
           "type": "string"
         },
@@ -3584,10 +3780,7 @@
             "claimed",
             "running",
             "verifying",
-            "awaiting_human_review",
-            "promoted",
-            "rejected",
-            "inconclusive",
+            "verified",
             "failed",
             "cancelled",
             "unreviewed"
@@ -3794,10 +3987,7 @@
             "claimed",
             "running",
             "verifying",
-            "awaiting_human_review",
-            "promoted",
-            "rejected",
-            "inconclusive",
+            "verified",
             "failed",
             "cancelled",
             "unreviewed"

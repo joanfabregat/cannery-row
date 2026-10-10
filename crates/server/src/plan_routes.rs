@@ -1191,10 +1191,11 @@ pub(crate) async fn list_units(
     let (before, limit) = page(&parts)?;
     let states = query_value(&parts, "state")
         .map(|state| {
-            const STATES: [&str; 8] = [
+            const STATES: [&str; 9] = [
                 "queued",
                 "active",
-                "awaiting_human_review",
+                "documenting",
+                "deciding",
                 "promoted",
                 "rejected",
                 "inconclusive",

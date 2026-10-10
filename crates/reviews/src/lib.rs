@@ -80,13 +80,13 @@ macro_rules! labels{($name:ident{$($variant:ident=>$label:literal),+})=>{
 impl $name{#[must_use]pub const fn as_str(self)->&'static str{match self{$(Self::$variant=>$label),+}}}
 impl TryFrom<&str> for $name{type Error=Error;fn try_from(s:&str)->Result<Self,Error>{match s{$($label=>Ok(Self::$variant)),+,_=>Err(Error::Invariant)}}}
 };}
-labels!(CaseKind{Result=>"result",Failure=>"failure"});
+labels!(CaseKind{Decision=>"decision",Failure=>"failure"});
 labels!(CaseState{Pending=>"pending",Resolved=>"resolved"});
 labels!(Origin{Live=>"live",Imported=>"imported"});
 labels!(Stage{Agent=>"agent",Verify=>"verify"});
-labels!(HypothesisState{Queued=>"queued",Active=>"active",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
-labels!(AttemptState{Claimed=>"claimed",Running=>"running",Verifying=>"verifying",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
-labels!(Action{Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Retry=>"retry",CloseFailed=>"close_failed"});
+labels!(HypothesisState{Queued=>"queued",Active=>"active",Documenting=>"documenting",Deciding=>"deciding",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
+labels!(AttemptState{Claimed=>"claimed",Running=>"running",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+labels!(Action{Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Failed=>"failed",Retry=>"retry",Stop=>"stop"});
 #[derive(Clone, Copy, Debug, Eq, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct FailureId(pub uuid::Uuid);

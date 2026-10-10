@@ -64,7 +64,7 @@ export type HypothesisReview = Schemas["cannery_row__hypotheses__routes__ReviewC
 export function review(overrides: Partial<HypothesisReview> = {}): HypothesisReview {
   return {
     id: uuid(),
-    kind: "result",
+    kind: "decision",
     subject_revision: 1,
     state: "resolved",
     opened_at: "2026-03-04T10:00:00Z",
@@ -154,7 +154,7 @@ export function report(overrides: Partial<Schemas["ReportOut"]> = {}): Schemas["
     hypothesis: 12,
     hypothesis_title: "Shorter prompts",
     track: "tokenizer",
-    attempt_state: "promoted",
+    attempt_state: "verified",
     science_revision: 1,
     status: "accepted",
     origin: "live",
@@ -184,14 +184,14 @@ export type ReviewCase = Schemas["cannery_row__reviews__routes__ReviewCaseOut"];
 export function reviewCase(overrides: Partial<ReviewCase> = {}): ReviewCase {
   return {
     id: uuid(),
-    kind: "result",
+    kind: "decision",
     state: "pending",
     subject_revision: 3,
     hypothesis: 12,
     hypothesis_ref: "#12",
-    hypothesis_state: "awaiting_human_review",
+    hypothesis_state: "deciding",
     attempt_ref: "#12.1",
-    attempt_state: "promoted",
+    attempt_state: "verified",
     opened_at: "2026-03-04T10:00:00Z",
     resolved_at: null,
     origin: "live",
@@ -265,7 +265,9 @@ export function attention(
   overrides: Partial<Schemas["AttentionOut"]> = {},
 ): Schemas["AttentionOut"] {
   return {
-    pending_counts: { result: 0, failure: 0 },
+    pending_counts: { decision: 0, failure: 0 },
+    pending_writeup_count: 0,
+    pending_writeups: [],
     pending_reviews: [],
     running_count: 0,
     running: [],
@@ -412,7 +414,7 @@ export function hypothesisApi(
 export function promotedHypothesis() {
   const h = hypothesis({
     state: "promoted",
-    reviews: [review({ kind: "result", decisions: [decision()] })],
+    reviews: [review({ kind: "decision", decisions: [decision()] })],
   });
   return { h, attempts: [attempt()], reports: { 1: report() } };
 }

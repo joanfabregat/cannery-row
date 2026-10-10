@@ -168,7 +168,7 @@ async fn invoke(
  "extend_lease"=> {repository.extend_lease(attempt,&ttl).await?;Ok(Value::Null)},
  "mark_running"=> {repository.mark_running(attempt).await?;Ok(Value::Null)},
  "end_lease"=> {repository.end_lease(attempt,"verifying").await?;Ok(Value::Null)},
- "move_attempt"=> {repository.move_attempt(attempt,"verifying","awaiting_human_review").await?;Ok(Value::Null)},
+ "move_attempt"=> {repository.move_attempt(attempt,"verifying","verified").await?;Ok(Value::Null)},
  "reopen_attempt"=> {repository.reopen_attempt(attempt,"verifying").await?;Ok(Value::Null)},
  "pin_track"=>Ok(repository.pin_track(hypothesis).await?.project(now)),
  "approved_project_fields"=>Ok(stored(&repository.approved_project_fields(hypothesis).await?)),

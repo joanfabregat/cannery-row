@@ -140,6 +140,7 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
             "attempt",
             "report",
             "verification",
+            "writeup",
             "decision_reason",
             "comment",
         ]),
@@ -152,7 +153,8 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
         Some(&[
             "queued",
             "active",
-            "awaiting_human_review",
+            "documenting",
+            "deciding",
             "promoted",
             "rejected",
             "inconclusive",
@@ -168,10 +170,7 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
             "claimed",
             "running",
             "verifying",
-            "awaiting_human_review",
-            "promoted",
-            "rejected",
-            "inconclusive",
+            "verified",
             "failed",
             "cancelled",
             "unreviewed",
@@ -187,7 +186,7 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
     criteria.decisions = list(
         q,
         "decision",
-        Some(&["promote", "reject", "inconclusive"]),
+        Some(&["promote", "reject", "inconclusive", "failed"]),
         &mut errors,
     );
     if let Some(values) = list(q, "actor", None, &mut errors) {

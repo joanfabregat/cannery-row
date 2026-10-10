@@ -156,7 +156,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         ("attempts", 6),
         ("decisions", 4),
         ("measurements", 10),
-        ("jobs", 0),
+        ("jobs", 1),
         ("uploads", 0),
     ] {
         assert_eq!(count(&pool, table).await?, expected, "{table}");
@@ -173,13 +173,15 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM hypotheses WHERE origin='imported' AND source_ref IS NOT NULL AND external_id IS NOT NULL").fetch_one(&pool).await?,5);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM measurements WHERE authority IN ('imported_artifact','imported_transcribed')").fetch_one(&pool).await?,10);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM artifacts WHERE backend='external' AND bucket='' AND origin='imported' AND job_id IS NULL").fetch_one(&pool).await?,3);
+    // The hypothesis awaiting its decision is written up first: it has a
+    // document job and no decision case yet.
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
             "SELECT count(*) FROM review_cases WHERE origin='imported' AND subject_revision=1"
         )
         .fetch_one(&pool)
         .await?,
-        5
+        4
     );
     let stored = snapshot(&pool).await?;
     let mut equivalent_science = science.clone();

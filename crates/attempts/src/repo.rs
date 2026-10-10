@@ -1029,10 +1029,7 @@ fn channel(channel: Channel) -> &'static str {
     }
 }
 fn is_open(state: State) -> bool {
-    matches!(
-        state,
-        State::Claimed | State::Running | State::Verifying | State::AwaitingHumanReview
-    )
+    matches!(state, State::Claimed | State::Running | State::Verifying)
 }
 fn truthy(value: &StoredJson) -> bool {
     match value {

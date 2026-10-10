@@ -141,7 +141,7 @@ describe("a hypothesis page", () => {
       reviews: [
         review({
           kind: "failure",
-          decisions: [decision({ action: "close_failed", reason: "The dataset is gone" })],
+          decisions: [decision({ action: "stop", reason: "The dataset is gone" })],
         }),
       ],
     });
@@ -220,7 +220,7 @@ describe("a viewer finds an outcome and its reason in three clicks", () => {
       state: "rejected",
       reviews: [
         review({
-          kind: "result",
+          kind: "decision",
           decisions: [decision({ action: "reject", reason: "Latency doubled" })],
         }),
       ],

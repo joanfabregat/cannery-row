@@ -3,12 +3,12 @@ use crate::{
     api_contract::{convert, decode, encode},
     api_models::{
         AttentionFailure, AttentionOut, AttentionOutcome, AttentionReview, AttentionRunning,
-        AttentionStalledVerification, ReviewCasePage, VerificationDocument,
+        AttentionStalledVerification, AttentionWriteup, ReviewCasePage, VerificationDocument,
         cannery_row__reviews__routes__FailureOut, cannery_row__reviews__routes__ReviewCaseOut,
     },
 };
 use cannery_attention::{
-    Outcome, PendingReview, RecentFailure, RunningAttempt, StalledVerification,
+    Outcome, PendingReview, PendingWriteup, RecentFailure, RunningAttempt, StalledVerification,
 };
 use cannery_core::json::{
     Document, Node,
@@ -141,13 +141,15 @@ pub(crate) struct AttentionDetail {
     pub failures: Vec<RecentFailure>,
     pub stalled_count: i64,
     pub stalled: Vec<StalledVerification>,
+    pub writeup_count: i64,
+    pub writeups: Vec<PendingWriteup>,
 }
 #[allow(
     clippy::too_many_lines,
     reason = "Preserve all six source models in declared field order"
 )]
 pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
-    let counts = ["result", "failure"]
+    let counts = ["decision", "failure"]
         .into_iter()
         .map(|kind| (kind.to_owned(), d.counts.get(kind).copied().unwrap_or(0)))
         .collect::<BTreeMap<_, _>>();
@@ -266,6 +268,30 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
                 revision,
             })
         }))?)?,
+        pending_writeup_count: convert(d.writeup_count)?,
+        pending_writeups: decode(&array(d.writeups.iter().map(writeup))?)?,
+    })
+}
+/// A hypothesis waiting for its write-up, as Home and the write-up queue list it.
+pub(crate) fn writeup(v: &PendingWriteup) -> Result<Vec<u8>> {
+    encode(&writeup_model(v)?)
+}
+pub(crate) fn writeup_model(v: &PendingWriteup) -> Result<AttentionWriteup> {
+    Ok(AttentionWriteup {
+        hypothesis: convert(v.hypothesis_number)?,
+        hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
+        title: v
+            .hypothesis_title
+            .as_utf8()
+            .ok_or(ModelEncodeError::Encoding)?,
+        track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
+        attempt_ref: format!("#{}.{}", v.hypothesis_number, v.attempt_sequence),
+        attempt_state: convert(v.attempt_state.as_str())?,
+        job_id: v.job_id.to_string(),
+        job_state: v.job_state.as_utf8().ok_or(ModelEncodeError::Encoding)?,
+        claimed_by: v.claimed_by_service.map(|v| v.to_string()),
+        claimed_by_user: v.claimed_by_user.map(|v| v.to_string()),
+        waiting_since: timestamp(v.waiting_since),
     })
 }
 fn log_refs(d: &Document, p: ResponseContext) -> Result<Vec<u8>> {

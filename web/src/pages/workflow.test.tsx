@@ -21,7 +21,7 @@ describe("Home", () => {
         "GET /api/projects/sardines/attention": () =>
           json(
             attention({
-              pending_counts: { result: 1, failure: 1 },
+              pending_counts: { decision: 1, failure: 1 },
               pending_reviews: [
                 {
                   case_id: "00000000-0000-4000-8000-0000000000c1",
@@ -41,7 +41,7 @@ describe("Home", () => {
                 },
                 {
                   case_id: "00000000-0000-4000-8000-0000000000c2",
-                  kind: "result",
+                  kind: "decision",
                   subject_revision: 3,
                   opened_at: "2026-03-02T10:00:00Z",
                   hypothesis: 12,
@@ -73,13 +73,13 @@ describe("Home", () => {
       },
     );
     renderApp("/");
-    const queue = await screen.findByRole("region", { name: "Waiting for your review" });
+    const queue = await screen.findByRole("region", { name: "Decisions to take" });
     const links = within(queue).getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
       "/hypotheses/4/review",
       "/hypotheses/12/review",
     ]);
-    expect(within(queue).getByText(/1 result and 1 failure/)).toBeInTheDocument();
+    expect(within(queue).getByText(/1 decision and 1 failure/)).toBeInTheDocument();
     const running = screen.getByRole("region", { name: "Running now" });
     expect(within(running).getByRole("link", { name: "#9.2 Warm cache" })).toHaveAttribute(
       "href",

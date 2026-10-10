@@ -5,7 +5,8 @@ import type { components } from "@/api/schema";
 export const HYPOTHESIS_STATES = [
   "queued",
   "active",
-  "awaiting_human_review",
+  "documenting",
+  "deciding",
   "promoted",
   "rejected",
   "inconclusive",

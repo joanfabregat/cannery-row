@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!: ReviewCaseId\" FROM review_cases WHERE attempt_id=$1 AND kind='decision' ORDER BY opened_at,id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: ReviewCaseId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "244acd51b4b8d189e7b55f95d08c8b8329a0967e5c61c6b0b97c798cee518860"
+}

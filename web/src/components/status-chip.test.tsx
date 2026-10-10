@@ -6,13 +6,13 @@ import { StatusChip } from "./status-chip";
 
 describe("StatusChip", () => {
   it("shows the plain word and an icon", () => {
-    render(<StatusChip domain="hypothesis" value="awaiting_human_review" />);
-    const chip = screen.getByText("Needs review");
+    render(<StatusChip domain="hypothesis" value="deciding" />);
+    const chip = screen.getByText("Needs a decision");
     expect(chip).toHaveAttribute("data-tone", "attention");
     const icon = chip.querySelector("svg");
     expect(icon).not.toBeNull();
     expect(icon).toHaveAttribute("aria-hidden", "true");
-    expect(screen.queryByText("awaiting_human_review")).not.toBeInTheDocument();
+    expect(screen.queryByText("deciding")).not.toBeInTheDocument();
   });
 
   it("has a word and an icon for every known status", () => {

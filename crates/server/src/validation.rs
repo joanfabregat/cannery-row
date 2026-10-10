@@ -1592,7 +1592,7 @@ pub fn review_attention_parameters(
     let mut state = None;
     if list {
         for (name, labels, result) in [
-            ("kind", &["result", "failure"][..], &mut kind),
+            ("kind", &["decision", "failure"][..], &mut kind),
             ("state", &["pending", "resolved"][..], &mut state),
         ] {
             if let Some(v) = find(name) {
@@ -1772,7 +1772,13 @@ pub(crate) fn validate_job_claim(input: BodyInput<'_>) -> Checked<crate::job_cla
         Node::String(value) if value.equals_utf8("verify") => {
             Ok(Some(cannery_jobs::repo::Phase::Verify))
         }
-        _ => Err(issue("literal_error", "Input should be 'verify'")),
+        Node::String(value) if value.equals_utf8("document") => {
+            Ok(Some(cannery_jobs::repo::Phase::Document))
+        }
+        _ => Err(issue(
+            "literal_error",
+            "Input should be 'verify' or 'document'",
+        )),
     });
     let revision = fields.field("revision", Some(None), |node| {
         if matches!(node, Node::Null) {

@@ -264,7 +264,8 @@ async fn operation(
             for (index, state) in [
                 "queued",
                 "active",
-                "awaiting_human_review",
+                "documenting",
+                "deciding",
                 "promoted",
                 "rejected",
                 "inconclusive",
