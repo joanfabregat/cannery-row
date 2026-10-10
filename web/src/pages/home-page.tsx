@@ -1,7 +1,8 @@
 import { Link } from "react-router";
 
-import { useAttention, useBrief } from "@/api/queries";
+import { useAttention, useBrief, useConcerns } from "@/api/queries";
 import type { Attention } from "@/api/types";
+import { ConcernLine } from "@/components/concerns";
 import { ImportedBadge } from "@/components/imported-badge";
 import { PageHeader } from "@/components/page-header";
 import { ProjectPage } from "@/components/project-page";
@@ -40,6 +41,7 @@ function Attention({ project }: { project: Project }) {
       {(data) => (
         <div className="flex flex-col gap-6">
           <BriefCard project={project.slug} />
+          {isResearcher ? <ConcernQueue project={project.slug} /> : null}
           {isResearcher ? <ReviewQueue data={data} /> : null}
           {isResearcher ? <WriteupQueue data={data} /> : null}
           <RecentOutcomes data={data} />
@@ -70,6 +72,34 @@ function BriefCard({ project }: { project: string }) {
       {current ? (
         <p className="text-sm text-muted-foreground">{excerpt(current.goal, 300)}</p>
       ) : null}
+    </Section>
+  );
+}
+
+/** The open concerns about the project's plans: each holds up its track's new work. */
+function ConcernQueue({ project }: { project: string }) {
+  const concerns = useConcerns(project, "open");
+  return (
+    <Section
+      title="Concerns about plans"
+      description="While a concern is open, no new hypothesis of its track starts. Revise the track's plan to answer it, or dismiss it with a reason, on the track page."
+    >
+      <QueryView query={concerns}>
+        {(page) =>
+          page.items.length === 0 ? (
+            <EmptyState>No concern is open.</EmptyState>
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {page.items.map((concern) => (
+                <li key={concern.id} className="flex flex-col gap-1 py-3">
+                  <ConcernLine concern={concern} showTrack />
+                  <p className="text-sm text-muted-foreground">{excerpt(concern.body, 200)}</p>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </QueryView>
     </Section>
   );
 }
@@ -112,6 +142,12 @@ function ReviewQueue({ data }: { data: Attention }) {
                   : `Attempt ${r.attempt_ref ?? ""} failed${r.failure_reason ? `: ${excerpt(r.failure_reason, 120)}` : "."}`}{" "}
                 Waiting since {formatDateTime(r.opened_at)}.
               </p>
+              {r.decider ? (
+                <p className="text-sm text-muted-foreground">
+                  The decider {r.decider} decides this one automatically; you can correct its
+                  decision once it is recorded.
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>

@@ -126,6 +126,13 @@ const decision = {
   failed: s("Closed as failed", "danger", "failure"),
 };
 
+/** A concern about a track's plan: while open, it holds up the track's new work. */
+const concern = {
+  open: s("Open", "attention", "review"),
+  answered: s("Answered by the plan", "success", "success"),
+  dismissed: s("Dismissed", "neutral", "stopped"),
+};
+
 const token = {
   active: s("Active", "success", "success"),
   expired: s("Expired", "neutral", "stopped"),
@@ -149,6 +156,7 @@ export const statusDomains = {
   job: jobState,
   writeup,
   decision,
+  concern,
   token,
   account,
 } satisfies Record<string, Record<string, StatusMeta>>;
@@ -217,6 +225,14 @@ export const labels = {
     agent: "Agent",
     experimenter: "Experimenter (workflow runner)",
     verifier: "Verifier (verify runner)",
+    decider: "Decider (decide runner)",
+  },
+  /** What a concern says about a track's plan. */
+  concernKind: {
+    wrong_assumption: "Wrong assumption",
+    better_idea: "Better idea",
+    blocker: "Blocker",
+    other: "Other",
   },
   /** What a re-plan does with a unit already done or in flight. */
   alignment: {

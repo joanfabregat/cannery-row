@@ -10,10 +10,11 @@ use cannery_core::{
 };
 use sqlx::PgConnection;
 
-pub const ALL_SERVICES: [ServiceKind; 3] = [
+pub const ALL_SERVICES: [ServiceKind; 4] = [
     ServiceKind::Agent,
     ServiceKind::Experimenter,
     ServiceKind::Verifier,
+    ServiceKind::Decider,
 ];
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,6 +34,7 @@ const fn service_name(kind: ServiceKind) -> &'static str {
         ServiceKind::Agent => "agent",
         ServiceKind::Experimenter => "experimenter",
         ServiceKind::Verifier => "verifier",
+        ServiceKind::Decider => "decider",
     }
 }
 

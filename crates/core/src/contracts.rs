@@ -294,7 +294,7 @@ fn embedded_schemas(kind: ContractKind, value: &Value, errors: &mut Vec<Contract
         _ => {}
     }
 }
-const PUBLISHED_SOURCES: [(&str, &str); 22] = [
+const PUBLISHED_SOURCES: [(&str, &str); 23] = [
     (
         "track",
         include_str!("../../../contracts/schemas/track.schema.json"),
@@ -382,5 +382,9 @@ const PUBLISHED_SOURCES: [(&str, &str); 22] = [
     (
         "decision",
         include_str!("../../../contracts/schemas/decision.schema.json"),
+    ),
+    (
+        "concern",
+        include_str!("../../../contracts/schemas/concern.schema.json"),
     ),
 ];

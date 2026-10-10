@@ -6,12 +6,14 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// The two session projections: a verify job's steps (producer, scorer,
-/// validators and the policy step) and an experiment's workflow steps.
+/// The session projections: a verify job's steps (producer, scorer,
+/// validators and the policy step), an experiment's workflow steps, and a
+/// decide job's decider step.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JobKind {
     Verify,
     Experiment,
+    Decide,
 }
 
 /// Borrowed public claim and selected step; no transport credentials are projected.
@@ -230,6 +232,9 @@ pub fn declared_datasets(
 /// # Errors
 /// Returns sanitized field/type/rendering failures. No claim/registration validation is implied.
 pub fn project(context: &JobContext<'_>) -> Result<Document, JobError> {
+    if context.kind == JobKind::Decide {
+        return project_decide(context);
+    }
     let claim = Value::root(context.claim, context.nesting_budget);
     let step = Value::root(context.step, context.nesting_budget);
     let experiment = context.kind == JobKind::Experiment;
@@ -272,6 +277,7 @@ pub fn project(context: &JobContext<'_>) -> Result<Document, JobError> {
                 .collect::<Result<Vec<_>, _>>()?;
             add("workflow", format!("[{}]", workflow.join(",")));
         }
+        JobKind::Decide => return project_decide(context),
     }
     add("step", step.get("name")?.render()?);
     add("role", manifest.get("spec")?.get("role")?.render()?);
@@ -298,6 +304,55 @@ pub fn project(context: &JobContext<'_>) -> Result<Document, JobError> {
         );
     }
     add("manifest", manifest.render()?);
+    document(&object(&out), context.nesting_budget)
+}
+
+/// A decider step's contract: the decide job, its decision case, the
+/// registered decider and what the decision cites (null when there is none).
+fn project_decide(context: &JobContext<'_>) -> Result<Document, JobError> {
+    let claim = Value::root(context.claim, context.nesting_budget);
+    let step = Value::root(context.step, context.nesting_budget);
+    let job = claim.get("job")?;
+    let inputs = job.get("inputs")?;
+    let manifest = step.get("manifest")?;
+    let cited = |name: &str| {
+        Ok::<_, JobError>(match inputs.optional(name)? {
+            Some(value) => value.render()?,
+            None => "null".to_owned(),
+        })
+    };
+    let out = vec![
+        ("job_id".to_owned(), quote(&job.get("job_id")?.text()?)),
+        ("attempt_id".to_owned(), job.get("attempt_id")?.render()?),
+        (
+            "attempt_ref".to_owned(),
+            claim.get("attempt_ref")?.render()?,
+        ),
+        ("track".to_owned(), job.get("track")?.render()?),
+        ("hypothesis".to_owned(), job.get("hypothesis")?.render()?),
+        (
+            "science_revision".to_owned(),
+            job.get("science_revision")?.render()?,
+        ),
+        ("decider".to_owned(), job.get("decider")?.render()?),
+        (
+            "review_case_id".to_owned(),
+            job.get("review_case_id")?.render()?,
+        ),
+        ("step".to_owned(), step.get("name")?.render()?),
+        (
+            "role".to_owned(),
+            manifest.get("spec")?.get("role")?.render()?,
+        ),
+        (
+            "inputs".to_owned(),
+            object(&[
+                ("verification".to_owned(), cited("verification")?),
+                ("writeup".to_owned(), cited("writeup")?),
+            ]),
+        ),
+        ("manifest".to_owned(), manifest.render()?),
+    ];
     document(&object(&out), context.nesting_budget)
 }
 

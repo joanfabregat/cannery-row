@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (SELECT 1 FROM concerns c JOIN tracks t ON t.id = c.track_id\n        WHERE t.project_id = $1 AND t.slug = $2 AND c.state = 'open') AS \"found!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "found!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "57919639b0c6969c82d6fc7dc433eca8e426f6fb995cd3bb6a9d882bab3849d0"
+}

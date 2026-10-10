@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT t.slug FROM tracks t WHERE t.project_id = $1\n          AND EXISTS (SELECT 1 FROM concerns c WHERE c.track_id = t.id AND c.state = 'open')\n          ORDER BY t.slug",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "slug",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "34f6631e96d7123bb2e65b441d99bf821077965199d502d2f99838fa7f69a0ea"
+}

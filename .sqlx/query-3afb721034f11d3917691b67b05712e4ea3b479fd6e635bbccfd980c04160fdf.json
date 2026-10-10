@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plan_answers (plan_revision_id, concern_id, how)\n        SELECT $2, a.concern_id, a.how FROM plan_answers a JOIN concerns c ON c.id = a.concern_id\n        WHERE a.plan_revision_id = $1 AND c.state = 'open'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3afb721034f11d3917691b67b05712e4ea3b479fd6e635bbccfd980c04160fdf"
+}

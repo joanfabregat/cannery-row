@@ -1,0 +1,20 @@
+{
+  "reason": "/performer",
+  "document": {
+    "schema_version": "0.2",
+    "job_id": "decide-job-1",
+    "phase": "decide",
+    "attempt_id": "attempt-id",
+    "performer": "agent",
+    "decider": {"id": "pass-decider", "revision": "r1"},
+    "track": "compact-sparse",
+    "hypothesis": 12,
+    "science_revision": "3",
+    "review_case_id": "review-case-id",
+    "inputs": {},
+    "output_prefix": "projects/pilchards/attempts/attempt-id/decide-runs/decide-job-1/",
+    "deadline": "2026-09-29T06:00:00Z",
+    "limits": {"max_output_bytes": 1048576},
+    "lease": {"token": "opaque", "generation": 1, "expires_at": "2026-09-29T00:10:00Z"}
+  }
+}

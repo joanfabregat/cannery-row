@@ -64,6 +64,15 @@
 # goes back to waiting the same way, as for a crashed verifier. A verified or
 # stopped hypothesis whose last attempt has no writeup: is left waiting for its
 # write-up, and one with a writeup: but no decision: waits for its decision.
+# A project whose science revision registers a decider step (decide.performer
+# step) gets a decider service account of that name, and the script plays its
+# runner: a decision by: decider is the decider's, recorded through its decide
+# job; a hypothesis written up without one leaves that job waiting.
+#
+# Once the attempts and the later plans are done, the scenario's concerns:
+# about the plans are raised by their authors (from: names the hypothesis and
+# attempt), and a dismissed: one is dismissed by a researcher with a reason;
+# an open one holds up its track.
 #
 # Loading is not repeatable: the script refuses an instance that already has
 # a demo project. To start over, stop the instance, delete its data
@@ -141,10 +150,10 @@ yaml_json() {
 # ---------------------------------------------------------------- HTTP
 
 # creds ACTOR: the header file of a user key, or of the current project's
-# service account (agent, verifier).
+# service account (agent, verifier, decider).
 creds() {
   case "$1" in
-    agent|verifier) printf '%s' "$SECRETS/svc-$PROJECT-$1.h" ;;
+    agent|verifier|decider) printf '%s' "$SECRETS/svc-$PROJECT-$1.h" ;;
     *) printf '%s' "$SECRETS/user-$1.h" ;;
   esac
 }
@@ -267,6 +276,7 @@ setup_project() {
   api "$ADMIN" POST "$BASE/producers" "$(cat "$DEMO/projects/$slug/producer.json")" >/dev/null
   local kinds=agent
   [[ "$(verify_performer)" != runner ]] || kinds+=" verifier"
+  [[ "$(decide_performer)" != step ]] || kinds+=" decider"
   for kind in $kinds; do
     name=$(service_name "$kind")
     api "$ADMIN" POST "$BASE/service-accounts" "$(jq -nc --arg k "$kind" --arg n "$name" \
@@ -296,11 +306,14 @@ service_name() {
   case "$1" in
     agent) printf 'demo-agent' ;;
     verifier) jq -r '.verify.verifier.id' "$DEMO/projects/$PROJECT/science.json" ;;
+    decider) jq -r '.decide.decider.id' "$DEMO/projects/$PROJECT/science.json" ;;
   esac
 }
 
 # verify_performer: who verifies the current project's attempts, runner or agent.
 verify_performer() { jq -r '.verify.performer' "$DEMO/projects/$PROJECT/science.json"; }
+# decide_performer: who decides them, researcher (the default) or step.
+decide_performer() { jq -r '.decide.performer // "researcher"' "$DEMO/projects/$PROJECT/science.json"; }
 
 # ---------------------------------------------------------------- hypotheses
 
@@ -621,6 +634,10 @@ decide() {
   case=$(api "$ADMIN" GET "$BASE/review-cases?kind=$kind&state=pending&limit=200" |
     jq -c --argjson n "$number" '[.items[] | select(.hypothesis == $n)][0] // empty')
   [[ -n "$case" ]] || die "no pending $kind review case for #$number"
+  if [[ "$kind" == decision && "$(jq -r .by <<<"$decision")" == decider ]]; then
+    decide_automatically "$number" "$decision"
+    return
+  fi
   if [[ "$kind" == failure ]]; then
     body=$(jq -c --argjson case "$case" '{review_case_id: $case.id, evidence_revision: $case.subject_revision, action, reason}' <<<"$decision")
   else
@@ -630,6 +647,51 @@ decide() {
         if $w.status == "written" then {ref: $w.writeup.id, sha256: $w.writeup.sha256} else null end | tojson)\n---\n\n\(.reason)\n")}' <<<"$decision")
   fi
   api "$(jq -r .by <<<"$decision")" POST "$BASE/review-cases/$(jq -r .id <<<"$case")/decisions" "$body" >/dev/null
+}
+
+# decide_automatically NUMBER DECISION_JSON: the decider step's decision, as
+# the runner's decide kind would record it: the decider service account
+# claims the hypothesis's decide job under its step revision and completes it
+# with the decision document, citing what the job names.
+decide_automatically() {
+  local number=$1 decision=$2 job lease_file document
+  job=$(api decider POST "$BASE/jobs/claims" \
+    "$(jq -c '{phase: "decide", revision: .decide.decider.revision}' "$DEMO/projects/$PROJECT/science.json")" | jq -c .job)
+  [[ "$(jq -r .hypothesis <<<"$job")" == "$number" ]] ||
+    die "the decider claimed the decide job of another hypothesis; is something else using this project?"
+  document=$(jq -r --argjson inputs "$(jq -c .inputs <<<"$job")" \
+    '"---\noutcome: \(.action)\nverification: \($inputs.verification // null | tojson)\nwriteup: \($inputs.writeup // null | tojson)\n---\n\n\(.reason)\n"' <<<"$decision")
+  lease_file=$(headers_file job-lease \
+    "X-Lease-Token: $(jq -r .lease.token <<<"$job")" \
+    "X-Lease-Generation: $(jq -r .lease.generation <<<"$job")")
+  api decider POST "$BASE/jobs/$(jq -r .job_id <<<"$job")/completion" "$(jq -nc --arg job "$(jq -r .job_id <<<"$job")" \
+    --arg document "$document" '{schema_version: "0.2", job_id: $job, document: $document}')" "$lease_file" >/dev/null
+  log "  #$number decided automatically by $(service_name decider)"
+}
+
+# raise_concerns: the scenario's concerns about the plans (concerns:), each
+# raised by its author, naming the hypothesis and attempt it comes from
+# (from:); a dismissed one is then dismissed by a researcher with a reason.
+raise_concerns() {
+  local concern front number raised
+  while read -r concern; do
+    front="kind: $(jq -r .kind <<<"$concern")"
+    if jq -e .from <<<"$concern" >/dev/null; then
+      number=${NUMBER[$(jq -r .from.hypothesis <<<"$concern")]}
+      front+=$'\n'"hypothesis: $number"
+      if jq -e .from.attempt <<<"$concern" >/dev/null; then
+        front+=$'\n'"attempt: $(jq -r .from.attempt <<<"$concern")"
+      fi
+    fi
+    raised=$(api "$(jq -r .by <<<"$concern")" POST "$BASE/tracks/$(jq -r .track <<<"$concern")/concerns" \
+      "$(jq -nc --arg document "$(printf -- '---\n%s\n---\n%s' "$front" "$(jq -r .body <<<"$concern")")" '{document: $document}')")
+    log "concern about the $(jq -r .track <<<"$concern") plan raised by $(jq -r .by <<<"$concern")"
+    if jq -e .dismissed <<<"$concern" >/dev/null; then
+      api "$(jq -r .dismissed.by <<<"$concern")" POST "$BASE/concerns/$(jq -r .id <<<"$raised")/dismissal" \
+        "$(jq -c '{reason: .dismissed.reason}' <<<"$concern")" >/dev/null
+      log "  dismissed by $(jq -r .dismissed.by <<<"$concern")"
+    fi
+  done < <(pv '.concerns // [] | .[]')
 }
 
 # write_up NUMBER WRITEUP_JSON: the hypothesis's write-up. An agent claims the
@@ -731,6 +793,8 @@ load_project() {
   done
   for ((i = 0; i < count; i++)); do comments "$i"; done
   later_plans "$count"
+  # After the plans: a draft cannot be submitted while a concern waits for an answer.
+  raise_concerns
   final_track_states
 }
 

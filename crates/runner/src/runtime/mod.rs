@@ -2,6 +2,7 @@
 pub mod backend;
 pub mod command;
 pub mod container_command;
+pub mod decide;
 pub mod evaluator_command;
 pub mod experiment;
 pub mod github;

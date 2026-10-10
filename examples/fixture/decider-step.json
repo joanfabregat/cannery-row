@@ -1,0 +1,22 @@
+{
+  "schema_version": "0.2",
+  "decider": {"id": "fixture-decider", "revision": "fixture-decider-1"},
+  "step": {
+    "apiVersion": "cannery-row/v1",
+    "kind": "Step",
+    "metadata": {"name": "fixture-decider"},
+    "spec": {
+      "role": "decider",
+      "container": {
+        "image": "fixture.invalid/cannery-row/fixture-decider@sha256:d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4",
+        "command": ["python3", "decider_step.py"],
+        "resources": {"limits": {"cpu": "1", "memory": "256Mi"}}
+      },
+      "activeDeadlineSeconds": 60,
+      "network": "none",
+      "sandbox": "Fixture only: the local launcher does not isolate the step.",
+      "inputs": {"artifacts": []},
+      "outputs": {"artifacts": [{"name": "decision", "path": "/cr/outputs/decision"}]}
+    }
+  }
+}

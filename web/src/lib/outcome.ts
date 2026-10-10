@@ -193,10 +193,15 @@ export function summarizeOutcome(
 
   const decision = decisionFor(hypothesis);
   const why = decision === null ? null : decision.reason;
+  // An automatic decision is recorded by the decider step, not a person.
+  const who =
+    decision !== null && decision.actor_user_id === null && decision.decider_revision
+      ? "the decider step"
+      : "a researcher";
   const decided =
     decision === null
       ? null
-      : `${DECIDED_WORDS[decision.action] ?? "Decided"} by a researcher on ${formatDate(decision.decided_at)}`;
+      : `${DECIDED_WORDS[decision.action] ?? "Decided"} by ${who} on ${formatDate(decision.decided_at)}`;
   const because = decision === null ? "" : ` because ${quoteReason(decision.reason)}`;
 
   let sentence: string;
@@ -244,7 +249,7 @@ export function summarizeOutcome(
       const phrase =
         decision === null
           ? `it was ${statusLabel("hypothesis", hypothesis.state).toLowerCase()}.`
-          : `a researcher ${DECISION_PHRASES[decision.action] ?? "decided"}${because}`;
+          : `${who} ${DECISION_PHRASES[decision.action] ?? "decided"}${because}`;
       sentence = `We tried ${title}${
         verdictPhrase === null ? ", and " : `: the verification ${verdictPhrase}, and `
       }${phrase}`;

@@ -29,6 +29,8 @@ const RUN_OUTPUT: &str = "run";
 const EVIDENCE_OUTPUT: &str = "evidence";
 /// The policy step's only output.
 const VERDICT_OUTPUT: &str = "verdict";
+/// The decider step's only output: the decision document `decision.md`.
+const DECISION_OUTPUT: &str = "decision";
 /// The built-in interface of the run document.
 pub(crate) const RUN_INTERFACE: &str = "cr-run/v0.2";
 
@@ -140,6 +142,8 @@ enum SessionMode {
     /// A verify job's policy step, after its producer and scorer.
     Policy,
     Experiment,
+    /// A decide job's decider step.
+    Decide,
 }
 pub(crate) struct Session<'a> {
     mode: SessionMode,
@@ -244,6 +248,29 @@ impl Session<'_> {
             cancel,
         )
     }
+    #[allow(clippy::too_many_arguments)] // Borrow the single session's explicit resources and lease.
+    pub(crate) fn decide<'a>(
+        worker: &'a Resources,
+        claim: &'a Value,
+        job: &'a Value,
+        api: &'a str,
+        base: &'a str,
+        lease: &'a LeaseHeaders,
+        work: &'a Path,
+        cancel: CancellationEvent,
+    ) -> Session<'a> {
+        Session::new(
+            SessionMode::Decide,
+            worker,
+            claim,
+            job,
+            api,
+            base,
+            lease,
+            work,
+            cancel,
+        )
+    }
     pub(crate) fn objects(&self) -> &[Value] {
         &self.objects
     }
@@ -304,6 +331,7 @@ impl Session<'_> {
         match self.mode {
             SessionMode::Verify | SessionMode::Policy => crate::job::JobKind::Verify,
             SessionMode::Experiment => crate::job::JobKind::Experiment,
+            SessionMode::Decide => crate::job::JobKind::Decide,
         }
     }
     async fn get_json(
@@ -523,6 +551,33 @@ impl Session<'_> {
         let offset = array(self.job, "steps")?.len();
         self.run_list(std::slice::from_ref(step), offset).await
     }
+    /// Run a decide job's decider step on the decider's context bundle.
+    /// Returns its decision document's front matter and body.
+    pub(crate) async fn run_decider(&mut self, step: &Value) -> Result<Value, RuntimeError> {
+        self.run_list(std::slice::from_ref(step), 0).await
+    }
+    /// Stage the decider's context bundle the claim names at
+    /// `/cr/context/context.md`.
+    async fn stage_context(&self, root: &Path) -> Result<(), RuntimeError> {
+        let reference = string(&self.claim["context"], "ref")?;
+        let operation = async {
+            http::read_text(
+                self.worker
+                    .client
+                    .request(Method::GET, reference, &self.worker.token, None, None)
+                    .await?,
+            )
+            .await
+        };
+        let bundle = tokio::select! {
+            ()=self.cancel.wait()=>return Err(RuntimeError::LostLease),
+            result=operation=>result?,
+        };
+        let directory = root.join("context");
+        tokio::fs::create_dir(&directory).await?;
+        tokio::fs::write(directory.join("context.md"), bundle).await?;
+        Ok(())
+    }
     fn resume_position(&self, steps: &[Value]) -> Result<usize, RuntimeError> {
         let resume = &self.job["resume"];
         if self.mode != SessionMode::Verify || resume.is_null() {
@@ -559,6 +614,7 @@ impl Session<'_> {
                 SessionMode::Verify => !["producer", "scorer"].contains(&role),
                 SessionMode::Policy => role != "policy",
                 SessionMode::Experiment => role != "experiment",
+                SessionMode::Decide => role != "decider",
             } {
                 return Err(RuntimeError::Contract);
             }
@@ -571,6 +627,9 @@ impl Session<'_> {
             let root = self.work.join(format!("{index}-{name}"));
             tokio::fs::create_dir(&root).await?;
             self.stage_inputs(&root, spec, science).await?;
+            if self.mode == SessionMode::Decide {
+                self.stage_context(&root).await?;
+            }
             let outputs = array(&spec["outputs"], "artifacts")?;
             let directories = outputs
                 .iter()
@@ -642,6 +701,7 @@ impl Session<'_> {
                 )
                 .await?;
             self.failure_logs.push(log_reference(&log_artifact)?);
+            self.raise_concern(&root).await;
             if outcome.timed_out {
                 return Err(RuntimeError::DeadlineExceeded);
             }
@@ -708,7 +768,10 @@ impl Session<'_> {
                 let output_name = string(output, "name")?;
                 let mut digests = BTreeMap::new();
                 for (path, relative) in files {
-                    if self.mode == SessionMode::Experiment && output_name == RUN_OUTPUT {
+                    // The run and the decision are submitted as documents, not uploaded.
+                    if (self.mode == SessionMode::Experiment && output_name == RUN_OUTPUT)
+                        || (self.mode == SessionMode::Decide && output_name == DECISION_OUTPUT)
+                    {
                         digests.insert(relative, http::digest(&path).await?);
                         continue;
                     }
@@ -735,6 +798,7 @@ impl Session<'_> {
                     && output_name == EVIDENCE_OUTPUT)
                     || (self.mode == SessionMode::Experiment && output_name == RUN_OUTPUT)
                     || (self.mode == SessionMode::Policy && output_name == VERDICT_OUTPUT)
+                    || (self.mode == SessionMode::Decide && output_name == DECISION_OUTPUT)
                 {
                     if self.mode == SessionMode::Verify {
                         self.evidence_step = Some(name.to_owned());
@@ -753,10 +817,76 @@ impl Session<'_> {
         }
         self.finish(evidence).await
     }
+    /// The track, hypothesis number and attempt sequence of the session's attempt.
+    fn concern_origin(&self) -> Option<(String, u64, u64)> {
+        let track = self.job["track"].as_str()?.to_owned();
+        if self.mode == SessionMode::Experiment {
+            let attempt = &self.claim["attempt"];
+            return Some((
+                track,
+                attempt["number"].as_u64()?,
+                attempt["sequence"].as_u64()?,
+            ));
+        }
+        // A job claim names its attempt as `#<number>.<sequence>`.
+        let (number, sequence) = self.claim["attempt_ref"]
+            .as_str()?
+            .strip_prefix('#')?
+            .split_once('.')?;
+        Some((track, number.parse().ok()?, sequence.parse().ok()?))
+    }
+    /// Submit the concern about the track's plan a step wrote to
+    /// `/cr/outputs/concern/concern.md`, naming the session's hypothesis and
+    /// attempt when it names none. A concern is advice to the researchers, so
+    /// it never changes the step's result: one that cannot be read or is
+    /// refused is dropped.
+    async fn raise_concern(&self, root: &Path) {
+        let outputs = root.join("outputs");
+        let path = outputs.join("concern").join("concern.md");
+        let Some((track, number, sequence)) = self.concern_origin() else {
+            return;
+        };
+        if ensure_unlinked(&outputs, &path).await.is_err() {
+            return;
+        }
+        let Ok(metadata) = tokio::fs::symlink_metadata(&path).await else {
+            return;
+        };
+        if !metadata.is_file() || metadata.len() > 1024 * 1024 {
+            return;
+        }
+        let Ok(text) = tokio::fs::read_to_string(&path).await else {
+            return;
+        };
+        let document = match front_matter::parse(&text, front_matter::Limits::default()) {
+            Ok(parsed) => {
+                let mut fields = parsed.front_matter;
+                if !fields.contains_key("hypothesis") {
+                    fields.insert("hypothesis".into(), json!(number));
+                    fields.entry("attempt").or_insert_with(|| json!(sequence));
+                }
+                format!("---\n{}\n---\n{}", Value::Object(fields), parsed.body)
+            }
+            // The API refuses it with the reason; the step's log is where to look.
+            Err(_) => text,
+        };
+        let _ = self
+            .worker
+            .client
+            .request(
+                Method::POST,
+                &format!("{}/tracks/{track}/concerns", self.api),
+                &self.worker.token,
+                None,
+                Some(&json!({"document": document})),
+            )
+            .await;
+    }
     /// Read the single file of the session's result output, checked against
     /// the bytes the API accepted.
     async fn finish(&mut self, evidence: Option<PathBuf>) -> Result<Value, RuntimeError> {
-        let experiment = self.mode == SessionMode::Experiment;
+        // A run document or a decision document: Markdown with front matter.
+        let experiment = matches!(self.mode, SessionMode::Experiment | SessionMode::Decide);
         if self.mode == SessionMode::Verify {
             self.failure_step.clone_from(&self.evidence_step);
         }
@@ -780,6 +910,7 @@ impl Session<'_> {
                 SessionMode::Verify => EVIDENCE_OUTPUT,
                 SessionMode::Policy => VERDICT_OUTPUT,
                 SessionMode::Experiment => RUN_OUTPUT,
+                SessionMode::Decide => DECISION_OUTPUT,
             })
             .ok_or(RuntimeError::Contract)?;
         for (path, relative) in &files {
@@ -956,7 +1087,7 @@ impl Session<'_> {
                     }
                     copy_input(source, target).await?;
                 }
-                "attempt" if self.mode == SessionMode::Policy => {
+                "attempt" if matches!(self.mode, SessionMode::Policy | SessionMode::Decide) => {
                     return Err(RuntimeError::Contract);
                 }
                 "attempt" if self.mode == SessionMode::Experiment => {

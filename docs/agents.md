@@ -12,11 +12,19 @@ A track's plan says how the track tests its idea and which units (hypotheses) it
 2. Refine the idea with the researcher.
 3. Check references and outside material with `search` and the read tools.
 4. List edge cases and risks into the approach and the unit briefs.
-5. Define units with their acceptance and the context each needs: `start_plan_revision`, `set_plan_approach`, `add_unit` (and `update_unit`, `drop_unit`), and `set_alignment` for every unit already done or in flight (`keep`, `obsolete` or `redo`, with a reason).
+5. Define units with their acceptance and the context each needs: `start_plan_revision`, `set_plan_approach`, `add_unit` (and `update_unit`, `drop_unit`), `set_alignment` for every unit already done or in flight (`keep`, `obsolete` or `redo`, with a reason), and `answer_concern` for every open concern (`needs_answer`), saying how the revision answers it.
 6. Run `check_plan` until it reports nothing, then `submit_plan`.
 7. A researcher approves it (`review_plan`, or the track page in the web app), sends it back or declines it, with a reason. Approval creates the queued hypotheses.
 
 A unit's fields and the limits that apply to them are in [the contract](contracts.md#track-plans). Name other units of the plan by their keys, and earlier units and attempts by their numbers. Keep each unit brief to what its performer needs that the brief and approach do not already say.
+
+## Concerns
+
+Raise a concern (`raise_concern`) when your work shows that the track's plan itself is wrong, whatever phase you are in: a wrong assumption the plan relies on, a better idea than the plan's for testing the track's idea, or a blocker that stops the plan from being carried out as written. The concern is Markdown with YAML front matter (`GET /api/schemas/concern`): its `kind` (`wrong_assumption`, `better_idea`, `blocker` or `other`) and, when it comes from one, the `hypothesis` number and the `attempt` sequence, with the argument as the body (at most 16 KiB): what you saw, why it matters to the plan, and what you would change. A runner step raises one by writing `/cr/outputs/concern/concern.md`.
+
+Otherwise, just continue: a failure of your own run is a failure report, a disagreement with a run's claims is the verification report, an unexpected result is the write-up, and a question about one hypothesis is a comment. A concern holds up the whole track: while one is open, no new hypothesis of the track can be claimed (`409 concern_open`); work already claimed continues through run, verify, document and decide, so finish what you hold.
+
+A plan revision answers the concern (`answer_concern` in the draft; `check_plan` lists every open concern the draft does not answer, and approval closes those it answers), or a researcher dismisses it with a reason (`dismiss_concern`). `list_concerns` and `get_concern` read them.
 
 ## Context
 
@@ -46,4 +54,4 @@ A researcher writes a hypothesis up with `write_up` ("Write it up" in the web ap
 
 ## Decide
 
-A researcher decides each hypothesis on its decision case (`list_review_cases`, `get_review_case`, `record_decision`) with a decision document: front matter with the `outcome` (`promote`, `reject`, `inconclusive`, or `failed` for a hypothesis stopped after a failure) and the `verification` and `writeup` it cites (`{ref, sha256}`, null when there is none) (`GET /api/schemas/decision`), and the reason as its body. A promotion needs a `pass` verdict. The decider's bundle (`?phase=decide`, or the resource ending in `/context/decide`) adds the write-up, or the reason it was skipped. A failure case is resolved with `retry` or `stop` and a reason: `stop` sends the hypothesis to be written up, then decided `failed`.
+A researcher decides each hypothesis on its decision case (`list_review_cases`, `get_review_case`, `record_decision`) with a decision document: front matter with the `outcome` (`promote`, `reject`, `inconclusive`, or `failed` for a hypothesis stopped after a failure) and the `verification` and `writeup` it cites (`{ref, sha256}`, null when there is none) (`GET /api/schemas/decision`), and the reason as its body. A promotion needs a `pass` verdict. The decider's bundle (`?phase=decide`, or the resource ending in `/context/decide`) adds the write-up, or the reason it was skipped. When the science revision's `decide` performer is `step`, the decider service account it registers decides instead: its runner claims a decide job (`claim_job` with `{"phase": "decide"}` and its step revision), runs its decider step on the decider's bundle and completes the job (`complete_job`) with the decision document, under the same rules; it promotes only on a `pass` verdict. While the decide job waits or runs, the case is not a researcher's to decide; once the decision is recorded, a researcher corrects it with `supersedes`. A decide job that keeps failing after its automatic reruns leaves the case to researchers. A failure case is resolved with `retry` or `stop` and a reason: `stop` sends the hypothesis to be written up, then decided `failed`.

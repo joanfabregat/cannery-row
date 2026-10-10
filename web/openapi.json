@@ -1647,7 +1647,7 @@
     "/api/projects/{slug}/claims": {
       "post": {
         "summary": "Claim",
-        "description": "Claim a queued hypothesis.\n\n``409 nothing_to_claim`` when none is available. In ``workflow`` mode a\ntrack whose workflow (or producer) cannot be pinned under the current\nscience revision is skipped, so the other tracks' hypotheses still flow;\nwhen only such tracks have queued hypotheses, ``409 workflow_unavailable``\nnames them.",
+        "description": "Claim a queued hypothesis.\n\n``409 nothing_to_claim`` when none is available. In ``workflow`` mode a\ntrack whose workflow (or producer) cannot be pinned under the current\nscience revision is skipped, so the other tracks' hypotheses still flow;\nwhen only such tracks have queued hypotheses, ``409 workflow_unavailable``\nnames them. While an open concern about a track's plan blocks it, its\nhypotheses are not claimed; when only such tracks have queued hypotheses,\n``409 concern_open`` names them.",
         "operationId": "claim_api_projects__slug__claims_post",
         "parameters": [
           {
@@ -2385,6 +2385,321 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/concerns": {
+      "get": {
+        "summary": "List Concerns",
+        "description": "The concerns raised about the project's plans, newest first: of one track\nwhen `track` is given. `state=open` lists those waiting for a plan revision\nor a dismissal.",
+        "operationId": "list_concerns_api_projects__slug__concerns_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track",
+            "in": "query",
+            "description": "Only concerns about this track's plan.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only concerns in this state: `open`, `answered` or `dismissed`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Continue before this concern.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ConcernOut_UUID_"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/concerns/{concern_id}": {
+      "get": {
+        "summary": "Get Concern",
+        "description": "One concern: its document, who raised it, and how it was closed.",
+        "operationId": "get_concern_api_projects__slug__concerns__concern_id__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "concern_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConcernOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/concerns/{concern_id}/dismissal": {
+      "post": {
+        "summary": "Dismiss Concern",
+        "description": "A researcher dismisses an open concern without revising the plan, with a\nreason the raiser and the track see. The track's hypotheses can be claimed\nagain once no concern about its plan is open.",
+        "operationId": "dismiss_concern_api_projects__slug__concerns__concern_id__dismissal_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "concern_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConcernDismissal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConcernOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -6583,7 +6898,7 @@
     "/api/projects/{slug}/jobs/claims": {
       "post": {
         "summary": "Claim Job",
-        "description": "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a hypothesis whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
+        "description": "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a hypothesis whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nWith `phase: decide`, the decider service account a science revision\nregisters names the revision of its step and claims the oldest waiting\ndecide job registered to it: it decides a written-up hypothesis on its\ndecision case.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
         "operationId": "claim_job_api_projects__slug__jobs_claims_post",
         "parameters": [
           {
@@ -6830,7 +7145,7 @@
     "/api/projects/{slug}/jobs/{job_id}/completion": {
       "post": {
         "summary": "Complete Job",
-        "description": "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the hypothesis waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the hypothesis and cites the\nverification report the job names. The hypothesis then awaits its\ndecision. An invalid write-up is refused and the lease is kept.",
+        "description": "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the hypothesis waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the hypothesis and cites the\nverification report the job names. The hypothesis then awaits its\ndecision. An invalid write-up is refused and the lease is kept.\n\nA decide job is completed by its decider with the decision document\n(``decision.schema.json``) and no manifest: it is recorded on the\nhypothesis's decision case with the decider as its actor. A promotion\nrequires a `pass` verdict. An invalid decision document is refused and\nthe lease is kept.",
         "operationId": "complete_job_api_projects__slug__jobs__job_id__completion_post",
         "parameters": [
           {
@@ -10817,6 +11132,229 @@
         }
       }
     },
+    "/api/projects/{slug}/tracks/{track_slug}/concerns": {
+      "get": {
+        "summary": "List Track Concerns",
+        "description": "The concerns raised about a track's plan, newest first.",
+        "operationId": "list_track_concerns_api_projects__slug__tracks__track_slug__concerns_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Only concerns in this state: `open`, `answered` or `dismissed`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "Continue before this concern.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Items per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "maximum": 200,
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ConcernOut_UUID_"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Raise Concern",
+        "description": "Raise a concern about the track's plan: a wrong assumption, a better idea,\na blocker. The document is Markdown with YAML front matter\n(`concern.schema.json`): its `kind` and, when it comes from one, the\n`hypothesis` (number) and `attempt` (sequence) of the track, with the\nargument as its body (at most 16 KiB). Members, researchers and the\nproject's service accounts raise concerns. While one is open, no new\nhypothesis of the track is claimed (`409 concern_open`); work already\nclaimed continues. A plan revision answers it, or a researcher dismisses it.",
+        "operationId": "raise_concern_api_projects__slug__tracks__track_slug__concerns_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConcernRaise"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConcernOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/tracks/{track_slug}/history": {
       "get": {
         "summary": "Track History",
@@ -11069,7 +11607,7 @@
       },
       "post": {
         "summary": "Start Plan Revision",
-        "description": "Open the next revision of a track's plan as a draft. A revision starts from\nthe approved plan (or from a newer revision sent back): its approach, its\nnew units and the units still queued. `needs_alignment` lists the done and\nin-flight units every revision says something about. Researchers only;\none open revision per track.",
+        "description": "Open the next revision of a track's plan as a draft. A revision starts from\nthe approved plan (or from a newer revision sent back): its approach, its\nnew units and the units still queued. `needs_alignment` lists the done and\nin-flight units every revision says something about, and `needs_answer`\nthe open concerns it answers. Researchers only; one open revision per track.",
         "operationId": "start_plan_revision_api_projects__slug__tracks__track_slug__plans_post",
         "parameters": [
           {
@@ -11269,6 +11807,226 @@
         }
       }
     },
+    "/api/projects/{slug}/tracks/{track_slug}/plans/draft/answers/{concern_id}": {
+      "put": {
+        "summary": "Answer Concern",
+        "description": "Say how this revision answers an open concern about the track's plan.\nApproving the revision closes the concern as answered; every open concern\nis answered before the draft can be submitted, unless a researcher\ndismisses it.",
+        "operationId": "answer_concern_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "concern_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Drop Answer",
+        "description": "Remove the draft's answer to a concern and return the draft.",
+        "operationId": "drop_answer_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "track_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "concern_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/tracks/{track_slug}/plans/draft/approach": {
       "put": {
         "summary": "Set Plan Approach",
@@ -11379,7 +12137,7 @@
     "/api/projects/{slug}/tracks/{track_slug}/plans/draft/check": {
       "get": {
         "summary": "Check Plan",
-        "description": "What blocks submitting the draft: no project brief, no approach, missing\nalignment entries, unknown unit keys, units no longer queued, limits\nexceeded. `ready` when nothing does.",
+        "description": "What blocks submitting the draft: no project brief, no approach, missing\nalignment entries, unknown unit keys, units no longer queued, limits\nexceeded, open concerns it does not answer. `ready` when nothing does.",
         "operationId": "check_plan_api_projects__slug__tracks__track_slug__plans_draft_check_get",
         "parameters": [
           {
@@ -13892,6 +14650,49 @@
         },
         "additionalProperties": false
       },
+      "AnswerOut": {
+        "type": "object",
+        "description": "One concern a plan revision answers, and how.",
+        "required": [
+          "concern",
+          "kind",
+          "state",
+          "how"
+        ],
+        "properties": {
+          "concern": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "how": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "pattern": "^(wrong_assumption|better_idea|blocker|other)$"
+          },
+          "state": {
+            "type": "string",
+            "pattern": "^(open|answered|dismissed)$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AnswerSet": {
+        "type": "object",
+        "description": "How a plan revision answers a concern.",
+        "required": [
+          "how"
+        ],
+        "properties": {
+          "how": {
+            "type": "string",
+            "maxLength": 16384,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
       "ArtifactManifestRequest": {
         "type": "object",
         "required": [
@@ -14591,6 +15392,13 @@
             "type": "string",
             "format": "uuid"
           },
+          "decider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A decision case a decider decides: the decider, while its decide\njob waits or runs. A researcher corrects its decision once recorded."
+          },
           "failure_code": {
             "type": [
               "string",
@@ -15197,6 +16005,133 @@
         },
         "additionalProperties": false
       },
+      "ClaimedDecideInputs": {
+        "type": "object",
+        "description": "What a decision document cites: the verification report and the\nwrite-up, each absent when there is none (the document cites null).",
+        "properties": {
+          "verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RequestCommonContentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "writeup": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RequestCommonContentRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimedDecideJob": {
+        "type": "object",
+        "description": "A claimed decide job: the decision case its decision document resolves,\nwhat that document cites, the registered decider and the lease.",
+        "required": [
+          "schema_version",
+          "job_id",
+          "phase",
+          "attempt_id",
+          "performer",
+          "decider",
+          "track",
+          "hypothesis",
+          "science_revision",
+          "review_case_id",
+          "inputs",
+          "output_prefix",
+          "deadline",
+          "limits",
+          "lease"
+        ],
+        "properties": {
+          "attempt_id": {
+            "type": "string",
+            "description": "The hypothesis's last attempt."
+          },
+          "deadline": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decider": {
+            "$ref": "#/components/schemas/ClaimedJobPinnedRef",
+            "description": "The registered decider and the revision of its step."
+          },
+          "hypothesis": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/ClaimedDecideInputs"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "lease": {
+            "$ref": "#/components/schemas/ClaimedJobLease"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ClaimedDecideLimits"
+          },
+          "output_prefix": {
+            "type": "string"
+          },
+          "performer": {
+            "$ref": "#/components/schemas/ClaimedDecidePerformer"
+          },
+          "phase": {
+            "$ref": "#/components/schemas/ClaimedDecidePhase"
+          },
+          "review_case_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
+          },
+          "science_revision": {
+            "type": "string"
+          },
+          "track": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimedDecideLimits": {
+        "type": "object",
+        "required": [
+          "max_output_bytes"
+        ],
+        "properties": {
+          "max_output_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The bytes the job may upload in total (its step logs)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimedDecidePerformer": {
+        "type": "string",
+        "enum": [
+          "runner"
+        ]
+      },
+      "ClaimedDecidePhase": {
+        "type": "string",
+        "enum": [
+          "decide"
+        ]
+      },
       "ClaimedDocumentInputs": {
         "type": "object",
         "description": "What a write-up covers and cites.",
@@ -15305,9 +16240,12 @@
           },
           {
             "$ref": "#/components/schemas/ClaimedDocumentJob"
+          },
+          {
+            "$ref": "#/components/schemas/ClaimedDecideJob"
           }
         ],
-        "description": "The claimed job: a verify job, or a hypothesis's document job."
+        "description": "The claimed job: a verify job, or a hypothesis's document or decide job."
       },
       "ClaimedJobInputs": {
         "type": "object",
@@ -15991,6 +16929,166 @@
         },
         "additionalProperties": false
       },
+      "ConcernDismissal": {
+        "type": "object",
+        "description": "A researcher dismisses a concern without revising the plan, and says why.",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConcernOut": {
+        "type": "object",
+        "description": "A concern about a track's plan, who raised it and how it was closed.",
+        "required": [
+          "id",
+          "track",
+          "kind",
+          "hypothesis",
+          "attempt",
+          "front_matter",
+          "body",
+          "sha256",
+          "raised_by_kind",
+          "raised_by",
+          "raised_by_name",
+          "via_channel",
+          "via_client",
+          "raised_at",
+          "state",
+          "answered_by_revision",
+          "dismissed_by_name",
+          "dismissal_reason",
+          "closed_at"
+        ],
+        "properties": {
+          "answered_by_revision": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The approved plan revision that answered it."
+          },
+          "attempt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The attempt of that hypothesis the concern comes from."
+          },
+          "body": {
+            "type": "string",
+            "description": "The argument, as Markdown."
+          },
+          "closed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "dismissal_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dismissed_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "front_matter": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "hypothesis": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The hypothesis the concern comes from."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "pattern": "^(wrong_assumption|better_idea|blocker|other)$"
+          },
+          "raised_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "raised_by": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "raised_by_kind": {
+            "type": "string",
+            "description": "`user` or `service`.",
+            "pattern": "^(user|service)$"
+          },
+          "raised_by_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "state": {
+            "type": "string",
+            "description": "`open` blocks new claims in the track; `answered` by a plan revision;\n`dismissed` by a researcher.",
+            "pattern": "^(open|answered|dismissed)$"
+          },
+          "track": {
+            "type": "string"
+          },
+          "via_channel": {
+            "type": "string"
+          },
+          "via_client": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConcernRaise": {
+        "type": "object",
+        "description": "A concern about a track's plan: Markdown with YAML front matter\n(`concern.schema.json`) naming its kind and, when it comes from one, the\nhypothesis or attempt; the argument as its body.",
+        "required": [
+          "document"
+        ],
+        "properties": {
+          "document": {
+            "type": "string",
+            "maxLength": 1048576,
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      },
       "ConfigDocument": {
         "oneOf": [
           {
@@ -16226,13 +17324,32 @@
           "action": {
             "type": "string"
           },
+          "actor_service_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The decider service account that recorded an automatic decision."
+          },
           "actor_user_id": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The researcher who decided; null for an automatic decision."
           },
           "decided_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "decider_revision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The revision of the decider step that wrote an automatic decision."
           },
           "id": {
             "type": "string",
@@ -17252,7 +18369,7 @@
               "string",
               "null"
             ],
-            "description": "The phase to claim a job of: `verify` (the default) or `document`."
+            "description": "The phase to claim a job of: `verify` (the default), `document`, or\n`decide` (a decider service account)."
           },
           "revision": {
             "type": [
@@ -18119,6 +19236,29 @@
         },
         "additionalProperties": false
       },
+      "Page_ConcernOut_UUID_": {
+        "type": "object",
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConcernOut"
+            }
+          },
+          "next_before": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
       "Page_ConfigOut_int_": {
         "type": "object",
         "required": [
@@ -18487,6 +19627,8 @@
           "units",
           "alignments",
           "needs_alignment",
+          "answers",
+          "needs_answer",
           "created_by",
           "created_by_name",
           "via_channel",
@@ -18506,6 +19648,13 @@
             "items": {
               "$ref": "#/components/schemas/AlignmentOut"
             }
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnswerOut"
+            },
+            "description": "The concerns this revision answers, and how."
           },
           "approach": {
             "type": "string"
@@ -18541,6 +19690,13 @@
               "$ref": "#/components/schemas/UnitIndexOut"
             },
             "description": "For a draft: the done or in-flight units that need an alignment entry."
+          },
+          "needs_answer": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConcernOut"
+            },
+            "description": "For a draft: the track's open concerns it does not answer yet."
           },
           "review_case_id": {
             "type": [
@@ -20398,6 +21554,9 @@
               "$ref": "#/components/schemas/ScienceRevisionRequestDatasetsItem"
             }
           },
+          "decide": {
+            "$ref": "#/components/schemas/ScienceRevisionRequestDecide"
+          },
           "default_producer": {
             "$ref": "#/components/schemas/RequestCommonProducerRef"
           },
@@ -20512,6 +21671,46 @@
           "held_out_labels": {
             "type": "boolean"
           },
+          "id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScienceRevisionRequestDecide": {
+        "type": "object",
+        "description": "Who decides a written-up hypothesis: a researcher (the default when\nabsent), or the registered decider service account running its decider\nstep, which promotes only on a `pass` verdict.",
+        "required": [
+          "performer"
+        ],
+        "properties": {
+          "decider": {
+            "$ref": "#/components/schemas/ScienceRevisionRequestDecider"
+          },
+          "performer": {
+            "$ref": "#/components/schemas/ScienceRevisionRequestDecidePerformer"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScienceRevisionRequestDecidePerformer": {
+        "type": "string",
+        "enum": [
+          "researcher",
+          "step"
+        ]
+      },
+      "ScienceRevisionRequestDecider": {
+        "type": "object",
+        "description": "The decider service account and the revision of its decider step.",
+        "required": [
+          "id",
+          "revision"
+        ],
+        "properties": {
           "id": {
             "type": "string"
           },
@@ -20963,7 +22162,8 @@
         "enum": [
           "agent",
           "experimenter",
-          "verifier"
+          "verifier",
+          "decider"
         ]
       },
       "StepManifestRequest": {
@@ -21245,7 +22445,8 @@
           "scorer",
           "validator",
           "experiment",
-          "policy"
+          "policy",
+          "decider"
         ]
       },
       "StepManifestRequestSpecSetup": {

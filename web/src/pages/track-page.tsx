@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router";
 
 import { useHypotheses, useTrack, useTrackHistory } from "@/api/queries";
 import type { Track } from "@/api/types";
+import { TrackConcerns } from "@/components/concerns";
 import { TrackExecution } from "@/components/execution";
 import { Markdown } from "@/components/markdown";
 import { Notice } from "@/components/notice";
@@ -27,7 +28,7 @@ export function TrackPage() {
 
 function TrackView({ project, slug }: { project: Project; slug: string }) {
   const track = useTrack(project.slug, slug);
-  const { isResearcher } = usePermissions();
+  const { isResearcher, canComment } = usePermissions();
   const notice = useNotice();
   if (track.isPending) {
     return (
@@ -94,6 +95,13 @@ function TrackView({ project, slug }: { project: Project; slug: string }) {
           project={project.slug}
           track={t.slug}
           archived={t.state === "archived"}
+          isResearcher={isResearcher}
+        />
+        <TrackConcerns
+          project={project.slug}
+          track={t.slug}
+          archived={t.state === "archived"}
+          canRaise={canComment}
           isResearcher={isResearcher}
         />
         <TrackExecution track={t} />

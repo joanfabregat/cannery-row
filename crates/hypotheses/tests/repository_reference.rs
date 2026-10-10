@@ -83,7 +83,7 @@ fn reviewcase(p: &Projection, r: &ReviewCase) -> Result<Value> {
 }
 fn decision(p: &Projection, r: &Decision) -> Result<Value> {
     Ok(
-        json!({"id":p.id(r.id.0),"review_case_id":p.id(r.review_case_id.0),"action":json!(r.action.as_str()),"subject_revision":json!(r.subject_revision),"reason":text_value(&r.reason)?,"actor_user_id":p.id(r.actor_user_id.0),"via_channel":text_value(&r.via_channel.as_text())?,"via_client":opt(r.via_client.as_ref(),text_value)?,"decided_at":json!("@transaction-time"),"supersedes":r.supersedes.map_or(Value::Null, |id|p.id(id.0)),"origin":json!(r.origin.as_str()),"source_ref":opt(r.source_ref.as_ref(),text_value)?}),
+        json!({"id":p.id(r.id.0),"review_case_id":p.id(r.review_case_id.0),"action":json!(r.action.as_str()),"subject_revision":json!(r.subject_revision),"reason":text_value(&r.reason)?,"actor_user_id":r.actor_user_id.map_or(Value::Null, |id| p.id(id.0)),"via_channel":text_value(&r.via_channel.as_text())?,"via_client":opt(r.via_client.as_ref(),text_value)?,"decided_at":json!("@transaction-time"),"supersedes":r.supersedes.map_or(Value::Null, |id|p.id(id.0)),"origin":json!(r.origin.as_str()),"source_ref":opt(r.source_ref.as_ref(),text_value)?}),
     )
 }
 const USER: UserId = UserId(Uuid::from_u128(1));

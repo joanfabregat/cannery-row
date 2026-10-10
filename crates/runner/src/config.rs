@@ -44,6 +44,7 @@ pub enum ErrorKind {
     Token(TokenFileError),
     SharedToken,
     Policy,
+    Decider,
     Launcher,
     GpuMode,
     GpuList,
@@ -139,6 +140,14 @@ pub trait PolicyLoader {
     /// # Errors
     /// Preserve policy configuration refusals versus uncaught source exceptions.
     fn load(&self, path: &PosixPath) -> Result<VerifyPolicy, PolicyLoadError>;
+    /// A decide kind's decider registration envelope.
+    /// # Errors
+    /// Preserve configuration refusals versus uncaught source exceptions; a
+    /// loader that serves no decider refuses it.
+    fn load_decider(&self, path: &PosixPath) -> Result<Arc<Document>, PolicyLoadError> {
+        let _ = path;
+        Err(PolicyLoadError::Configuration)
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LauncherType {
@@ -150,6 +159,7 @@ pub enum LauncherType {
 pub enum JobKind {
     Verify,
     Experiment,
+    Decide,
 }
 impl JobKind {
     #[must_use]
@@ -157,14 +167,25 @@ impl JobKind {
         match self {
             Self::Verify => "verify",
             Self::Experiment => "experiment",
+            Self::Decide => "decide",
         }
     }
 }
-/// Both kinds run steps, so both need a launcher and the data root.
-#[derive(Debug)]
+/// Every kind runs steps, so each needs a launcher and the data root.
 pub enum KindConfig {
     Verify(VerifyPolicy),
     Experiment,
+    /// A decider registration envelope: the decider identity and its step.
+    Decide(Arc<Document>),
+}
+impl fmt::Debug for KindConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Verify(policy) => f.debug_tuple("Verify").field(policy).finish(),
+            Self::Experiment => f.write_str("Experiment"),
+            Self::Decide(_) => f.write_str("Decide([redacted])"),
+        }
+    }
 }
 impl KindConfig {
     #[must_use]
@@ -172,6 +193,7 @@ impl KindConfig {
         match self {
             Self::Verify(_) => JobKind::Verify,
             Self::Experiment => JobKind::Experiment,
+            Self::Decide(_) => JobKind::Decide,
         }
     }
 }
@@ -698,6 +720,7 @@ impl TokenKinds {
         self.0.entry(token.expose().to_owned()).or_insert(kind);
     }
 }
+#[allow(clippy::too_many_lines)] // One pass over the kinds table keeps its errors in order.
 fn kinds(top: &Table<'_, '_>, policies: &dyn PolicyLoader) -> Result<Vec<KindEntry>, ConfigError> {
     let list = top
         .get("kinds")
@@ -719,11 +742,15 @@ fn kinds(top: &Table<'_, '_>, policies: &dyn PolicyLoader) -> Result<Vec<KindEnt
         let kind = match name {
             Some(v) if v.equals_utf8("verify") => JobKind::Verify,
             Some(v) if v.equals_utf8("experiment") => JobKind::Experiment,
+            Some(v) if v.equals_utf8("decide") => JobKind::Decide,
             _ => return Err(error(&format!("{location}.kind"), ErrorKind::Kind)),
         };
         let mut keys = COMMON.to_vec();
         if kind == JobKind::Verify {
             keys.push("policy");
+        }
+        if kind == JobKind::Decide {
+            keys.push("decider");
         }
         let t = Table::new(v, &location, &keys, top.base, top.paths)?;
         let label = t
@@ -745,6 +772,28 @@ fn kinds(top: &Table<'_, '_>, policies: &dyn PolicyLoader) -> Result<Vec<KindEnt
         }
         let kind = match kind {
             JobKind::Experiment => KindConfig::Experiment,
+            JobKind::Decide => {
+                let p = t
+                    .get("decider")
+                    .and_then(Value::text)
+                    .filter(|v| !v.is_empty())
+                    .ok_or_else(|| error(&t.at("decider"), ErrorKind::Decider))?;
+                let path = joined_path(top.base, &p, &t.at("decider"))?;
+                let envelope = policies.load_decider(&path).map_err(|e| {
+                    exceptional(
+                        &t.at("decider"),
+                        match e {
+                            PolicyLoadError::Configuration => ErrorClass::Configuration,
+                            PolicyLoadError::Encoding => ErrorClass::Encoding,
+                            PolicyLoadError::Overflow => ErrorClass::Overflow,
+                            PolicyLoadError::Value => ErrorClass::Value,
+                            PolicyLoadError::Recursion => ErrorClass::Recursion,
+                        },
+                        ErrorKind::Decider,
+                    )
+                })?;
+                KindConfig::Decide(envelope)
+            }
             JobKind::Verify => {
                 let p = t
                     .get("policy")

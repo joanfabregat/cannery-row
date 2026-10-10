@@ -163,12 +163,13 @@ Each `[[kinds]]` table has:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `kind` | required | `verify` or `experiment`. |
-| `token_file` | required | The kind's own token: a regular file of mode 600 (or 400) holding the token of a service account of the matching kind. The runner checks the mode only, not the owner, so the file must belong to the user the runner runs as ([Runner](#runner)). Two kinds of different types never share a token; two `verify` entries may. |
+| `kind` | required | `verify`, `experiment` or `decide`. |
+| `token_file` | required | The kind's own token: a regular file of mode 600 (or 400) holding the token of a service account of the matching kind. The runner checks the mode only, not the owner, so the file must belong to the user the runner runs as ([Runner](#runner)). Two kinds of different types never share a token; two `verify` (or two `decide`) entries may. |
 | `name` | the kind | Labels the entry's log lines (`cannery runner: verify-step: job … completed`); unique. |
 | `poll_seconds` | `10` | How long the entry waits when no job is queued or a claim failed. |
 | `concurrency` | `1` | How many jobs of this entry run at once, each its own loop. Resource ceilings (`cpu`, `memory`) apply per step, so `n` loops (across every entry) can together ask the host for `n` times a step's ceiling: size the host for the sum, or keep `1`. GPUs are never shared: each GPU step takes its own ([GPUs](#gpus)). |
 | `policy` | required by `verify` | `verify` only: the verifier's policy, a stock configuration (`policy.json`) or a policy step file. |
+| `decider` | required by `decide` | `decide` only: the decider's registration file, its name, the revision of its step and the step manifest ([the decide kind](#the-decide-kind)). |
 
 Every kind shares the launcher, the GitHub credential and the cache root, and loops on its own. A kind whose claims fail, or whose jobs crash, is logged and keeps polling; it never stops another. `SIGTERM` (as `podman stop` sends) cancels every running job, kills its step and removes its containers, then exits with code 143. With `--once`, each entry runs at most one job, side by side, prints its outcome (`no job waiting`, `job <id> completed`), and the process exits 1 if any entry's claim or job raised (each entry's outcome is printed first). An invalid file, an unreadable token or a kind that lacks the launcher or data root it needs refuses to start (exit code 2), naming the key (`kinds[1].token_file: …`).
 
@@ -226,6 +227,19 @@ token_file = "/run/secrets/experimenter.token"
 It needs a launcher and a data root, as a `verify` kind does, and runs on any of the three launchers with the same container contract, code and setup handling, interface checks and validators: its steps run exactly as a verify job's. Its entry shares the process's launcher, GitHub credential and cache root with the other kind, so a project with workflow tracks usually runs both kinds in one process, as in the example above. `concurrency` runs several experiments at once, each in its own loop.
 
 Create an **experimenter** service account in the project for it (`"kind": "experimenter"`, from the admin settings or `POST /api/projects/{slug}/service-accounts`) and give the runner a token of it. Only an experimenter claims hypotheses of `workflow` tracks, and it claims nothing else; it cannot write plans, comment or decide. Its reports of a run's failure are trusted (the failure is retried automatically, then reviewed), so its token must stay with the runner: never hand it to an agent. An attempt it claims shows that account as the claimant and as the author of its run document. Experiment steps are candidate code, so outside fixtures and development use the Docker launcher ([on a Container-Optimized OS VM](#the-runner-on-a-container-optimized-os-vm)) or the Kubernetes one ([on Kubernetes](#the-runner-on-kubernetes)), as for producers. The experiment runner reads the predecessor attempt's artifacts through the API under the attempt's lease, so it needs no storage credential. A runner of the experiment kind that loses its lease stops the step and leaves the attempt to the sweep, which queues the hypothesis again while the science revision's `max_auto_retries` allows; so does an attempt still running past its deadline. A claim that finds only hypotheses of tracks whose workflow cannot run under the current science revision is logged (`workflow_unavailable`, naming the tracks), and the runner keeps polling.
+
+### The decide kind
+
+The `decide` kind decides written-up hypotheses automatically, for a project whose science revision registers `decide: {"performer": "step", "decider": {"id", "revision"}}` ([the decide job](contracts.md#write-ups-and-decisions)). It holds a **decider** service token and is configured with one `decider` file ([the file](contracts.md#the-runners-decide-kind); `examples/fixture/decider-step.json` is one):
+
+```toml
+[[kinds]]
+kind = "decide"
+token_file = "/run/secrets/decider.token"
+decider = "/etc/cannery/decider.json"
+```
+
+Create a **decider** service account in the project (`"kind": "decider"`) whose name is the registered `decide.decider.id`, give the file the registered `decide.decider.revision`, and give the runner a token of it. A decider claims only the decide jobs registered to its name under that revision, and records only the decisions its step writes; it cannot write plans or decide anything else, so its token must stay with the runner. The kind needs a launcher and a data root like the others and runs its step on any of the three launchers with the same container contract; the step has no network and reads the decider's context bundle, staged at `/cr/context/context.md`. To switch decider revisions, register the new revision in a science revision, list a second `decide` entry with the new file and the same token, and remove the old one once no job of its revision is pending.
 
 ### The runner's GitHub credential
 

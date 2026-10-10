@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/concern.schema.json",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
+  "title": "Concern front matter",
+  "description": "The front matter of a concern about a track's plan; the Markdown body is the argument and is never empty. A concern names its kind and, when it comes from one, the hypothesis or the attempt of it. While it is open, no new hypothesis of the track can be claimed.",
+  "type": "object",
+  "properties": {
+    "kind": {
+      "description": "`wrong_assumption`: the plan assumes something the work contradicts. `better_idea`: a better way to test the track's idea. `blocker`: the plan cannot be carried out as written. `other`: anything else about the plan.",
+      "enum": ["wrong_assumption", "better_idea", "blocker", "other"]
+    },
+    "hypothesis": {
+      "description": "The number of the hypothesis of the track the concern comes from.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "attempt": {
+      "description": "The sequence number of the attempt of that hypothesis the concern comes from.",
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": ["kind"],
+  "dependentRequired": {"attempt": ["hypothesis"]},
+  "additionalProperties": false
+}

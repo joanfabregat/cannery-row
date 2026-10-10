@@ -24,6 +24,8 @@ pub struct PendingReview {
     pub failure_code: Option<String>,
     pub failure_reason: Option<String>,
     pub origin: Origin,
+    /// The decider whose decide job waits or runs on this decision case.
+    pub decider: Option<String>,
 }
 impl std::fmt::Debug for PendingReview {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -44,6 +46,7 @@ struct RawPendingReview {
     failure_code: Option<String>,
     failure_reason: Option<String>,
     origin: String,
+    decider: Option<String>,
 }
 fn decode_pendingreview(r: &RawPendingReview) -> Result<PendingReview, Error> {
     Ok(PendingReview {
@@ -64,6 +67,7 @@ fn decode_pendingreview(r: &RawPendingReview) -> Result<PendingReview, Error> {
         failure_code: r.failure_code.as_deref().map(String::from),
         failure_reason: r.failure_reason.as_deref().map(String::from),
         origin: Origin::try_from(r.origin.as_str())?,
+        decider: r.decider.clone(),
     })
 }
 pub struct RunningAttempt {
@@ -226,7 +230,7 @@ pub async fn pending_reviews(
     limit: Option<&BigInt>,
 ) -> Result<Vec<PendingReview>, Error> {
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.front_matter ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\" FROM review_cases c\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN phase_outputs e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending' AND c.kind <> 'plan'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.front_matter ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\", (SELECT j.verifier_id FROM jobs j WHERE j.phase = 'decide' AND j.state IN ('pending', 'claimed') AND j.spec ->> 'review_case_id' = c.id::text LIMIT 1) AS \"decider?\" FROM review_cases c\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN phase_outputs e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending' AND c.kind <> 'plan'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_pendingreview).collect()
 }
 /// Execute the source SQL on the caller-owned connection.

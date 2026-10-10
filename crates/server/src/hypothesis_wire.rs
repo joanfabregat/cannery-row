@@ -153,7 +153,9 @@ fn decision_model(d: &Decision) -> Result<DecisionOut> {
         action: d.action.as_str().to_owned(),
         subject_revision: i64::from(d.subject_revision),
         reason: d.reason.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-        actor_user_id: d.actor_user_id.to_string(),
+        actor_user_id: d.actor_user_id.map(|id| id.to_string()),
+        actor_service_id: d.actor_service_id.map(|id| id.to_string()),
+        decider_revision: d.decider_revision.clone(),
         via_channel: d
             .via_channel
             .as_text()

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plan_answers (plan_revision_id, concern_id, how) VALUES ($1, $2, $3)\n        ON CONFLICT (plan_revision_id, concern_id) DO UPDATE SET how = EXCLUDED.how",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6af710016adaa1a3077b05064276178c2dee25c6b53e77013dc9f8047ad0ac2e"
+}

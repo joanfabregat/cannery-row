@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/job.schema.json",
   "title": "Job",
-  "description": "The job document a performer receives when it claims a job: a verify job, or a hypothesis's document job. The lease token authorizes only reading the job's inputs and writing under output_prefix.",
+  "description": "The job document a performer receives when it claims a job: a verify job, or a hypothesis's document or decide job. The lease token authorizes only reading the job's inputs and writing under output_prefix.",
   "if": {
     "properties": {
       "phase": {
@@ -17,9 +17,131 @@
     "$ref": "#/$defs/document"
   },
   "else": {
-    "$ref": "#/$defs/verify"
+    "if": {
+      "properties": {
+        "phase": {
+          "const": "decide"
+        }
+      },
+      "required": [
+        "phase"
+      ]
+    },
+    "then": {
+      "$ref": "#/$defs/decide"
+    },
+    "else": {
+      "$ref": "#/$defs/verify"
+    }
   },
   "$defs": {
+    "decide": {
+      "title": "Decide job",
+      "description": "The job document the registered decider service account receives when it claims a hypothesis's decide job, run by the runner's decide kind. It names the decision case the decision document resolves and what that document cites: the verification report and the write-up, each absent when there is none (the document cites null). The context bundle it names is the decider's bundle. The lease token authorizes only this job and uploading its step logs under output_prefix.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "common.schema.json#/$defs/schema_version"
+        },
+        "job_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "phase": {
+          "const": "decide"
+        },
+        "attempt_id": {
+          "description": "The hypothesis's last attempt.",
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "performer": {
+          "const": "runner"
+        },
+        "decider": {
+          "description": "The registered decider service account and the revision of its step.",
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "common.schema.json#/$defs/identifier"
+            },
+            "revision": {
+              "$ref": "common.schema.json#/$defs/identifier"
+            }
+          },
+          "required": [
+            "id",
+            "revision"
+          ],
+          "additionalProperties": false
+        },
+        "track": {
+          "$ref": "common.schema.json#/$defs/slug"
+        },
+        "hypothesis": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "science_revision": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "review_case_id": {
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "inputs": {
+          "type": "object",
+          "properties": {
+            "verification": {
+              "description": "The verification report the decision cites as its `verification`; absent for a stopped hypothesis.",
+              "$ref": "common.schema.json#/$defs/content_ref"
+            },
+            "writeup": {
+              "description": "The write-up the decision cites as its `writeup`; absent when it was skipped.",
+              "$ref": "common.schema.json#/$defs/content_ref"
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_prefix": {
+          "$ref": "common.schema.json#/$defs/object_prefix"
+        },
+        "deadline": {
+          "$ref": "common.schema.json#/$defs/timestamp"
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "max_output_bytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "max_output_bytes"
+          ],
+          "additionalProperties": false
+        },
+        "lease": {
+          "$ref": "#/$defs/lease"
+        }
+      },
+      "required": [
+        "schema_version",
+        "job_id",
+        "phase",
+        "attempt_id",
+        "performer",
+        "decider",
+        "track",
+        "hypothesis",
+        "science_revision",
+        "review_case_id",
+        "inputs",
+        "output_prefix",
+        "deadline",
+        "limits",
+        "lease"
+      ],
+      "additionalProperties": false
+    },
     "verify": {
       "title": "Verify job",
       "description": "The job document a verifier receives when it claims a verify job: a verifier service account running the runner (performer `runner`), or an agent service account or researcher who did not run the attempt (performer `agent`). The lease token authorizes only reading the listed inputs and writing under output_prefix.",

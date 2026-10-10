@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM plan_answers WHERE plan_revision_id = $1 AND concern_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c98f35bfb28a7019a32b08874ca4f930af6f61f74eb39037fb5ef768c02dbf54"
+}

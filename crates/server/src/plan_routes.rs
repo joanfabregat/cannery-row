@@ -6,10 +6,10 @@
 //! the track's hypotheses in one transaction.
 use crate::{
     api_models::{
-        AlignmentOut, AlignmentSet, ContextItem, Page_PlanRevisionOut_int_, Page_UnitIndexOut_int_,
-        PlanApproach, PlanCheckOut, PlanOut, PlanProblem, PlanReview, PlanRevisionOut,
-        ProjectLimits, UnitAlignmentOut, UnitCreate, UnitHistoryOut, UnitIndexOut, UnitOut,
-        UnitRelation, UnitRevisionOut, UnitUpdate,
+        AlignmentOut, AlignmentSet, AnswerOut, AnswerSet, ContextItem, Page_PlanRevisionOut_int_,
+        Page_UnitIndexOut_int_, PlanApproach, PlanCheckOut, PlanOut, PlanProblem, PlanReview,
+        PlanRevisionOut, ProjectLimits, UnitAlignmentOut, UnitCreate, UnitHistoryOut, UnitIndexOut,
+        UnitOut, UnitRelation, UnitRevisionOut, UnitUpdate,
     },
     authentication::{Authenticated, authenticate},
     body::DecodedBody,
@@ -35,6 +35,7 @@ use cannery_core::{
 use cannery_hypotheses::repo::{self as hypotheses, MentionSource};
 use cannery_projects::{authz, briefs, repo as projects};
 use cannery_tracks::{
+    concerns,
     plans::{self, Limits, PlanRevision},
     repo::{self as tracks, RowLock, Track, TrackState},
 };
@@ -66,6 +67,10 @@ pub(crate) fn routes(state: RouteState) -> Router {
         .route(
             "/api/projects/{slug}/tracks/{track_slug}/plans/draft/alignments/{number}",
             put(set_alignment),
+        )
+        .route(
+            "/api/projects/{slug}/tracks/{track_slug}/plans/draft/answers/{concern_id}",
+            put(set_answer).delete(drop_answer),
         )
         .route(
             "/api/projects/{slug}/tracks/{track_slug}/plans/draft/check",
@@ -367,6 +372,15 @@ fn index_out(unit: &plans::TrackUnit) -> UnitIndexOut {
     }
 }
 
+fn answer_out(answer: concerns::Answer) -> AnswerOut {
+    AnswerOut {
+        concern: answer.concern_id.to_string(),
+        kind: answer.kind,
+        state: answer.state,
+        how: answer.how,
+    }
+}
+
 fn markdown_ref(slug: &str, track: &str, revision: i32) -> String {
     format!("/api/projects/{slug}/tracks/{track}/plans/{revision}/plan.md")
 }
@@ -400,6 +414,21 @@ pub(crate) async fn plan_out(
     } else {
         Vec::new()
     };
+    let answers = concerns::answers(conn, plan.id)
+        .await
+        .map_err(track_error(context))?;
+    let needs_answer = if plan.state == "draft" {
+        let answered: BTreeSet<_> = answers.iter().map(|answer| answer.concern_id).collect();
+        concerns::open_for_track(conn, project.id, track.id)
+            .await
+            .map_err(track_error(context))?
+            .into_iter()
+            .filter(|concern| !answered.contains(&concern.id))
+            .map(|concern| crate::concern_routes::concern_out(concern, context))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        Vec::new()
+    };
     Ok(PlanOut {
         track: track.slug.clone(),
         revision: i64::from(plan.revision),
@@ -418,6 +447,8 @@ pub(crate) async fn plan_out(
             })
             .collect(),
         needs_alignment,
+        answers: answers.into_iter().map(answer_out).collect(),
+        needs_answer,
         created_by: plan.created_by.to_string(),
         created_by_name: plan.created_by_name.clone(),
         via_channel: plan.via_channel.clone(),
@@ -908,6 +939,45 @@ pub(crate) async fn problems(
             );
         }
     }
+    let answers = concerns::answers(conn, plan.id)
+        .await
+        .map_err(track_error(context))?;
+    let answered: BTreeSet<_> = answers.iter().map(|answer| answer.concern_id).collect();
+    for concern in concerns::open_for_track(conn, project.id, track.id)
+        .await
+        .map_err(track_error(context))?
+    {
+        if !answered.contains(&concern.id) {
+            let from = concern
+                .hypothesis_number
+                .map_or_else(String::new, |number| {
+                    concern.attempt_sequence.map_or_else(
+                        || format!(" from #{number}"),
+                        |sequence| format!(" from #{number}.{sequence}"),
+                    )
+                });
+            problem(
+                "unanswered_concern",
+                format!("answers/{}", concern.id),
+                format!(
+                    "a concern ({}){from} is open; say how this revision answers it (answer_concern), or a researcher dismisses it",
+                    concern.kind.replace('_', " ")
+                ),
+            );
+        }
+    }
+    for answer in &answers {
+        if answer.state != "open" {
+            problem(
+                "concern_closed",
+                format!("answers/{}", answer.concern_id),
+                format!(
+                    "the concern is {} now; remove this revision's answer to it",
+                    answer.state
+                ),
+            );
+        }
+    }
     Ok(problems)
 }
 
@@ -1137,6 +1207,18 @@ pub(crate) fn render_markdown(slug: &str, track: &Track, plan: &PlanOut) -> Stri
                 alignment.state,
                 alignment.decision,
                 alignment.reason
+            );
+        }
+    }
+    if !plan.answers.is_empty() {
+        out.push_str("\n## Answers\n\n");
+        for answer in &plan.answers {
+            let _ = writeln!(
+                out,
+                "- Concern {} ({}): {}",
+                answer.concern,
+                answer.kind.replace('_', " "),
+                answer.how.trim()
             );
         }
     }
@@ -1559,7 +1641,7 @@ macro_rules! draft_write {
     path = "/api/projects/{slug}/tracks/{track_slug}/plans",
     operation_id = "start_plan_revision_api_projects__slug__tracks__track_slug__plans_post",
     summary = "Start Plan Revision",
-    description = "Open the next revision of a track's plan as a draft. A revision starts from\nthe approved plan (or from a newer revision sent back): its approach, its\nnew units and the units still queued. `needs_alignment` lists the done and\nin-flight units every revision says something about. Researchers only;\none open revision per track.",
+    description = "Open the next revision of a track's plan as a draft. A revision starts from\nthe approved plan (or from a newer revision sent back): its approach, its\nnew units and the units still queued. `needs_alignment` lists the done and\nin-flight units every revision says something about, and `needs_answer`\nthe open concerns it answers. Researchers only; one open revision per track.",
     params(("slug" = String, Path), ("track_slug" = String, Path)),
     responses((status = 201, description = "Successful Response", body = crate::api_models::PlanOut, content_type = "application/json"),
         (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
@@ -1667,6 +1749,9 @@ pub(crate) async fn start(
             .await
             .map_err(track_error(&context))?;
         if base.state == "sent_back" {
+            concerns::copy_answers(&mut tx, base.id, plan.id)
+                .await
+                .map_err(track_error(&context))?;
             for alignment in plans::alignments(&mut tx, base.id)
                 .await
                 .map_err(track_error(&context))?
@@ -2168,12 +2253,143 @@ pub(crate) async fn set_alignment(
     ))
 }
 
+/// The open concern of the track a draft answer names.
+async fn answerable(
+    conn: &mut PgConnection,
+    project: &projects::Project,
+    track: &Track,
+    paths: &BTreeMap<String, String>,
+    context: &RequestContext,
+) -> Result<concerns::Concern, Failure> {
+    let id = paths["concern_id"]
+        .parse::<cannery_core::ids::ConcernId>()
+        .map_err(|_| invalid("path/concern_id", "Input should be a UUID"))?;
+    let concern = concerns::get(conn, project.id, id, false)
+        .await
+        .map_err(track_error(context))?
+        .filter(|concern| concern.track_id == track.id)
+        .ok_or_else(|| {
+            domain(
+                ErrorCode::NotFound,
+                format!("no concern {id} about the {} plan", track.slug),
+            )
+        })?;
+    Ok(concern)
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/projects/{slug}/tracks/{track_slug}/plans/draft/answers/{concern_id}",
+    operation_id = "answer_concern_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__put",
+    summary = "Answer Concern",
+    description = "Say how this revision answers an open concern about the track's plan.\nApproving the revision closes the concern as answered; every open concern\nis answered before the draft can be submitted, unless a researcher\ndismisses it.",
+    params(("slug" = String, Path), ("track_slug" = String, Path), ("concern_id" = String, Path, format = "uuid")),
+    request_body(content = crate::api_models::AnswerSet, content_type = "application/json"),
+    responses((status = 200, description = "Successful Response", body = crate::api_models::AnswerOut, content_type = "application/json"),
+        (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 403, description = "Permission denied or invalid CSRF token", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 404, description = "Resource not found", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 409, description = "Resource conflict or stale lease", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
+)]
+pub(crate) async fn set_answer(
+    State(state): State<RouteState>,
+    axum::Extension(context): axum::Extension<RequestContext>,
+    request: Request,
+) -> Result<Response, Failure> {
+    let (mut parts, body) = crate::body::read_body(request)
+        .await
+        .map_err(Failure::new)?;
+    let input: AnswerSet = decode(&body)?;
+    let how = input.how.trim();
+    if how.is_empty() {
+        return Err(invalid(
+            "body/how",
+            "say how the revision answers the concern",
+        ));
+    }
+    if how.len() > 16_384 {
+        return Err(invalid("body/how", "an answer is at most 16384 bytes"));
+    }
+    draft_write!(state, context, parts, auth, project, paths, tx, track, plan);
+    let concern = answerable(&mut tx, &project, &track, &paths, &context).await?;
+    if concern.state != "open" {
+        return Err(domain(
+            ErrorCode::Conflict,
+            format!("the concern is already {}", concern.state),
+        ));
+    }
+    concerns::set_answer(&mut tx, plan.id, concern.id, how)
+        .await
+        .map_err(track_error(&context))?;
+    plans::touch(&mut tx, plan.id)
+        .await
+        .map_err(track_error(&context))?;
+    commit(tx, &context).await?;
+    Ok(json_response(
+        StatusCode::OK,
+        &AnswerOut {
+            concern: concern.id.to_string(),
+            kind: concern.kind,
+            state: concern.state,
+            how: how.to_owned(),
+        },
+    ))
+}
+
+#[utoipa::path(
+    delete,
+    path = "/api/projects/{slug}/tracks/{track_slug}/plans/draft/answers/{concern_id}",
+    operation_id = "drop_answer_api_projects__slug__tracks__track_slug__plans_draft_answers__concern_id__delete",
+    summary = "Drop Answer",
+    description = "Remove the draft's answer to a concern and return the draft.",
+    params(("slug" = String, Path), ("track_slug" = String, Path), ("concern_id" = String, Path, format = "uuid")),
+    responses((status = 200, description = "Successful Response", body = crate::api_models::PlanOut, content_type = "application/json"),
+        (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 403, description = "Permission denied or invalid CSRF token", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 404, description = "Resource not found", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 409, description = "Resource conflict or stale lease", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
+)]
+pub(crate) async fn drop_answer(
+    State(state): State<RouteState>,
+    axum::Extension(context): axum::Extension<RequestContext>,
+    request: Request,
+) -> Result<Response, Failure> {
+    let (mut parts, _) = crate::body::read_body(request)
+        .await
+        .map_err(Failure::new)?;
+    draft_write!(state, context, parts, auth, project, paths, tx, track, plan);
+    let concern = answerable(&mut tx, &project, &track, &paths, &context).await?;
+    if !concerns::delete_answer(&mut tx, plan.id, concern.id)
+        .await
+        .map_err(track_error(&context))?
+    {
+        return Err(domain(
+            ErrorCode::NotFound,
+            format!("the draft does not answer concern {}", concern.id),
+        ));
+    }
+    plans::touch(&mut tx, plan.id)
+        .await
+        .map_err(track_error(&context))?;
+    let plan = plans::get(&mut tx, track.id, plan.revision)
+        .await
+        .map_err(track_error(&context))?
+        .ok_or_else(|| internal(&context, "plan reload"))?;
+    let out = plan_out(&mut tx, &project, &track, &plan, &context).await?;
+    commit(tx, &context).await?;
+    Ok(json_response(StatusCode::OK, &out))
+}
+
 #[utoipa::path(
     get,
     path = "/api/projects/{slug}/tracks/{track_slug}/plans/draft/check",
     operation_id = "check_plan_api_projects__slug__tracks__track_slug__plans_draft_check_get",
     summary = "Check Plan",
-    description = "What blocks submitting the draft: no project brief, no approach, missing\nalignment entries, unknown unit keys, units no longer queued, limits\nexceeded. `ready` when nothing does.",
+    description = "What blocks submitting the draft: no project brief, no approach, missing\nalignment entries, unknown unit keys, units no longer queued, limits\nexceeded, open concerns it does not answer. `ready` when nothing does.",
     params(("slug" = String, Path), ("track_slug" = String, Path)),
     responses((status = 200, description = "Successful Response", body = crate::api_models::PlanCheckOut, content_type = "application/json"),
         (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
@@ -2389,6 +2605,16 @@ pub(crate) async fn review(
             &context,
         )
         .await?;
+        new_state["answered"] = Value::from(
+            crate::concern_routes::answer_approved(
+                &mut tx,
+                &auth.principal,
+                &project,
+                &plan,
+                &context,
+            )
+            .await?,
+        );
     }
     plans::review(
         &mut tx,

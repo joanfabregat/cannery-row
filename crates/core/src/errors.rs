@@ -18,6 +18,7 @@ pub enum ErrorCode {
     Conflict,
     NothingToClaim,
     WorkflowUnavailable,
+    ConcernOpen,
     StaleRevision,
     StaleLease,
     UploadExpired,
@@ -37,6 +38,7 @@ impl ErrorCode {
             Self::Conflict
             | Self::NothingToClaim
             | Self::WorkflowUnavailable
+            | Self::ConcernOpen
             | Self::StaleRevision
             | Self::StaleLease
             | Self::UploadExpired => 409,

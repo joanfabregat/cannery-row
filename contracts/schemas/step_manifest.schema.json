@@ -55,8 +55,8 @@
       "type": "object",
       "properties": {
         "role": {
-          "description": "An experiment step runs in a workflow track's experiments and is registered with the experiment-steps endpoint; a policy step is a verifier's policy run as a step by the runner's verify kind, never registered. Producers, scorers and validators are bound to tracks and science revisions.",
-          "enum": ["producer", "scorer", "validator", "experiment", "policy"]
+          "description": "An experiment step runs in a workflow track's experiments and is registered with the experiment-steps endpoint; a policy step is a verifier's policy run as a step by the runner's verify kind, and a decider step a decider's decision run by the runner's decide kind, neither registered. Producers, scorers and validators are bound to tracks and science revisions.",
+          "enum": ["producer", "scorer", "validator", "experiment", "policy", "decider"]
         },
         "code": {
           "description": "The step runs a script from this repository at this commit instead of code baked into its image. The repository must be in the science revision's code_repositories for the step's trust class. The runner fetches the tree with its own read-only GitHub credential, checks the commit is on a branch of repo itself (not only of a fork), and mounts the tree (only path, when given) read-only at /cr/code, the step's working directory.",
@@ -336,6 +336,25 @@
                     "minItems": 1,
                     "maxItems": 1,
                     "items": {"properties": {"name": {"const": "verdict"}}}
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties": {"role": {"const": "decider"}}, "required": ["role"]},
+          "then": {
+            "description": "A decider step has no network and no input artifacts (it reads the hypothesis's decide context bundle at /cr/context/context.md) and outputs exactly its decision document.",
+            "properties": {
+              "network": {"const": "none"},
+              "inputs": {"properties": {"artifacts": {"maxItems": 0}}},
+              "outputs": {
+                "properties": {
+                  "artifacts": {
+                    "minItems": 1,
+                    "maxItems": 1,
+                    "items": {"properties": {"name": {"const": "decision"}}}
                   }
                 }
               }

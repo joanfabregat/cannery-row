@@ -22,7 +22,7 @@ use cannery_core::{
     errors::{DomainError, ErrorCode},
     ids::JobId,
     json::{self, DocumentBuilder, Node},
-    principal::{Principal, Secret},
+    principal::{Principal, Secret, ServiceKind},
     timestamps::Timestamp,
 };
 use cannery_jobs::repo::{self, Claimant, Job, Performer, Phase, State as JobState};
@@ -143,6 +143,20 @@ async fn claim_document(
     let heartbeat_seconds = std::cmp::max(BigInt::from(1), ttl / BigInt::from(3))
         .to_i64()
         .ok_or_else(|| internal(context, "job claim heartbeat"))?;
+    if job.phase == Phase::Decide {
+        return decide_job(
+            c,
+            project,
+            job,
+            &attempt,
+            token,
+            pins,
+            heartbeat_seconds,
+            profile,
+            context,
+        )
+        .await;
+    }
     if job.phase == Phase::Document {
         return document_job(
             c,
@@ -271,6 +285,133 @@ async fn document_job(
         context: pins.context,
     })
 }
+/// A claimed decide job: the decision case, what its decision document
+/// cites, and the decider's context bundle, whether or not the attempt
+/// pinned a plan.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "Claim response inputs stay explicit"
+)]
+async fn decide_job(
+    c: &mut PgConnection,
+    project: &Project,
+    job: &Job,
+    attempt: &cannery_attempts::model::Attempt,
+    token: &Secret,
+    mut pins: crate::context_bundle::Pins,
+    heartbeat_seconds: i64,
+    profile: &JobClaimContext,
+    context: &RequestContext,
+) -> Result<crate::api_models::JobClaimOut, Failure> {
+    let (deadline, expires) = job
+        .deadline
+        .zip(job.lease_expires_at)
+        .ok_or_else(|| internal(context, "decide job lease invariant"))?;
+    let spec = cannery_core::json::to_value(&job.spec)
+        .map_err(|_| internal(context, "decide job specification"))?;
+    let text = |value: &serde_json::Value| {
+        value
+            .as_str()
+            .map(str::to_owned)
+            .ok_or_else(|| internal(context, "decide job specification"))
+    };
+    let case_id = text(&spec["review_case_id"])?;
+    let case = cannery_reviews::repo::get_case(
+        c,
+        project.id,
+        cannery_core::ids::ReviewCaseId(
+            uuid::Uuid::parse_str(&case_id).map_err(|_| internal(context, "decide job case"))?,
+        ),
+        false,
+    )
+    .await
+    .map_err(|_| internal(context, "decide job case"))?
+    .ok_or_else(|| internal(context, "decide job case invariant"))?;
+    // The verification report and the write-up the decision cites.
+    let mut cited = Vec::new();
+    for id in [case.evidence_id, case.writeup_id] {
+        let Some(id) = id.map(|id| cannery_attempts::model::EvidenceId(id.0)) else {
+            cited.push(None);
+            continue;
+        };
+        let (_, sha256) = cannery_attempts::repo::Repository::new(&mut *c, profile.attempts)
+            .get_evidence_by_id(attempt.id, id)
+            .await
+            .map_err(|_| internal(context, "decide job cited output"))?
+            .ok_or_else(|| internal(context, "decide job cited output invariant"))?;
+        cited.push(Some(crate::api_models::RequestCommonContentRef {
+            r#ref: id.0.to_string(),
+            sha256,
+        }));
+    }
+    let writeup = cited.pop().flatten();
+    let verification = cited.pop().flatten();
+    let pinned = cannery_tracks::plans::attempt_pins_by_id(c, attempt.id)
+        .await
+        .map_err(|_| internal(context, "decide job pins"))?
+        .ok_or_else(|| internal(context, "decide job pins invariant"))?;
+    let built = crate::context_bundle::build_for(
+        c,
+        project,
+        &pinned,
+        crate::context_bundle::Detail::Decide,
+        context,
+    )
+    .await
+    .map_err(failure)?;
+    pins.context = Some(crate::api_models::ContextBundleRef {
+        r#ref: format!(
+            "{}?phase=decide",
+            crate::context_bundle::bundle_path(
+                &project.slug,
+                attempt.hypothesis_number,
+                attempt.sequence
+            )
+        ),
+        bytes: i64::try_from(built.len()).unwrap_or(i64::MAX),
+    });
+    Ok(crate::api_models::JobClaimOut {
+        job: crate::api_models::ClaimedJobDocument::Decide(Box::new(
+            crate::api_models::ClaimedDecideJob {
+                schema_version: crate::api_models::RequestCommonSchemaVersion::Value0,
+                job_id: job.id.to_string(),
+                phase: crate::api_models::ClaimedDecidePhase::Decide,
+                attempt_id: job.attempt_id.to_string(),
+                performer: crate::api_models::ClaimedDecidePerformer::Runner,
+                decider: crate::api_models::ClaimedJobPinnedRef {
+                    id: text(&spec["decider"]["id"])?,
+                    revision: text(&spec["decider"]["revision"])?,
+                },
+                track: text(&spec["track"])?,
+                hypothesis: i64::from(attempt.hypothesis_number),
+                science_revision: job.science_revision.to_string(),
+                review_case_id: case_id,
+                inputs: crate::api_models::ClaimedDecideInputs {
+                    verification,
+                    writeup,
+                },
+                output_prefix: text(&spec["output_prefix"])?,
+                deadline: deadline.isoformat(),
+                limits: crate::api_models::ClaimedDecideLimits {
+                    max_output_bytes: spec["limits"]["max_output_bytes"]
+                        .as_i64()
+                        .ok_or_else(|| internal(context, "decide job limits"))?,
+                },
+                lease: crate::api_models::ClaimedJobLease {
+                    token: String::from(token.expose()),
+                    generation: i64::from(job.lease_generation),
+                    expires_at: expires.isoformat(),
+                },
+            },
+        )),
+        attempt_ref: format!("#{}.{}", attempt.hypothesis_number, attempt.sequence),
+        heartbeat_seconds,
+        brief: pins.brief,
+        plan: pins.plan,
+        context: pins.context,
+    })
+}
 async fn audit_claim(
     c: &mut PgConnection,
     principal: &Principal,
@@ -348,7 +489,7 @@ mod replay_generation_tests {
     path = "/api/projects/{slug}/jobs/claims",
     operation_id = "claim_job_api_projects__slug__jobs_claims_post",
     summary = "Claim Job",
-    description = "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a hypothesis whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
+    description = "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a hypothesis whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nWith `phase: decide`, the decider service account a science revision\nregisters names the revision of its step and claims the oldest waiting\ndecide job registered to it: it decides a written-up hypothesis on its\ndecision case.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
     params(("slug" = String, Path),
         ("idempotency-key" = Option<String>, Header)),
     request_body(content = crate::api_models::JobClaimRequest, content_type = "application/json"),
@@ -392,10 +533,27 @@ pub(crate) async fn claim(
     .await?;
     let phase = body.phase.unwrap_or(Phase::Verify);
     let performer = job_workers::performer(&auth.principal);
+    let decider =
+        matches!(&auth.principal, Principal::Service(s) if s.kind == ServiceKind::Decider);
+    if decider && phase != Phase::Decide {
+        return Err(violation("/phase", "a decider claims decide jobs"));
+    }
+    if !decider && phase == Phase::Decide {
+        return Err(violation(
+            "/phase",
+            "only the decider service account a science revision registers claims decide jobs",
+        ));
+    }
     if performer == Performer::Runner && phase == Phase::Document {
         return Err(violation(
             "/phase",
             "a verifier claims verify jobs; an agent or a researcher writes hypotheses up",
+        ));
+    }
+    if decider && body.revision.is_none() {
+        return Err(violation(
+            "/revision",
+            "a decider names the revision of its step",
         ));
     }
     if performer == Performer::Runner && body.revision.is_none() {
@@ -518,6 +676,9 @@ pub(crate) async fn claim(
         }
         let claimant = Claimant::of(&auth.principal);
         let id = match (&auth.principal, body.revision.as_deref()) {
+            (Principal::Service(decider), Some(revision)) if phase == Phase::Decide => {
+                repo::pick_pending_decider(&mut tx, project.id, &decider.name, revision).await
+            }
             (Principal::Service(verifier), Some(revision)) if performer == Performer::Runner => {
                 repo::pick_pending_runner(&mut tx, project.id, &verifier.name, revision).await
             }
@@ -525,6 +686,25 @@ pub(crate) async fn claim(
         }
         .map_err(|_| internal(&context, "job claim selection"))?;
         let Some(id) = id else {
+            if let (Principal::Service(decider), Some(revision)) =
+                (&auth.principal, body.revision.as_deref())
+                && phase == Phase::Decide
+            {
+                let repr = |v: &str| {
+                    cannery_core::text::repr_string(&String::from(v))
+                        .ok()
+                        .and_then(|v| v.as_utf8())
+                        .ok_or_else(|| internal(&context, "job worker representation"))
+                };
+                return Err(domain(
+                    ErrorCode::Conflict,
+                    format!(
+                        "no decide job is waiting for decider {} under step revision {}",
+                        repr(&decider.name)?,
+                        repr(revision)?
+                    ),
+                ));
+            }
             if let (Principal::Service(verifier), Some(revision)) =
                 (&auth.principal, body.revision.as_deref())
                 && performer == Performer::Runner

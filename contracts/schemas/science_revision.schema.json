@@ -36,6 +36,28 @@
       "then": {"required": ["verifier"]},
       "else": {"properties": {"verifier": {"not": {}}}}
     },
+    "decide": {
+      "description": "Who decides a written-up hypothesis. `researcher` (the default when absent): a researcher records the decision document on its decision case. `step`: the registered decider service account runs its decider step (`cannery runner`, kind `decide`), which writes the decision document; it promotes only on a `pass` verdict, as a researcher does.",
+      "type": "object",
+      "properties": {
+        "performer": {"enum": ["researcher", "step"]},
+        "decider": {
+          "description": "The registered decider: the decider service account name and the revision of its step, which every decision it records names.",
+          "type": "object",
+          "properties": {
+            "id": {"$ref": "common.schema.json#/$defs/identifier"},
+            "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+          },
+          "required": ["id", "revision"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["performer"],
+      "additionalProperties": false,
+      "if": {"properties": {"performer": {"const": "step"}}, "required": ["performer"]},
+      "then": {"required": ["decider"]},
+      "else": {"properties": {"decider": {"not": {}}}}
+    },
     "metrics": {
       "description": "Metric registry.",
       "type": "array",

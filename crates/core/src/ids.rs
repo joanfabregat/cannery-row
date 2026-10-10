@@ -40,4 +40,5 @@ identifiers!(
     ReportId,
     ReviewCaseId,
     PlanRevisionId,
+    ConcernId,
 );

@@ -580,9 +580,10 @@ fn service_kind(node: &Node) -> Result<ServiceKind, Issue> {
         Node::String(value) if value.equals_utf8("agent") => Ok(ServiceKind::Agent),
         Node::String(value) if value.equals_utf8("experimenter") => Ok(ServiceKind::Experimenter),
         Node::String(value) if value.equals_utf8("verifier") => Ok(ServiceKind::Verifier),
+        Node::String(value) if value.equals_utf8("decider") => Ok(ServiceKind::Decider),
         _ => Err(issue(
             "literal_error",
-            "Input should be 'agent', 'experimenter' or 'verifier'",
+            "Input should be 'agent', 'experimenter', 'verifier' or 'decider'",
         )),
     }
 }
@@ -1775,9 +1776,12 @@ pub(crate) fn validate_job_claim(input: BodyInput<'_>) -> Checked<crate::job_cla
         Node::String(value) if value.equals_utf8("document") => {
             Ok(Some(cannery_jobs::repo::Phase::Document))
         }
+        Node::String(value) if value.equals_utf8("decide") => {
+            Ok(Some(cannery_jobs::repo::Phase::Decide))
+        }
         _ => Err(issue(
             "literal_error",
-            "Input should be 'verify' or 'document'",
+            "Input should be 'verify', 'document' or 'decide'",
         )),
     });
     let revision = fields.field("revision", Some(None), |node| {

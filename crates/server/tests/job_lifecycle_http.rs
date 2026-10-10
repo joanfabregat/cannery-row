@@ -283,6 +283,25 @@ async fn job_lifecycle_integrity() -> Result<()> {
     agent_publication_race(&app, &state.pool).await?;
     researcher_comparison_publication(&app, &state.pool).await?;
     document_and_skip(&app, &state.pool).await?;
+    // Decide job claims and researcher decisions are routes of the whole application.
+    let whole = load_settings(
+        None,
+        &BTreeMap::from([
+            (
+                "CANNERY_DATABASE_URL".into(),
+                std::env::var("CANNERY_JOB_LIFECYCLE_DATABASE_URL")?,
+            ),
+            (
+                "CANNERY_STORAGE_LOCAL_ROOT".into(),
+                root.0.display().to_string(),
+            ),
+        ]),
+    )?;
+    let (whole, whole_state, whole_uploads) =
+        cannery_server::production_application(whole, "127.0.0.1").await?;
+    decide_automatically(&app, &whole, &state.pool).await?;
+    whole_uploads.drain().await?;
+    whole_state.pool.close().await;
     uploads.cancellation.drain().await?;
     state.pool.close().await;
     Ok(())
@@ -696,9 +715,12 @@ INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revisio
 }
 async fn researcher_comparison_publication(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     // The agent service account ran attempt 2416; a researcher verifies it with a comparison.
+    // Science revision 5 also registers fixture-decider, which decides 1416 once written up.
     sqlx::raw_sql(r#"
 INSERT INTO config_revisions(project_id,kind,revision,content,created_by)
-SELECT project_id,kind,5,content||'{"metrics":[{"key":"mrr","splits":["dev"],"dimensions":[],"unit":"ratio","direction":"higher"}]}'::jsonb,created_by FROM config_revisions WHERE project_id='00000000-0000-0000-0000-000000000010' AND kind='science' AND revision=3;
+SELECT project_id,kind,5,content||'{"metrics":[{"key":"mrr","splits":["dev"],"dimensions":[],"unit":"ratio","direction":"higher"}],"decide":{"performer":"step","decider":{"id":"fixture-decider","revision":"decider-1"}}}'::jsonb,created_by FROM config_revisions WHERE project_id='00000000-0000-0000-0000-000000000010' AND kind='science' AND revision=3;
+INSERT INTO service_accounts(id,project_id,kind,name,created_by) VALUES('00000000-0000-0000-0000-000000000028','00000000-0000-0000-0000-000000000010','decider','fixture-decider','00000000-0000-0000-0000-000000000001');
+INSERT INTO api_tokens(token_hash,display_prefix,kind,service_account_id,name,scopes,expires_at) VALUES(sha256(convert_to('cr_svc_track_http_decider','UTF8')),'cr_svc_fixture','service','00000000-0000-0000-0000-000000000028','decider',ARRAY['read','write'],'2099-01-01Z');
 INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at)
 SELECT '00000000-0000-0000-0000-000000001416',project_id,1416,track_id,'Researcher verification',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001006';
 INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel)
@@ -933,6 +955,258 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
             "job.created",
             "job.created",
             "job.skipped"
+        ]
+    );
+    Ok(())
+}
+/// One request to the project API as `role`.
+async fn request(
+    app: &Router,
+    role: &str,
+    method: &str,
+    uri: &str,
+    body: Option<&Value>,
+) -> Result<(u16, Value)> {
+    let request = Request::builder()
+        .method(method)
+        .uri(format!("/api/projects/matrix{uri}"))
+        .header("authorization", bearer(role))
+        .header("content-type", "application/json");
+    let response = app
+        .clone()
+        .oneshot(request.body(body.map_or_else(Body::empty, |v| Body::from(v.to_string())))?)
+        .await?;
+    let status = response.status().as_u16();
+    let bytes = to_bytes(response.into_body(), 1024 * 1024).await?;
+    Ok((
+        status,
+        serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| json!({"wire":String::from_utf8_lossy(&bytes)})),
+    ))
+}
+/// The decide job of hypothesis 1416 in `state`, and its run number.
+async fn decide_job(pool: &sqlx::PgPool, state: &str) -> Result<(String, i32, String)> {
+    Ok(sqlx::query_as("SELECT id::text,run_number,origin FROM jobs WHERE phase='decide' AND attempt_id='00000000-0000-0000-0000-000000002416' AND state=$1")
+        .bind(state)
+        .fetch_one(pool)
+        .await?)
+}
+async fn decide_automatically(app: &Router, whole: &Router, pool: &sqlx::PgPool) -> Result<()> {
+    // Hypothesis 1416's write-up was skipped; its science revision registers
+    // fixture-decider, so a decide job waits beside its decision case.
+    let (job, run, origin) = decide_job(pool, "pending").await?;
+    assert_eq!((run, origin.as_str()), (1, "submission"));
+    let (case, verifier): (String, Option<String>) =
+        sqlx::query_as("SELECT (spec->>'review_case_id'),verifier_id FROM jobs WHERE id=$1::uuid")
+            .bind(&job)
+            .fetch_one(pool)
+            .await?;
+    assert_eq!(verifier.as_deref(), Some("fixture-decider"));
+    let (verification, sha256): (String, String) = sqlx::query_as("SELECT id::text,sha256 FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002416' AND stage='verification' AND status='completed'")
+        .fetch_one(pool)
+        .await?;
+    let decision = |outcome: &str, writeup: &str| {
+        format!(
+            "---\noutcome: {outcome}\nverification: {{\"ref\":\"{verification}\",\"sha256\":\"{sha256}\"}}\nwriteup: {writeup}\n---\n\nThe verdict passed and the comparison holds.\n"
+        )
+    };
+    // While it waits, a researcher cannot decide the case.
+    let (status, value) = request(
+        whole,
+        "researcher",
+        "POST",
+        &format!("/review-cases/{case}/decisions"),
+        Some(&json!({"review_case_id":case,"document":decision("promote", "null")})),
+    )
+    .await?;
+    assert_eq!(status, 409, "{value}");
+    assert!(
+        value["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("fixture-decider")),
+        "{value}"
+    );
+    // Home's decisions to take names the decider beside the case.
+    let (status, attention) =
+        request(whole, "researcher", "GET", "/attention?limit=50", None).await?;
+    assert_eq!(status, 200, "{attention}");
+    let pending = attention["pending_reviews"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|review| review["case_id"] == case)
+        .ok_or("pending decision case")?;
+    assert_eq!(pending["decider"], "fixture-decider", "{attention}");
+    // Only the decider claims decide jobs, and only decide jobs, naming its step revision.
+    for (role, body, expected) in [
+        (
+            "verifier",
+            json!({"phase":"decide","revision":"decider-1"}),
+            422,
+        ),
+        ("agent", json!({"phase":"decide"}), 422),
+        (
+            "decider",
+            json!({"phase":"verify","revision":"decider-1"}),
+            422,
+        ),
+        ("decider", json!({"phase":"decide"}), 422),
+        (
+            "decider",
+            json!({"phase":"decide","revision":"decider-2"}),
+            409,
+        ),
+    ] {
+        let (status, value) = request(whole, role, "POST", "/jobs/claims", Some(&body)).await?;
+        assert_eq!(status, expected, "{role} {body}: {value}");
+    }
+    let (status, claim) = request(
+        whole,
+        "decider",
+        "POST",
+        "/jobs/claims",
+        Some(&json!({"phase":"decide","revision":"decider-1"})),
+    )
+    .await?;
+    assert_eq!(status, 201, "{claim}");
+    let claimed = &claim["job"];
+    assert_eq!(claimed["job_id"], job);
+    assert_eq!(claimed["phase"], "decide");
+    assert_eq!(
+        claimed["decider"],
+        json!({"id":"fixture-decider","revision":"decider-1"})
+    );
+    assert_eq!(claimed["hypothesis"], 1416);
+    assert_eq!(claimed["review_case_id"], case);
+    assert_eq!(
+        claimed["inputs"],
+        json!({"verification":{"ref":verification,"sha256":sha256}})
+    );
+    let bundle = claim["context"]["ref"].as_str().ok_or("context")?;
+    assert!(bundle.ends_with("?phase=decide"), "{claim}");
+    let token = claimed["lease"]["token"]
+        .as_str()
+        .ok_or("token")?
+        .to_owned();
+    let generation = claimed["lease"]["generation"].to_string();
+    // The decision document is checked like a researcher's.
+    for (document, message) in [
+        (
+            decision(
+                "promote",
+                "{\"ref\":\"00000000-0000-0000-0000-000000000000\",\"sha256\":\"0000000000000000000000000000000000000000000000000000000000000000\"}",
+            ),
+            "writeup",
+        ),
+        (decision("failed", "null"), "failed"),
+        (
+            String::from("---\noutcome: promote\nverification: null\nwriteup: null\n---\n\n"),
+            "reason",
+        ),
+    ] {
+        let body = json!({"schema_version":"0.2","job_id":job,"document":document});
+        let (status, value, _) = call(
+            app,
+            "completion",
+            "decider",
+            &token,
+            &generation,
+            &body,
+            None,
+        )
+        .await?;
+        assert_eq!(status, 422, "{message}: {value}");
+    }
+    // A failed run is rerun within max_auto_retries.
+    let failure = json!({"schema_version":"0.2","job_id":job,"step":"decider","error_code":"step_failed","reason":"the decider step exited 1","logs":[]});
+    let (status, value, _) = call(
+        app,
+        "failure",
+        "decider",
+        &token,
+        &generation,
+        &failure,
+        None,
+    )
+    .await?;
+    assert_eq!(status, 200, "{value}");
+    let (rerun, run, origin) = decide_job(pool, "pending").await?;
+    assert_eq!((run, origin.as_str()), (2, "auto_retry"));
+    let (status, claim) = request(
+        whole,
+        "decider",
+        "POST",
+        "/jobs/claims",
+        Some(&json!({"phase":"decide","revision":"decider-1"})),
+    )
+    .await?;
+    assert_eq!(status, 201, "{claim}");
+    assert_eq!(claim["job"]["job_id"], rerun);
+    let token = claim["job"]["lease"]["token"]
+        .as_str()
+        .ok_or("token")?
+        .to_owned();
+    let generation = claim["job"]["lease"]["generation"].to_string();
+    let body =
+        json!({"schema_version":"0.2","job_id":rerun,"document":decision("promote", "null")});
+    let (status, value, _) = call(
+        app,
+        "completion",
+        "decider",
+        &token,
+        &generation,
+        &body,
+        Some("decide-once"),
+    )
+    .await?;
+    assert_eq!(status, 200, "{value}");
+    assert_eq!(value["state"], "completed", "{value}");
+    let (state, open, _) = deciding(pool, 1416).await?;
+    assert_eq!((state.as_str(), open), ("promoted", 0));
+    // The decision names the decider and its step revision, and no researcher.
+    let (status, read) = request(
+        whole,
+        "researcher",
+        "GET",
+        &format!("/review-cases/{case}"),
+        None,
+    )
+    .await?;
+    assert_eq!(status, 200, "{read}");
+    assert_eq!(read["state"], "resolved");
+    let recorded = &read["decisions"][0];
+    assert_eq!(recorded["actor_user_id"], Value::Null, "{read}");
+    assert_eq!(
+        recorded["actor_service_id"],
+        "00000000-0000-0000-0000-000000000028"
+    );
+    assert_eq!(recorded["decider_revision"], "decider-1");
+    assert_eq!(recorded["action"], "promote");
+    // A researcher corrects it with a new linked decision.
+    let id = recorded["id"].as_str().ok_or("decision id")?;
+    let (status, value) = request(
+        whole,
+        "researcher",
+        "POST",
+        &format!("/review-cases/{case}/decisions"),
+        Some(&json!({"review_case_id":case,"supersedes":id,"document":decision("inconclusive", "null")})),
+    )
+    .await?;
+    assert_eq!(status, 201, "{value}");
+    let (state, _, _) = deciding(pool, 1416).await?;
+    assert_eq!(state, "inconclusive");
+    let audits: Vec<String> = sqlx::query_scalar("SELECT action FROM audit_events WHERE subject_type='job' AND subject_id IN (SELECT id::text FROM jobs WHERE phase='decide') ORDER BY seq")
+        .fetch_all(pool)
+        .await?;
+    assert_eq!(
+        audits,
+        vec![
+            "job.created",
+            "job.claimed",
+            "job.failed",
+            "job.created",
+            "job.claimed",
+            "job.completed"
         ]
     );
     Ok(())

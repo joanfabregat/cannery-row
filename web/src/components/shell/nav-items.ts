@@ -22,7 +22,8 @@ export const navItems: NavItem[] = [
     to: "/",
     label: "Home",
     icon: HouseIcon,
-    description: "What needs your attention: reviews waiting for you, failures and running work.",
+    description:
+      "What needs your attention: concerns about plans, reviews waiting for you, failures and running work.",
   },
   {
     to: "/tracks",

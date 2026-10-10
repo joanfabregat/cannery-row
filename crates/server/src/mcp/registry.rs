@@ -21,7 +21,7 @@ impl Tool {
     }
     #[allow(
         clippy::too_many_lines,
-        reason = "All 59 canonical tool mappings are reviewed together"
+        reason = "All 64 canonical tool mappings are reviewed together"
     )]
     pub fn request(&self, args: &Map<String, Value>) -> Result<ToolRequest, ()> {
         let mut args = args.clone();
@@ -79,6 +79,7 @@ impl Tool {
             | "update_unit"
             | "drop_unit"
             | "set_alignment"
+            | "answer_concern"
             | "check_plan"
             | "submit_plan"
             | "review_plan"
@@ -114,6 +115,10 @@ impl Tool {
                         let number = take_path(&mut args, "number");
                         (Method::PUT, format!("{plans}/draft/alignments/{number}"))
                     }
+                    "answer_concern" => {
+                        let id = take_path(&mut args, "concern_id");
+                        (Method::PUT, format!("{plans}/draft/answers/{id}"))
+                    }
                     "check_plan" => (Method::GET, format!("{plans}/draft/check")),
                     "submit_plan" => (Method::POST, format!("{plans}/draft/submission")),
                     "review_plan" => {
@@ -131,6 +136,19 @@ impl Tool {
                     ""
                 };
                 (Method::GET, format!("{base}/units/{number}{suffix}"))
+            }
+            "raise_concern" => {
+                let track = take_path(&mut args, "track");
+                (Method::POST, format!("{base}/tracks/{track}/concerns"))
+            }
+            "list_concerns" => (Method::GET, format!("{base}/concerns")),
+            "get_concern" | "dismiss_concern" => {
+                let id = take_path(&mut args, "concern_id");
+                if name == "dismiss_concern" {
+                    (Method::POST, format!("{base}/concerns/{id}/dismissal"))
+                } else {
+                    (Method::GET, format!("{base}/concerns/{id}"))
+                }
             }
             "list_hypotheses" => (Method::GET, format!("{base}/hypotheses")),
             "get_hypothesis" | "list_hypothesis_revisions" => {
@@ -329,7 +347,7 @@ pub(super) fn encode(value: &str) -> String {
 pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
     let values: Vec<Value> =
         serde_json::from_str(include_str!("tools.json")).map_err(|_| StartupError::Registry)?;
-    if values.len() != 59 {
+    if values.len() != 64 {
         return Err(StartupError::Registry);
     }
     values

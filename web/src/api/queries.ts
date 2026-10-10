@@ -260,6 +260,35 @@ export function usePlanRevisions(slug: string, track: string) {
   });
 }
 
+export type ConcernState = "open" | "answered" | "dismissed";
+
+/** The concerns raised about a track's plan, newest first. */
+export function useTrackConcerns(slug: string, track: string) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "track", track, "concerns"],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/projects/{slug}/tracks/{track_slug}/concerns", {
+          params: { path: { slug, track_slug: track }, query: { limit: 200 } },
+        }),
+      ),
+  });
+}
+
+/** The project's concerns in `state`, newest first. */
+export function useConcerns(slug: string, state: ConcernState, enabled = true) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "concerns", state],
+    enabled,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/projects/{slug}/concerns", {
+          params: { path: { slug }, query: { state, limit: 50 } },
+        }),
+      ),
+  });
+}
+
 export function useTrackHistory(slug: string, track: string, enabled = true) {
   return useQuery({
     queryKey: [...projectKey(slug), "track", track, "history"],

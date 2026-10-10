@@ -1,6 +1,7 @@
 {
   "schema_version": "0.2",
   "verify": {"performer": "agent"},
+  "decide": {"performer": "step", "decider": {"id": "demo-decider", "revision": "recommender-decider-1"}},
   "hypothesis_fields": {
     "type": "object",
     "properties": {

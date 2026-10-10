@@ -23,6 +23,7 @@ pub enum Role {
     Validator,
     Experiment,
     Policy,
+    Decider,
 }
 impl Role {
     #[must_use]
@@ -33,6 +34,7 @@ impl Role {
             Self::Validator => "validator",
             Self::Experiment => "experiment",
             Self::Policy => "policy",
+            Self::Decider => "decider",
         }
     }
     #[must_use]

@@ -40,6 +40,7 @@ pub enum ServiceKind {
     Agent,
     Experimenter,
     Verifier,
+    Decider,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]

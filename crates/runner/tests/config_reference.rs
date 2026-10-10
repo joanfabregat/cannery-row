@@ -33,6 +33,7 @@ impl Directory {
         for (name, value) in [
             ("verify.token", "synthetic-verify-credential"),
             ("experiment.token", "synthetic-experiment-credential"),
+            ("decide.token", "synthetic-decide-credential"),
         ] {
             fs::write(directory.0.join(name), value)?;
             fs::set_permissions(directory.0.join(name), fs::Permissions::from_mode(0o600))?;
@@ -44,6 +45,10 @@ impl Directory {
         fs::write(
             directory.0.join("step.json"),
             include_bytes!("../../../examples/fixture/policy-step.json"),
+        )?;
+        fs::write(
+            directory.0.join("decider.json"),
+            include_bytes!("../../../examples/fixture/decider-step.json"),
         )?;
         Ok(directory)
     }
@@ -156,7 +161,7 @@ fn verify_kinds_load_stock_and_step_policies_and_experiments_need_none() -> Resu
         assert!(match &loaded.kinds[0].kind {
             KindConfig::Verify(VerifyPolicy::Stock(_)) => !step,
             KindConfig::Verify(VerifyPolicy::Step(_)) => step,
-            KindConfig::Experiment => false,
+            KindConfig::Experiment | KindConfig::Decide(_) => false,
         });
         assert_eq!(loaded.kinds[0].kind.job_kind(), JobKind::Verify);
     }
@@ -188,6 +193,63 @@ fn verify_kinds_load_stock_and_step_policies_and_experiments_need_none() -> Resu
             .ok_or("config error")?
             .kind,
         ErrorKind::Unknown
+    );
+    Ok(())
+}
+
+#[test]
+fn decide_kinds_load_a_decider_registration_and_nothing_else() -> Result {
+    let directory = Directory::new()?;
+    let decide = |decider: Value| {
+        let mut value = base();
+        value["kinds"] = json!([{"kind":"decide", "name":"decide", "token_file":"decide.token", "decider": decider}]);
+        value
+    };
+    let loaded = directory.load(&decide(json!("decider.json")))?;
+    assert!(matches!(loaded.kinds[0].kind, KindConfig::Decide(_)));
+    assert_eq!(loaded.kinds[0].kind.job_kind(), JobKind::Decide);
+    // A missing decider, a policy file in its place, or a decider on a
+    // verify kind are all refused.
+    for (value, expected) in [
+        (decide(Value::Null), ErrorKind::Decider),
+        (decide(json!("step.json")), ErrorKind::Decider),
+        (decide(json!("stock.json")), ErrorKind::Decider),
+        (
+            {
+                let mut value = base();
+                value["kinds"][0]["decider"] = json!("decider.json");
+                value
+            },
+            ErrorKind::Unknown,
+        ),
+    ] {
+        assert_eq!(
+            directory
+                .load(&value)
+                .err()
+                .ok_or("invalid decide configuration accepted")?
+                .downcast_ref::<config::ConfigError>()
+                .ok_or("config error")?
+                .kind,
+            expected
+        );
+    }
+    // The verify and decide kinds of one process hold different tokens.
+    let mut value = decide(json!("decider.json"));
+    value["kinds"][0]["token_file"] = json!("verify.token");
+    value["kinds"]
+        .as_array_mut()
+        .ok_or("kinds")?
+        .push(base()["kinds"][0].clone());
+    assert_eq!(
+        directory
+            .load(&value)
+            .err()
+            .ok_or("shared token accepted")?
+            .downcast_ref::<config::ConfigError>()
+            .ok_or("config error")?
+            .kind,
+        ErrorKind::SharedToken
     );
     Ok(())
 }
