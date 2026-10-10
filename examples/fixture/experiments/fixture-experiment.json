@@ -21,7 +21,7 @@
     "outputs": {
       "artifacts": [
         {"name": "candidate", "interface": "fixture-candidate/v1", "path": "/cr/outputs/candidate"},
-        {"name": "claimed_sheet", "interface": "cr-evidence/v0.2", "path": "/cr/outputs/claimed_sheet"}
+        {"name": "run", "interface": "cr-run/v0.2", "path": "/cr/outputs/run"}
       ]
     }
   }

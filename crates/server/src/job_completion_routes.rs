@@ -395,6 +395,7 @@ async fn publish(
             stage: j.stage.as_str(),
             status: "completed",
             content: evidence,
+            body: "",
             sha256: &evidence_sha,
             manifest_id: stored.as_ref().map(|v| v.id),
             principal: p,

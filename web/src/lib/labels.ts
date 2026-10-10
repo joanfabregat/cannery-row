@@ -31,14 +31,12 @@ export interface StatusMeta {
 const s = (label: string, tone: Tone, icon: StatusIcon): StatusMeta => ({ label, tone, icon });
 
 const hypothesisState = {
-  draft: s("Draft", "neutral", "draft"),
   queued: s("Waiting to start", "neutral", "waiting"),
   active: s("In progress", "info", "progress"),
   awaiting_human_review: s("Needs review", "attention", "review"),
   promoted: s("Accepted", "success", "success"),
   rejected: s("Rejected", "danger", "failure"),
   inconclusive: s("Inconclusive", "neutral", "inconclusive"),
-  declined: s("Declined", "neutral", "stopped"),
   failed: s("Failed", "danger", "failure"),
   cancelled: s("Cancelled", "neutral", "stopped"),
 };
@@ -111,10 +109,9 @@ const jobState = {
   failed: s("Failed", "danger", "failure"),
 };
 
-/** The effect of a decision, as a past-tense status: "Accepted", "Changes requested". */
+/** The effect of a decision, as a past-tense status: "Accepted", "Closed as failed". */
 const decision = {
   approve: s("Approved", "success", "success"),
-  request_revision: s("Changes requested", "attention", "draft"),
   decline: s("Declined", "neutral", "stopped"),
   promote: s("Accepted", "success", "success"),
   reject: s("Rejected", "danger", "failure"),
@@ -160,14 +157,12 @@ export const labels = {
     admin: "Administrator",
   },
   reviewKind: {
-    draft: "Draft review",
     result: "Result review",
     failure: "Failure review",
     plan: "Plan review",
   },
   decision: {
     approve: "Approve",
-    request_revision: "Ask for changes",
     decline: "Decline",
     promote: "Accept",
     reject: "Reject",

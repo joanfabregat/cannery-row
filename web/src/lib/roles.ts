@@ -33,7 +33,7 @@ export interface Permissions {
   canComment: boolean;
   /** Download every artifact, not only a report's images. */
   canDownloadArtifacts: boolean;
-  /** Revise drafts, record draft, result and failure decisions, manage tracks. */
+  /** Write and review plans, record result and failure decisions, manage tracks. */
   isResearcher: boolean;
 }
 

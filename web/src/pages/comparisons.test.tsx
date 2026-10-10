@@ -359,16 +359,4 @@ describe("a hypothesis without a control", () => {
     const evidence = await screen.findByRole("region", { name: "Test" });
     expect(within(evidence).getByRole("columnheader", { name: "Control" })).toBeInTheDocument();
   });
-
-  it("shows no empty control in the draft review", async () => {
-    const h = hypothesis({
-      state: "draft",
-      reviews: [review({ kind: "draft", state: "pending", subject_revision: 1 })],
-    });
-    signedIn({}, hypothesisApi(h));
-    renderApp("/hypotheses/12/review");
-    const draft = await screen.findByRole("region", { name: "The draft" });
-    expect(within(draft).getByText("Do shorter prompts keep quality?")).toBeInTheDocument();
-    expect(within(draft).queryByText("Compared with")).not.toBeInTheDocument();
-  });
 });

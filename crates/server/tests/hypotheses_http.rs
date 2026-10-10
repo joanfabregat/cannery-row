@@ -10,13 +10,13 @@ use axum::{
 };
 use cannery_core::{contracts::ContractValidator, json as native_json, settings::load_settings};
 use cannery_server::{
-    api_models::{HypothesisCreateRequest, HypothesisOut, RevisionOut},
+    api_models::{HypothesisOut, NativeHypothesisDocument, RevisionOut},
     application_with_hypothesis_context,
     hypothesis_routes::HypothesisContext,
     hypothesis_wire::ResponseContext,
 };
 use serde_json::{Value, json};
-use sqlx::{Acquire, PgPool};
+use sqlx::PgPool;
 use std::fmt::Write;
 use std::{collections::BTreeMap, error::Error, sync::Arc};
 use tower::ServiceExt;
@@ -255,14 +255,14 @@ async fn assert_authored_read_documents(pool: &PgPool) -> Result<()> {
                 _ => json!(42),
             };
             assert_eq!(value, corrupt, "intentional corrupt recovery root");
-            assert!(serde_json::from_value::<HypothesisCreateRequest>(value).is_err());
+            assert!(serde_json::from_value::<NativeHypothesisDocument>(value).is_err());
         } else if number == 11 {
             assert_eq!(
                 value,
                 json!({"schema_version":"0.2","track":"alpha", "title":"Hypothesis 11","question":"Legacy authored question"})
             );
         } else {
-            serde_json::from_value::<HypothesisCreateRequest>(value.clone())?;
+            serde_json::from_value::<NativeHypothesisDocument>(value.clone())?;
             if number >= 16 {
                 assert_eq!(
                     value["project_fields"]["wide"].to_string(),
@@ -326,24 +326,8 @@ async fn hypotheses_match_production() -> Result<()> {
         7,
         "retain oversized/underscore path tokens, including a warm request and revision route"
     );
-    assert_eq!(
-        f["cases"]
-            .as_array()
-            .ok_or("cases")?
-            .iter()
-            .filter(|r| r["native_wire_profile"].is_string())
-            .count(),
-        1,
-        "corpus must retain the explicit unpaired-surrogate refusal"
-    );
     for r in f["cases"].as_array().ok_or("cases")? {
-        if let Some(setup) = r["setup"].as_str() {
-            sqlx::raw_sql(setup).execute(&state.pool).await?;
-        }
-        let before = if r["native_wire_profile"].is_string()
-            || r["native_integer_path"].is_string()
-            || r["id"] == "query-before=1.0"
-        {
+        let before = if r["native_integer_path"].is_string() || r["id"] == "query-before=1.0" {
             Some((
                 storage(&state.pool).await?.1,
                 raw_storage(&state.pool).await?,
@@ -400,35 +384,6 @@ async fn hypotheses_match_production() -> Result<()> {
                 assert_eq!(wire, expected, "model bytes {}", r["id"]);
             }
         }
-    }
-    for race in f["races"].as_array().ok_or("races")? {
-        let number = race["number"].as_i64().ok_or("number")?;
-        let same = race["same_key"].as_bool().ok_or("same key")?;
-        let mut holder = state.pool.acquire().await?;
-        let mut tx = holder.begin().await?;
-        sqlx::query("SELECT id FROM hypotheses WHERE project_id='00000000-0000-0000-0000-000000000010' AND number=$1 FOR UPDATE").bind(number).fetch_one(&mut *tx).await?;
-        let recipe = json!({"method":"POST","path":format!("/api/projects/matrix/hypotheses/{number}/draft-review"),"role":"researcher","body_hex":hex(r#"{"draft_revision":1,"action":"approve","reason":"Reviewed é"}"#.as_bytes()),"key":if same{Some("concurrent-eighteen")}else{None}});
-        let a = app.clone();
-        let ra = recipe.clone();
-        let task_a = tokio::spawn(async move { call(&a, &ra).await });
-        let b = app.clone();
-        let task_b = tokio::spawn(async move { call(&b, &recipe).await });
-        let mut waited = false;
-        for _ in 0..100 {
-            let count:i64=sqlx::query_scalar("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND pid<>pg_backend_pid()").fetch_one(&state.pool).await?;
-            if count >= 2 {
-                waited = true;
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-        assert!(waited);
-        tx.commit().await?;
-        let mut statuses = vec![task_a.await??.0, task_b.await??.0];
-        statuses.sort_unstable();
-        assert_eq!(json!(statuses), race["statuses"]);
-        let (_, stored) = storage(&state.pool).await?;
-        assert_eq!(stored, canonical(race["storage"].clone(), &BTreeMap::new()));
     }
     state.pool.close().await;
     Ok(())

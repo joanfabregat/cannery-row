@@ -295,7 +295,7 @@ function AttemptDetails({ attempt }: { attempt: AttemptDetail }) {
         ) : null}
         {attempt.producer ? <RawJson value={attempt.producer} label="Producer" /> : null}
         {attempt.claimed_sheet ? (
-          <RawJson value={attempt.claimed_sheet} label="Claimed result sheet" />
+          <RawJson value={attempt.claimed_sheet} label="Claimed result" />
         ) : null}
       </div>
     </Collapsible>

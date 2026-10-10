@@ -736,11 +736,6 @@ async fn review_decisions_match_production() -> Result<()> {
     let mut i = 0;
     while i < recipes.len() {
         let r = &recipes[i];
-        if r["name"] == "result-success" && r["number"] == 1 {
-            // The frozen exporter restores this isolated recovery fixture between requests.
-            sqlx::raw_sql("UPDATE review_cases SET kind='result',evidence_id='00000000-0000-0000-0000-000000003001',attempt_id='00000000-0000-0000-0000-000000002001' WHERE id='00000000-0000-0000-0000-000000000301'")
-                .execute(&state.pool).await?;
-        }
         if r["name"] == "race-first" {
             sqlx::raw_sql("DROP TRIGGER fixture_audit_failure ON audit_events; DROP FUNCTION fixture_audit_failure()")
                 .execute(&state.pool).await?;

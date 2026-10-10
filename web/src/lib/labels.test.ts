@@ -12,14 +12,12 @@ describe("plain-language labels", () => {
 
   it("covers every hypothesis and attempt state of the lifecycle", () => {
     const hypothesis = [
-      "draft",
       "queued",
       "active",
       "awaiting_human_review",
       "promoted",
       "rejected",
       "inconclusive",
-      "declined",
       "failed",
       "cancelled",
     ];

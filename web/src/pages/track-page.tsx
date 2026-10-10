@@ -106,9 +106,9 @@ function TrackView({ project, slug }: { project: Project; slug: string }) {
 
 const TRACK_STATE_WORDS: Record<string, string> = {
   planning: "Planning: nothing in it can start until a researcher approves its first plan.",
-  active: "Active: it accepts drafts, and its queued hypotheses can start.",
-  paused: "Paused: drafts can be written and reviewed, but its queued hypotheses do not start.",
-  archived: "Archived: read-only; it accepts no new draft.",
+  active: "Active: its queued hypotheses can start, and its plan can be revised.",
+  paused: "Paused: its plan can be revised and reviewed, but its queued hypotheses do not start.",
+  archived: "Archived: read-only; it takes no new plan.",
 };
 
 function TrackHypotheses({ project, track }: { project: string; track: string }) {

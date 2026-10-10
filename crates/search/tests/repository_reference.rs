@@ -45,7 +45,7 @@ fn native_outcome(recipe: &Value) -> Value {
         Some("ref_sequence-power-4300" | "ref_sequence-power-131071") => {
             assert_eq!(source["hits"], json!([]));
             assert_eq!(source["first"], Value::Null);
-            assert_eq!(source["facets"][0], 21);
+            assert_eq!(source["facets"][0], 20);
             assert!(source.get("error").is_none());
         }
         _ => assert!(

@@ -1,4 +1,4 @@
-import { PencilLineIcon, ScaleIcon } from "lucide-react";
+import { ScaleIcon } from "lucide-react";
 import { Link, useParams } from "react-router";
 
 import { useAttempt, useAttempts, useHypothesis, useReport, useRevisions } from "@/api/queries";
@@ -41,7 +41,6 @@ export function HypothesisPage() {
 }
 
 const REVIEW_BUTTON: Record<string, string> = {
-  draft: "Review this draft",
   result: "Review this result",
   failure: "Review this failure",
 };
@@ -101,14 +100,6 @@ function HypothesisView({ project, number }: { project: Project; number: number 
                 <Link to={reviewPath(h.number)}>
                   <ScaleIcon aria-hidden="true" />
                   {REVIEW_BUTTON[pending.kind] ?? "Review"}
-                </Link>
-              </Button>
-            ) : null}
-            {isResearcher && h.state === "draft" ? (
-              <Button asChild variant="outline">
-                <Link to={`/hypotheses/${h.number}/edit`}>
-                  <PencilLineIcon aria-hidden="true" />
-                  Edit draft
                 </Link>
               </Button>
             ) : null}
@@ -277,7 +268,7 @@ function HypothesisDetails({ project, hypothesis }: { project: string; hypothesi
     <Collapsible summary="Details">
       <div className="flex flex-col gap-5">
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Fact term="Draft revision">{hypothesis.revision}</Fact>
+          <Fact term="Revision">{hypothesis.revision}</Fact>
           <Fact term="Approved revision">{hypothesis.approved_revision ?? "—"}</Fact>
           <Fact term="Science revision">{hypothesis.science_revision}</Fact>
           <Fact term="Created">{formatDateTime(hypothesis.created_at)}</Fact>
@@ -315,7 +306,7 @@ function RevisionHistory({ project, number }: { project: string; number: number 
   if (revisions.isError) return <LoadError error={revisions.error} retry={revisions.refetch} />;
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium">Draft revisions</h3>
+      <h3 className="text-sm font-medium">Revisions</h3>
       <ol className="flex flex-col gap-1 text-sm">
         {revisions.data.items.map((r) => (
           <li key={r.revision}>

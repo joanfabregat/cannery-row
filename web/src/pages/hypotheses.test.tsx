@@ -119,7 +119,6 @@ describe("a hypothesis page", () => {
     expect(within(evidence).getAllByText("Reported by agent").length).toBeGreaterThan(0);
     const decisions = screen.getByRole("region", { name: "Decisions" });
     expect(within(decisions).getByText(/The gain holds on every split/)).toBeInTheDocument();
-    expect(within(decisions).getByText(/Worth a try/)).toBeInTheDocument();
     expect(screen.getByText("Details")).toBeInTheDocument();
   });
 

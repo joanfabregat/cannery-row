@@ -16,17 +16,33 @@ fn utf8_json_rejects_surrogates_and_nonfinite_literals() {
 }
 
 #[test]
-fn published_review_schema_validates_the_application_shape() {
+fn published_unit_schema_validates_the_plan_entry_shape() {
     let contracts = ContractValidator::new().unwrap();
-    let valid =
-        json::from_value(json!({"draft_revision":1,"action":"approve","reason":"ready"})).unwrap();
-    assert!(contracts.is_valid(ContractKind::DraftReview, &valid));
-    let invalid =
-        json::from_value(json!({"draft_revision":0,"action":"approve","reason":"ready"})).unwrap();
+    let mut unit = json!({
+        "key": "lower-rate",
+        "title": "Lower the learning rate",
+        "question": "Does a lower rate help?",
+        "intervention": "Halve it.",
+        "acceptance": {
+            "selection_splits": ["dev"],
+            "confirmation_splits": ["test"],
+            "primary_metric": "accuracy",
+            "required_slices": [],
+            "success_criteria": "Accuracy rises.",
+            "falsification_criteria": "Accuracy does not rise.",
+            "regression_gates": [],
+            "compute_budget": {"gpu_hours_max": 1}
+        },
+        "relations": [{"kind": "derived_from", "unit": "baseline"}]
+    });
+    let valid = json::from_value(unit.clone()).unwrap();
+    assert!(contracts.is_valid(ContractKind::Hypothesis, &valid));
+    unit["question"] = json!(" ");
+    let invalid = json::from_value(unit).unwrap();
     let paths = contracts
-        .violation_paths(ContractKind::DraftReview, &invalid)
+        .violation_paths(ContractKind::Hypothesis, &invalid)
         .unwrap();
-    assert_eq!(paths, ["/draft_revision"]);
+    assert_eq!(paths, ["/question"]);
 }
 
 #[test]

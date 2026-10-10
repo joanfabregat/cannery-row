@@ -9,7 +9,7 @@ use cannery_core::{
 };
 use cannery_research::{
     config_repo,
-    science::{self, RenderingContext, Science},
+    science::{self, RenderingContext},
     steps::{self, Role as StepRole},
 };
 use serde::Serialize;
@@ -504,13 +504,6 @@ async fn import_transaction(
         .flat_map(|attempt| semantic::items(attempt, "artifacts"))
         .filter_map(|artifact| artifact["uri"].as_str().map(str::to_owned))
         .collect();
-    let science_document = semantic::document(&science, context.json_budget)?;
-    let model = Science::new(
-        plan.science_revision.into(),
-        &science_document,
-        context.rendering,
-    )
-    .map_err(|_| Error::CorruptData)?;
     let knowledge = semantic::Knowledge {
         tracks: &track_content,
         hypotheses: &hypothesis_keys,
@@ -523,8 +516,6 @@ async fn import_transaction(
             Some(&researchers)
         },
         science: &science,
-        model: &model,
-        context,
     };
     let mut problems = Vec::new();
     for entry in &new {

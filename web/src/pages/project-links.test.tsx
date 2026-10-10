@@ -7,13 +7,12 @@ import { json, project, renderApp, signedIn, USER_ID } from "@/test/render";
 const UNREADABLE = "You cannot open project secret, or it does not exist.";
 
 describe("a link to a project the user cannot open", () => {
-  it("says so on a hypothesis, attempt, review, edit and track page, never showing the current project's record", async () => {
+  it("says so on a hypothesis, attempt, review and track page, never showing the current project's record", async () => {
     signedIn({}, hypothesisApi(hypothesis()));
     for (const path of [
       "/hypotheses/12?project=secret",
       "/hypotheses/12/attempts/1?project=secret",
       "/hypotheses/12/review?project=secret",
-      "/hypotheses/12/edit?project=secret",
       "/tracks/tokenizer?project=secret",
     ]) {
       const { unmount } = renderApp(path);

@@ -30,7 +30,6 @@ reviews repository_reference --prefix ra_fixture_ --env RA_NATIVE_DATABASE_URL
 comments-reports repository_reference --set CANNERY_COMMENTS_REPORTS_REFERENCE=crates/comments-reports/tests/fixtures/repository_reference.json
 # HTTP operations and their storage effects against the frozen references
 server hypotheses_http
-server hypothesis_mutations_http
 server review_attention_http
 server review_decisions_http
 server metrics_http

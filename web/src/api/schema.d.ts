@@ -538,8 +538,7 @@ export interface paths {
         /** List Hypotheses */
         get: operations["list_hypotheses_api_projects__slug__hypotheses_get"];
         put?: never;
-        /** Create Draft */
-        post: operations["create_draft_api_projects__slug__hypotheses_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -555,8 +554,7 @@ export interface paths {
         };
         /** Get Hypothesis */
         get: operations["get_hypothesis_api_projects__slug__hypotheses__number__get"];
-        /** Revise Draft */
-        put: operations["revise_draft_api_projects__slug__hypotheses__number__put"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -789,11 +787,14 @@ export interface paths {
         put?: never;
         /**
          * Submit
-         * @description Submit the claimed result sheet; the attempt is frozen on acceptance.
+         * @description Submit the run document of a completed run; the attempt is frozen on acceptance.
          *
-         *     A sheet with ``status: failed`` records the agent's own failure report and
-         *     fails the attempt for human review. So does an invalid sheet, once the
-         *     caller has shown it holds the lease.
+         *     The document is Markdown with YAML front matter, checked against
+         *     `GET /api/schemas/run`: the claims, provenance, artifact roles and verified
+         *     manifest, and optional run notes as the body. A run that failed releases
+         *     the attempt instead; front matter with a `status` is refused and leaves the
+         *     attempt as it was. Any other invalid document fails the attempt for human
+         *     review, once the caller has shown it holds the lease.
          */
         post: operations["submit_api_projects__slug__hypotheses__number__attempts__sequence__submission_post"];
         delete?: never;
@@ -847,29 +848,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{slug}/hypotheses/{number}/draft-review": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Review Draft
-         * @description Approve, send back or decline the current revision of a draft.
-         *
-         *     Replaying an ``Idempotency-Key`` returns the hypothesis as it is now
-         *     without deciding again; the same key with another request is a conflict.
-         */
-        post: operations["review_draft_api_projects__slug__hypotheses__number__draft_review_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/projects/{slug}/hypotheses/{number}/revisions": {
         parameters: {
             query?: never;
@@ -879,7 +857,7 @@ export interface paths {
         };
         /**
          * List Revisions
-         * @description Draft revisions, oldest first.
+         * @description Revisions, oldest first.
          */
         get: operations["list_revisions_api_projects__slug__hypotheses__number__revisions_get"];
         put?: never;
@@ -1039,7 +1017,7 @@ export interface paths {
         };
         /**
          * Claimed Sheet
-         * @description The frozen claimed result sheet the job tests (test jobs only).
+         * @description The front matter of the frozen run document the job tests: the claims, provenance and manifest (test jobs only).
          */
         get: operations["claimed_sheet_api_projects__slug__jobs__job_id__inputs_claimed_sheet_get"];
         put?: never;
@@ -1294,8 +1272,8 @@ export interface paths {
         };
         /**
          * List Reports
-         * @description Reports of the project, newest first: claimed result sheets, so never an
-         *     imported attempt, which has none.
+         * @description Reports of the project, newest first: run documents, and claimed result
+         *     sheets submitted before them, so never an imported attempt, which has none.
          */
         get: operations["list_reports_api_projects__slug__reports_get"];
         put?: never;
@@ -2021,7 +1999,7 @@ export interface components {
             /** Format: date-time */
             claimed_at: string;
             claimed_by: components["schemas"]["Claimant"];
-            claimed_sheet: components["schemas"]["ReadEvidenceEnvelope"] | null;
+            claimed_sheet: components["schemas"]["ClaimedResult"] | null;
             context?: components["schemas"]["ContextBundleRef"] | null;
             failures: components["schemas"]["cannery_row__attempts__routes__FailureOut"][];
             /** Format: date-time */
@@ -2268,7 +2246,7 @@ export interface components {
             via_client: string | null;
         };
         /** @enum {string} */
-        CaseKind: "draft" | "result" | "failure";
+        CaseKind: "result" | "failure";
         /** @enum {string} */
         CaseState: "pending" | "resolved";
         CatalogOut: {
@@ -2355,6 +2333,11 @@ export interface components {
             name: string;
             revision: components["schemas"]["StepRefRevisionValue"];
         };
+        /**
+         * @description What an attempt claimed: a run document's front matter, or a claimed result
+         *     sheet submitted before run documents.
+         */
+        ClaimedResult: components["schemas"]["RunFrontMatter"] | components["schemas"]["ReadEvidenceEnvelope"];
         /** @description Resolved workflow with pinned manifests, inputs and the prior attempt. */
         ClaimedWorkflow: {
             attempt_id: string;
@@ -2579,19 +2562,6 @@ export interface components {
          * @enum {string}
          */
         DocumentPhase: "brief" | "run" | "verification" | "writeup";
-        DraftReviewRequest: {
-            action: components["schemas"]["DraftReviewRequestAction"];
-            /** Format: int64 */
-            draft_revision: number;
-            reason: string;
-        };
-        /** @enum {string} */
-        DraftReviewRequestAction: "approve" | "request_revision" | "decline";
-        DraftUpdate: {
-            document: components["schemas"]["HypothesisCreateRequest"];
-            /** Format: int64 */
-            expected_revision: number;
-        };
         EmptyReportDocument: Record<string, never>;
         ErrorDetail: {
             code: string;
@@ -2701,29 +2671,17 @@ export interface components {
             supersedes?: string;
         };
         /** @enum {string} */
-        HumanDecisionRequestAction: "approve" | "request_revision" | "decline" | "promote" | "reject" | "inconclusive" | "retry" | "close_failed";
-        HypothesisCreateRequest: {
-            control?: components["schemas"]["HypothesisCreateRequestControl"];
-            intervention: string;
-            plan: components["schemas"]["HypothesisCreateRequestPlan"];
-            project_fields?: {
-                [key: string]: unknown;
-            };
-            question: string;
-            rationale: string;
-            relations?: components["schemas"]["HypothesisCreateRequestRelationsItem"][];
-            schema_version: components["schemas"]["RequestCommonSchemaVersion"];
-            title: string;
-            track: string;
-        };
-        HypothesisCreateRequestControl: {
+        HumanDecisionRequestAction: "promote" | "reject" | "inconclusive" | "retry" | "close_failed";
+        /** @description Stored historical hypotheses can predate the full publication document. */
+        HypothesisDocument: components["schemas"]["NativeHypothesisDocument"] | components["schemas"]["LegacyHypothesisDocument"];
+        HypothesisDocumentControl: {
             id: string;
-            kind: components["schemas"]["HypothesisCreateRequestControlKind"];
+            kind: components["schemas"]["HypothesisDocumentControlKind"];
             revision: string;
         };
         /** @enum {string} */
-        HypothesisCreateRequestControlKind: "baseline";
-        HypothesisCreateRequestPlan: {
+        HypothesisDocumentControlKind: "baseline";
+        HypothesisDocumentPlan: {
             compute_budget: {
                 [key: string]: number;
             };
@@ -2735,20 +2693,18 @@ export interface components {
             selection_splits: string[];
             success_criteria: string;
         };
-        HypothesisCreateRequestRelationsItem: {
-            hypothesis: components["schemas"]["HypothesisCreateRequestRelationsItemHypothesis"];
-            kind: components["schemas"]["HypothesisCreateRequestRelationsItemKind"];
+        HypothesisDocumentRelation: {
+            hypothesis: components["schemas"]["HypothesisDocumentRelationTarget"];
+            kind: components["schemas"]["HypothesisDocumentRelationKind"];
         };
-        HypothesisCreateRequestRelationsItemHypothesis: number | components["schemas"]["HypothesisCreateRequestRelationsItemHypothesisVariant1"];
-        HypothesisCreateRequestRelationsItemHypothesisVariant1: {
+        /** @enum {string} */
+        HypothesisDocumentRelationKind: "derived_from" | "supersedes" | "related_to";
+        HypothesisDocumentRelationProject: {
             /** Format: int64 */
             number: number;
             project: string;
         };
-        /** @enum {string} */
-        HypothesisCreateRequestRelationsItemKind: "derived_from" | "supersedes" | "related_to";
-        /** @description Stored historical hypotheses can predate the full publication document. */
-        HypothesisDocument: components["schemas"]["HypothesisCreateRequest"] | components["schemas"]["LegacyHypothesisDocument"];
+        HypothesisDocumentRelationTarget: number | components["schemas"]["HypothesisDocumentRelationProject"];
         HypothesisOut: {
             /** Format: date-time */
             approved_at: string | null;
@@ -2790,7 +2746,7 @@ export interface components {
             next_before: number | null;
         };
         /** @enum {string} */
-        HypothesisState: "draft" | "queued" | "active" | "awaiting_human_review" | "promoted" | "rejected" | "inconclusive" | "declined" | "failed" | "cancelled";
+        HypothesisState: "queued" | "active" | "awaiting_human_review" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled";
         HypothesisSummary: {
             /** Format: date-time */
             approved_at: string | null;
@@ -2972,7 +2928,7 @@ export interface components {
         };
         LegacyHypothesisDocument: {
             question: string;
-            relations?: components["schemas"]["HypothesisCreateRequestRelationsItem"][];
+            relations?: components["schemas"]["HypothesisDocumentRelation"][];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             title: string;
             track: string;
@@ -3054,6 +3010,20 @@ export interface components {
             items: components["schemas"]["PointOut"][];
             /** Format: int64 */
             next_before: number | null;
+        };
+        NativeHypothesisDocument: {
+            control?: components["schemas"]["HypothesisDocumentControl"];
+            intervention: string;
+            plan: components["schemas"]["HypothesisDocumentPlan"];
+            project_fields?: {
+                [key: string]: unknown;
+            };
+            question: string;
+            rationale: string;
+            relations?: components["schemas"]["HypothesisDocumentRelation"][];
+            schema_version: components["schemas"]["RequestCommonSchemaVersion"];
+            title: string;
+            track: string;
         };
         /** @enum {string} */
         Origin: "live" | "imported";
@@ -3434,8 +3404,11 @@ export interface components {
             reason: string;
             step?: string | null;
         };
-        /** @description Native agent report or a separately represented legacy imported report. */
-        ReportDocument: components["schemas"]["RequestEvidenceEnvelopeReport"] | components["schemas"]["ImportedReportDocument"] | components["schemas"]["EmptyReportDocument"];
+        /**
+         * @description A run's notes, the structured report of a claimed result sheet submitted
+         *     before run documents, or a separately represented legacy imported report.
+         */
+        ReportDocument: components["schemas"]["RequestEvidenceEnvelopeReport"] | components["schemas"]["ImportedReportDocument"] | components["schemas"]["RunNotesDocument"] | components["schemas"]["EmptyReportDocument"];
         ReportOut: {
             assets: components["schemas"]["ArtifactOut"][];
             attempt_ref: string;
@@ -3668,6 +3641,35 @@ export interface components {
             science_revision: number;
             via_channel: string;
             via_client: string | null;
+        };
+        /** @description The front matter of a run document: what the run claims and what it ran. */
+        RunFrontMatter: {
+            artifact_roles?: string[];
+            claims?: components["schemas"]["RequestEvidenceEnvelopeMeasurement"][];
+            extensions?: {
+                [key: string]: unknown;
+            };
+            manifest: components["schemas"]["RequestCommonContentRef"];
+            provenance: components["schemas"]["RunProvenance"];
+        };
+        /** @description The Markdown body of a run document; empty when the run wrote no notes. */
+        RunNotesDocument: {
+            body_markdown: string;
+        };
+        RunProvenance: {
+            control_revision?: string;
+            dataset_revision?: string;
+            science_revision: string;
+            /** Format: int64 */
+            seed?: number;
+            source_revision: string;
+        };
+        /**
+         * @description A run document: Markdown with YAML front matter, checked against
+         *     `GET /api/schemas/run`. The body holds optional run notes.
+         */
+        RunSubmission: {
+            document: string;
         };
         /** @enum {string} */
         RunnerFailureCode: "step_failed" | "deadline_exceeded" | "runner_error" | "setup_failed" | "invalid_step_output" | "invalid_output" | "missing_output" | "invalid_code" | "code_not_allowed" | "invalid_input" | "missing_input" | "input_verification_failed" | "upload_expired" | "invalid_job" | "held_out_labels_to_experiment";
@@ -7075,106 +7077,6 @@ export interface operations {
             };
         };
     };
-    create_draft_api_projects__slug__hypotheses_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "idempotency-key"?: string | null;
-            };
-            path: {
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HypothesisCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HypothesisOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     get_hypothesis_api_projects__slug__hypotheses__number__get: {
         parameters: {
             query?: never;
@@ -7186,105 +7088,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HypothesisOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    revise_draft_api_projects__slug__hypotheses__number__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DraftUpdate"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -8464,7 +8267,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["EvidenceEnvelopeRequest"];
+                "application/json": components["schemas"]["RunSubmission"];
             };
         };
         responses: {
@@ -8777,107 +8580,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommentOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    review_draft_api_projects__slug__hypotheses__number__draft_review_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "idempotency-key"?: string | null;
-            };
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DraftReviewRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HypothesisOut"];
                 };
             };
             /** @description Invalid request */
@@ -9669,7 +9371,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EvidenceEnvelopeRequest"];
+                    "application/json": components["schemas"]["ClaimedResult"];
                 };
             };
             /** @description Invalid request */

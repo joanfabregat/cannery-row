@@ -51,7 +51,6 @@ brief:
 
 hypotheses:
   - key: als-64
-    by: agent
     doc:
       track: matrix-factorization
       title: Implicit ALS with 64 factors
@@ -69,8 +68,6 @@ hypotheses:
         regression_gates: [user_segment]
         compute_budget: {cpu_hours_max: 2}
       project_fields: {factors: 64, seed: 3}
-    review:
-      - {by: ben, action: approve, reason: "Standard first step; approved."}
     attempts:
       - by: agent
         stop: evaluated
@@ -114,7 +111,6 @@ hypotheses:
       - {by: chloe, on: hypothesis, body: "Coverage going from 0.3% to 21% is the number merchandising will care about most."}
 
   - key: item-knn
-    by: agent
     doc:
       track: neighbourhood
       title: Item-kNN with cosine similarity
@@ -133,8 +129,6 @@ hypotheses:
         compute_budget: {cpu_hours_max: 1}
       relations:
         - {kind: related_to, hypothesis: als-64}
-    review:
-      - {by: ben, action: approve, reason: "Worth it for explainability."}
     attempts:
       - by: agent
         stop: evaluated
@@ -167,7 +161,6 @@ hypotheses:
         decision: {by: ada, action: reject, reason: "Clearly below ALS. Keep item-kNN for the explainable 'similar items' widget only, outside this ranking."}
 
   - key: bpr
-    by: agent
     doc:
       track: matrix-factorization
       title: BPR instead of ALS
@@ -187,8 +180,6 @@ hypotheses:
       project_fields: {factors: 64, seed: 3}
       relations:
         - {kind: related_to, hypothesis: als-64}
-    review:
-      - {by: ben, action: approve, reason: "OK."}
     attempts:
       - by: agent
         stop: evaluated
@@ -218,7 +209,6 @@ hypotheses:
         decision: {by: ben, action: inconclusive, reason: "Within noise and a missing slice. Not worth another run unless ALS stalls."}
 
   - key: als-128
-    by: agent
     doc:
       track: matrix-factorization
       title: ALS with 128 factors
@@ -238,8 +228,6 @@ hypotheses:
       project_fields: {factors: 128, seed: 3}
       relations:
         - {kind: derived_from, hypothesis: als-64}
-    review:
-      - {by: ben, action: approve, reason: "Approved."}
     attempts:
       - by: agent
         stop: released
@@ -247,7 +235,6 @@ hypotheses:
         release: "The training job ran out of memory at 128 factors on the 4 GiB worker; releasing so it can be re-planned with sparse float32 factors."
 
   - key: content-cold-start
-    by: chloe
     doc:
       track: cold-start
       title: Category-popularity lists for new users
@@ -264,8 +251,6 @@ hypotheses:
         falsification_criteria: New-user recall@10 not above popularity.
         regression_gates: []
         compute_budget: {cpu_hours_max: 1}
-    review:
-      - {by: ben, action: approve, reason: "Simple and testable."}
     attempts:
       - by: chloe
         stop: evaluated
@@ -298,7 +283,6 @@ hypotheses:
       - {by: ben, on: 1, body: "Looks good. I'll decide after checking the 9% fallback users by hand."}
 
   - key: session-recency
-    by: agent
     doc:
       track: cold-start
       title: Weight the current session's views higher
@@ -317,8 +301,6 @@ hypotheses:
         compute_budget: {cpu_hours_max: 1}
       relations:
         - {kind: derived_from, hypothesis: content-cold-start}
-    review:
-      - {by: chloe, action: approve, reason: "Natural follow-up."}
     attempts:
       - by: agent
         stop: submitted
@@ -339,7 +321,6 @@ hypotheses:
           - {metric: recall_at_10, split: validation, dims: {user_segment: new}, claimed: 0.104, n: 5600}
 
   - key: two-tower
-    by: agent
     doc:
       track: matrix-factorization
       title: A two-tower model with item text
@@ -356,9 +337,9 @@ hypotheses:
         falsification_criteria: Not above ALS-64.
         regression_gates: [user_segment]
         compute_budget: {gpu_hours_max: 8}
+    later: {review: pending}
 
   - key: random-shuffle
-    by: agent
     doc:
       track: neighbourhood
       title: Shuffle the item-kNN list for diversity
@@ -374,5 +355,4 @@ hypotheses:
         falsification_criteria: Coverage unchanged.
         regression_gates: []
         compute_budget: {cpu_hours_max: 1}
-    review:
-      - {by: ben, action: decline, reason: "Shuffling within a top-10 cannot change recall@10 or coverage: the set of items is the same. Re-draft as a diversity re-ranker if needed."}
+    later: {review: decline, by: ben, reason: "Shuffling within a top-10 cannot change recall@10 or coverage: the set of items is the same. Re-draft as a diversity re-ranker if needed."}

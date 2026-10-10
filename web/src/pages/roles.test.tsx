@@ -44,10 +44,10 @@ const CASES: Case[] = [
   },
 ];
 
-function pendingDraft() {
+function pendingResult() {
   return hypothesis({
-    state: "draft",
-    reviews: [review({ kind: "draft", state: "pending" })],
+    state: "awaiting_human_review",
+    reviews: [review({ kind: "result", state: "pending" })],
   });
 }
 
@@ -57,13 +57,12 @@ function present(shown: boolean, element: HTMLElement | null) {
 }
 
 describe.each(CASES)("as a $name", ({ projects, admin, comment, research }) => {
-  it("sees the review, edit and comment actions a role allows on a hypothesis", async () => {
-    signedIn({ projects, admin: admin ?? false }, hypothesisApi(pendingDraft()));
+  it("sees the review and comment actions a role allows on a hypothesis", async () => {
+    signedIn({ projects, admin: admin ?? false }, hypothesisApi(pendingResult()));
     renderApp("/hypotheses/12");
     await screen.findByTestId("outcome-sentence");
     await screen.findByRole("heading", { level: 2, name: "Comments" });
-    present(research, screen.queryByRole("link", { name: "Review this draft" }));
-    present(research, screen.queryByRole("link", { name: "Edit draft" }));
+    present(research, screen.queryByRole("link", { name: "Review this result" }));
     present(comment, screen.queryByRole("textbox", { name: "Add a comment" }));
   });
 
@@ -105,16 +104,6 @@ describe.each(CASES)("as a $name", ({ projects, admin, comment, research }) => {
     await screen.findByRole("heading", { level: 1, name: "Tokenizer" });
     for (const name of ["Edit", "Pause", "Archive"]) {
       present(research, screen.queryByRole("button", { name }));
-    }
-  });
-
-  it("opens the draft editor only when a researcher", async () => {
-    signedIn({ projects, admin: admin ?? false }, hypothesisApi(pendingDraft()));
-    renderApp("/hypotheses/12/edit");
-    if (research) {
-      expect(await screen.findByRole("textbox", { name: "Title" })).toHaveValue("Shorter prompts");
-    } else {
-      expect(await screen.findByText("Only researchers edit drafts.")).toBeInTheDocument();
     }
   });
 });

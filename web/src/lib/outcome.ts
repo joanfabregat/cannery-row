@@ -38,7 +38,7 @@ export function currentDecision(review: HypothesisReview | undefined): Decision 
 
 export function latestReview(
   hypothesis: Hypothesis,
-  kind: "draft" | "result" | "failure",
+  kind: "result" | "failure",
 ): HypothesisReview | undefined {
   return hypothesis.reviews.filter((r) => r.kind === kind).at(-1);
 }
@@ -89,9 +89,6 @@ const DECISION_PHRASES: Record<string, string> = {
 };
 
 const DECIDED_WORDS: Record<string, string> = {
-  approve: "Approved for trying",
-  request_revision: "Changes requested",
-  decline: "Declined",
   promote: "Accepted",
   reject: "Rejected",
   inconclusive: "Marked inconclusive",
@@ -105,8 +102,8 @@ function lastDecision(review: HypothesisReview | undefined): Decision | null {
 
 /**
  * The newest decision still in force across these kinds of review: what put
- * a queued or active hypothesis where it is (its approval, or a decision to
- * try again after a failure).
+ * a queued or active hypothesis back where it is (a decision to try again
+ * after a failure). Its approval is its plan's.
  */
 function newestLiveDecision(
   hypothesis: Hypothesis,
@@ -132,18 +129,9 @@ function decisionFor(hypothesis: Hypothesis): Decision | null {
       return currentDecision(latestReview(hypothesis, "result"));
     case "failed":
       return lastDecision(latestReview(hypothesis, "failure"));
-    case "declined":
-      return lastDecision(latestReview(hypothesis, "draft"));
     case "queued":
     case "active":
-      return newestLiveDecision(hypothesis, ["draft", "failure"]);
-    case "draft": {
-      const last = lastDecision(latestReview(hypothesis, "draft"));
-      // A request for changes on an earlier revision was answered by a new one.
-      return last?.action === "request_revision" && last.subject_revision === hypothesis.revision
-        ? last
-        : null;
-    }
+      return newestLiveDecision(hypothesis, ["failure"]);
     default:
       return null;
   }
@@ -209,22 +197,11 @@ export function summarizeOutcome(
 
   let sentence: string;
   switch (hypothesis.state) {
-    case "draft":
-      sentence =
-        decision === null
-          ? `${title} is a draft waiting for a researcher's review; nothing has been tried yet.`
-          : `${title} is a draft: a researcher asked for changes${because}`;
-      break;
-    case "declined":
-      sentence = `${title} was not tried: a researcher declined the draft${because}`;
-      break;
     case "queued":
       sentence =
         decision?.action === "retry"
           ? `${title} is waiting for an agent to try it again: ${failedAttempt(attempt, previous)}, and a researcher decided to try again${because}`
-          : `${title} is approved and waiting for an agent to try it${
-              decision === null ? "." : `: a researcher approved it${because}`
-            }`;
+          : `${title} is planned and waiting for an agent to try it.`;
       break;
     case "active": {
       const now =

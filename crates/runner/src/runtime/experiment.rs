@@ -86,7 +86,6 @@ impl Experiment {
         }
         job["job_id"] = json!(id);
         job["lease"] = json!({"token":lease.token.expose(),"generation":claim["lease_generation"],"expires_at":claim["lease_expires_at"]});
-        let started = chrono::Utc::now().to_rfc3339();
         let work = worker
             .work_root
             .join(format!("cr-attempt-{}", worker::random_name()?));
@@ -135,17 +134,8 @@ impl Experiment {
                 Ok("abandoned".to_owned())
             } else {
                 match result {
-                    Ok(sheet) => match self
-                        .submit(
-                            &base,
-                            &lease,
-                            &id,
-                            &job,
-                            sheet,
-                            &started,
-                            session.objects(),
-                            &lost,
-                        )
+                    Ok(run) => match self
+                        .submit(&base, &lease, &id, &job, run, session.objects(), &lost)
                         .await
                     {
                         Ok(state) => Ok(state),
@@ -184,8 +174,7 @@ impl Experiment {
         lease: &LeaseHeaders,
         id: &str,
         job: &Value,
-        mut sheet: Value,
-        started: &str,
+        mut run: Value,
         objects: &[Value],
         lost: &CancellationEvent,
     ) -> Result<String, RuntimeError> {
@@ -215,19 +204,13 @@ impl Experiment {
         if manifest["sha256"] != worker::canonical_digest(&published)? {
             return Err(RuntimeError::Integrity);
         }
-        let record = sheet
+        let body = run["body"]
+            .as_str()
+            .ok_or(RuntimeError::InvalidStepOutput)?
+            .to_owned();
+        let record = run["front_matter"]
             .as_object_mut()
             .ok_or(RuntimeError::InvalidStepOutput)?;
-        record.insert("schema_version".into(), json!("0.2"));
-        record.insert("attempt_id".into(), json!(id));
-        record.insert("stage".into(), json!("agent"));
-        record.insert("status".into(), json!("completed"));
-        record.insert(
-            "producer".into(),
-            json!({"kind":"agent","id":"cannery-runner"}),
-        );
-        record.insert("started_at".into(), json!(started));
-        record.insert("finished_at".into(), json!(chrono::Utc::now().to_rfc3339()));
         let mut provenance = record
             .get("provenance")
             .filter(|value| value.is_object())
@@ -243,6 +226,7 @@ impl Experiment {
         }
         record.insert("provenance".into(), provenance);
         record.insert("manifest".into(), manifest);
+        let submission = json!({"document": run_document(record, &body)?});
         let submission_lease = LeaseHeaders {
             token: Secret::new(lease.token.expose().to_owned()),
             generation: lease.generation.clone(),
@@ -260,7 +244,7 @@ impl Experiment {
                     &format!("{base}/submission"),
                     &worker.token,
                     Some(&submission_lease),
-                    Some(&sheet),
+                    Some(&submission),
                 )
                 .await
             {
@@ -330,6 +314,23 @@ impl Experiment {
             Err(_) => Ok("unreported".into()),
         }
     }
+}
+/// The run document submitted for the step's `run.md`: its front matter, one
+/// JSON value per key (JSON is YAML), then its notes unchanged.
+fn run_document(
+    front_matter: &serde_json::Map<String, Value>,
+    body: &str,
+) -> Result<String, RuntimeError> {
+    let mut document = String::from("---\n");
+    for (key, value) in front_matter {
+        document.push_str(&serde_json::to_string(key)?);
+        document.push_str(": ");
+        document.push_str(&serde_json::to_string(value)?);
+        document.push('\n');
+    }
+    document.push_str("---\n");
+    document.push_str(body);
+    Ok(document)
 }
 impl super::process::RuntimeWorker for Experiment {
     fn run_once(&self, cancel: CancellationEvent) -> FutureResult<'_, Option<JobResult>> {

@@ -371,14 +371,14 @@ pub async fn update_track(
     optional(raw, context)
 }
 
-/// Only draft, queued, active and awaiting-human-review hypotheses are open.
+/// Only queued, active and awaiting-human-review hypotheses are open.
 /// # Errors
 /// Returns a sanitized database failure. This function takes no implicit lock.
 pub async fn count_open_hypotheses(
     connection: &mut PgConnection,
     id: TrackId,
 ) -> Result<i64, TrackError> {
-    Ok(sqlx::query_scalar!(r#"SELECT count(*) AS "count!" FROM hypotheses WHERE track_id=$1 AND state=ANY(ARRAY['draft','queued','active','awaiting_human_review']::text[])"#,id as TrackId).fetch_one(connection).await?)
+    Ok(sqlx::query_scalar!(r#"SELECT count(*) AS "count!" FROM hypotheses WHERE track_id=$1 AND state=ANY(ARRAY['queued','active','awaiting_human_review']::text[])"#,id as TrackId).fetch_one(connection).await?)
 }
 
 /// Every hypothesis of the track, whatever its state.

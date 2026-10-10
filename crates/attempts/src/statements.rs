@@ -671,7 +671,7 @@ async fn add_evidence0(
     conn: &mut PgConnection,
     args_values: &[Argument],
 ) -> Result<(u64, Vec<PgRow>), AttemptError> {
-    if args_values.len() != 13 {
+    if args_values.len() != 14 {
         return Err(AttemptError::Invariant);
     }
     let query = sqlx::query_file!(
@@ -688,7 +688,8 @@ async fn add_evidence0(
         &args_values[9] as _,
         &args_values[10] as _,
         &args_values[11] as _,
-        &args_values[12] as _
+        &args_values[12] as _,
+        &args_values[13] as _
     );
     native_results(conn, query).await
 }

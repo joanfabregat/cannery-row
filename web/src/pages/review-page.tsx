@@ -12,7 +12,6 @@ import type {
   Measurement,
 } from "@/api/types";
 import { type DecisionChoice, DecisionForm } from "@/components/decision-form";
-import { DecisionList } from "@/components/decisions";
 import { Assessment } from "@/components/assessment";
 import { MeasurementsTable } from "@/components/evidence";
 import { ImportedBadge } from "@/components/imported-badge";
@@ -26,14 +25,14 @@ import { asComparisons, judgedBy } from "@/lib/comparisons";
 import { formatDateTime } from "@/lib/format";
 import { label } from "@/lib/labels";
 import { parseNumber } from "@/lib/navigation";
-import { controlText, pendingReview } from "@/lib/outcome";
+import { pendingReview } from "@/lib/outcome";
 import { hypothesisPath, parseAttemptRef } from "@/lib/paths";
 import type { Project } from "@/projects/project-context";
 import { usePermissions } from "@/projects/use-permissions";
 
 /**
  * The one-screen review of whatever waits for a researcher on a hypothesis:
- * its draft, its result or its failure. The evidence summary, the
+ * its result or its failure. The evidence summary, the
  * evaluator's verdict, checks and comparisons, the decisions and a required
  * reason.
  */
@@ -113,9 +112,7 @@ function ReviewView({ project, number }: { project: Project; number: number }) {
           Open the full hypothesis page
         </Link>
       </p>
-      {pending.kind === "draft" ? (
-        <DraftReview project={project.slug} hypothesis={h} />
-      ) : pending.kind === "result" ? (
+      {pending.kind === "result" ? (
         <ResultReview project={project.slug} hypothesis={h} review={pending} />
       ) : (
         <FailureReview project={project.slug} hypothesis={h} review={pending} />
@@ -143,88 +140,6 @@ function useAfterDecision(project: string, number: number) {
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
-}
-
-function DraftReview({ project, hypothesis }: { project: string; hypothesis: Hypothesis }) {
-  const after = useAfterDecision(project, hypothesis.number);
-  const doc = hypothesis.document as Record<string, unknown>;
-  const plan = (typeof doc.plan === "object" && doc.plan !== null ? doc.plan : {}) as Record<
-    string,
-    unknown
-  >;
-  const ref = hypothesis.ref;
-  const choices: DecisionChoice<components["schemas"]["DraftReviewRequestAction"]>[] = [
-    {
-      action: "approve",
-      label: "Approve",
-      variant: "default",
-      effect: `${ref} will be queued: an agent can then claim it and try it. Revision ${hypothesis.revision} is the one that will be tried.`,
-    },
-    {
-      action: "request_revision",
-      label: "Ask for changes",
-      effect: `${ref} stays a draft. It must be revised before it can be reviewed again.`,
-    },
-    {
-      action: "decline",
-      label: "Decline",
-      variant: "destructive",
-      effect: `${ref} will not be tried. It moves to the archive, where it stays readable.`,
-    },
-  ];
-  return (
-    <div className="flex flex-col gap-6">
-      <Section
-        title="The draft"
-        description={`You are reviewing revision ${hypothesis.revision}, the current one.`}
-      >
-        <dl className="grid gap-4 md:grid-cols-2">
-          {(
-            [
-              ["Question", text(doc.question)],
-              ["Why try it", text(doc.rationale)],
-              ["What changes", text(doc.intervention)],
-              ["Compared with", controlText(doc)],
-              ["Measured by", text(plan.primary_metric)],
-              ["Success looks like", text(plan.success_criteria)],
-              ["It is disproved if", text(plan.falsification_criteria)],
-            ] as [string, string | null][]
-          ).map(([term, value]) =>
-            value === null ? null : (
-              <Fact key={term} term={term}>
-                {value}
-              </Fact>
-            ),
-          )}
-        </dl>
-        <Collapsible summary="The full draft" className="mt-4">
-          <RawJson value={hypothesis.document} label="Draft document" />
-        </Collapsible>
-      </Section>
-      <Section title="Earlier decisions">
-        <DecisionList reviews={hypothesis.reviews} />
-      </Section>
-      <Section title="Your decision">
-        <DecisionForm
-          subject={ref}
-          choices={choices}
-          submit={async (action, reason, key) =>
-            unwrap(
-              await api.POST("/api/projects/{slug}/hypotheses/{number}/draft-review", {
-                params: {
-                  path: { slug: project, number: hypothesis.number },
-                  header: { "idempotency-key": key },
-                },
-                body: { draft_revision: hypothesis.revision, action, reason },
-              }),
-            )
-          }
-          onDone={after.done}
-          onStale={after.reload}
-        />
-      </Section>
-    </div>
-  );
 }
 
 function decideCase(project: string, caseId: string, revision: number) {
@@ -340,7 +255,9 @@ function ResultReview({
                   ) : null}
                   {"body_markdown" in report.data.report &&
                   text(report.data.report.body_markdown) ? (
-                    <Collapsible summary="Full report">
+                    <Collapsible
+                      summary={"what_was_tried" in report.data.report ? "Full report" : "Run notes"}
+                    >
                       <Markdown>{report.data.report.body_markdown}</Markdown>
                     </Collapsible>
                   ) : null}

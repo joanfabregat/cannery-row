@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/evidence_envelope.schema.json",
   "title": "Evidence envelope",
-  "description": "Versioned evidence published by the agent (claimed result sheet), the tester (verified measurements) or the evaluator (assessment). Producer identity, timestamps and authority are also checked by the server against authentication.",
+  "description": "Versioned evidence published by the agent (a claimed result sheet, as submitted before run documents), the tester (verified measurements) or the evaluator (assessment). Producer identity, timestamps and authority are also checked by the server against authentication.",
   "type": "object",
   "properties": {
     "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
@@ -164,7 +164,7 @@
       "additionalProperties": false
     },
     "discrepancy": {
-      "description": "A tester finding that the claimed sheet disagrees with the verified evidence.",
+      "description": "A tester finding that the claims disagree with the verified evidence.",
       "type": "object",
       "properties": {
         "metric": {"$ref": "common.schema.json#/$defs/name"},

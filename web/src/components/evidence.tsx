@@ -352,6 +352,21 @@ export function ReportSection({ report }: { report: Report }) {
   }
   const fields = report.report as Record<string, unknown>;
   const body = typeof fields.body_markdown === "string" ? fields.body_markdown : "";
+  if (!("what_was_tried" in fields)) {
+    // A run document: the claims are in the results, the notes are its body.
+    return (
+      <Section
+        title="Run notes"
+        description={`Written by the agent for attempt ${report.attempt_ref}, submitted ${formatDateTime(report.submitted_at)}.`}
+      >
+        {body.trim() ? (
+          <Markdown>{body}</Markdown>
+        ) : (
+          <p className="text-sm text-muted-foreground">The agent wrote no run notes.</p>
+        )}
+      </Section>
+    );
+  }
   return (
     <Section
       title="Report"

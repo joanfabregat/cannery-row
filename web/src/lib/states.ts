@@ -3,14 +3,12 @@
 import type { components } from "@/api/schema";
 
 export const HYPOTHESIS_STATES = [
-  "draft",
   "queued",
   "active",
   "awaiting_human_review",
   "promoted",
   "rejected",
   "inconclusive",
-  "declined",
   "failed",
   "cancelled",
 ] as const;
@@ -19,7 +17,6 @@ export type HypothesisState = (typeof HYPOTHESIS_STATES)[number];
 
 /** Shown as archived: hidden by the default filter, always reachable. */
 export const ARCHIVED_STATES: readonly string[] = [
-  "declined",
   "rejected",
   "inconclusive",
   "failed",

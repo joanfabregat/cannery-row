@@ -792,6 +792,7 @@ impl<'a> Repository<'a> {
             Value::text(input.principal.via().client.as_deref()),
             Value::uuid(input.attempt_id.0),
             Value::text(Some(input.stage)),
+            Value::text(Some(input.body)),
         ];
         self.uuid(Statement::AddEvidence0, values)
             .await?
@@ -1077,6 +1078,8 @@ pub struct AddEvidence<'a> {
     pub stage: &'a str,
     pub status: &'a str,
     pub content: &'a Document,
+    /// The output document's Markdown body; empty for an evidence record.
+    pub body: &'a str,
     pub sha256: &'a str,
     pub manifest_id: Option<ManifestId>,
     pub principal: &'a Principal,

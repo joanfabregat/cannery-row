@@ -42,7 +42,7 @@
   {
     "name": "get_brief",
     "title": "Get the project brief",
-    "description": "The project's brief: its goal, domain, constraints and conventions, as Markdown with YAML front matter. Read it before drafting or claiming. Without revision, the current one; claims and jobs name the revision they run under.",
+    "description": "The project's brief: its goal, domain, constraints and conventions, as Markdown with YAML front matter. Read it before planning or claiming. Without revision, the current one; claims and jobs name the revision they run under.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1182,14 +1182,12 @@
           "anyOf": [
             {
               "enum": [
-                "draft",
                 "queued",
                 "active",
                 "awaiting_human_review",
                 "promoted",
                 "rejected",
                 "inconclusive",
-                "declined",
                 "failed",
                 "cancelled"
               ],
@@ -1313,105 +1311,6 @@
     }
   },
   {
-    "name": "create_draft",
-    "title": "Create a hypothesis draft",
-    "description": "Create a hypothesis draft (researchers and the project's agents). Search for prior related work first. The draft waits for a researcher's review.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "project": {
-          "description": "Project slug.",
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Project",
-          "type": "string"
-        },
-        "document": {
-          "additionalProperties": true,
-          "description": "A hypothesis contract document.",
-          "title": "Document",
-          "type": "object"
-        },
-        "idempotency_key": {
-          "anyOf": [
-            {
-              "maxLength": 200,
-              "minLength": 1,
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Repeat a write with the same key to get its first result, not a duplicate.",
-          "title": "Idempotency Key"
-        }
-      },
-      "required": [
-        "project",
-        "document"
-      ],
-      "title": "CreateDraft",
-      "type": "object"
-    },
-    "annotations": {
-      "title": "Create a hypothesis draft",
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "idempotentHint": true,
-      "openWorldHint": false
-    }
-  },
-  {
-    "name": "revise_draft",
-    "title": "Revise a hypothesis draft",
-    "description": "Replace a draft's document at its expected current revision. An agent may only revise the drafts it created.",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "expected_revision": {
-          "title": "Expected Revision",
-          "type": "integer"
-        },
-        "document": {
-          "additionalProperties": true,
-          "title": "Document",
-          "type": "object"
-        },
-        "project": {
-          "description": "Project slug.",
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Project",
-          "type": "string"
-        },
-        "number": {
-          "description": "Hypothesis number within the project (#12 is 12).",
-          "maximum": 2147483647,
-          "minimum": 1,
-          "title": "Number",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "expected_revision",
-        "document",
-        "project",
-        "number"
-      ],
-      "title": "ReviseDraft",
-      "type": "object"
-    },
-    "annotations": {
-      "title": "Revise a hypothesis draft",
-      "readOnlyHint": false,
-      "destructiveHint": false,
-      "idempotentHint": true,
-      "openWorldHint": false
-    }
-  },
-  {
     "name": "list_hypotheses",
     "title": "List hypotheses",
     "description": "A project's hypotheses, newest first, filtered by state or track.",
@@ -1419,14 +1318,12 @@
       "$defs": {
         "HypothesisState": {
           "enum": [
-            "draft",
             "queued",
             "active",
             "awaiting_human_review",
             "promoted",
             "rejected",
             "inconclusive",
-            "declined",
             "failed",
             "cancelled"
           ],
@@ -1561,7 +1458,7 @@
   {
     "name": "list_hypothesis_revisions",
     "title": "List a hypothesis's revisions",
-    "description": "A hypothesis's draft revisions, oldest first, each with its document, author and via.",
+    "description": "A hypothesis's revisions, oldest first, each with its document, author and via.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1615,68 +1512,6 @@
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,
-      "openWorldHint": false
-    }
-  },
-  {
-    "name": "review_draft",
-    "title": "Review a hypothesis draft",
-    "description": "Approve, request a revision of, or decline a draft's exact revision, with a reason (researchers only; agents and other service accounts cannot).",
-    "inputSchema": {
-      "additionalProperties": false,
-      "properties": {
-        "project": {
-          "description": "Project slug.",
-          "maxLength": 200,
-          "minLength": 1,
-          "title": "Project",
-          "type": "string"
-        },
-        "number": {
-          "description": "Hypothesis number within the project (#12 is 12).",
-          "maximum": 2147483647,
-          "minimum": 1,
-          "title": "Number",
-          "type": "integer"
-        },
-        "draft_revision": {
-          "description": "The exact revision reviewed.",
-          "maximum": 2147483647,
-          "minimum": 1,
-          "title": "Draft Revision",
-          "type": "integer"
-        },
-        "action": {
-          "enum": [
-            "approve",
-            "request_revision",
-            "decline"
-          ],
-          "title": "Action",
-          "type": "string"
-        },
-        "reason": {
-          "description": "Why; never empty.",
-          "minLength": 1,
-          "title": "Reason",
-          "type": "string"
-        }
-      },
-      "required": [
-        "project",
-        "number",
-        "draft_revision",
-        "action",
-        "reason"
-      ],
-      "title": "ReviewDraft",
-      "type": "object"
-    },
-    "annotations": {
-      "title": "Review a hypothesis draft",
-      "readOnlyHint": false,
-      "destructiveHint": true,
-      "idempotentHint": false,
       "openWorldHint": false
     }
   },
@@ -1857,7 +1692,7 @@
   {
     "name": "get_attempt",
     "title": "Get an attempt",
-    "description": "One attempt: state, artifacts, failures and its claimed result sheet.",
+    "description": "One attempt: state, artifacts, failures and what it claimed.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2208,7 +2043,7 @@
   {
     "name": "post_manifest",
     "title": "Record the artifact manifest",
-    "description": "Record the attempt's artifact manifest; every object must be a verified upload. Returns the manifest reference the claimed result sheet cites.",
+    "description": "Record the attempt's artifact manifest; every object must be a verified upload. Returns the manifest reference the run document cites.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2275,8 +2110,8 @@
   },
   {
     "name": "submit_attempt",
-    "title": "Submit the claimed result sheet",
-    "description": "Submit the claimed result sheet and freeze the attempt for independent testing. Agent-reported metrics stay unverified claims.",
+    "title": "Submit the run document",
+    "description": "Submit the run document of a completed run and freeze the attempt for independent testing: Markdown with YAML front matter holding claims, provenance, artifact_roles, the verified manifest and extensions (GET /api/schemas/run), and optional run notes as the body. Claimed metrics stay unverified. A run that failed releases the attempt instead.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2316,10 +2151,11 @@
           "type": "integer"
         },
         "document": {
-          "additionalProperties": true,
-          "description": "The claimed result sheet (an evidence_envelope).",
+          "description": "The run document: Markdown with YAML front matter.",
+          "maxLength": 1048576,
+          "minLength": 1,
           "title": "Document",
-          "type": "object"
+          "type": "string"
         },
         "idempotency_key": {
           "anyOf": [
@@ -2349,7 +2185,7 @@
       "type": "object"
     },
     "annotations": {
-      "title": "Submit the claimed result sheet",
+      "title": "Submit the run document",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": true,
@@ -2517,7 +2353,7 @@
           "type": "integer"
         },
         "input": {
-          "description": "claimed_sheet (test jobs), evidence (evaluation jobs) or manifest.",
+          "description": "claimed_sheet (test jobs: the front matter of the run document), evidence (evaluation jobs) or manifest.",
           "enum": [
             "claimed_sheet",
             "evidence",
@@ -2879,12 +2715,11 @@
   {
     "name": "list_review_cases",
     "title": "List review cases",
-    "description": "Draft, result and failure review cases, filtered by kind and state.",
+    "description": "Result and failure review cases, filtered by kind and state.",
     "inputSchema": {
       "$defs": {
         "CaseKind": {
           "enum": [
-            "draft",
             "result",
             "failure"
           ],
@@ -3004,7 +2839,7 @@
   {
     "name": "record_decision",
     "title": "Record a human decision",
-    "description": "Record a researcher's reasoned decision on a pending result or failure review case; a draft case is decided with review_draft instead. Only people with the researcher role may; agent, tester and evaluator tokens are refused.",
+    "description": "Record a researcher's reasoned decision on a pending result or failure review case. Only people with the researcher role may; agent, tester and evaluator tokens are refused.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3028,7 +2863,7 @@
           "type": "integer"
         },
         "action": {
-          "description": "promote, reject or inconclusive on a result case; retry or close_failed on a failure case. Draft cases are decided with review_draft.",
+          "description": "promote, reject or inconclusive on a result case; retry or close_failed on a failure case.",
           "enum": [
             "promote",
             "reject",
@@ -3096,7 +2931,7 @@
   {
     "name": "list_reports",
     "title": "List reports",
-    "description": "Attempt reports (claimed result sheets), newest first.",
+    "description": "Attempt reports (run documents and their notes), newest first.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3437,7 +3272,7 @@
   {
     "name": "search",
     "title": "Search",
-    "description": "Search tracks, hypotheses, attempts, reports, tester observations, evaluator and decision reasons, and comments across the projects the caller can read. Use it to find prior related work before drafting.",
+    "description": "Search tracks, hypotheses, attempts, reports, tester observations, evaluator and decision reasons, and comments across the projects the caller can read. Use it to find prior related work before planning.",
     "inputSchema": {
       "$defs": {
         "AttemptState": {
@@ -3459,14 +3294,12 @@
         },
         "HypothesisState": {
           "enum": [
-            "draft",
             "queued",
             "active",
             "awaiting_human_review",
             "promoted",
             "rejected",
             "inconclusive",
-            "declined",
             "failed",
             "cancelled"
           ],

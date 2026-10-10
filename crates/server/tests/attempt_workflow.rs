@@ -112,7 +112,7 @@ async fn actual_attempt_workflow_parity() -> Result<(), TestError> {
             .await?;
         if recipe["parameters_missing"] == true {
             sqlx::query(
-                "UPDATE hypotheses SET state='draft', approved_revision=NULL, approved_at=NULL",
+                "UPDATE hypotheses SET state='cancelled', approved_revision=NULL, approved_at=NULL",
             )
             .execute(&mut *transaction)
             .await?;

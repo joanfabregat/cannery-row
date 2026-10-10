@@ -1,12 +1,10 @@
 {
-  "schema_version": "0.2",
-  "track": "scripted",
+  "key": "top-two",
   "title": "Keep the two best documents",
   "question": "Does a top-2 cut keep the relevant document first on every query?",
-  "rationale": "A shorter run is cheaper to score; the fixture corpus is tiny.",
   "intervention": "Run the fixture workflow with top_k = 2.",
   "control": {"kind": "baseline", "id": "base-camp", "revision": "fixture-r1"},
-  "plan": {
+  "acceptance": {
     "selection_splits": ["dev"],
     "confirmation_splits": ["dev"],
     "primary_metric": "mrr",
@@ -16,5 +14,6 @@
     "regression_gates": [],
     "compute_budget": {"cpu_hours_max": 1}
   },
-  "project_fields": {"top_k": 2}
+  "parameters": {"top_k": 2},
+  "brief": "A shorter run is cheaper to score; the fixture corpus is tiny."
 }

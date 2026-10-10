@@ -109,12 +109,12 @@ async fn method() -> impl IntoResponse {
     path = "/api/projects/{slug}/jobs/{job_id}/inputs/claimed-sheet",
     operation_id = "claimed_sheet_api_projects__slug__jobs__job_id__inputs_claimed_sheet_get",
     summary = "Claimed Sheet",
-    description = "The frozen claimed result sheet the job tests (test jobs only).",
+    description = "The front matter of the frozen run document the job tests: the claims, provenance and manifest (test jobs only).",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
         ("X-Lease-Generation" = Option<i64>, Header)),
-    responses((status = 200, description = "Successful Response", body = crate::api_models::EvidenceEnvelopeRequest, content_type = "application/json"),
+    responses((status = 200, description = "Successful Response", body = crate::api_models::ClaimedResult, content_type = "application/json"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 400, description = "Invalid request", body = crate::api_models::BadRequestResponse, content_type = "application/json"),
         (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
@@ -464,9 +464,12 @@ async fn read(
             if matches!(operation, Operation::Sheet) {
                 let record = records.first().ok_or_else(|| internal(&context))?;
                 serde_json::to_vec(
-                    &crate::api_contract::decode::<crate::api_models::EvidenceEnvelopeRequest>(
-                        &mapping(record, record.root(), &state.profile, &context)?,
-                    )
+                    &crate::api_contract::decode::<crate::api_models::ClaimedResult>(&mapping(
+                        record,
+                        record.root(),
+                        &state.profile,
+                        &context,
+                    )?)
                     .map_err(|_| internal(&context))?,
                 )
                 .map_err(|_| internal(&context))?

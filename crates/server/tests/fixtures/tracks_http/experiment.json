@@ -40,9 +40,9 @@
     "outputs": {
       "artifacts": [
         {
-          "name": "run",
+          "name": "ranking",
           "interface": "ranked-run/v1",
-          "path": "/cr/outputs/run"
+          "path": "/cr/outputs/ranking"
         },
         {
           "name": "candidate_checkpoint",
@@ -50,9 +50,9 @@
           "path": "/cr/outputs/candidate_checkpoint"
         },
         {
-          "name": "claimed_sheet",
-          "interface": "cr-evidence/v0.2",
-          "path": "/cr/outputs/claimed_sheet"
+          "name": "run",
+          "interface": "cr-run/v0.2",
+          "path": "/cr/outputs/run"
         }
       ]
     }

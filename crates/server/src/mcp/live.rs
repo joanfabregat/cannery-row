@@ -237,7 +237,7 @@ async fn mcp_stateless_http() -> Result<()> {
     }
     let fixture: Value = serde_json::from_str(*FIXTURE)?;
     let cases = fixture["cases"].as_array().ok_or("cases")?;
-    assert_eq!(cases.len(), 89);
+    assert_eq!(cases.len(), 86);
     let mut unauthenticated = cases[0].clone();
     unauthenticated["authorization"] = Value::Null;
     assert_eq!(

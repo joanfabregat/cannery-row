@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT DISTINCT ON(stage) id AS \"id!: _\",stage,status,revision,front_matter::text AS \"content!\",producer_user AS \"producer_user?: _\",producer_service AS \"producer_service?: _\",created_at AS \"created_at!: _\",origin,source_ref\nFROM phase_outputs WHERE attempt_id=$1 AND stage<>'writeup' ORDER BY stage,revision DESC\n",
+  "query": "SELECT DISTINCT ON(stage) id AS \"id!: _\",stage,status,revision,front_matter::text AS \"content!\",body,producer_user AS \"producer_user?: _\",producer_service AS \"producer_service?: _\",created_at AS \"created_at!: _\",origin,source_ref\nFROM phase_outputs WHERE attempt_id=$1 AND stage<>'writeup' ORDER BY stage,revision DESC\n",
   "describe": {
     "columns": [
       {
@@ -30,26 +30,31 @@
       },
       {
         "ordinal": 5,
+        "name": "body",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
         "name": "producer_user?: _",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "producer_service?: _",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "created_at!: _",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "origin",
         "type_info": "Text"
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "source_ref",
         "type_info": "Text"
       }
@@ -65,6 +70,7 @@
       false,
       false,
       null,
+      false,
       true,
       true,
       false,
@@ -72,5 +78,5 @@
       true
     ]
   },
-  "hash": "99918280320b68ee0bc4e04f7db247b87fbf9aed20e3096f4ebfa8d2fd150e02"
+  "hash": "8f4b05b9c21e22ad566db6ab209b42c58691682383316c9577e2a36adcd038a8"
 }

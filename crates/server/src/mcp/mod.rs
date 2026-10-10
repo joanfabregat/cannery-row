@@ -26,7 +26,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
-const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses (units), the plans that define them, their attempts, independent testing and evaluation, and human decisions. Read the project brief (get_brief, or the brief resource) and search before working. To plan a track: read the brief and the track, and when re-planning the plan and the done and in-flight units (get_plan, list_units, get_unit); refine the idea with the researcher; check references and outside material with search and the read tools; list edge cases and risks into the approach and unit briefs; define units with their acceptance and the context each needs (start_plan_revision, set_plan_approach, add_unit, set_alignment); then check_plan and submit_plan; a researcher approves. To run a unit: claim, read the context bundle the claim names (the context resource), heartbeat, upload, record the manifest and submit under the lease you were given. Actor and via are taken from your token; plans and decisions need a person with the researcher role.";
+const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses (units), the plans that define them, their attempts, independent testing and evaluation, and human decisions. Read the project brief (get_brief, or the brief resource) and search before working. To plan a track: read the brief and the track, and when re-planning the plan and the done and in-flight units (get_plan, list_units, get_unit); refine the idea with the researcher; check references and outside material with search and the read tools; list edge cases and risks into the approach and unit briefs; define units with their acceptance and the context each needs (start_plan_revision, set_plan_approach, add_unit, set_alignment); then check_plan and submit_plan; a researcher approves. To run a unit: claim, read the context bundle the claim names (the context resource), heartbeat, upload, record the manifest and submit the run document under the lease you were given: front matter with the claims, provenance and verified manifest (GET /api/schemas/run), run notes as the body. A run that failed releases the attempt with a failure report instead. Actor and via are taken from your token; plans and decisions need a person with the researcher role.";
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
@@ -496,10 +496,8 @@ async fn tool_call(
         .extensions()
         .get::<ReplayOutcome>()
         .is_some_and(|value| value.0)
-        || (matches!(
-            name,
-            "create_draft" | "claim_job" | "submit_attempt" | "record_decision"
-        ) && response.status() == StatusCode::OK);
+        || (matches!(name, "claim_job" | "submit_attempt" | "record_decision")
+            && response.status() == StatusCode::OK);
     response_result(state, id, response, replayed).await
 }
 async fn response_result(
@@ -597,9 +595,9 @@ mod tests {
     #[test]
     fn registry_has_all_source_tools_and_complete_validation() {
         let tools = registry::tools().expect("compiled registry");
-        assert_eq!(tools.len(), 58);
+        assert_eq!(tools.len(), 55);
         let names: std::collections::BTreeSet<_> = tools.iter().map(registry::Tool::name).collect();
-        assert_eq!(names.len(), 58);
+        assert_eq!(names.len(), 55);
         for tool in &tools {
             assert!(
                 tool.invalid_arguments(&json!({"unexpected":"secret"}))
@@ -666,21 +664,16 @@ mod tests {
         assert!(body.get("lease_token").is_none());
         assert!(body.get("project").is_none());
         assert_eq!(body["size_bytes"], 12);
-        let document = json!({"secret":"only-document"});
+        let document = "---\nprovenance: {}\n---\nNotes.\n";
         let submit = build(
             "submit_attempt",
             json!({"project":"matrix","number":1,"sequence":2,"lease_token":"opaque","lease_generation":1,"idempotency_key":"key","document":document}),
         );
         assert_eq!(
             serde_json::from_slice::<Value>(&submit.body).expect("body"),
-            document
+            json!({"document":document})
         );
         assert_eq!(submit.headers["idempotency-key"], "key");
-        let revision = build(
-            "revise_draft",
-            json!({"project":"matrix","number":1,"expected_revision":2,"document":{}}),
-        );
-        assert_eq!(revision.method, axum::http::Method::PUT);
         let brief = build("get_brief", json!({"project":"matrix"}));
         assert_eq!(brief.uri, "/api/projects/matrix/brief");
         let brief = build("get_brief", json!({"project":"matrix","revision":2}));

@@ -262,14 +262,12 @@ async fn operation(
         }
         "count" => {
             for (index, state) in [
-                "draft",
                 "queued",
                 "active",
                 "awaiting_human_review",
                 "promoted",
                 "rejected",
                 "inconclusive",
-                "declined",
                 "failed",
                 "cancelled",
             ]

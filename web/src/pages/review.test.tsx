@@ -119,40 +119,6 @@ describe("reviewing a result", () => {
   });
 });
 
-describe("reviewing a draft", () => {
-  it("approves the revision on screen", async () => {
-    const posted: Request[] = [];
-    const h = hypothesis({
-      state: "draft",
-      revision: 2,
-      reviews: [review({ kind: "draft", state: "pending", subject_revision: 2 })],
-    });
-    signedIn(
-      {},
-      {
-        ...hypothesisApi(h),
-        "POST /api/projects/sardines/hypotheses/12/draft-review": (request) => {
-          posted.push(request.clone());
-          return json({ id: "d1" }, 201);
-        },
-      },
-    );
-    const { user } = renderApp("/hypotheses/12/review");
-    expect(await screen.findByText("Do shorter prompts keep quality?")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ask for changes" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Decline" })).toBeDisabled();
-    await user.type(screen.getByRole("textbox", { name: /Reason/ }), "Clear and cheap");
-    await user.click(screen.getByRole("button", { name: "Approve" }));
-    await user.click(await screen.findByRole("button", { name: "Confirm: Approve" }));
-    expect(await screen.findByText("Your decision (Approve) was recorded.")).toBeInTheDocument();
-    expect(await posted[0]?.json()).toEqual({
-      draft_revision: 2,
-      action: "approve",
-      reason: "Clear and cheap",
-    });
-  });
-});
-
 describe("reviewing a failure", () => {
   it("offers to try again or close as failed", async () => {
     const h = hypothesis({
@@ -240,20 +206,7 @@ describe("a decision retried after a network error", () => {
         ),
     };
   };
-  const draftCase = () =>
-    hypothesisApi(
-      hypothesis({
-        state: "draft",
-        reviews: [review({ kind: "draft", state: "pending", subject_revision: 1 })],
-      }),
-    );
   const flows = [
-    {
-      name: "draft",
-      handlers: draftCase,
-      post: "POST /api/projects/sardines/hypotheses/12/draft-review",
-      choice: "Approve",
-    },
     {
       name: "result",
       handlers: () => awaitingResult("pass"),

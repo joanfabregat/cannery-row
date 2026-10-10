@@ -172,18 +172,18 @@ fn claim(case: Case) -> Value {
     }
     let script = match case {
         Case::StepFailed => "echo observed-failure; exit 7",
-        Case::Invalid => "printf '[]' > \"$CR_ROOT/outputs/claimed_sheet/sheet.json\"",
+        Case::Invalid => "printf '[]' > \"$CR_ROOT/outputs/run/run.md\"",
         Case::LeaseLost | Case::Cancel => {
-            "sleep 30 & child=$!; printf '%s %s' \"$$\" \"$child\" > \"$CR_ROOT/../../../pids\"; wait; printf '{}' > \"$CR_ROOT/outputs/claimed_sheet/sheet.json\""
+            "sleep 30 & child=$!; printf '%s %s' \"$$\" \"$child\" > \"$CR_ROOT/../../../pids\"; wait; printf '%s\\n' --- --- > \"$CR_ROOT/outputs/run/run.md\""
         }
         Case::PinnedInputs => {
-            "test \"$(cat \"$CR_ROOT/inputs/data/pin.txt\")\" = data && test \"$(cat \"$CR_ROOT/inputs/base/pin.txt\")\" = baseline || exit 9; printf '{}' > \"$CR_ROOT/outputs/claimed_sheet/sheet.json\""
+            "test \"$(cat \"$CR_ROOT/inputs/data/pin.txt\")\" = data && test \"$(cat \"$CR_ROOT/inputs/base/pin.txt\")\" = baseline || exit 9; printf '%s\\n' --- --- > \"$CR_ROOT/outputs/run/run.md\""
         }
         Case::Predecessor | Case::BadPredecessor => {
-            "test \"$(cat \"$CR_ROOT/inputs/previous/previous.txt\")\" = predecessor || exit 9; printf '{}' > \"$CR_ROOT/outputs/claimed_sheet/sheet.json\""
+            "test \"$(cat \"$CR_ROOT/inputs/previous/previous.txt\")\" = predecessor || exit 9; printf '%s\\n' --- --- > \"$CR_ROOT/outputs/run/run.md\""
         }
         _ => {
-            "test -z \"$TOKEN$LEASE$GITHUB_TOKEN\" || exit 9; grep -q 'parameters' \"$CR_ROOT/job.json\" || exit 9; printf '{\"provenance\":{\"custom\":true}}' > \"$CR_ROOT/outputs/claimed_sheet/sheet.json\""
+            "test -z \"$TOKEN$LEASE$GITHUB_TOKEN\" || exit 9; grep -q 'parameters' \"$CR_ROOT/job.json\" || exit 9; printf '%s\\n' --- 'provenance: {custom: true}' --- 'Notes stay.' > \"$CR_ROOT/outputs/run/run.md\""
         }
     };
     let previous = matches!(case, Case::Predecessor | Case::BadPredecessor);
@@ -194,12 +194,12 @@ fn claim(case: Case) -> Value {
     } else {
         json!([])
     };
-    let mut steps = vec![step("agent", script, "claimed_sheet", &inputs)];
+    let mut steps = vec![step("agent", script, "run", &inputs)];
     if matches!(case, Case::Tamper) {
-        steps.push(step("tamper", "printf '{}' > \"$CR_ROOT/../0-agent/outputs/claimed_sheet/sheet.json\"; printf artifact > \"$CR_ROOT/outputs/artifact/out.txt\"", "artifact", &json!([])));
+        steps.push(step("tamper", "printf '%s\\n' --- --- > \"$CR_ROOT/../0-agent/outputs/run/run.md\"; printf artifact > \"$CR_ROOT/outputs/artifact/out.txt\"", "artifact", &json!([])));
     }
     if matches!(case, Case::LinkTamper) {
-        steps.push(step("tamper", "mkdir -p \"$CR_ROOT/outputs/claimed_sheet\"; cp \"$CR_ROOT/../0-agent/outputs/claimed_sheet/sheet.json\" \"$CR_ROOT/outputs/claimed_sheet/sheet.json\"; rm -r \"$CR_ROOT/../0-agent/outputs\"; ln -s \"$CR_ROOT/outputs\" \"$CR_ROOT/../0-agent/outputs\"; printf artifact > \"$CR_ROOT/outputs/artifact/out.txt\"", "artifact", &json!([])));
+        steps.push(step("tamper", "mkdir -p \"$CR_ROOT/outputs/run\"; cp \"$CR_ROOT/../0-agent/outputs/run/run.md\" \"$CR_ROOT/outputs/run/run.md\"; rm -r \"$CR_ROOT/../0-agent/outputs\"; ln -s \"$CR_ROOT/outputs\" \"$CR_ROOT/../0-agent/outputs\"; printf artifact > \"$CR_ROOT/outputs/artifact/out.txt\"", "artifact", &json!([])));
     }
     let predecessor = if previous {
         json!({"attempt_id":ID,"ref":"h1/a0","state":"rejected","failure_code":null,"artifacts":[{"id":"00000000-0000-0000-0000-000000000003","role":"previous","storage":{"key":"prefix/previous.txt"},"size_bytes":11,"sha256":format!("{:x}", Sha256::digest(b"predecessor"))}]})
@@ -538,9 +538,23 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
                 .iter()
                 .find(|r| r.path.ends_with("/submission"))
                 .ok_or("submission missing")?;
-            assert_eq!(submission.body["stage"], "agent");
-            assert_eq!(submission.body["attempt_id"], ID);
-            assert_eq!(submission.body["provenance"]["science_revision"], "1");
+            let text = submission.body["document"]
+                .as_str()
+                .ok_or("submission without a run document")?;
+            let document = cannery_core::front_matter::parse(
+                text,
+                cannery_core::front_matter::Limits::default(),
+            )?;
+            assert!(document.front_matter.get("stage").is_none());
+            assert!(document.front_matter.get("status").is_none());
+            assert_eq!(document.front_matter["provenance"]["science_revision"], "1");
+            assert!(document.front_matter["manifest"]["ref"].is_string());
+            if matches!(case, Case::Success | Case::SubmissionRetry) {
+                assert_eq!(document.front_matter["provenance"]["custom"], true);
+                assert_eq!(document.body, "Notes stay.\n");
+            } else {
+                assert_eq!(document.body, "");
+            }
             assert!(
                 submission
                     .headers
@@ -551,7 +565,7 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
                 requests
                     .iter()
                     .filter(|r| r.path.ends_with("/uploads"))
-                    .all(|r| r.body["role"] != "claimed_sheet" && r.body.get("path").is_none())
+                    .all(|r| r.body["role"] != "run" && r.body.get("path").is_none())
             );
         }
         if matches!(case, Case::SubmissionRetry) {

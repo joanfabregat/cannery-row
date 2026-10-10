@@ -37,14 +37,13 @@ fn published_examples<T: DeserializeOwned + Serialize>(name: &str) -> Result<usi
 
 #[test]
 fn every_fixed_envelope_roundtrips_published_valid_examples() -> Result {
-    published_examples::<DraftReviewRequest>("draft_review")?;
     published_examples::<HumanDecisionRequest>("human_decision")?;
     published_examples::<TrackTransitionRequest>("track_transition")?;
     published_examples::<ArtifactManifestRequest>("artifact_manifest")?;
     published_examples::<JobCompletionRequest>("job_completion")?;
     published_examples::<JobFailureRequest>("job_failure")?;
     published_examples::<EvidenceEnvelopeRequest>("evidence_envelope")?;
-    published_examples::<HypothesisCreateRequest>("hypothesis")?;
+    published_examples::<UnitCreate>("hypothesis")?;
     published_examples::<TrackCreateRequest>("track")?;
     published_examples::<StepManifestRequest>("step_manifest")?;
     published_examples::<ScienceRevisionRequest>("science_revision")?;
@@ -65,11 +64,11 @@ fn fixed_control_fields_and_nested_storage_reject_wrong_types_and_unknown_fields
         assert!(serde_json::from_value::<HumanDecisionRequest>(json!({"review_case_id":"case","evidence_revision":revision,"action":"promote","reason":"ready"})).is_err());
     }
     for value in [
-        json!({"draft_revision":1,"action":"invented","reason":"review"}),
-        json!({"draft_revision":"1","action":"approve","reason":"review"}),
-        json!({"draft_revision":1,"action":"approve","reason":"review","actor":"caller"}),
+        json!({"key":"a","title":"t","question":"q","intervention":"i","acceptance":{},"state":"queued"}),
+        json!({"key":"a","title":"t","question":"q","intervention":"i","acceptance":{},"brief":null}),
+        json!({"key":"a","title":"t","question":"q","intervention":"i","acceptance":[]}),
     ] {
-        assert!(serde_json::from_value::<DraftReviewRequest>(value).is_err());
+        assert!(serde_json::from_value::<UnitCreate>(value).is_err());
     }
     for value in [
         json!({"schema_version":"0.2","job_id":"job","error_code":"step_error","reason":"failure","logs":[{"key":"log","size_bytes":1,"sha256":"hash","token":"private"}]}),
@@ -112,12 +111,6 @@ fn dynamic_project_values_and_number_spelling_survive_serde() -> Result {
     request["extensions"] = json!({"custom":{"nested":[false,null,"é𐀀",{"counter":3}]}});
     let typed: EvidenceEnvelopeRequest = serde_json::from_value(request.clone())?;
     assert_eq!(serde_json::to_value(typed)?, request);
-    let huge: Value = serde_json::from_str(&format!(
-        "{{\"draft_revision\":{},\"action\":\"approve\",\"reason\":\"review\"}}",
-        "9".repeat(200)
-    ))?;
-    let typed: DraftReviewRequest = serde_json::from_value(huge.clone())?;
-    assert_eq!(serde_json::to_value(typed)?, huge);
     Ok(())
 }
 
@@ -125,10 +118,6 @@ fn dynamic_project_values_and_number_spelling_survive_serde() -> Result {
 fn generated_handler_contracts_reference_the_same_concrete_dtos() -> Result {
     let generated = serde_json::to_value(cannery_server::generated_openapi())?;
     for (path, name) in [
-        (
-            "/api/projects/{slug}/hypotheses/{number}/draft-review",
-            "DraftReviewRequest",
-        ),
         (
             "/api/projects/{slug}/jobs/{job_id}/completion",
             "JobCompletionRequest",
@@ -150,13 +139,12 @@ fn generated_handler_contracts_reference_the_same_concrete_dtos() -> Result {
         );
     }
     for name in [
-        "DraftReviewRequest",
         "HumanDecisionRequest",
         "ArtifactManifestRequest",
         "JobCompletionRequest",
         "JobFailureRequest",
         "EvidenceEnvelopeRequest",
-        "HypothesisCreateRequest",
+        "UnitCreate",
         "TrackCreateRequest",
         "StepManifestRequest",
         "ScienceRevisionRequest",

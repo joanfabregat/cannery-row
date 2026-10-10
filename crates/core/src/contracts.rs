@@ -19,7 +19,6 @@ pub enum ContractKind {
     Track,
     TrackTransition,
     Hypothesis,
-    DraftReview,
     HumanDecision,
     ArtifactManifest,
     EvidenceEnvelope,
@@ -42,7 +41,6 @@ impl ContractKind {
             "track" => Self::Track,
             "track_transition" => Self::TrackTransition,
             "hypothesis" => Self::Hypothesis,
-            "draft_review" => Self::DraftReview,
             "human_decision" => Self::HumanDecision,
             "artifact_manifest" => Self::ArtifactManifest,
             "evidence_envelope" => Self::EvidenceEnvelope,
@@ -296,7 +294,7 @@ fn embedded_schemas(kind: ContractKind, value: &Value, errors: &mut Vec<Contract
         _ => {}
     }
 }
-const PUBLISHED_SOURCES: [(&str, &str); 22] = [
+const PUBLISHED_SOURCES: [(&str, &str); 21] = [
     (
         "track",
         include_str!("../../../contracts/schemas/track.schema.json"),
@@ -308,10 +306,6 @@ const PUBLISHED_SOURCES: [(&str, &str); 22] = [
     (
         "hypothesis",
         include_str!("../../../contracts/schemas/hypothesis.schema.json"),
-    ),
-    (
-        "draft_review",
-        include_str!("../../../contracts/schemas/draft_review.schema.json"),
     ),
     (
         "human_decision",

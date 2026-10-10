@@ -535,36 +535,34 @@ async fn workflow_resolution(
                     "another step outputs this artifact",
                 ));
             }
-            let sheet = name.equals_utf8("claimed_sheet");
+            let sheet = name.equals_utf8("run");
             if sheet && !last {
                 if diagnostics {
                     return Err(diagnostic::validation(
                         at(&where_, &format!("{suffix}/name"))?,
                         &[String::from(
-                            "only the workflow's last step outputs the sheet",
+                            "only the workflow's last step outputs the run document",
                         )],
                     )?);
                 }
                 return Err(fail(
                     &where_,
                     &format!("{suffix}/name"),
-                    "only the workflow's last step outputs the sheet",
+                    "only the workflow's last step outputs the run document",
                 ));
             }
             let interface = found.manifest.field(id, "interface");
-            if sheet
-                && !interface.is_some_and(|id| is(&found.manifest, id, steps::EVIDENCE_INTERFACE))
-            {
+            if sheet && !interface.is_some_and(|id| is(&found.manifest, id, steps::RUN_INTERFACE)) {
                 if diagnostics {
                     return Err(diagnostic::validation(
                         at(&where_, &format!("{suffix}/interface"))?,
-                        &[String::from("the claimed sheet is cr-evidence/v0.2")],
+                        &[String::from("the run document is cr-run/v0.2")],
                     )?);
                 }
                 return Err(fail(
                     &where_,
                     &format!("{suffix}/interface"),
-                    "the claimed sheet is cr-evidence/v0.2",
+                    "the run document is cr-run/v0.2",
                 ));
             }
             interfaces.insert(
@@ -575,20 +573,20 @@ async fn workflow_resolution(
         }
         resolved.push(found);
     }
-    if !outputs.contains(&String::from("claimed_sheet")) {
+    if !outputs.contains(&String::from("run")) {
         let last = BigInt::from(refs.len()) - 1;
         if diagnostics {
             return Err(diagnostic::validation(
                 at(path, &format!("/steps/{last}"))?,
                 &[String::from(
-                    "the last step must output 'claimed_sheet' (cr-evidence/v0.2)",
+                    "the last step must output 'run' (cr-run/v0.2)",
                 )],
             )?);
         }
         return Err(fail(
             path,
             &format!("/steps/{last}"),
-            "the last step must output claimed_sheet",
+            "the last step must output run",
         ));
     }
     let required = field(

@@ -1,15 +1,10 @@
 use crate::{Entry, Error, Problem, Result, time};
 use cannery_core::{
-    contracts::{ContractKind, instance::validate_project_fields},
     ids::UserId,
     json::{self, Document},
 };
-use cannery_research::science::{self, Science};
 use serde_json::{Value, json};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn text<'a>(value: &'a Value, key: &str) -> Result<&'a str> {
     value
@@ -57,8 +52,6 @@ pub(crate) struct Knowledge<'a> {
     pub users: &'a BTreeMap<String, UserId>,
     pub researchers: Option<&'a BTreeSet<UserId>>,
     pub science: &'a Value,
-    pub model: &'a Science<'a>,
-    pub context: &'a crate::ImportContext,
 }
 fn violation(problems: &mut Vec<Problem>, entry: &Entry, path: &str, message: &str) {
     problems.push(entry.problem(path, message));
@@ -205,7 +198,7 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
     let created = text(content, "created_at")?;
     let track = knowledge.tracks.get(text(content, "track")?);
     if let Some(track) = track {
-        if track["state"] == "archived" && ["draft", "awaiting_human_review"].contains(&state) {
+        if track["state"] == "archived" && state == "awaiting_human_review" {
             violation(
                 &mut problems,
                 entry,
@@ -407,33 +400,8 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
             }
         }
     }
-    if ["draft", "declined"].contains(&state) && !attempts.is_empty() {
-        violation(
-            &mut problems,
-            entry,
-            "/attempts",
-            "a draft or declined hypothesis has no attempt",
-        );
-    }
     let decision = content.get("decision");
-    if state == "draft" {
-        if content.get("document").is_none() {
-            violation(
-                &mut problems,
-                entry,
-                "/document",
-                "a draft needs a full hypothesis document",
-            );
-        }
-        if decision.is_some() {
-            violation(
-                &mut problems,
-                entry,
-                "/decision",
-                "a draft has no decision yet",
-            );
-        }
-    } else if state == "awaiting_human_review" {
+    if state == "awaiting_human_review" {
         if decision.is_some() {
             violation(
                 &mut problems,
@@ -458,7 +426,6 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
             "reject" => "rejected",
             "inconclusive" => "inconclusive",
             "close_failed" => "failed",
-            "decline" => "declined",
             _ => return Err(Error::CorruptData),
         };
         if outcome != state {
@@ -491,58 +458,56 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
             _ => {}
         }
         let mut floor = created;
-        if state != "declined" {
-            if let Some(last) = attempts.last() {
-                floor = last
-                    .get("finished_at")
-                    .and_then(Value::as_str)
-                    .unwrap_or(text(last, "started_at")?);
-                if state == "failed" {
-                    if last["status"] != "failed" {
-                        violation(
-                            &mut problems,
-                            entry,
-                            "/attempts",
-                            "close_failed requires the last attempt to fail",
-                        );
-                    }
-                } else if let Some(verdict) = last.get("verdict") {
-                    if last["status"] != "completed" {
-                        violation(
-                            &mut problems,
-                            entry,
-                            "/attempts",
-                            "a result decision requires a completed attempt",
-                        );
-                    }
-                    if state == "promoted" && verdict["result"] != "pass" {
-                        violation(
-                            &mut problems,
-                            entry,
-                            "/attempts",
-                            "promotion requires a pass verdict",
-                        );
-                    }
-                    floor = verdict
-                        .get("evaluated_at")
-                        .and_then(Value::as_str)
-                        .unwrap_or(floor);
-                } else {
+        if let Some(last) = attempts.last() {
+            floor = last
+                .get("finished_at")
+                .and_then(Value::as_str)
+                .unwrap_or(text(last, "started_at")?);
+            if state == "failed" {
+                if last["status"] != "failed" {
                     violation(
                         &mut problems,
                         entry,
                         "/attempts",
-                        "a result decision requires a verdict",
+                        "close_failed requires the last attempt to fail",
                     );
                 }
+            } else if let Some(verdict) = last.get("verdict") {
+                if last["status"] != "completed" {
+                    violation(
+                        &mut problems,
+                        entry,
+                        "/attempts",
+                        "a result decision requires a completed attempt",
+                    );
+                }
+                if state == "promoted" && verdict["result"] != "pass" {
+                    violation(
+                        &mut problems,
+                        entry,
+                        "/attempts",
+                        "promotion requires a pass verdict",
+                    );
+                }
+                floor = verdict
+                    .get("evaluated_at")
+                    .and_then(Value::as_str)
+                    .unwrap_or(floor);
             } else {
                 violation(
                     &mut problems,
                     entry,
                     "/attempts",
-                    "this decision requires an attempt",
+                    "a result decision requires a verdict",
                 );
             }
+        } else {
+            violation(
+                &mut problems,
+                entry,
+                "/attempts",
+                "this decision requires an attempt",
+            );
         }
         if time::before(text(decision, "decided_at")?, floor)? {
             violation(
@@ -559,57 +524,6 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
             "/decision",
             "a terminal hypothesis requires its human decision",
         );
-    }
-    if content.get("document").is_some() {
-        let value = imported_document(content, &BTreeMap::new());
-        let doc = document(&value, knowledge.context.json_budget)?;
-        let found = knowledge
-            .context
-            .contracts
-            .violation_paths(ContractKind::Hypothesis, &doc)
-            .map_err(|_| Error::CorruptData)?;
-        for path in &found {
-            let path = path.as_utf8().ok_or(Error::CorruptData)?;
-            if !path.starts_with("/relations") {
-                violation(
-                    &mut problems,
-                    entry,
-                    &format!("/document{path}"),
-                    "does not satisfy the hypothesis schema",
-                );
-            }
-        }
-        if state == "draft" && found.is_empty() {
-            if science::check_hypothesis(knowledge.model, &doc, knowledge.context.rendering)
-                .is_err()
-            {
-                violation(
-                    &mut problems,
-                    entry,
-                    "/document",
-                    "does not fit the pinned science revision",
-                );
-            }
-            if let Some(schema) = knowledge
-                .science
-                .get("hypothesis_fields")
-                .filter(|schema| !schema.is_null())
-            {
-                let schema = Arc::new(document(schema, knowledge.context.json_budget)?);
-                let fields = document(
-                    value.get("project_fields").unwrap_or(&json!({})),
-                    knowledge.context.json_budget,
-                )?;
-                if validate_project_fields(&schema, &fields).is_err() {
-                    violation(
-                        &mut problems,
-                        entry,
-                        "/document/project_fields",
-                        "does not fit the project fields schema",
-                    );
-                }
-            }
-        }
     }
     Ok(problems)
 }

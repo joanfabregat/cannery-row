@@ -71,7 +71,7 @@ export interface Measurement {
   source?: string;
 }
 
-/** A tester finding that the claimed sheet disagrees with the verified evidence. */
+/** A tester finding that the claims disagree with the verified evidence. */
 export interface Discrepancy {
   metric?: string;
   split?: string;

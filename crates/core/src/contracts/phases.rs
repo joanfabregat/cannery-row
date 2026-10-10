@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum Phase {
     /// A project's brief: its goal, domain, constraints and conventions.
     Brief,
-    /// The claimed result sheet of a run.
+    /// A run: its claims, provenance and manifest, with run notes as the body.
     Run,
     /// The tester's verified evidence and the evaluator's assessment.
     Verification,

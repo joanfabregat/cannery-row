@@ -13,6 +13,8 @@ use num_rational::BigRational;
 use num_traits::One;
 
 pub const EVIDENCE_INTERFACE: &str = "cr-evidence/v0.2";
+/// The run document an experiment workflow's last step outputs as `run`.
+pub const RUN_INTERFACE: &str = "cr-run/v0.2";
 pub const DEFAULT_SETUP_DEADLINE_SECONDS: u32 = 600;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Role {
@@ -647,6 +649,7 @@ fn check_step_at(
         if let Some(interface) = field(document, artifact, "interface", false)?
             .filter(|id| !matches!(document.node(*id), Some(Node::Null)))
             && !matches_text(document, interface, EVIDENCE_INTERFACE)
+            && !matches_text(document, interface, RUN_INTERFACE)
             && !scalar_text_member(
                 document,
                 &Value::Node(interface),

@@ -36,20 +36,22 @@
 #
 # Each project is created with its first track, then gets its other tracks and
 # its brief, written by the researcher project.yaml names under brief.by.
-# Tracks start in planning. A hypothesis the scenario approves in one step is
-# a unit of its track's plan: the track's planner (plan.by, default
-# brief.by) starts a plan revision, sets the approach (plan.approach, default
-# the description) and adds the units, with the rationale as the unit brief and
-# a context item per derived_from relation, then checks and submits it, and the
-# reviewer (plan.review.by, default brief.by) approves it, which makes the
-# hypotheses queued and the track active. A track with plan: false opts out.
-# A unit naming a hypothesis that does not exist yet waits for a later
-# revision of the plan.
+# Tracks start in planning. Every hypothesis comes from a plan: each one of
+# the scenario is a unit of its track's plan. The track's planner (plan.by,
+# default brief.by) starts a plan revision, sets the approach (plan.approach,
+# default the description) and adds the units, with the rationale as the unit
+# brief and a context item per derived_from relation, then checks and submits
+# it, and the reviewer (plan.review.by, default brief.by) approves it, which
+# creates the hypotheses, queued, and makes the track active. A unit naming a
+# hypothesis that does not exist yet waits for a later revision of the plan.
+# A unit with later: goes into one more revision of the plan once the
+# attempts are done, which keeps every unit in flight or done: the reviewer
+# later.by declines it with later.reason (later: {review: decline}), or it is
+# left for review (later: {review: pending}).
 #
 # The REST part drives each hypothesis of dev/demo-data/projects/*/project.yaml
-# through the real lifecycle: drafts by the demo agent or a researcher, draft
-# reviews (approve, request_revision then revise, decline), claims, uploads,
-# claimed result sheets, test jobs completed as the project's tester, verdicts
+# through the real lifecycle: plans and their reviews, claims, uploads,
+# claimed run documents, test jobs completed as the project's tester, verdicts
 # as its evaluator, human decisions, failure reviews, comments and track
 # transitions. There is no runner: the script plays the agent, the tester and
 # the evaluator itself. The attempt left running keeps its lease for
@@ -296,26 +298,9 @@ declare -A NUMBER
 hv() { jq -c ".hypotheses[$1]$2" "$SECRETS/project.json"; }
 hvr() { jq -r ".hypotheses[$1]$2" "$SECRETS/project.json"; }
 
-# document INDEX [REVISION_PATCH]: the hypothesis document with relations
-# resolved from scenario keys to numbers.
-document() {
-  local numbers patch=${2:-}
-  [[ -n "$patch" ]] || patch='{}'
-  numbers=$(for key in "${!NUMBER[@]}"; do printf '%s\t%s\n' "$key" "${NUMBER[$key]}"; done |
-    jq -Rn '[inputs | split("\t") | {(.[0]): (.[1] | tonumber)}] | add // {}')
-  jq -c --argjson n "$numbers" --argjson patch "$patch" \
-    '{schema_version: "0.2"} + .doc + $patch
-     | if .relations then .relations |= map(if (.hypothesis | type) == "string" then .hypothesis = $n[.hypothesis] else . end) else . end' <<<"$(hv "$1" '')"
-}
-
-# planned INDEX: whether hypothesis INDEX goes through its track's plan: its
-# scenario approves it in one step and its track does not opt out.
-planned() {
-  local track
-  track=$(hvr "$1" .doc.track)
-  [[ "$(pvr --arg t "$track" '[.tracks[] | select(.slug == $t)][0].plan')" != false ]] &&
-    hv "$1" '.review // [] | length == 1 and .[0].action == "approve"' | grep -qx true
-}
+# planned INDEX: whether hypothesis INDEX is a unit of its track's approved
+# plan, rather than of a later revision (later).
+planned() { hv "$1" ' | has("later") | not' | grep -qx true; }
 
 # targets INDEX: the scenario keys hypothesis INDEX's relations name.
 targets() { hvr "$1" '.doc.relations // [] | .[] | .hypothesis | select(type == "string")'; }
@@ -337,26 +322,40 @@ unit() {
     + (if .doc.project_fields then {parameters: .doc.project_fields} else {} end)' <<<"$(hv "$1" '')"
 }
 
-# plan_track TRACK INDEX...: one plan revision of TRACK with these units,
-# written by the track's planner and approved by its reviewer.
-plan_track() {
-  local track=$1 spec by reviewer reason keys i path item
+# write_plan TRACK INDEX...: a new plan revision of TRACK with these units,
+# written by the track's planner, every unit in flight or done kept, checked
+# and submitted. Prints the revision number.
+write_plan() {
+  local track=$1 spec by keys i path revision number
   shift
   spec=$(pv --arg t "$track" '[.tracks[] | select(.slug == $t)][0]')
   by=$(jq -r --arg d "$(pvr .brief.by)" '.plan.by // $d' <<<"$spec")
-  reviewer=$(jq -r --arg d "$(pvr .brief.by)" '.plan.review.by // $d' <<<"$spec")
-  reason=$(jq -r '.plan.review.reason // "The units follow the approach, and each has its acceptance plan and the context it needs."' <<<"$spec")
   keys=$(for i in "$@"; do hvr "$i" .key; done | jq -Rsc 'split("\n") | map(select(. != ""))')
   path=$BASE/tracks/$track/plans
-  local revision
   revision=$(api "$by" POST "$path" | jq -r .revision)
   api "$by" PUT "$path/draft/approach" "$(jq -c '{approach: (.plan.approach // .description)}' <<<"$spec")" >/dev/null
   for i in "$@"; do
     api "$by" POST "$path/draft/units" "$(unit "$i" "$keys")" >/dev/null
   done
+  for number in $(api "$by" GET "$path/draft" | jq -r '.needs_alignment[].number'); do
+    api "$by" PUT "$path/draft/alignments/$number" '{"decision": "keep", "reason": "Still part of the plan."}' >/dev/null
+  done
   [[ "$(api "$by" GET "$path/draft/check" | jq -r .ready)" == true ]] || die "the $track plan is not ready"
   api "$by" POST "$path/draft/submission" >/dev/null
-  api "$reviewer" POST "$path/$revision/review" "$(jq -nc --arg r "$reason" '{action: "approve", reason: $r}')" >/dev/null
+  echo "$revision"
+}
+
+# plan_track TRACK INDEX...: one plan revision of TRACK with these units,
+# approved by the track's reviewer, which creates their hypotheses.
+plan_track() {
+  local track=$1 spec reviewer reason keys revision item
+  shift
+  spec=$(pv --arg t "$track" '[.tracks[] | select(.slug == $t)][0]')
+  reviewer=$(jq -r --arg d "$(pvr .brief.by)" '.plan.review.by // $d' <<<"$spec")
+  reason=$(jq -r '.plan.review.reason // "The units follow the approach, and each has its acceptance plan and the context it needs."' <<<"$spec")
+  keys=$(for i in "$@"; do hvr "$i" .key; done | jq -Rsc 'split("\n") | map(select(. != ""))')
+  revision=$(write_plan "$track" "$@")
+  api "$reviewer" POST "$BASE/tracks/$track/plans/$revision/review" "$(jq -nc --arg r "$reason" '{action: "approve", reason: $r}')" >/dev/null
   while read -r item; do
     NUMBER[$(jq -r .key <<<"$item")]=$(jq -r .number <<<"$item")
     log "#$(jq -r .number <<<"$item") $(jq -r .title <<<"$item") (plan $track r$revision)"
@@ -364,18 +363,19 @@ plan_track() {
     jq -c --argjson keys "$keys" '.items[] | select(.key as $k | $keys | index([$k]))')
 }
 
-# plan_and_draft COUNT: every hypothesis of the scenario, through its track's
-# plan or as a draft, in passes: a plan or draft is written once every
-# hypothesis its relations name exists (or is planned with it).
-plan_and_draft() {
-  local count=$1 i track target ok progress
+# plan_all COUNT: every planned hypothesis of the scenario, through its
+# track's plan, in passes: a revision is written once every hypothesis its
+# units' relations name exists (or is planned with it).
+plan_all() {
+  local count=$1 i track target
   local -A done=()
+  for ((i = 0; i < count; i++)); do planned "$i" || done[$i]=1; done
   while ((${#done[@]} < count)); do
-    progress=0
+    local progress=0
     for track in $(pvr '.tracks[].slug'); do
       local -A batch=()
       for ((i = 0; i < count; i++)); do
-        [[ -z "${done[$i]-}" && "$(hvr "$i" .doc.track)" == "$track" ]] && planned "$i" && batch[$(hvr "$i" .key)]=$i
+        [[ -z "${done[$i]-}" && "$(hvr "$i" .doc.track)" == "$track" ]] && batch[$(hvr "$i" .key)]=$i
       done
       # Drop the units naming a hypothesis that neither exists nor is planned here.
       local changed=1
@@ -399,40 +399,33 @@ plan_and_draft() {
       fi
       unset batch
     done
-    for ((i = 0; i < count; i++)); do
-      [[ -z "${done[$i]-}" ]] && ! planned "$i" || continue
-      ok=1
-      for target in $(targets "$i"); do [[ -n "${NUMBER[$target]-}" ]] || ok=0; done
-      if ((ok)); then draft "$i"; done[$i]=1; progress=1; fi
-    done
     ((progress)) || die "the scenario's relations cannot all be resolved"
   done
 }
 
-draft() {
-  local i=$1 key by created number
-  key=$(hvr "$i" .key)
-  by=$(hvr "$i" .by)
-  created=$(api "$by" POST "$BASE/hypotheses" "$(document "$i")")
-  number=$(jq -r .number <<<"$created")
-  NUMBER[$key]=$number
-  log "#$number $(jq -r .title <<<"$created")"
-  local step action
-  while read -r step; do
-    if jq -e 'has("revise")' <<<"$step" >/dev/null; then
-      local current revision
-      current=$(api "$by" GET "$BASE/hypotheses/$number")
-      revision=$(jq -r .revision <<<"$current")
-      api "$by" PUT "$BASE/hypotheses/$number" "$(jq -nc --argjson r "$revision" \
-        --argjson d "$(document "$i" "$(jq -c .revise <<<"$step")")" '{expected_revision: $r, document: $d}')" >/dev/null
-    else
-      action=$(jq -r .action <<<"$step")
-      local revision
-      revision=$(api "$ADMIN" GET "$BASE/hypotheses/$number" | jq -r .revision)
-      api "$(jq -r .by <<<"$step")" POST "$BASE/hypotheses/$number/draft-review" \
-        "$(jq -c --argjson r "$revision" '{draft_revision: $r, action, reason}' <<<"$step")" >/dev/null
-    fi
-  done < <(hv "$i" '.review // [] | .[]')
+# later_plans COUNT: the units of a later revision of their track's plan
+# (later.review): a revision the reviewer declined (decline, by later.by with
+# later.reason), and one submitted and left for review (pending).
+later_plans() {
+  local count=$1 track review i first revision
+  for track in $(pvr '.tracks[].slug'); do
+    for review in decline pending; do
+      local indexes=()
+      for ((i = 0; i < count; i++)); do
+        [[ "$(hvr "$i" .doc.track)" == "$track" && "$(hvr "$i" '.later.review // ""')" == "$review" ]] && indexes+=("$i")
+      done
+      ((${#indexes[@]})) || continue
+      revision=$(write_plan "$track" "${indexes[@]}")
+      first=${indexes[0]}
+      if [[ "$review" == decline ]]; then
+        api "$(hvr "$first" .later.by)" POST "$BASE/tracks/$track/plans/$revision/review" \
+          "$(hv "$first" '.later | {action: "decline", reason}')" >/dev/null
+        log "plan $track r$revision declined"
+      else
+        log "plan $track r$revision awaiting review"
+      fi
+    done
+  done
 }
 
 # measurements ATTEMPT_JSON FIELD AUTHORITY: measurement objects for the
@@ -462,7 +455,8 @@ measurements() {
 run_attempt() {
   local i=$1 a=$2 key number spec by stop claim lease_file attempt_id sequence path
   key=$(hvr "$i" .key)
-  number=${NUMBER[$key]}
+  number=${NUMBER[$key]-}
+  [[ -n "$number" ]] || return 0
   spec=$(hv "$i" ".attempts[$a]")
   by=$(jq -r .by <<<"$spec")
   stop=$(jq -r .stop <<<"$spec")
@@ -485,8 +479,8 @@ run_attempt() {
       return ;;
   esac
 
-  # The candidate and a training log, then the manifest and the sheet.
-  local work=$SECRETS/work objects manifest seconds sheet
+  # The candidate and a training log, then the manifest and the run document.
+  local work=$SECRETS/work objects manifest seconds front notes document
   mkdir -p "$work"
   jq '.candidate' <<<"$spec" >"$work/candidate.json"
   seconds=$(jq -r '.seconds // 3600' <<<"$spec")
@@ -499,28 +493,24 @@ run_attempt() {
   objects+=$'\n'$(upload "$by" "$path/uploads" "$lease_file" name training_log train.log text/plain "$work/train.log")
   manifest=$(api "$by" POST "$path/manifest" "$(jq -sc --arg id "$attempt_id" \
     '{schema_version: "0.2", attempt_id: $id, objects: .}' <<<"$objects")" "$lease_file")
-  sheet=$(jq -c --arg id "$attempt_id" --argjson manifest "$manifest" \
-    --argjson measurements "$(measurements "$spec" claimed agent_claim)" \
-    --arg started "$(ago "$seconds")" --arg finished "$(now)" --arg commit "$(commit_of "$key")" \
-    --arg science "$(jq -r .attempt.science_revision <<<"$claim")" --arg by "$by" '
+  # The front matter, one JSON value per key (JSON is YAML), and the notes.
+  front=$(jq -r --argjson manifest "$manifest" \
+    --argjson claims "$(measurements "$spec" claimed agent_claim)" \
+    --arg commit "$(commit_of "$key")" --arg science "$(jq -r .attempt.science_revision <<<"$claim")" '
     {
-      schema_version: "0.2", attempt_id: $id, stage: "agent", status: "completed",
-      producer: {kind: "agent", id: (if $by == "agent" then "demo-agent" else "demo-notebook-\($by)" end)},
-      started_at: $started, finished_at: $finished,
+      claims: $claims,
       provenance: {source_revision: $commit, science_revision: $science},
-      measurements: $measurements,
-      observations: .sheet.observations,
       artifact_roles: ["candidate", "training_log"],
       manifest: $manifest,
-      report: {
-        what_was_tried: .sheet.tried, configuration: .sheet.configuration,
-        observations: .sheet.observations, findings: .sheet.findings,
-        limitations: .sheet.limitations, next_question: .sheet.next_question,
-        elapsed_seconds: (.seconds // 3600), body_markdown: .sheet.body
-      },
       extensions: {}
-    }' <<<"$spec")
-  api "$by" POST "$path/submission" "$sheet" \
+    } | to_entries[] | "\(.key): \(.value | tojson)"' <<<"$spec")
+  notes=$(jq -r '.sheet | .body // ([
+      "## What was tried", .tried, "## Configuration", .configuration,
+      "## Observations", .observations, "## Findings", .findings,
+      "## Limitations", .limitations, "## Next question", .next_question
+    ] | join("\n\n"))' <<<"$spec")
+  document=$(printf -- '---\n%s\n---\n%s\n' "$front" "$notes")
+  api "$by" POST "$path/submission" "$(jq -nc --arg document "$document" '{document: $document}')" \
     "$(headers_file submit "$(cat "$lease_file")" "Idempotency-Key: seed-demo-$attempt_id")" >/dev/null
   [[ "$stop" != submitted ]] || return 0
 
@@ -625,7 +615,8 @@ decide() {
 comments() {
   local i=$1 key number comment on target created
   key=$(hvr "$i" .key)
-  number=${NUMBER[$key]}
+  number=${NUMBER[$key]-}
+  [[ -n "$number" ]] || return 0
   while read -r comment; do
     on=$(jq -r .on <<<"$comment")
     if [[ "$on" == hypothesis ]]; then
@@ -661,10 +652,9 @@ load_project() {
   setup_project
   local count i a attempts order group
   count=$(pv '.hypotheses | length')
-  # Plans and drafts: the hypotheses a scenario approves in one step are units
-  # of their track's plan, the others drafts; each is written once what its
-  # relations name exists.
-  plan_and_draft "$count"
+  # Plans: each hypothesis is a unit of its track's approved plan, written once
+  # what its relations name exists; later units wait for the end.
+  plan_all "$count"
   # Attempts. A claim of a test or evaluation job cannot name its attempt, so
   # hypotheses that leave a job pending go last: completed work first, then
   # attempts waiting for evaluation, then for testing, then the running one.
@@ -677,6 +667,7 @@ load_project() {
     for ((a = 0; a < attempts; a++)); do run_attempt "$i" "$a"; done
   done
   for ((i = 0; i < count; i++)); do comments "$i"; done
+  later_plans "$count"
   final_track_states
 }
 

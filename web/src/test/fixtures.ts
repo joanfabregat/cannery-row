@@ -291,7 +291,7 @@ export function attention(
   overrides: Partial<Schemas["AttentionOut"]> = {},
 ): Schemas["AttentionOut"] {
   return {
-    pending_counts: { draft: 0, result: 0, failure: 0 },
+    pending_counts: { result: 0, failure: 0 },
     pending_reviews: [],
     running_count: 0,
     running: [],
@@ -437,13 +437,7 @@ export function hypothesisApi(
 export function promotedHypothesis() {
   const h = hypothesis({
     state: "promoted",
-    reviews: [
-      review({
-        kind: "draft",
-        decisions: [decision({ action: "approve", reason: "Worth a try" })],
-      }),
-      review({ kind: "result", decisions: [decision()] }),
-    ],
+    reviews: [review({ kind: "result", decisions: [decision()] })],
   });
   return { h, attempts: [attempt()], reports: { 1: report() } };
 }

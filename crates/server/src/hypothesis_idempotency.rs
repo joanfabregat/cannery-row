@@ -1,25 +1,12 @@
-//! Narrow source draft-review idempotency, owned by the enclosing transaction.
+//! Canonical request hashes for idempotency keys.
 use cannery_core::json::{Document, DocumentBuilder, Node};
 use sha2::{Digest, Sha256};
-use sqlx::PgConnection;
 pub(crate) type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 pub(crate) fn canonical_hash(document: &Document, budget: usize) -> Result<Vec<u8>> {
     Ok(Sha256::digest(cannery_core::json::canonical::bytes(document, budget)?).to_vec())
 }
-/// Sort mapping keys without recursively copying the arena.
-pub(crate) fn request_hash(
-    project: &str,
-    number: &num_bigint::BigInt,
-    review: &Document,
-    budget: usize,
-) -> Result<Vec<u8>> {
-    envelope_hash(project, Some(number), "review", review, budget)
-}
 pub(crate) fn decision_hash(project: &str, decision: &Document, budget: usize) -> Result<Vec<u8>> {
     envelope_hash(project, None, "decision", decision, budget)
-}
-pub(crate) fn creation_hash(project: &str, document: &Document, budget: usize) -> Result<Vec<u8>> {
-    envelope_hash(project, None, "document", document, budget)
 }
 pub(crate) fn envelope_hash(
     project: &str,
@@ -100,31 +87,5 @@ pub(crate) fn envelope_hash(
     let d = b.finish(root)?;
     Ok(Sha256::digest(cannery_core::json::encode_http(&d, budget)?).to_vec())
 }
-pub(crate) async fn lookup(
-    c: &mut PgConnection,
-    actor: &str,
-    key: &str,
-) -> Result<Option<(Vec<u8>, String)>> {
-    let lock = format!("hypothesis.draft_review\n{actor}\n{key}");
-    sqlx::query!(
-        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
-        lock
-    )
-    .execute(&mut *c)
-    .await?;
-    let row=sqlx::query!("SELECT request_hash,result_id FROM idempotency_keys WHERE scope='hypothesis.draft_review' AND actor=$1 AND key=$2",actor,key).fetch_optional(c).await?;
-    Ok(row.map(|r| (r.request_hash, r.result_id)))
-}
-pub(crate) async fn remember(
-    c: &mut PgConnection,
-    actor: &str,
-    key: &str,
-    hash: &[u8],
-    id: &str,
-) -> Result<()> {
-    sqlx::query!("INSERT INTO idempotency_keys(scope,actor,key,request_hash,result_id) VALUES('hypothesis.draft_review',$1,$2,$3,$4)",actor,key,hash,id).execute(c).await?;
-    Ok(())
-}
-
 #[allow(unused_imports)]
 use cannery_core::text::TextExt as _;

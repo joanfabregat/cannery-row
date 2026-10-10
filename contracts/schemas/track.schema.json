@@ -20,7 +20,7 @@
       "enum": ["agent", "workflow"]
     },
     "workflow": {
-      "description": "The experiment workflow a `workflow` track runs: registered experiment step manifest revisions, run in order. The last step outputs the claimed result sheet as `claimed_sheet`.",
+      "description": "The experiment workflow a `workflow` track runs: registered experiment step manifest revisions, run in order. The last step outputs the run document as `run` (`cr-run/v0.2`): one `run.md` file.",
       "type": "object",
       "properties": {
         "steps": {

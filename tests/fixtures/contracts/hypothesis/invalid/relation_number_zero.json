@@ -1,18 +1,16 @@
 {
   "reason": "/relations/0/hypothesis",
   "document": {
-    "schema_version": "0.2",
-    "track": "dense-hybrid",
+    "key": "fusion-weight",
     "title": "Hybrid fusion weight sweep",
     "question": "Does a learned fusion weight beat the fixed 0.5 weight?",
-    "rationale": "Fixed fusion ignores per-query confidence.",
     "intervention": "Learn the fusion weight on the dev split.",
     "control": {
       "kind": "baseline",
       "id": "base-camp",
       "revision": "base-camp-r1"
     },
-    "plan": {
+    "acceptance": {
       "selection_splits": [
         "dev"
       ],

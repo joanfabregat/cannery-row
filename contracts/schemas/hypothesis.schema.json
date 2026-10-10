@@ -1,15 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/hypothesis.schema.json",
-  "title": "Hypothesis draft (create or edit)",
-  "description": "Client-supplied draft payload. The server assigns id, number, actor, via, timestamps, state and revision; they are rejected here.",
+  "title": "Hypothesis (plan unit entry)",
+  "description": "One unit of a track plan, as add_unit takes it. Approving the plan creates or revises the unit's hypothesis; the server assigns its number, state, revision, actor, via and timestamps, which are rejected here. The brief and the number of context items are also capped by the project's limits.",
   "type": "object",
   "properties": {
-    "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
-    "track": {"$ref": "common.schema.json#/$defs/slug"},
+    "key": {
+      "description": "The unit's key in the plan, unique in the track.",
+      "$ref": "common.schema.json#/$defs/slug"
+    },
     "title": {"$ref": "common.schema.json#/$defs/text"},
     "question": {"$ref": "common.schema.json#/$defs/text"},
-    "rationale": {"$ref": "common.schema.json#/$defs/text"},
     "intervention": {"$ref": "common.schema.json#/$defs/text"},
     "control": {
       "description": "Optional label of what the hypothesis compares against. Cannery Row stores and shows it, and pins it on the test job; the evaluator decides what it means.",
@@ -22,7 +23,8 @@
       "required": ["kind", "id", "revision"],
       "additionalProperties": false
     },
-    "plan": {
+    "acceptance": {
+      "description": "How the result is judged: splits, primary metric, required slices, criteria, regression gates and compute budget, checked against the project's metric registry.",
       "type": "object",
       "properties": {
         "selection_splits": {
@@ -74,9 +76,14 @@
       ],
       "additionalProperties": false
     },
+    "parameters": {
+      "description": "The project's own hypothesis fields, checked against the science revision's hypothesis_fields schema.",
+      "$ref": "common.schema.json#/$defs/open_object"
+    },
     "relations": {
       "type": "array",
       "items": {
+        "description": "A typed relation to a hypothesis or to another unit of the same plan: exactly one of hypothesis and unit.",
         "type": "object",
         "properties": {
           "kind": {"enum": ["derived_from", "supersedes", "related_to"]},
@@ -98,22 +105,44 @@
                 "additionalProperties": false
               }
             ]
+          },
+          "unit": {
+            "description": "The key of another unit of the same plan.",
+            "$ref": "common.schema.json#/$defs/slug"
           }
         },
-        "required": ["kind", "hypothesis"],
+        "required": ["kind"],
+        "oneOf": [{"required": ["hypothesis"]}, {"required": ["unit"]}],
         "additionalProperties": false
       }
     },
-    "project_fields": {"$ref": "common.schema.json#/$defs/open_object"}
+    "context": {
+      "description": "What the unit's performer should read.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {"enum": ["unit", "writeup", "artifact"]},
+          "unit": {
+            "description": "A hypothesis number, or the key of a unit of the same plan.",
+            "oneOf": [
+              {"type": "integer", "minimum": 1},
+              {"$ref": "common.schema.json#/$defs/slug"}
+            ]
+          },
+          "attempt": {"type": "integer", "minimum": 1},
+          "artifact": {"type": "string", "format": "uuid"},
+          "note": {"type": "string"}
+        },
+        "required": ["kind"],
+        "additionalProperties": false
+      }
+    },
+    "brief": {
+      "description": "The unit's own text for whoever runs it, Markdown.",
+      "type": "string"
+    }
   },
-  "required": [
-    "schema_version",
-    "track",
-    "title",
-    "question",
-    "rationale",
-    "intervention",
-    "plan"
-  ],
+  "required": ["key", "title", "question", "intervention", "acceptance"],
   "additionalProperties": false
 }

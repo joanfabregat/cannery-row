@@ -21,7 +21,7 @@ impl Tool {
     }
     #[allow(
         clippy::too_many_lines,
-        reason = "All 58 canonical tool mappings are reviewed together"
+        reason = "All 55 canonical tool mappings are reviewed together"
     )]
     pub fn request(&self, args: &Map<String, Value>) -> Result<ToolRequest, ()> {
         let mut args = args.clone();
@@ -132,23 +132,15 @@ impl Tool {
                 };
                 (Method::GET, format!("{base}/units/{number}{suffix}"))
             }
-            "create_draft" | "list_hypotheses" => (
-                if name == "create_draft" {
-                    Method::POST
-                } else {
-                    Method::GET
-                },
-                format!("{base}/hypotheses"),
-            ),
-            "get_hypothesis" | "revise_draft" | "list_hypothesis_revisions" | "review_draft" => {
+            "list_hypotheses" => (Method::GET, format!("{base}/hypotheses")),
+            "get_hypothesis" | "list_hypothesis_revisions" => {
                 let number = take_path(&mut args, "number");
-                let (method, suffix) = match name {
-                    "revise_draft" => (Method::PUT, ""),
-                    "list_hypothesis_revisions" => (Method::GET, "/revisions"),
-                    "review_draft" => (Method::POST, "/draft-review"),
-                    _ => (Method::GET, ""),
+                let suffix = if name == "list_hypothesis_revisions" {
+                    "/revisions"
+                } else {
+                    ""
                 };
-                (method, format!("{base}/hypotheses/{number}{suffix}"))
+                (Method::GET, format!("{base}/hypotheses/{number}{suffix}"))
             }
             "claim_hypothesis" => (Method::POST, format!("{base}/claims")),
             "list_attempts" => (Method::GET, format!("{base}/attempts")),
@@ -280,13 +272,7 @@ impl Tool {
         } else {
             let body = if matches!(
                 name,
-                "create_track"
-                    | "transition_track"
-                    | "create_draft"
-                    | "post_manifest"
-                    | "submit_attempt"
-                    | "complete_job"
-                    | "fail_job"
+                "create_track" | "transition_track" | "post_manifest" | "complete_job" | "fail_job"
             ) {
                 args.remove("document").ok_or(())?
             } else {
@@ -330,7 +316,7 @@ pub(super) fn encode(value: &str) -> String {
 pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
     let values: Vec<Value> =
         serde_json::from_str(include_str!("tools.json")).map_err(|_| StartupError::Registry)?;
-    if values.len() != 58 {
+    if values.len() != 55 {
         return Err(StartupError::Registry);
     }
     values

@@ -687,7 +687,7 @@ function NewServiceAccountDialog({
       <DialogContent>
         <DialogTitle>New service account</DialogTitle>
         <DialogDescription>
-          An agent drafts and tries hypotheses; a tester measures submissions; an evaluator judges
+          An agent plans and tries hypotheses; a tester measures submissions; an evaluator judges
           them. None of them can record a human decision.
         </DialogDescription>
         <form

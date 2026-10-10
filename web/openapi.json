@@ -3697,133 +3697,6 @@
             }
           }
         }
-      },
-      "post": {
-        "summary": "Create Draft",
-        "operationId": "create_draft_api_projects__slug__hypotheses_post",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "idempotency-key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/HypothesisCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HypothesisOut"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Permission denied or invalid CSRF token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Resource conflict or stale lease",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/projects/{slug}/hypotheses/{number}": {
@@ -3849,131 +3722,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HypothesisOut"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Permission denied or invalid CSRF token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Resource conflict or stale lease",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Revise Draft",
-        "operationId": "revise_draft_api_projects__slug__hypotheses__number__put",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "number",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DraftUpdate"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5640,7 +5388,7 @@
     "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/submission": {
       "post": {
         "summary": "Submit",
-        "description": "Submit the claimed result sheet; the attempt is frozen on acceptance.\n\nA sheet with ``status: failed`` records the agent's own failure report and\nfails the attempt for human review. So does an invalid sheet, once the\ncaller has shown it holds the lease.",
+        "description": "Submit the run document of a completed run; the attempt is frozen on acceptance.\n\nThe document is Markdown with YAML front matter, checked against\n`GET /api/schemas/run`: the claims, provenance, artifact roles and verified\nmanifest, and optional run notes as the body. A run that failed releases\nthe attempt instead; front matter with a `status` is refused and leaves the\nattempt as it was. Any other invalid document fails the attempt for human\nreview, once the caller has shown it holds the lease.",
         "operationId": "submit_api_projects__slug__hypotheses__number__attempts__sequence__submission_post",
         "parameters": [
           {
@@ -5708,7 +5456,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EvidenceEnvelopeRequest"
+                "$ref": "#/components/schemas/RunSubmission"
               }
             }
           },
@@ -6233,149 +5981,10 @@
         }
       }
     },
-    "/api/projects/{slug}/hypotheses/{number}/draft-review": {
-      "post": {
-        "summary": "Review Draft",
-        "description": "Approve, send back or decline the current revision of a draft.\n\nReplaying an ``Idempotency-Key`` returns the hypothesis as it is now\nwithout deciding again; the same key with another request is a conflict.",
-        "operationId": "review_draft_api_projects__slug__hypotheses__number__draft_review_post",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "number",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          },
-          {
-            "name": "idempotency-key",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DraftReviewRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HypothesisOut"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Permission denied or invalid CSRF token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Resource conflict or stale lease",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/projects/{slug}/hypotheses/{number}/revisions": {
       "get": {
         "summary": "List Revisions",
-        "description": "Draft revisions, oldest first.",
+        "description": "Revisions, oldest first.",
         "operationId": "list_revisions_api_projects__slug__hypotheses__number__revisions_get",
         "parameters": [
           {
@@ -7343,7 +6952,7 @@
     "/api/projects/{slug}/jobs/{job_id}/inputs/claimed-sheet": {
       "get": {
         "summary": "Claimed Sheet",
-        "description": "The frozen claimed result sheet the job tests (test jobs only).",
+        "description": "The front matter of the frozen run document the job tests: the claims, provenance and manifest (test jobs only).",
         "operationId": "claimed_sheet_api_projects__slug__jobs__job_id__inputs_claimed_sheet_get",
         "parameters": [
           {
@@ -7393,7 +7002,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EvidenceEnvelopeRequest"
+                  "$ref": "#/components/schemas/ClaimedResult"
                 }
               }
             }
@@ -9344,7 +8953,7 @@
     "/api/projects/{slug}/reports": {
       "get": {
         "summary": "List Reports",
-        "description": "Reports of the project, newest first: claimed result sheets, so never an\nimported attempt, which has none.",
+        "description": "Reports of the project, newest first: run documents, and claimed result\nsheets submitted before them, so never an imported attempt, which has none.",
         "operationId": "list_reports_api_projects__slug__reports_get",
         "parameters": [
           {
@@ -14160,7 +13769,7 @@
           "claimed_sheet": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/ReadEvidenceEnvelope"
+                "$ref": "#/components/schemas/ClaimedResult"
               },
               {
                 "type": "null"
@@ -15057,7 +14666,6 @@
       "CaseKind": {
         "type": "string",
         "enum": [
-          "draft",
           "result",
           "failure"
         ]
@@ -15460,6 +15068,17 @@
           }
         },
         "additionalProperties": false
+      },
+      "ClaimedResult": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/RunFrontMatter"
+          },
+          {
+            "$ref": "#/components/schemas/ReadEvidenceEnvelope"
+          }
+        ],
+        "description": "What an attempt claimed: a run document's front matter, or a claimed result\nsheet submitted before run documents."
       },
       "ClaimedWorkflow": {
         "type": "object",
@@ -16286,52 +15905,6 @@
           "writeup"
         ]
       },
-      "DraftReviewRequest": {
-        "type": "object",
-        "required": [
-          "draft_revision",
-          "action",
-          "reason"
-        ],
-        "properties": {
-          "action": {
-            "$ref": "#/components/schemas/DraftReviewRequestAction"
-          },
-          "draft_revision": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "reason": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "DraftReviewRequestAction": {
-        "type": "string",
-        "enum": [
-          "approve",
-          "request_revision",
-          "decline"
-        ]
-      },
-      "DraftUpdate": {
-        "type": "object",
-        "required": [
-          "expected_revision",
-          "document"
-        ],
-        "properties": {
-          "document": {
-            "$ref": "#/components/schemas/HypothesisCreateRequest"
-          },
-          "expected_revision": {
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false
-      },
       "EmptyReportDocument": {
         "type": "object",
         "additionalProperties": false
@@ -16742,9 +16315,6 @@
       "HumanDecisionRequestAction": {
         "type": "string",
         "enum": [
-          "approve",
-          "request_revision",
-          "decline",
           "promote",
           "reject",
           "inconclusive",
@@ -16752,59 +16322,18 @@
           "close_failed"
         ]
       },
-      "HypothesisCreateRequest": {
-        "type": "object",
-        "required": [
-          "schema_version",
-          "track",
-          "title",
-          "question",
-          "rationale",
-          "intervention",
-          "plan"
-        ],
-        "properties": {
-          "control": {
-            "$ref": "#/components/schemas/HypothesisCreateRequestControl"
+      "HypothesisDocument": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NativeHypothesisDocument"
           },
-          "intervention": {
-            "type": "string"
-          },
-          "plan": {
-            "$ref": "#/components/schemas/HypothesisCreateRequestPlan"
-          },
-          "project_fields": {
-            "type": "object",
-            "additionalProperties": {},
-            "propertyNames": {
-              "type": "string"
-            }
-          },
-          "question": {
-            "type": "string"
-          },
-          "rationale": {
-            "type": "string"
-          },
-          "relations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/HypothesisCreateRequestRelationsItem"
-            }
-          },
-          "schema_version": {
-            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
-          },
-          "title": {
-            "type": "string"
-          },
-          "track": {
-            "type": "string"
+          {
+            "$ref": "#/components/schemas/LegacyHypothesisDocument"
           }
-        },
-        "additionalProperties": false
+        ],
+        "description": "Stored historical hypotheses can predate the full publication document."
       },
-      "HypothesisCreateRequestControl": {
+      "HypothesisDocumentControl": {
         "type": "object",
         "required": [
           "kind",
@@ -16816,7 +16345,7 @@
             "type": "string"
           },
           "kind": {
-            "$ref": "#/components/schemas/HypothesisCreateRequestControlKind"
+            "$ref": "#/components/schemas/HypothesisDocumentControlKind"
           },
           "revision": {
             "type": "string"
@@ -16824,13 +16353,13 @@
         },
         "additionalProperties": false
       },
-      "HypothesisCreateRequestControlKind": {
+      "HypothesisDocumentControlKind": {
         "type": "string",
         "enum": [
           "baseline"
         ]
       },
-      "HypothesisCreateRequestPlan": {
+      "HypothesisDocumentPlan": {
         "type": "object",
         "required": [
           "selection_splits",
@@ -16889,7 +16418,7 @@
         },
         "additionalProperties": false
       },
-      "HypothesisCreateRequestRelationsItem": {
+      "HypothesisDocumentRelation": {
         "type": "object",
         "required": [
           "kind",
@@ -16897,26 +16426,23 @@
         ],
         "properties": {
           "hypothesis": {
-            "$ref": "#/components/schemas/HypothesisCreateRequestRelationsItemHypothesis"
+            "$ref": "#/components/schemas/HypothesisDocumentRelationTarget"
           },
           "kind": {
-            "$ref": "#/components/schemas/HypothesisCreateRequestRelationsItemKind"
+            "$ref": "#/components/schemas/HypothesisDocumentRelationKind"
           }
         },
         "additionalProperties": false
       },
-      "HypothesisCreateRequestRelationsItemHypothesis": {
-        "oneOf": [
-          {
-            "type": "integer",
-            "format": "int64"
-          },
-          {
-            "$ref": "#/components/schemas/HypothesisCreateRequestRelationsItemHypothesisVariant1"
-          }
+      "HypothesisDocumentRelationKind": {
+        "type": "string",
+        "enum": [
+          "derived_from",
+          "supersedes",
+          "related_to"
         ]
       },
-      "HypothesisCreateRequestRelationsItemHypothesisVariant1": {
+      "HypothesisDocumentRelationProject": {
         "type": "object",
         "required": [
           "project",
@@ -16933,24 +16459,16 @@
         },
         "additionalProperties": false
       },
-      "HypothesisCreateRequestRelationsItemKind": {
-        "type": "string",
-        "enum": [
-          "derived_from",
-          "supersedes",
-          "related_to"
-        ]
-      },
-      "HypothesisDocument": {
+      "HypothesisDocumentRelationTarget": {
         "oneOf": [
           {
-            "$ref": "#/components/schemas/HypothesisCreateRequest"
+            "type": "integer",
+            "format": "int64"
           },
           {
-            "$ref": "#/components/schemas/LegacyHypothesisDocument"
+            "$ref": "#/components/schemas/HypothesisDocumentRelationProject"
           }
-        ],
-        "description": "Stored historical hypotheses can predate the full publication document."
+        ]
       },
       "HypothesisOut": {
         "type": "object",
@@ -17114,14 +16632,12 @@
       "HypothesisState": {
         "type": "string",
         "enum": [
-          "draft",
           "queued",
           "active",
           "awaiting_human_review",
           "promoted",
           "rejected",
           "inconclusive",
-          "declined",
           "failed",
           "cancelled"
         ]
@@ -17845,7 +17361,7 @@
           "relations": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/HypothesisCreateRequestRelationsItem"
+              "$ref": "#/components/schemas/HypothesisDocumentRelation"
             }
           },
           "schema_version": {
@@ -18200,6 +17716,58 @@
               "null"
             ],
             "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NativeHypothesisDocument": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "track",
+          "title",
+          "question",
+          "rationale",
+          "intervention",
+          "plan"
+        ],
+        "properties": {
+          "control": {
+            "$ref": "#/components/schemas/HypothesisDocumentControl"
+          },
+          "intervention": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/HypothesisDocumentPlan"
+          },
+          "project_fields": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "question": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HypothesisDocumentRelation"
+            }
+          },
+          "schema_version": {
+            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
+          },
+          "title": {
+            "type": "string"
+          },
+          "track": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -19718,10 +19286,13 @@
             "$ref": "#/components/schemas/ImportedReportDocument"
           },
           {
+            "$ref": "#/components/schemas/RunNotesDocument"
+          },
+          {
             "$ref": "#/components/schemas/EmptyReportDocument"
           }
         ],
-        "description": "Native agent report or a separately represented legacy imported report."
+        "description": "A run's notes, the structured report of a claimed result sheet submitted\nbefore run documents, or a separately represented legacy imported report."
       },
       "ReportOut": {
         "type": "object",
@@ -20624,6 +20195,96 @@
               "string",
               "null"
             ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunFrontMatter": {
+        "type": "object",
+        "description": "The front matter of a run document: what the run claims and what it ran.",
+        "required": [
+          "provenance",
+          "manifest"
+        ],
+        "properties": {
+          "artifact_roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestEvidenceEnvelopeMeasurement"
+            }
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/RequestCommonContentRef"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/RunProvenance"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunNotesDocument": {
+        "type": "object",
+        "description": "The Markdown body of a run document; empty when the run wrote no notes.",
+        "required": [
+          "body_markdown"
+        ],
+        "properties": {
+          "body_markdown": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunProvenance": {
+        "type": "object",
+        "required": [
+          "source_revision",
+          "science_revision"
+        ],
+        "properties": {
+          "control_revision": {
+            "type": "string"
+          },
+          "dataset_revision": {
+            "type": "string"
+          },
+          "science_revision": {
+            "type": "string"
+          },
+          "seed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source_revision": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RunSubmission": {
+        "type": "object",
+        "description": "A run document: Markdown with YAML front matter, checked against\n`GET /api/schemas/run`. The body holds optional run notes.",
+        "required": [
+          "document"
+        ],
+        "properties": {
+          "document": {
+            "type": "string",
+            "maxLength": 1048576,
+            "minLength": 1
           }
         },
         "additionalProperties": false
