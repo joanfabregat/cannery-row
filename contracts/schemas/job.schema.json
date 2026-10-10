@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/job.schema.json",
   "title": "Job",
-  "description": "The job document a performer receives when it claims a job: a verify job, or a hypothesis's document or decide job. The lease token authorizes only reading the job's inputs and writing under output_prefix.",
+  "description": "The job document a performer receives when it claims a job: a verify job, or a unit's document or decide job. The lease token authorizes only reading the job's inputs and writing under output_prefix.",
   "if": {
     "properties": {
       "phase": {
@@ -37,7 +37,7 @@
   "$defs": {
     "decide": {
       "title": "Decide job",
-      "description": "The job document the registered decider service account receives when it claims a hypothesis's decide job, run by the runner's decide kind. It names the decision case the decision document resolves and what that document cites: the verification report and the write-up, each absent when there is none (the document cites null). The context bundle it names is the decider's bundle. The lease token authorizes only this job and uploading its step logs under output_prefix.",
+      "description": "The job document the registered decider service account receives when it claims a unit's decide job, run by the runner's decide kind. It names the decision case the decision document resolves and what that document cites: the verification report and the write-up, each absent when there is none (the document cites null). The context bundle it names is the decider's bundle. The lease token authorizes only this job and uploading its step logs under output_prefix.",
       "type": "object",
       "properties": {
         "schema_version": {
@@ -50,7 +50,7 @@
           "const": "decide"
         },
         "attempt_id": {
-          "description": "The hypothesis's last attempt.",
+          "description": "The unit's last attempt.",
           "$ref": "common.schema.json#/$defs/identifier"
         },
         "performer": {
@@ -76,7 +76,7 @@
         "track": {
           "$ref": "common.schema.json#/$defs/slug"
         },
-        "hypothesis": {
+        "unit": {
           "type": "integer",
           "minimum": 1
         },
@@ -90,7 +90,7 @@
           "type": "object",
           "properties": {
             "verification": {
-              "description": "The verification report the decision cites as its `verification`; absent for a stopped hypothesis.",
+              "description": "The verification report the decision cites as its `verification`; absent for a stopped unit.",
               "$ref": "common.schema.json#/$defs/content_ref"
             },
             "writeup": {
@@ -131,7 +131,7 @@
         "performer",
         "decider",
         "track",
-        "hypothesis",
+        "unit",
         "science_revision",
         "review_case_id",
         "inputs",
@@ -187,11 +187,11 @@
           "$ref": "common.schema.json#/$defs/slug"
         },
         "control": {
-          "description": "The control the hypothesis names, pinned only when it names one. The report's control_revision must equal its revision.",
+          "description": "The control the unit names, pinned only when it names one. The report's control_revision must equal its revision.",
           "$ref": "common.schema.json#/$defs/pinned_ref"
         },
         "parameters": {
-          "description": "The hypothesis parameters: the project_fields of the hypothesis revision the attempt pinned ({} without any), frozen when the job was created.",
+          "description": "The unit parameters: the project_fields of the unit revision the attempt pinned ({} without any), frozen when the job was created.",
           "$ref": "common.schema.json#/$defs/open_object"
         },
         "steps": {
@@ -381,7 +381,7 @@
     },
     "document": {
       "title": "Document job",
-      "description": "The job document a documenter receives when it claims a hypothesis's document job: an agent service account or a researcher. It names what the write-up covers and cites: every attempt of the hypothesis, and the verification report, absent for a hypothesis stopped after a failure. The context bundle it names holds the brief, the plan, the unit, every attempt's run document and notes, the failures and their logs, the verification reports and the comments. The lease token authorizes only this job.",
+      "description": "The job document a documenter receives when it claims a unit's document job: an agent service account or a researcher. It names what the write-up covers and cites: every attempt of the unit, and the verification report, absent for a unit stopped after a failure. The context bundle it names holds the brief, the plan, the unit, every attempt's run document and notes, the failures and their logs, the verification reports and the comments. The lease token authorizes only this job.",
       "type": "object",
       "properties": {
         "schema_version": {
@@ -394,7 +394,7 @@
           "const": "document"
         },
         "attempt_id": {
-          "description": "The hypothesis's last attempt, verified or stopped after a failure.",
+          "description": "The unit's last attempt, verified or stopped after a failure.",
           "$ref": "common.schema.json#/$defs/identifier"
         },
         "performer": {
@@ -403,7 +403,7 @@
         "track": {
           "$ref": "common.schema.json#/$defs/slug"
         },
-        "hypothesis": {
+        "unit": {
           "type": "integer",
           "minimum": 1
         },
@@ -414,7 +414,7 @@
           "type": "object",
           "properties": {
             "attempts": {
-              "description": "The sequence numbers of every attempt of the hypothesis: the write-up's `attempts`.",
+              "description": "The sequence numbers of every attempt of the unit: the write-up's `attempts`.",
               "type": "array",
               "minItems": 1,
               "items": {
@@ -423,7 +423,7 @@
               }
             },
             "verification": {
-              "description": "The verification report the write-up cites as its `verification`; absent for a stopped hypothesis, whose write-up cites null.",
+              "description": "The verification report the write-up cites as its `verification`; absent for a stopped unit, whose write-up cites null.",
               "$ref": "common.schema.json#/$defs/content_ref"
             }
           },
@@ -449,7 +449,7 @@
         "attempt_id",
         "performer",
         "track",
-        "hypothesis",
+        "unit",
         "science_revision",
         "inputs",
         "output_prefix",

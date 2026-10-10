@@ -3,7 +3,7 @@
 mod runtime_reference;
 use cannery_attention::*;
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, ProjectId, ReviewCaseId},
+    ids::{AttemptId, ProjectId, ReviewCaseId, UnitId},
     json::{self, Document},
     timestamps::Timestamp,
 };
@@ -104,7 +104,7 @@ async fn operation(c: &mut PgConnection, r: &Value, clock: Timestamp) -> Result<
             let default_revision = BigInt::from(1);
             let input = |e| OpenDecisionCase {
                 project_id: project,
-                hypothesis_id: HypothesisId(id(r, "hypothesis", 43)),
+                unit_id: UnitId(id(r, "unit", 43)),
                 attempt_id: AttemptId(id(r, "attempt", 113)),
                 evidence_id: Some(EvidenceId(e)),
                 writeup_id: None,
@@ -279,7 +279,7 @@ async fn concurrency(url: &str) -> Result<Value> {
         Ok::<_, Error>((second, row))
     });
     let waited = blocked(&mut held, pid).await?;
-    sqlx::query("UPDATE hypotheses SET number=90 WHERE id=$1")
+    sqlx::query("UPDATE units SET number=90 WHERE id=$1")
         .bind(identity(37))
         .persistent(false)
         .execute(&mut *held)
@@ -293,7 +293,7 @@ async fn concurrency(url: &str) -> Result<Value> {
         &mut held,
         OpenDecisionCase {
             project_id: ProjectId(identity(2)),
-            hypothesis_id: HypothesisId(identity(43)),
+            unit_id: UnitId(identity(43)),
             attempt_id: AttemptId(identity(113)),
             evidence_id: Some(EvidenceId(identity(213))),
             writeup_id: None,
@@ -307,7 +307,7 @@ async fn concurrency(url: &str) -> Result<Value> {
             &mut second,
             OpenDecisionCase {
                 project_id: ProjectId(identity(2)),
-                hypothesis_id: HypothesisId(identity(43)),
+                unit_id: UnitId(identity(43)),
                 attempt_id: AttemptId(identity(113)),
                 evidence_id: Some(EvidenceId(identity(214))),
                 writeup_id: None,
@@ -321,7 +321,7 @@ async fn concurrency(url: &str) -> Result<Value> {
     held.rollback().await?;
     let accepted = contender.await??;
     Ok(
-        json!({"case_waited":waited,"joined_number":joined.hypothesis_number,"unique_waited":unique_waited,"rollback_contender_accepted":accepted.is_some()}),
+        json!({"case_waited":waited,"joined_number":joined.unit_number,"unique_waited":unique_waited,"rollback_contender_accepted":accepted.is_some()}),
     )
 }
 

@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT h.track_id AS \"track_id!: TrackId\", h.id AS \"unit_id!: UnitId\",\n        h.number, h.title, h.state,\n        (SELECT u.key FROM plan_units u JOIN plan_revisions p ON p.id = u.plan_revision_id\n         WHERE u.unit_id = h.id AND p.state = 'approved'\n         ORDER BY p.revision DESC LIMIT 1) AS \"key?\",\n        EXISTS (SELECT 1 FROM plan_alignments a JOIN plan_revisions p ON p.id = a.plan_revision_id\n                WHERE a.unit_id = h.id AND p.state = 'approved'\n                  AND a.decision IN ('obsolete', 'redo')) AS \"obsolete!\",\n        h.revision, h.approved_revision\n        FROM units h WHERE h.project_id = $1 AND h.number = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "track_id!: TrackId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_id!: UnitId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "key?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "obsolete!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "approved_revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      false,
+      true
+    ]
+  },
+  "hash": "69fde7cf7705fcf86752b0f49138f9054db1d84f2bccab9f41ee561c5c8bb295"
+}

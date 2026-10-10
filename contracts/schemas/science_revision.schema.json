@@ -6,8 +6,8 @@
   "type": "object",
   "properties": {
     "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
-    "hypothesis_fields": {
-      "description": "Project JSON Schema for hypothesis project_fields.",
+    "unit_fields": {
+      "description": "Project JSON Schema for unit project_fields.",
       "$ref": "common.schema.json#/$defs/json_schema"
     },
     "result_extensions": {
@@ -37,7 +37,7 @@
       "else": {"properties": {"verifier": {"not": {}}}}
     },
     "decide": {
-      "description": "Who decides a written-up hypothesis. `researcher` (the default when absent): a researcher records the decision document on its decision case. `step`: the registered decider service account runs its decider step (`cannery runner`, kind `decide`), which writes the decision document; it promotes only on a `pass` verdict, as a researcher does.",
+      "description": "Who decides a written-up unit. `researcher` (the default when absent): a researcher records the decision document on its decision case. `step`: the registered decider service account runs its decider step (`cannery runner`, kind `decide`), which writes the decision document; it promotes only on a `pass` verdict, as a researcher does.",
       "type": "object",
       "properties": {
         "performer": {"enum": ["researcher", "step"]},

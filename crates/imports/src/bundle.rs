@@ -30,7 +30,7 @@ pub enum EntryKind {
     Project,
     Policy,
     Track,
-    Hypothesis,
+    Unit,
 }
 impl EntryKind {
     #[must_use]
@@ -39,7 +39,7 @@ impl EntryKind {
             Self::Project => "project",
             Self::Policy => "policy",
             Self::Track => "track",
-            Self::Hypothesis => "hypothesis",
+            Self::Unit => "unit",
         }
     }
 }
@@ -189,7 +189,7 @@ impl Reader {
             }
             if kind == FileType::Directory {
                 if !(prefix.is_empty()
-                    && ["policies", "tracks", "hypotheses", "reports"].contains(&name.as_str())
+                    && ["policies", "tracks", "units", "reports"].contains(&name.as_str())
                     || prefix == "reports"
                     || prefix.starts_with("reports/"))
                 {
@@ -339,7 +339,7 @@ pub fn read_bundle(
             "" if stem == "project" => (EntryKind::Project, "slug"),
             "policies" => (EntryKind::Policy, "id"),
             "tracks" => (EntryKind::Track, "slug"),
-            "hypotheses" => (EntryKind::Hypothesis, "id"),
+            "units" => (EntryKind::Unit, "id"),
             _ => return Err(Error::problem(&path, "", "not part of a bundle")),
         };
         if !seen.insert((kind, stem.to_owned())) {
@@ -375,13 +375,12 @@ pub fn read_bundle(
         }
     }
     let project = project.ok_or_else(|| Error::problem("project.yaml", "", "missing"))?;
-    let mut assembled =
-        json!({"project":project.content,"policies":[],"tracks":[],"hypotheses":[]});
+    let mut assembled = json!({"project":project.content,"policies":[],"tracks":[],"units":[]});
     for entry in &entries {
         let key = match entry.kind {
             EntryKind::Policy => "policies",
             EntryKind::Track => "tracks",
-            EntryKind::Hypothesis => "hypotheses",
+            EntryKind::Unit => "units",
             EntryKind::Project => return Err(Error::CorruptData),
         };
         assembled[key]
@@ -410,7 +409,7 @@ pub fn read_bundle(
                     } else if let Some(kind) = match group {
                         "policies" => Some(EntryKind::Policy),
                         "tracks" => Some(EntryKind::Track),
-                        "hypotheses" => Some(EntryKind::Hypothesis),
+                        "units" => Some(EntryKind::Unit),
                         _ => None,
                     } {
                         let index = parts.next().and_then(|index| index.parse::<usize>().ok());
@@ -435,7 +434,7 @@ pub fn read_bundle(
     }
     let mut referenced = BTreeSet::new();
     for entry in &mut entries {
-        if entry.kind != EntryKind::Hypothesis {
+        if entry.kind != EntryKind::Unit {
             continue;
         }
         if let Some(attempts) = entry
@@ -479,10 +478,10 @@ pub fn read_bundle(
         let key = match entry.kind {
             EntryKind::Policy => "policies",
             EntryKind::Track => "tracks",
-            EntryKind::Hypothesis => "hypotheses",
+            EntryKind::Unit => "units",
             EntryKind::Project => return Err(Error::CorruptData),
         };
-        if entry.kind == EntryKind::Hypothesis
+        if entry.kind == EntryKind::Unit
             && let Some(items) = assembled[key].as_array_mut()
             && let Some(old) = items
                 .iter_mut()

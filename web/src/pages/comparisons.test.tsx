@@ -4,10 +4,10 @@ import type { Schemas } from "@/api/client";
 
 import {
   attempt,
-  hypothesis,
+  unit,
   metric,
-  hypothesisApi,
-  promotedHypothesis,
+  unitApi,
+  promotedUnit,
   report,
   review,
   reviewCase,
@@ -108,7 +108,7 @@ function row(table: HTMLElement, name: RegExp): HTMLElement {
   return tr;
 }
 
-/** Checks the comparisons table the review screen and the hypothesis page share. */
+/** Checks the comparisons table the review screen and the unit page share. */
 function expectComparisons(scope: HTMLElement) {
   const table = within(scope).getByRole("table", { name: /“Better” follows/ });
   expect(within(table).getAllByRole("row")).toHaveLength(COMPARISONS.length + 1);
@@ -123,10 +123,7 @@ function expectComparisons(scope: HTMLElement) {
   const french = row(table, /^ndcg Data set: dev · Language: fr$/);
   expect(within(french).getByText("Computed by the policy")).toBeInTheDocument();
   expect(within(french).getByText("best promoted · Best promoted result")).toBeInTheDocument();
-  expect(within(french).getByRole("link", { name: "#42" })).toHaveAttribute(
-    "href",
-    "/hypotheses/42",
-  );
+  expect(within(french).getByRole("link", { name: "#42" })).toHaveAttribute("href", "/units/42");
   expect(within(french).getByText("Worse")).toBeInTheDocument();
 
   // Lower is better: 120 ms against 150 ms is an improvement.
@@ -163,12 +160,12 @@ function expectComparisons(scope: HTMLElement) {
 
 describe("the verification's comparisons on the review screen", () => {
   function awaitingResult() {
-    const h = hypothesis({
+    const h = unit({
       state: "deciding",
       reviews: [review({ id: CASE_ID, kind: "decision", state: "pending", subject_revision: 3 })],
     });
     return {
-      ...hypothesisApi(h, {
+      ...unitApi(h, {
         attempts: [attempt({ state: "verified" })],
         reports: {
           1: report({
@@ -195,7 +192,7 @@ describe("the verification's comparisons on the review screen", () => {
 
   it("names the verifier and its rules version, lists its checks and what it compared", async () => {
     signedIn({}, awaitingResult());
-    renderApp("/hypotheses/12/review");
+    renderApp("/units/12/review");
     const verdict = await screen.findByRole("region", { name: "Verification verdict" });
     expect(
       await within(verdict).findByText(/^Judged by stock-verifier \(rules version p2\)/),
@@ -214,9 +211,9 @@ describe("the verification's comparisons on the review screen", () => {
   });
 });
 
-describe("the verification's comparisons on the hypothesis page", () => {
+describe("the verification's comparisons on the unit page", () => {
   it("shows the same table under the verdict, with the directions of the attempt's science revision", async () => {
-    const { h, attempts } = promotedHypothesis();
+    const { h, attempts } = promotedUnit();
     const withComparisons = report({
       science_revision: 3,
       verification: verification({
@@ -230,11 +227,11 @@ describe("the verification's comparisons on the hypothesis page", () => {
     const { requests } = signedIn(
       {},
       {
-        ...hypothesisApi(h, { attempts, reports: { 1: withComparisons } }),
+        ...unitApi(h, { attempts, reports: { 1: withComparisons } }),
         "GET /api/projects/sardines/metrics": () => json({ ...CATALOG, science_revision: 3 }),
       },
     );
-    renderApp("/hypotheses/12");
+    renderApp("/units/12");
     const verdict = await screen.findByRole("region", { name: "Verdict" });
     expect(
       within(verdict).getByText(/^Judged by stock-verifier \(rules version p2\)/),
@@ -251,7 +248,7 @@ describe("the verification's comparisons on the hypothesis page", () => {
   });
 
   it("waits for the metrics' directions instead of saying it can't tell", async () => {
-    const { h, attempts } = promotedHypothesis();
+    const { h, attempts } = promotedUnit();
     const withComparisons = report({
       verification: verification({
         reason: null,
@@ -267,14 +264,14 @@ describe("the verification's comparisons on the hypothesis page", () => {
     signedIn(
       {},
       {
-        ...hypothesisApi(h, { attempts, reports: { 1: withComparisons } }),
+        ...unitApi(h, { attempts, reports: { 1: withComparisons } }),
         "GET /api/projects/sardines/metrics": async () => {
           await answered;
           return catalog();
         },
       },
     );
-    renderApp("/hypotheses/12");
+    renderApp("/units/12");
     const verdict = await screen.findByRole("region", { name: "Verdict" });
     const table = within(verdict).getByRole("table", { name: /“Better” follows/ });
     // Equal values need no direction; every other row waits.
@@ -289,9 +286,9 @@ describe("the verification's comparisons on the hypothesis page", () => {
   });
 
   it("falls back on the verified directions and says when nothing was compared", async () => {
-    const { h, attempts, reports } = promotedHypothesis();
-    signedIn({}, hypothesisApi(h, { attempts, reports }));
-    renderApp("/hypotheses/12");
+    const { h, attempts, reports } = promotedUnit();
+    signedIn({}, unitApi(h, { attempts, reports }));
+    renderApp("/units/12");
     const verdict = await screen.findByRole("region", { name: "Verdict" });
     expect(within(verdict).getByText(/^Judged by judge \(rules version 1\)/)).toBeInTheDocument();
     expect(
@@ -303,15 +300,15 @@ describe("the verification's comparisons on the hypothesis page", () => {
   });
 });
 
-describe("a hypothesis without a control", () => {
+describe("a unit without a control", () => {
   const noControl = report({
     verification: verification({ measurements: [verifiedMeasurement()] }),
   });
 
-  it("shows no empty control on the hypothesis page", async () => {
-    const { h, attempts } = promotedHypothesis();
-    signedIn({}, hypothesisApi(h, { attempts, reports: { 1: noControl } }));
-    renderApp("/hypotheses/12");
+  it("shows no empty control on the unit page", async () => {
+    const { h, attempts } = promotedUnit();
+    signedIn({}, unitApi(h, { attempts, reports: { 1: noControl } }));
+    renderApp("/units/12");
     const sentence = await screen.findByTestId("outcome-sentence");
     expect(sentence).not.toHaveTextContent(/undefined|null|control/i);
     const idea = screen.getByRole("region", { name: "The idea" });
@@ -324,14 +321,14 @@ describe("a hypothesis without a control", () => {
     expect(document.body).not.toHaveTextContent(/undefined/);
   });
 
-  it("names the control when the hypothesis has one", async () => {
-    const { h, attempts, reports } = promotedHypothesis();
-    const named: Schemas["HypothesisOut"] = {
+  it("names the control when the unit has one", async () => {
+    const { h, attempts, reports } = promotedUnit();
+    const named: Schemas["UnitOut"] = {
       ...h,
       document: { ...h.document, control: { kind: "baseline", id: "base-camp", revision: "r3" } },
     };
-    signedIn({}, hypothesisApi(named, { attempts, reports }));
-    renderApp("/hypotheses/12");
+    signedIn({}, unitApi(named, { attempts, reports }));
+    renderApp("/units/12");
     const idea = await screen.findByRole("region", { name: "The idea" });
     expect(within(idea).getByText("Compared with")).toBeInTheDocument();
     expect(within(idea).getByText("base-camp, revision r3")).toBeInTheDocument();

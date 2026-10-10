@@ -5,7 +5,7 @@ use cannery_attempts::{
 };
 use cannery_core::{
     db::{load_migrations, migrate_connection},
-    ids::{AttemptId, HypothesisId, ProjectId},
+    ids::{AttemptId, ProjectId, UnitId},
 };
 use sqlx::{Connection, PgConnection, postgres::PgConnectOptions};
 use std::{
@@ -34,7 +34,7 @@ async fn initialize(connection: &mut PgConnection) -> Result<()> {
 
 async fn check_attempt_reads(connection: &mut PgConnection) -> Result<()> {
     let project = ProjectId("00000000-0000-0000-0000-000000000002".parse()?);
-    let hypothesis = HypothesisId("00000000-0000-0000-0000-000000000011".parse()?);
+    let unit = UnitId("00000000-0000-0000-0000-000000000011".parse()?);
     let first_id = AttemptId("00000000-0000-0000-0000-000000000021".parse()?);
     let second_id = AttemptId("00000000-0000-0000-0000-000000000022".parse()?);
     let missing = AttemptId("00000000-0000-0000-0000-000000000099".parse()?);
@@ -82,7 +82,7 @@ async fn check_attempt_reads(connection: &mut PgConnection) -> Result<()> {
     );
     assert_eq!(
         repository
-            .list_attempts(hypothesis, None, None)
+            .list_attempts(unit, None, None)
             .await?
             .iter()
             .map(|attempt| attempt.id)
@@ -115,7 +115,7 @@ async fn check_attempt_reads(connection: &mut PgConnection) -> Result<()> {
     );
     assert!(
         repository
-            .list_attempts(hypothesis, Some(&1.into()), None)
+            .list_attempts(unit, Some(&1.into()), None)
             .await?
             .is_empty()
     );

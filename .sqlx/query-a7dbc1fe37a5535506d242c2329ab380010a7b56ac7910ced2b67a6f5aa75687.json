@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.kind AS \"kind!\", h.id AS \"unit_id!: _\", h.project_id AS \"project_id!: _\", p.slug AS \"project_slug!\", h.number AS \"number!\", h.title AS \"title!\", h.state AS \"state!\" FROM unit_relations r JOIN units h ON h.id=r.target_id JOIN projects p ON p.id=h.project_id WHERE r.unit_id=$1 ORDER BY r.kind,p.slug,h.number",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "project_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "title!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "state!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a7dbc1fe37a5535506d242c2329ab380010a7b56ac7910ced2b67a6f5aa75687"
+}

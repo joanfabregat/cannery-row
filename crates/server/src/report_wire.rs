@@ -107,9 +107,9 @@ fn summary(row: &ReportRow, p: ResponseContext) -> Result<ReportSummary> {
     };
     Ok(ReportSummary {
         id: row.id.0.to_string(),
-        attempt_ref: format!("#{}.{}", row.hypothesis_number, row.attempt_sequence),
-        hypothesis: i64::from(row.hypothesis_number),
-        hypothesis_title: convert(&row.hypothesis_title)?,
+        attempt_ref: format!("#{}.{}", row.unit_number, row.attempt_sequence),
+        unit: i64::from(row.unit_number),
+        unit_title: convert(&row.unit_title)?,
         track: convert(&row.track_slug)?,
         attempt_state: row.attempt_state.as_str().to_owned(),
         status: row.status.as_str().to_owned(),
@@ -191,7 +191,7 @@ pub(crate) struct Detail<'a> {
     pub sheet: Option<&'a EvidenceRow>,
     pub imported: Option<&'a ImportedReportRow>,
     pub verification: Vec<u8>,
-    pub decisions: &'a [cannery_hypotheses::repo::Decision],
+    pub decisions: &'a [cannery_units::repo::Decision],
     pub assets: &'a [cannery_attempts::model::Artifact],
 }
 
@@ -220,9 +220,9 @@ pub(crate) fn detail(detail: &Detail<'_>, p: ResponseContext) -> Result<Vec<u8>>
         .unwrap_or_default();
     encode(&ReportOut {
         id: detail.sheet.map_or(a.id.0, |sheet| sheet.id.0).to_string(),
-        attempt_ref: format!("#{}.{}", a.hypothesis_number, a.sequence),
-        hypothesis: i64::from(a.hypothesis_number),
-        hypothesis_title: detail.title.to_owned(),
+        attempt_ref: format!("#{}.{}", a.unit_number, a.sequence),
+        unit: i64::from(a.unit_number),
+        unit_title: detail.title.to_owned(),
         track: convert(&a.track_slug)?,
         attempt_state: a.state.as_str().to_owned(),
         science_revision: i64::from(a.science_revision),
@@ -253,7 +253,7 @@ pub(crate) fn detail(detail: &Detail<'_>, p: ResponseContext) -> Result<Vec<u8>>
         decisions: detail
             .decisions
             .iter()
-            .map(|d| decode(&crate::hypothesis_wire::decision(d)?))
+            .map(|d| decode(&crate::unit_wire::decision(d)?))
             .collect::<Result<_>>()?,
         assets: detail
             .assets

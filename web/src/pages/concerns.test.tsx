@@ -4,10 +4,10 @@ import type { Schemas } from "@/api/client";
 import {
   attention,
   decision,
-  hypothesis,
-  hypothesisApi,
+  unit,
+  unitApi,
   page,
-  promotedHypothesis,
+  promotedUnit,
   review,
   track,
 } from "@/test/fixtures";
@@ -24,7 +24,7 @@ function concern(overrides: Partial<Schemas["ConcernOut"]> = {}): Schemas["Conce
     track: "tokenizer",
     kind: "wrong_assumption",
     state: "open",
-    hypothesis: 4,
+    unit: 4,
     attempt: 1,
     body: "The baseline assumes the corpus is deduplicated; it is not.",
     front_matter: { kind: "wrong_assumption", attempt: "#4.1" },
@@ -78,7 +78,7 @@ function trackPage(concerns: Schemas["ConcernOut"][], draft: Schemas["PlanOut"] 
   return {
     [`GET ${TRACK}`]: () => json(track()),
     [`GET ${TRACK}/history`]: () => json(page([])),
-    "GET /api/projects/sardines/hypotheses": () => json(page([])),
+    "GET /api/projects/sardines/units": () => json(page([])),
     [`GET ${TRACK}/plans/current`]: () => json(plan()),
     [`GET ${TRACK}/plans/draft`]: () => (draft ? json(draft) : notFound()),
     [`GET ${TRACK}/plans`]: () => json(page([])),
@@ -98,7 +98,7 @@ describe("concerns about a track's plan", () => {
             id: DISMISSED,
             kind: "better_idea",
             state: "dismissed",
-            hypothesis: null,
+            unit: null,
             attempt: null,
             body: "Try a larger vocabulary first.",
             closed_at: "2026-03-03T10:00:00Z",
@@ -118,7 +118,7 @@ describe("concerns about a track's plan", () => {
     expect(within(open).getByText(/the corpus is deduplicated/)).toBeInTheDocument();
     expect(within(open).getByRole("link", { name: "#4.1" })).toHaveAttribute(
       "href",
-      "/hypotheses/4/attempts/1",
+      "/units/4/attempts/1",
     );
     expect(within(open).getByText(/nightly-agent \(Agent \(MCP\), codex\)/)).toBeInTheDocument();
     expect(within(section).getByText("Closed concerns (1)")).toBeInTheDocument();
@@ -232,8 +232,8 @@ describe("Home", () => {
                   kind: "decision",
                   subject_revision: 3,
                   opened_at: "2026-03-02T10:00:00Z",
-                  hypothesis: 12,
-                  hypothesis_ref: "#12",
+                  unit: 12,
+                  unit_ref: "#12",
                   title: "Shorter prompts",
                   track: "tokenizer",
                   attempt_ref: "#12.1",
@@ -279,8 +279,8 @@ describe("Home", () => {
 
 describe("an automatic decision", () => {
   it("says the decider step decided, not a researcher", async () => {
-    const { attempts } = promotedHypothesis();
-    const h = hypothesis({
+    const { attempts } = promotedUnit();
+    const h = unit({
       state: "promoted",
       reviews: [
         review({
@@ -297,8 +297,8 @@ describe("an automatic decision", () => {
         }),
       ],
     });
-    signedIn({}, hypothesisApi(h, { attempts }));
-    renderApp("/hypotheses/12");
+    signedIn({}, unitApi(h, { attempts }));
+    renderApp("/units/12");
     expect(await screen.findByTestId("outcome-sentence")).toHaveTextContent(
       "the decider step accepted it because “Every check passed.”",
     );

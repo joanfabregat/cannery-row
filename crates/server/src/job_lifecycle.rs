@@ -36,7 +36,7 @@ pub struct Context {
     pub jobs: jobs::JsonContext,
     pub attempts: cannery_attempts::model::JsonContext,
     pub config: config_repo::JsonContext,
-    pub hypotheses: cannery_hypotheses::repo::JsonContext,
+    pub units: cannery_units::repo::JsonContext,
     pub rendering: RenderingContext,
 }
 pub(crate) fn document(
@@ -282,17 +282,13 @@ pub(crate) async fn create_verify_job(
     let scorer = builder
         .finish(root)
         .map_err(|_| internal(r, "verify scorer document"))?;
-    let revision = cannery_hypotheses::repo::get_revision(
-        c,
-        a.hypothesis_id,
-        &BigInt::from(a.hypothesis_revision),
-        s.hypotheses,
-    )
-    .await
-    .map_err(|_| internal(r, "verify pinned hypothesis"))?
-    .ok_or_else(|| internal(r, "verify pinned hypothesis missing"))?;
+    let revision =
+        cannery_units::repo::get_revision(c, a.unit_id, &BigInt::from(a.unit_revision), s.units)
+            .await
+            .map_err(|_| internal(r, "verify pinned unit"))?
+            .ok_or_else(|| internal(r, "verify pinned unit missing"))?;
     let hyp = value(&revision.content, s, r)?;
-    // The step contract pins identity only; hypothesis control metadata is not
+    // The step contract pins identity only; unit control metadata is not
     // part of the closed pinned_ref schema of a verify job.
     let control = hyp
         .get("control")

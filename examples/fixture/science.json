@@ -1,7 +1,7 @@
 {
   "schema_version": "0.2",
   "verify": {"performer": "runner", "verifier": {"id": "cannery-runner", "revision": "fixture-policy-1"}},
-  "hypothesis_fields": {
+  "unit_fields": {
     "type": "object",
     "properties": {
       "top_k": {

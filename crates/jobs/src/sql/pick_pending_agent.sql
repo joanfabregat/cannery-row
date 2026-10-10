@@ -7,7 +7,7 @@ SELECT id AS "id!: _" FROM jobs
                                      OR ($4 = 'verify' AND (a.claimed_by_service = $2::uuid
                                                            OR a.claimed_by_user = $3::uuid))))
               AND ($4 = 'verify' OR EXISTS (SELECT 1 FROM attempts a
-                                            JOIN hypotheses h ON h.id = a.hypothesis_id
+                                            JOIN units h ON h.id = a.unit_id
                                             WHERE a.id = jobs.attempt_id
                                               AND h.state = 'documenting'))
             ORDER BY created_at, id

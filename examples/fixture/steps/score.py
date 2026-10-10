@@ -18,7 +18,7 @@ from fixture_step import job, read_json, root, write_json
 METRIC = {"metric": "mrr", "unit": "ratio", "direction": "higher", "split": "dev"}
 
 # The control's published MRR per slice ("all" for the overall slice), by the
-# immutable revision of the control the job pins (none when the hypothesis
+# immutable revision of the control the job pins (none when the unit
 # names no control). The scorer resolves the control by its identity rather
 # than re-running it; an unknown revision leaves ``control_value`` out. It is
 # informational: the stock policy configuration (../policy.json)

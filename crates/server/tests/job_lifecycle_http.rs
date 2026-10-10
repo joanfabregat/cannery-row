@@ -35,7 +35,7 @@ fn profile() -> Result<JobLifecycleContext> {
                 encode_nesting_budget: 80,
                 decode_nesting_budget: 80,
             },
-            hypotheses: cannery_hypotheses::repo::JsonContext {
+            units: cannery_units::repo::JsonContext {
                 encode_nesting_budget: 80,
                 decode_nesting_budget: 80,
             },
@@ -471,18 +471,18 @@ async fn publication_and_upload(
     assert_eq!(status, 409, "{value}");
     let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='verification'),(SELECT count(*) FROM manifests WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='verify'),(SELECT count(*) FROM idempotency_keys WHERE scope='job.complete')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
-    // Publication marks the attempt verified and queues the hypothesis's write-up.
-    let (attempt,hypothesis,cases,jobs):(String,String,i64,i64)=sqlx::query_as("SELECT a.state,h.state,(SELECT count(*) FROM review_cases c WHERE c.attempt_id=a.id),(SELECT count(*) FROM jobs j WHERE j.attempt_id=a.id AND j.phase='document' AND j.state='pending') FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id='00000000-0000-0000-0000-000000002006'").fetch_one(pool).await?;
+    // Publication marks the attempt verified and queues the unit's write-up.
+    let (attempt,unit,cases,jobs):(String,String,i64,i64)=sqlx::query_as("SELECT a.state,h.state,(SELECT count(*) FROM review_cases c WHERE c.attempt_id=a.id),(SELECT count(*) FROM jobs j WHERE j.attempt_id=a.id AND j.phase='document' AND j.state='pending') FROM attempts a JOIN units h ON h.id=a.unit_id WHERE a.id='00000000-0000-0000-0000-000000002006'").fetch_one(pool).await?;
     assert_eq!(
-        (attempt, hypothesis, cases, jobs),
+        (attempt, unit, cases, jobs),
         ("verified".into(), "documenting".into(), 0, 1)
     );
     Ok(())
 }
 async fn rerun_budget(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
-    sqlx::raw_sql("INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at) SELECT '00000000-0000-0000-0000-000000001405',project_id,1405,track_id,'Rerun budget',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001005';
-    INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel) SELECT '00000000-0000-0000-0000-000000001405',2,content,3,author_user,via_channel FROM hypothesis_revisions WHERE hypothesis_id='00000000-0000-0000-0000-000000001005' AND revision=2;
-    INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002405','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001405',1,'verifying',2,3,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
+    sqlx::raw_sql("INSERT INTO units(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at) SELECT '00000000-0000-0000-0000-000000001405',project_id,1405,track_id,'Rerun budget',created_by_user,'active',2,2,approved_at FROM units WHERE id='00000000-0000-0000-0000-000000001005';
+    INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel) SELECT '00000000-0000-0000-0000-000000001405',2,content,3,author_user,via_channel FROM unit_revisions WHERE unit_id='00000000-0000-0000-0000-000000001005' AND revision=2;
+    INSERT INTO attempts(id,project_id,unit_id,sequence,state,unit_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002405','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001405',1,'verifying',2,3,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
     INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003405','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002405','agent','completed','{\"provenance\":{\"source_revision\":\"source-1\"}}',repeat('a',64),'00000000-0000-0000-0000-000000000020','api');
     INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006107',project_id,'00000000-0000-0000-0000-000000002405','verify',1,'claimed',3,performer,verifier_id,jsonb_set(spec,'{inputs,run,ref}','\"00000000-0000-0000-0000-000000003405\"'),600,'00000000-0000-0000-0000-000000000023','api',1,sha256(convert_to('rerun-initial','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006006';").execute(pool).await?;
     // The runner's report names another policy revision than the registered verifier's.
@@ -647,11 +647,11 @@ async fn cancelled_receive(
 async fn agent_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     // A researcher ran attempt 2406; the agent service account verifies it.
     sqlx::raw_sql(r#"
-INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at)
-SELECT '00000000-0000-0000-0000-000000001406',project_id,1406,track_id,'Agent verification',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001006';
-INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel)
-SELECT '00000000-0000-0000-0000-000000001406',2,content,3,author_user,via_channel FROM hypothesis_revisions WHERE hypothesis_id='00000000-0000-0000-0000-000000001006' AND revision=2;
-INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001406',1,'verifying',2,3,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000002','api',0);
+INSERT INTO units(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at)
+SELECT '00000000-0000-0000-0000-000000001406',project_id,1406,track_id,'Agent verification',created_by_user,'active',2,2,approved_at FROM units WHERE id='00000000-0000-0000-0000-000000001006';
+INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel)
+SELECT '00000000-0000-0000-0000-000000001406',2,content,3,author_user,via_channel FROM unit_revisions WHERE unit_id='00000000-0000-0000-0000-000000001006' AND revision=2;
+INSERT INTO attempts(id,project_id,unit_id,sequence,state,unit_revision,science_revision,track_id,claimed_by_user,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001406',1,'verifying',2,3,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000002','api',0);
 INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_user,via_channel) VALUES('00000000-0000-0000-0000-000000003406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002406','agent','completed','{"provenance":{"source_revision":"source-1"}}',repeat('a',64),'00000000-0000-0000-0000-000000000002','api');
 INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006108',project_id,'00000000-0000-0000-0000-000000002406','verify',1,'claimed',3,'agent',NULL,jsonb_set((spec-'verifier')||'{"performer":"agent"}','{inputs,run,ref}','"00000000-0000-0000-0000-000000003406"'),600,'00000000-0000-0000-0000-000000000020','api',1,sha256(convert_to('agent-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006006';
 "#).execute(pool).await?;
@@ -704,11 +704,8 @@ INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revisio
     assert_ne!(first.2, second.2);
     let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND stage='verification'),(SELECT count(*) FROM jobs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND phase='document' AND state='pending'),(SELECT count(*) FROM audit_events WHERE action='attempt.verified' AND subject_id='00000000-0000-0000-0000-000000002406')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
-    let (attempt,hypothesis):(String,String)=sqlx::query_as("SELECT a.state,h.state FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id='00000000-0000-0000-0000-000000002406'").fetch_one(pool).await?;
-    assert_eq!(
-        (attempt, hypothesis),
-        ("verified".into(), "documenting".into())
-    );
+    let (attempt,unit):(String,String)=sqlx::query_as("SELECT a.state,h.state FROM attempts a JOIN units h ON h.id=a.unit_id WHERE a.id='00000000-0000-0000-0000-000000002406'").fetch_one(pool).await?;
+    assert_eq!((attempt, unit), ("verified".into(), "documenting".into()));
     let linked:bool=sqlx::query_scalar("SELECT e.producer_service='00000000-0000-0000-0000-000000000020' AND NOT EXISTS (SELECT 1 FROM review_cases c WHERE c.attempt_id=j.attempt_id) FROM jobs j JOIN phase_outputs e ON e.id=j.evidence_id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
     assert!(linked);
     Ok(())
@@ -721,11 +718,11 @@ INSERT INTO config_revisions(project_id,kind,revision,content,created_by)
 SELECT project_id,kind,5,content||'{"metrics":[{"key":"mrr","splits":["dev"],"dimensions":[],"unit":"ratio","direction":"higher"}],"decide":{"performer":"step","decider":{"id":"fixture-decider","revision":"decider-1"}}}'::jsonb,created_by FROM config_revisions WHERE project_id='00000000-0000-0000-0000-000000000010' AND kind='science' AND revision=3;
 INSERT INTO service_accounts(id,project_id,kind,name,created_by) VALUES('00000000-0000-0000-0000-000000000028','00000000-0000-0000-0000-000000000010','decider','fixture-decider','00000000-0000-0000-0000-000000000001');
 INSERT INTO api_tokens(token_hash,display_prefix,kind,service_account_id,name,scopes,expires_at) VALUES(sha256(convert_to('cr_svc_track_http_decider','UTF8')),'cr_svc_fixture','service','00000000-0000-0000-0000-000000000028','decider',ARRAY['read','write'],'2099-01-01Z');
-INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at)
-SELECT '00000000-0000-0000-0000-000000001416',project_id,1416,track_id,'Researcher verification',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001006';
-INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel)
-SELECT '00000000-0000-0000-0000-000000001416',2,content,5,author_user,via_channel FROM hypothesis_revisions WHERE hypothesis_id='00000000-0000-0000-0000-000000001006' AND revision=2;
-INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002416','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001416',1,'verifying',2,5,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
+INSERT INTO units(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at)
+SELECT '00000000-0000-0000-0000-000000001416',project_id,1416,track_id,'Researcher verification',created_by_user,'active',2,2,approved_at FROM units WHERE id='00000000-0000-0000-0000-000000001006';
+INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel)
+SELECT '00000000-0000-0000-0000-000000001416',2,content,5,author_user,via_channel FROM unit_revisions WHERE unit_id='00000000-0000-0000-0000-000000001006' AND revision=2;
+INSERT INTO attempts(id,project_id,unit_id,sequence,state,unit_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002416','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001416',1,'verifying',2,5,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
 INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003416','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002416','agent','completed','{"provenance":{"source_revision":"source-1"}}',repeat('a',64),'00000000-0000-0000-0000-000000000020','api');
 INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_user,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006118',project_id,'00000000-0000-0000-0000-000000002416','verify',1,'claimed',5,'agent',NULL,jsonb_set(spec,'{inputs,run,ref}','"00000000-0000-0000-0000-000000003416"'),600,'00000000-0000-0000-0000-000000000002','api',1,sha256(convert_to('researcher-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006108';
 "#).execute(pool).await?;
@@ -794,9 +791,9 @@ async fn researcher(
             .unwrap_or_else(|_| json!({"wire":String::from_utf8_lossy(&bytes)})),
     ))
 }
-/// The hypothesis's state, its open decision cases and the write-up the case cites.
+/// The unit's state, its open decision cases and the write-up the case cites.
 async fn deciding(pool: &sqlx::PgPool, number: i32) -> Result<(String, i64, Option<uuid::Uuid>)> {
-    Ok(sqlx::query_as("SELECT h.state,(SELECT count(*) FROM review_cases c WHERE c.hypothesis_id=h.id AND c.kind='decision' AND c.state='pending'),(SELECT max(c.writeup_id::text)::uuid FROM review_cases c WHERE c.hypothesis_id=h.id AND c.kind='decision') FROM hypotheses h WHERE h.project_id='00000000-0000-0000-0000-000000000010' AND h.number=$1")
+    Ok(sqlx::query_as("SELECT h.state,(SELECT count(*) FROM review_cases c WHERE c.unit_id=h.id AND c.kind='decision' AND c.state='pending'),(SELECT max(c.writeup_id::text)::uuid FROM review_cases c WHERE c.unit_id=h.id AND c.kind='decision') FROM units h WHERE h.project_id='00000000-0000-0000-0000-000000000010' AND h.number=$1")
         .bind(number)
         .fetch_one(pool)
         .await?)
@@ -808,17 +805,17 @@ async fn waiting(app: &Router) -> Result<Vec<i64>> {
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|item| item["hypothesis"].as_i64())
+        .filter_map(|item| item["unit"].as_i64())
         .collect())
 }
 async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
-    // Hypotheses 6, 1406 and 1416 were verified above and wait for their write-up.
+    // Units 6, 1406 and 1416 were verified above and wait for their write-up.
     let queue = waiting(app).await?;
     assert!(
         [6, 1406, 1416].iter().all(|n| queue.contains(n)),
         "{queue:?}"
     );
-    let (status, pending) = researcher(app, "GET", "/hypotheses/1406/writeup", None).await?;
+    let (status, pending) = researcher(app, "GET", "/units/1406/writeup", None).await?;
     assert_eq!(status, 200, "{pending}");
     assert_eq!(pending["status"], "pending");
     assert_eq!(pending["inputs"]["attempts"], json!([1]));
@@ -855,7 +852,7 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     assert_eq!(status, 200, "{value}");
     let (state, open, writeup_id) = deciding(pool, 1406).await?;
     assert_eq!((state.as_str(), open), ("deciding", 1));
-    let (status, written) = researcher(app, "GET", "/hypotheses/1406/writeup", None).await?;
+    let (status, written) = researcher(app, "GET", "/units/1406/writeup", None).await?;
     assert_eq!(status, 200, "{written}");
     assert_eq!(written["status"], "written");
     assert_eq!(
@@ -866,12 +863,12 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
         written["writeup"]["id"].as_str(),
         writeup_id.map(|id| id.to_string()).as_deref()
     );
-    // A researcher writes hypothesis 6 up: the job is claimed and completed in one action.
+    // A researcher writes unit 6 up: the job is claimed and completed in one action.
     let attempt = "00000000-0000-0000-0000-000000002006";
     let (status, value) = researcher(
         app,
         "POST",
-        "/hypotheses/6/writeup",
+        "/units/6/writeup",
         Some(&json!({"document":"   "})),
     )
     .await?;
@@ -880,13 +877,13 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     let (status, value) = researcher(
         app,
         "POST",
-        "/hypotheses/6/writeup",
+        "/units/6/writeup",
         Some(&json!({ "document": document })),
     )
     .await?;
     assert_eq!(status, 201, "{value}");
     assert_eq!(
-        (&value["status"], &value["hypothesis_state"]),
+        (&value["status"], &value["unit_state"]),
         (&json!("written"), &json!("deciding"))
     );
     assert_eq!(
@@ -896,7 +893,7 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     let (status, value) = researcher(
         app,
         "POST",
-        "/hypotheses/6/writeup",
+        "/units/6/writeup",
         Some(&json!({ "document": document })),
     )
     .await?;
@@ -906,11 +903,11 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
         (state.as_str(), open, writeup_id.is_some()),
         ("deciding", 1, true)
     );
-    // A researcher skips hypothesis 1416's write-up, and says why.
+    // A researcher skips unit 1416's write-up, and says why.
     let (status, value) = researcher(
         app,
         "POST",
-        "/hypotheses/1416/writeup/skip",
+        "/units/1416/writeup/skip",
         Some(&json!({"reason":" "})),
     )
     .await?;
@@ -918,7 +915,7 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     let (status, value) = researcher(
         app,
         "POST",
-        "/hypotheses/1416/writeup/skip",
+        "/units/1416/writeup/skip",
         Some(&json!({"reason":"The comparison says it all."})),
     )
     .await?;
@@ -932,7 +929,7 @@ async fn document_and_skip(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     let (status, value) = researcher(
         app,
         "POST",
-        "/hypotheses/1416/writeup/skip",
+        "/units/1416/writeup/skip",
         Some(&json!({"reason":"Again."})),
     )
     .await?;
@@ -984,7 +981,7 @@ async fn request(
             .unwrap_or_else(|_| json!({"wire":String::from_utf8_lossy(&bytes)})),
     ))
 }
-/// The decide job of hypothesis 1416 in `state`, and its run number.
+/// The decide job of unit 1416 in `state`, and its run number.
 async fn decide_job(pool: &sqlx::PgPool, state: &str) -> Result<(String, i32, String)> {
     Ok(sqlx::query_as("SELECT id::text,run_number,origin FROM jobs WHERE phase='decide' AND attempt_id='00000000-0000-0000-0000-000000002416' AND state=$1")
         .bind(state)
@@ -992,7 +989,7 @@ async fn decide_job(pool: &sqlx::PgPool, state: &str) -> Result<(String, i32, St
         .await?)
 }
 async fn decide_automatically(app: &Router, whole: &Router, pool: &sqlx::PgPool) -> Result<()> {
-    // Hypothesis 1416's write-up was skipped; its science revision registers
+    // Unit 1416's write-up was skipped; its science revision registers
     // fixture-decider, so a decide job waits beside its decision case.
     let (job, run, origin) = decide_job(pool, "pending").await?;
     assert_eq!((run, origin.as_str()), (1, "submission"));
@@ -1076,7 +1073,7 @@ async fn decide_automatically(app: &Router, whole: &Router, pool: &sqlx::PgPool)
         claimed["decider"],
         json!({"id":"fixture-decider","revision":"decider-1"})
     );
-    assert_eq!(claimed["hypothesis"], 1416);
+    assert_eq!(claimed["unit"], 1416);
     assert_eq!(claimed["review_case_id"], case);
     assert_eq!(
         claimed["inputs"],

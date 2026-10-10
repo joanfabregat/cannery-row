@@ -143,7 +143,7 @@ pub async fn run_spec(
         let previous_id = text(&mut builder, previous.id.to_string())?;
         let reference = text(
             &mut builder,
-            format!("#{}.{}", previous.hypothesis_number, previous.sequence),
+            format!("#{}.{}", previous.unit_number, previous.sequence),
         )?;
         let state = text(&mut builder, previous.state.as_str())?;
         let failure = repository.last_failure_code(previous.id).await?;
@@ -200,7 +200,7 @@ pub async fn run_spec(
     let attempt_id = text(&mut builder, attempt.id.to_string())?;
     let reference = text(
         &mut builder,
-        format!("#{}.{}", attempt.hypothesis_number, attempt.sequence),
+        format!("#{}.{}", attempt.unit_number, attempt.sequence),
     )?;
     let track = text(&mut builder, &attempt.track_slug)?;
     let mut revision_builder = DocumentBuilder::new();
@@ -215,9 +215,7 @@ pub async fn run_spec(
         .map_err(ScienceError::from)?;
     let revision = push(&mut builder, Node::String(revision))?;
     let steps = copy(&mut builder, &resolved)?;
-    let parameters = repository
-        .approved_project_fields(attempt.hypothesis_id)
-        .await?;
+    let parameters = repository.approved_project_fields(attempt.unit_id).await?;
     let parameters = match parameters {
         StoredJson::Value(value) => copy(&mut builder, &value)?,
         StoredJson::SqlNull => return Err(Error::Invariant),

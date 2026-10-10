@@ -777,13 +777,13 @@ pub(crate) async fn transition(
         ));
     }
     if state == TrackState::Archived {
-        let count = repo::count_open_hypotheses(&mut tx, row.id)
+        let count = repo::count_open_units(&mut tx, row.id)
             .await
-            .map_err(|_| internal(&c, "track open hypotheses"))?;
+            .map_err(|_| internal(&c, "track open units"))?;
         if count > 0 {
             return Err(domain(
                 ErrorCode::Conflict,
-                format!("the track still has {count} queued, active or awaiting-review hypotheses"),
+                format!("the track still has {count} queued, active or awaiting-review units"),
             ));
         }
     }
@@ -793,9 +793,9 @@ pub(crate) async fn transition(
             .await
             .map_err(|_| internal(&c, "track approved plan"))?
             .is_none()
-        && repo::count_hypotheses(&mut tx, row.id)
+        && repo::count_units(&mut tx, row.id)
             .await
-            .map_err(|_| internal(&c, "track hypotheses"))?
+            .map_err(|_| internal(&c, "track units"))?
             == 0
     {
         TrackState::Planning

@@ -27,8 +27,8 @@ const TABLES: [(&str, &str); 8] = [
     ("mentions", "source_type,source_id,target_id"),
     ("audit_events", "seq"),
     ("search_documents", "kind,id"),
-    ("hypotheses", "id"),
-    ("hypothesis_revisions", "hypothesis_id,revision"),
+    ("units", "id"),
+    ("unit_revisions", "unit_id,revision"),
     ("attempts", "id"),
 ];
 fn clock(value: &mut Value, lower: Option<DateTime<Utc>>, upper: DateTime<Utc>) -> Result<()> {
@@ -134,7 +134,7 @@ fn native_error(recipe: &Value, bytes: &[u8]) -> Result<Option<Value>> {
         assert!(matches!(parameter, "number" | "sequence"));
         let path = recipe["path"].as_str().ok_or("path")?;
         let prefix = if parameter == "number" {
-            "/hypotheses/"
+            "/units/"
         } else {
             "/attempts/"
         };
@@ -452,7 +452,7 @@ async fn comment_mutations_match_production() -> Result<()> {
     let (app, state) = application_with_comment_context(
         settings,
         Arc::new(CommentContext {
-            hypotheses: cannery_hypotheses::repo::JsonContext {
+            units: cannery_units::repo::JsonContext {
                 encode_nesting_budget: 80,
                 decode_nesting_budget: 80,
             },

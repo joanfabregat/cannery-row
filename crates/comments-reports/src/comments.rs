@@ -1,7 +1,7 @@
 //! The six frozen comments functions. Callers own transactions, row locks and preparation history.
 use crate::{RepositoryError, integer::Integer, redacted, source, text};
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, ProjectId, UserId},
+    ids::{AttemptId, ProjectId, UnitId, UserId},
     principal::{Channel, UserPrincipal},
     timestamps::Timestamp,
 };
@@ -14,8 +14,8 @@ pub struct CommentId(pub Uuid);
 pub struct Comment {
     pub id: CommentId,
     pub project_id: ProjectId,
-    pub hypothesis_id: HypothesisId,
-    pub hypothesis_number: i32,
+    pub unit_id: UnitId,
+    pub unit_number: i32,
     pub attempt_id: Option<AttemptId>,
     pub attempt_sequence: Option<i32>,
     pub author_user: UserId,
@@ -47,13 +47,13 @@ const fn channel(value: Channel) -> &'static str {
 pub async fn create_comment(
     conn: &mut PgConnection,
     project_id: ProjectId,
-    hypothesis_id: HypothesisId,
+    unit_id: UnitId,
     attempt_id: Option<AttemptId>,
     body: &str,
     author: &UserPrincipal,
 ) -> Result<CommentId, RepositoryError> {
     text(body)?;
-    let row=source!(sqlx::query!(r#"INSERT INTO comments(project_id,hypothesis_id,attempt_id,author_user,body_markdown) VALUES($1,$2,$3,$4,$5) RETURNING id AS "id!: CommentId""#,project_id as _,hypothesis_id as _,attempt_id as _,author.user_id as _,body),fetch_optional,&mut *conn)?.ok_or(RepositoryError::Invariant)?;
+    let row=source!(sqlx::query!(r#"INSERT INTO comments(project_id,unit_id,attempt_id,author_user,body_markdown) VALUES($1,$2,$3,$4,$5) RETURNING id AS "id!: CommentId""#,project_id as _,unit_id as _,attempt_id as _,author.user_id as _,body),fetch_optional,&mut *conn)?.ok_or(RepositoryError::Invariant)?;
     add_revision(conn, row.id, &BigInt::from(1), body, author).await?;
     Ok(row.id)
 }
@@ -129,12 +129,12 @@ pub async fn get_comment(
         conn
     )
 }
-/// Newest first; missing/foreign-hypothesis cursors yield no rows.
+/// Newest first; missing/foreign-unit cursors yield no rows.
 /// # Errors
 /// Returns sanitized database or integer-encoding failures.
 pub async fn list_comments(
     conn: &mut PgConnection,
-    hypothesis_id: HypothesisId,
+    unit_id: UnitId,
     attempt_id: Option<AttemptId>,
     before: Option<CommentId>,
     limit: Option<&BigInt>,
@@ -144,7 +144,7 @@ pub async fn list_comments(
         sqlx::query_file_as!(
             Comment,
             "src/sql/list_comments.sql",
-            hypothesis_id as _,
+            unit_id as _,
             attempt_id as _,
             before as _,
             limit as _

@@ -2,7 +2,7 @@
 
 import type { components } from "@/api/schema";
 
-export const HYPOTHESIS_STATES = [
+export const UNIT_STATES = [
   "queued",
   "active",
   "documenting",
@@ -14,7 +14,7 @@ export const HYPOTHESIS_STATES = [
   "cancelled",
 ] as const;
 
-export type HypothesisState = (typeof HYPOTHESIS_STATES)[number];
+export type UnitState = (typeof UNIT_STATES)[number];
 
 /** Shown as archived: hidden by the default filter, always reachable. */
 export const ARCHIVED_STATES: readonly string[] = [
@@ -24,8 +24,8 @@ export const ARCHIVED_STATES: readonly string[] = [
   "cancelled",
 ];
 
-export function isHypothesisState(value: string | null): value is HypothesisState {
-  return value !== null && (HYPOTHESIS_STATES as readonly string[]).includes(value);
+export function isUnitState(value: string | null): value is UnitState {
+  return value !== null && (UNIT_STATES as readonly string[]).includes(value);
 }
 
 export const TRACK_STATES = ["planning", "active", "paused", "archived"] as const;

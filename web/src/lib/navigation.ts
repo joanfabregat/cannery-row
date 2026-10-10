@@ -10,7 +10,7 @@ export function useNotice(): string | null {
   return null;
 }
 
-/** A hypothesis number or attempt sequence from the address, or null. */
+/** A unit number or attempt sequence from the address, or null. */
 export function parseNumber(value: string | undefined): number | null {
   if (value === undefined || !/^[1-9][0-9]{0,8}$/.test(value)) return null;
   return Number(value);

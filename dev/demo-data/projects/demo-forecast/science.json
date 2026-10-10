@@ -1,7 +1,7 @@
 {
   "schema_version": "0.2",
   "verify": {"performer": "runner", "verifier": {"id": "demo-verifier", "revision": "forecast-policy-1"}},
-  "hypothesis_fields": {
+  "unit_fields": {
     "type": "object",
     "properties": {
       "horizon_days": {"type": "integer", "minimum": 1, "maximum": 14, "description": "Longest horizon the model forecasts."},

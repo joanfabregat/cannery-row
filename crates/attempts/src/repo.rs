@@ -51,7 +51,7 @@ use crate::{
     wire::{self, JsonbText},
 };
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, JobId, ProjectId, ReviewCaseId},
+    ids::{AttemptId, JobId, ProjectId, ReviewCaseId, UnitId},
     json::{self, Document, Node},
     principal::{Channel, Principal},
     text,
@@ -145,7 +145,7 @@ impl<'a> Repository<'a> {
         track_slug: Option<&str>,
         mode: &str,
         skip_tracks: &[String],
-    ) -> Result<Option<HypothesisId>, AttemptError> {
+    ) -> Result<Option<UnitId>, AttemptError> {
         self.uuid(
             Statement::PickClaimable0,
             vec![
@@ -159,7 +159,7 @@ impl<'a> Repository<'a> {
             ],
         )
         .await
-        .map(|value| value.map(HypothesisId))
+        .map(|value| value.map(UnitId))
     }
     /// # Errors
     /// Returns sanitized database, stored-data, source conversion, or lease errors.
@@ -169,7 +169,7 @@ impl<'a> Repository<'a> {
     ) -> Result<AttemptId, AttemptError> {
         let (user, service) = actor(input.principal);
         let values = vec![
-            Value::uuid(input.hypothesis_id.0),
+            Value::uuid(input.unit_id.0),
             Value::integer(Some(input.science_revision)),
             self.json(input.producer)?,
             Value::Uuid(user.map(|id| id.0)),
@@ -253,13 +253,13 @@ impl<'a> Repository<'a> {
     /// Returns sanitized database, stored-data, source conversion, or lease errors.
     pub async fn list_attempts(
         &mut self,
-        hypothesis: HypothesisId,
+        unit: UnitId,
         after: Option<&BigInt>,
         limit: Option<&BigInt>,
     ) -> Result<Vec<Attempt>, AttemptError> {
         let context = self.context;
         let values = [
-            Value::uuid(hypothesis.0),
+            Value::uuid(unit.0),
             Value::integer(after),
             Value::integer(after),
             Value::integer(limit),
@@ -389,9 +389,9 @@ impl<'a> Repository<'a> {
     }
     /// # Errors
     /// Returns sanitized database, stored-data, source conversion, or lease errors.
-    pub async fn pin_track(&mut self, hypothesis: HypothesisId) -> Result<TrackPin, AttemptError> {
+    pub async fn pin_track(&mut self, unit: UnitId) -> Result<TrackPin, AttemptError> {
         let context = self.context;
-        self.rows::<RawTrackPin>(Statement::PinTrack0, vec![Value::uuid(hypothesis.0)])
+        self.rows::<RawTrackPin>(Statement::PinTrack0, vec![Value::uuid(unit.0)])
             .await?
             .into_iter()
             .next()
@@ -401,11 +401,9 @@ impl<'a> Repository<'a> {
     async fn approved_json(
         &mut self,
         statement: Statement,
-        hypothesis: HypothesisId,
+        unit: UnitId,
     ) -> Result<StoredJson, AttemptError> {
-        let (_, rows) = self
-            .execute(statement, vec![Value::uuid(hypothesis.0)])
-            .await?;
+        let (_, rows) = self.execute(statement, vec![Value::uuid(unit.0)]).await?;
         let value: Option<JsonbText> = rows
             .first()
             .ok_or(AttemptError::Invariant)?
@@ -417,10 +415,10 @@ impl<'a> Repository<'a> {
     /// Returns sanitized database, stored-data, source conversion, or lease errors.
     pub async fn approved_project_fields(
         &mut self,
-        hypothesis: HypothesisId,
+        unit: UnitId,
     ) -> Result<StoredJson, AttemptError> {
         let value = self
-            .approved_json(Statement::ApprovedProjectFields0, hypothesis)
+            .approved_json(Statement::ApprovedProjectFields0, unit)
             .await?;
         if truthy(&value) {
             Ok(value)
@@ -435,11 +433,11 @@ impl<'a> Repository<'a> {
     /// Returns sanitized database, stored-data, source conversion, or lease errors.
     pub async fn approved_control(
         &mut self,
-        hypothesis: HypothesisId,
+        unit: UnitId,
         render_nesting_budget: usize,
     ) -> Result<Option<Control>, AttemptError> {
         let value = self
-            .approved_json(Statement::ApprovedControl0, hypothesis)
+            .approved_json(Statement::ApprovedControl0, unit)
             .await?;
         if value.python_none() {
             return Ok(None);
@@ -925,14 +923,14 @@ impl<'a> Repository<'a> {
             .ok_or(AttemptError::Invariant)?;
         self.execute(
             Statement::RecordFailure1,
-            vec![Value::uuid(attempt.hypothesis_id.0)],
+            vec![Value::uuid(attempt.unit_id.0)],
         )
         .await?;
         self.uuid(
             Statement::RecordFailure2,
             vec![
                 Value::uuid(input.project_id.0),
-                Value::uuid(attempt.hypothesis_id.0),
+                Value::uuid(attempt.unit_id.0),
                 Value::uuid(attempt.id.0),
                 Value::uuid(failure),
                 Value::uuid(attempt.id.0),
@@ -956,22 +954,16 @@ impl<'a> Repository<'a> {
         self.execute(Statement::RequeueFailed0, values).await?;
         self.execute(
             Statement::RequeueFailed1,
-            vec![Value::uuid(input.attempt.hypothesis_id.0)],
+            vec![Value::uuid(input.attempt.unit_id.0)],
         )
         .await?;
         Ok(())
     }
     /// # Errors
     /// Returns sanitized database, stored-data, source conversion, or lease errors.
-    pub async fn automatic_requeues(
-        &mut self,
-        hypothesis: HypothesisId,
-    ) -> Result<i64, AttemptError> {
-        self.count(
-            Statement::AutomaticRequeues0,
-            vec![Value::uuid(hypothesis.0)],
-        )
-        .await
+    pub async fn automatic_requeues(&mut self, unit: UnitId) -> Result<i64, AttemptError> {
+        self.count(Statement::AutomaticRequeues0, vec![Value::uuid(unit.0)])
+            .await
     }
     /// Insertion-order groups, matching the source dict's first row appearance.
     /// # Errors
@@ -1053,7 +1045,7 @@ pub struct Control {
     pub revision: String,
 }
 pub struct CreateAttempt<'a> {
-    pub hypothesis_id: HypothesisId,
+    pub unit_id: UnitId,
     pub science_revision: &'a BigInt,
     pub producer: &'a Document,
     pub token_hash: &'a [u8],

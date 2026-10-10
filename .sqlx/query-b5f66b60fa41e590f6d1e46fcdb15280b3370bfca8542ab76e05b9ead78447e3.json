@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id AS \"id!: PlanRevisionId\", p.revision FROM plan_units u\n        JOIN plan_revisions p ON p.id = u.plan_revision_id\n        WHERE u.unit_id = $1 AND p.state = 'approved' ORDER BY p.revision DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: PlanRevisionId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b5f66b60fa41e590f6d1e46fcdb15280b3370bfca8542ab76e05b9ead78447e3"
+}

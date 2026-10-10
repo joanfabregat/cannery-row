@@ -19,7 +19,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { describeError } from "@/lib/errors";
 import { label } from "@/lib/labels";
-import { hypothesisPath, trackPath } from "@/lib/paths";
+import { unitPath, trackPath } from "@/lib/paths";
 import { usePermissions } from "@/projects/use-permissions";
 
 /**
@@ -143,7 +143,7 @@ function DraftForms({ project, track, draft }: { project: string; track: string;
       <ApproachForm project={project} track={track} draft={draft} />
       <Section
         title="Units"
-        description="Each unit becomes a queued hypothesis when the plan is approved."
+        description="Each unit is queued when the plan is approved."
         actions={
           adding ? null : (
             <Button
@@ -441,7 +441,7 @@ function UnitForm({
           "Relations",
           relations,
           setRelations,
-          'JSON list, for example [{"kind": "derived_from", "unit": "baseline"}] or {"kind": "related_to", "hypothesis": 12}.',
+          'JSON list, for example [{"kind": "derived_from", "unit": "baseline"}] or {"kind": "related_to", "unit": 12}.',
           true,
         )}
         {text(
@@ -551,10 +551,10 @@ function AlignmentForm({
       }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link to={hypothesisPath(unit.number)} className="font-medium hover:underline">
+        <Link to={unitPath(unit.number)} className="font-medium hover:underline">
           #{unit.number} {unit.title}
         </Link>
-        <StatusChip domain="hypothesis" value={unit.state} />
+        <StatusChip domain="unit" value={unit.state} />
       </div>
       <div className="grid gap-3 sm:grid-cols-[12rem_1fr]">
         <Field label={`Decision for #${String(unit.number)}`}>

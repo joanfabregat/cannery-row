@@ -1,0 +1,59 @@
+{
+  "reason": "'number' was unexpected",
+  "document": {
+    "key": "fusion-weight",
+    "title": "Test a compact sparse candidate",
+    "question": "Can the candidate exceed the pinned base camp without material language regressions?",
+    "intervention": "Train the specified candidate from the pinned initialization.",
+    "control": {
+      "kind": "baseline",
+      "id": "base-camp",
+      "revision": "immutable-revision"
+    },
+    "acceptance": {
+      "selection_splits": [
+        "dev"
+      ],
+      "confirmation_splits": [
+        "fresh-held-out"
+      ],
+      "primary_metric": "ndcg_at_10",
+      "required_slices": [
+        "language",
+        "task"
+      ],
+      "success_criteria": "Use project policy revision; no material slice regression",
+      "falsification_criteria": "Fails the primary metric or a required regression gate",
+      "regression_gates": [
+        "language",
+        "no-language-regression"
+      ],
+      "compute_budget": {
+        "gpu_hours_max": 12,
+        "wall_clock_hours_max": 24.5
+      }
+    },
+    "relations": [
+      {
+        "kind": "derived_from",
+        "unit": 42
+      },
+      {
+        "kind": "related_to",
+        "unit": {
+          "project": "other-project",
+          "number": 7
+        }
+      }
+    ],
+    "parameters": {
+      "architecture": "sparse",
+      "notes": {
+        "free": [
+          "form"
+        ]
+      }
+    },
+    "number": 123
+  }
+}

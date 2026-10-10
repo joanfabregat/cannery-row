@@ -1,6 +1,6 @@
 -- A recovered failed predecessor is immutable history; only the new claim mutates.
-UPDATE hypotheses SET lease_generation=7 WHERE number=2;
-INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,producer,claimed_by_user,via_channel,lease_generation,claimed_at,finished_at,origin,source_ref,imported)
+UPDATE units SET lease_generation=7 WHERE number=2;
+INSERT INTO attempts(id,project_id,unit_id,sequence,state,unit_revision,science_revision,track_id,producer,claimed_by_user,via_channel,lease_generation,claimed_at,finished_at,origin,source_ref,imported)
 VALUES('00000000-0000-0000-0000-000000002004','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001002',4,'failed',1,1,'00000000-0000-0000-0000-000000000004','{"legacy":"producer"}','00000000-0000-0000-0000-000000000001','historical',7,'2001-01-01Z','2001-01-02Z','imported','recovered-prior','{"label":"é😀","notes":[null,false]}');
 INSERT INTO attempt_failures(id,attempt_id,stage,code,reason,details,created_at,requeued,log_refs)
 VALUES('00000000-0000-0000-0000-000000003001','00000000-0000-0000-0000-000000002004','agent','prior-first','First','{}','2001-01-01Z',false,'[]'),

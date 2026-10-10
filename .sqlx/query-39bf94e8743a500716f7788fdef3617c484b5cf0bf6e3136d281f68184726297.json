@@ -1,0 +1,125 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.id AS \"id!: _\", c.project_id AS \"project_id!: _\", c.unit_id AS \"unit_id!: _\", h.number AS \"unit_number!\", h.state AS \"unit_state!\", c.attempt_id AS \"attempt_id?: _\", a.sequence AS \"attempt_sequence?\", a.state AS \"attempt_state?\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.state AS \"state!\", c.opened_at AS \"opened_at!: _\", c.resolved_at AS \"resolved_at?: _\", c.failure_id AS \"failure_id?: _\", c.evidence_id AS \"evidence_id?: _\", c.writeup_id AS \"writeup_id?: _\", c.origin AS \"origin!\", c.source_ref AS \"source_ref?\" FROM \n    review_cases c JOIN units h ON h.id = c.unit_id\n    LEFT JOIN attempts a ON a.id = c.attempt_id\n WHERE c.id = $1 AND c.project_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "unit_number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "unit_state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "attempt_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "attempt_sequence?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "attempt_state?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "subject_revision!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "opened_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "resolved_at?: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "failure_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "evidence_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "writeup_id?: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 16,
+        "name": "origin!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "source_ref?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "39bf94e8743a500716f7788fdef3617c484b5cf0bf6e3136d281f68184726297"
+}

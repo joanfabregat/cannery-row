@@ -36,11 +36,11 @@ fn published_unit_schema_validates_the_plan_entry_shape() {
         "relations": [{"kind": "derived_from", "unit": "baseline"}]
     });
     let valid = json::from_value(unit.clone()).unwrap();
-    assert!(contracts.is_valid(ContractKind::Hypothesis, &valid));
+    assert!(contracts.is_valid(ContractKind::Unit, &valid));
     unit["question"] = json!(" ");
     let invalid = json::from_value(unit).unwrap();
     let paths = contracts
-        .violation_paths(ContractKind::Hypothesis, &invalid)
+        .violation_paths(ContractKind::Unit, &invalid)
         .unwrap();
     assert_eq!(paths, ["/question"]);
 }

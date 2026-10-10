@@ -1,5 +1,5 @@
 
-            SELECT h.id AS "id!: HypothesisId" FROM hypotheses h JOIN tracks t ON t.id = h.track_id
+            SELECT h.id AS "id!: UnitId" FROM units h JOIN tracks t ON t.id = h.track_id
             WHERE h.project_id = $1 AND h.state = 'queued' AND t.state = 'active'
               AND t.mode = $2
               AND ($3::bigint IS NULL OR h.number = $4)

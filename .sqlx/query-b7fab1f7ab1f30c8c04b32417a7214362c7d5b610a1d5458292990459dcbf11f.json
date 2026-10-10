@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO comments(project_id,unit_id,attempt_id,author_user,body_markdown) VALUES($1,$2,$3,$4,$5) RETURNING id AS \"id!: CommentId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: CommentId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b7fab1f7ab1f30c8c04b32417a7214362c7d5b610a1d5458292990459dcbf11f"
+}

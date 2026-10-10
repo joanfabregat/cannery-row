@@ -24,12 +24,12 @@ imports history --env IMPORT_TEST_DATABASE_URL
 metrics repository_reference --set CANNERY_METRICS_REFERENCE=crates/metrics/tests/fixtures/metrics_repository_reference.json
 attempts repository_reference
 jobs repository_reference
-hypotheses repository_reference --prefix hypotheses_fixture_native_ --env HYPOTHESES_NATIVE_DATABASE_URL
+units repository_reference --prefix units_fixture_native_ --env UNITS_NATIVE_DATABASE_URL
 search repository_reference
 reviews repository_reference --prefix ra_fixture_ --env RA_NATIVE_DATABASE_URL
 comments-reports repository_reference --set CANNERY_COMMENTS_REPORTS_REFERENCE=crates/comments-reports/tests/fixtures/repository_reference.json
 # HTTP operations and their storage effects against the frozen references
-server hypotheses_http
+server units_http
 server review_attention_http
 server review_decisions_http
 server metrics_http

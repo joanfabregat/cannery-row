@@ -11,7 +11,7 @@ import { StatusChip } from "@/components/status-chip";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { label, statusLabel } from "@/lib/labels";
-import { attemptPath, hypothesisPath, parseAttemptRef, trackPath } from "@/lib/paths";
+import { attemptPath, unitPath, parseAttemptRef, trackPath } from "@/lib/paths";
 import { refTarget } from "@/lib/refs";
 import { useCurrentProject } from "@/projects/project-context";
 
@@ -22,7 +22,7 @@ const FACETS: { name: keyof Omit<SearchFilters, "q" | "before">; title: string }
   { name: "kind", title: label("searchFacet", "kind") },
   { name: "project", title: label("searchFacet", "project") },
   { name: "track", title: label("searchFacet", "track") },
-  { name: "hypothesis_state", title: label("searchFacet", "hypothesis_state") },
+  { name: "unit_state", title: label("searchFacet", "unit_state") },
   { name: "verdict", title: label("searchFacet", "verdict") },
   { name: "decision", title: label("searchFacet", "decision") },
 ];
@@ -31,8 +31,8 @@ function facetValueLabel(facet: string, value: string): string {
   switch (facet) {
     case "kind":
       return label("searchKind", value);
-    case "hypothesis_state":
-      return statusLabel("hypothesis", value);
+    case "unit_state":
+      return statusLabel("unit", value);
     case "verdict":
       return statusLabel("verdict", value);
     case "decision":
@@ -45,12 +45,12 @@ function facetValueLabel(facet: string, value: string): string {
 /** The page a hit is about: an attempt's records open the attempt. */
 function hitPath(hit: SearchHit, currentProject: string | null): string {
   const project = hit.project === currentProject ? null : hit.project;
-  if (hit.kind === "track" || hit.hypothesis === null) {
+  if (hit.kind === "track" || hit.unit === null) {
     return hit.track ? trackPath(hit.track, project) : "/tracks";
   }
   const attempt = parseAttemptRef(hit.attempt_ref);
   return attempt === null
-    ? hypothesisPath(hit.hypothesis, project)
+    ? unitPath(hit.unit, project)
     : attemptPath(attempt[0], attempt[1], project);
 }
 
@@ -66,8 +66,8 @@ export function SearchPage() {
         <Results key={query} query={query} />
       ) : (
         <EmptyState>
-          Type in the search bar above to find hypotheses, reports, decisions and comments. Type #12
-          to go straight to hypothesis 12.
+          Type in the search bar above to find units, reports, decisions and comments. Type #12 to
+          go straight to unit 12.
         </EmptyState>
       )}
     </>
@@ -160,9 +160,7 @@ function Results({ query }: { query: string }) {
                   <Snippet text={hit.snippet} />
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {hit.hypothesis_state ? (
-                    <StatusChip domain="hypothesis" value={hit.hypothesis_state} />
-                  ) : null}
+                  {hit.unit_state ? <StatusChip domain="unit" value={hit.unit_state} /> : null}
                   {hit.verdict ? <StatusChip domain="verdict" value={hit.verdict} /> : null}
                   {hit.decision ? <StatusChip domain="decision" value={hit.decision} /> : null}
                   <span>{formatDateTime(hit.occurred_at)}</span>

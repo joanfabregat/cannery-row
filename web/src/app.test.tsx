@@ -61,7 +61,7 @@ describe("the shell", () => {
     expect(links.map((link) => link.textContent)).toEqual([
       "Home",
       "Tracks",
-      "Hypotheses",
+      "Units",
       "Results",
       "Search",
       "Settings",
@@ -74,7 +74,7 @@ describe("the shell", () => {
     const { user } = renderApp("/");
     expect(await screen.findByRole("heading", { level: 1, name: "Home" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Main" });
-    for (const name of ["Tracks", "Hypotheses", "Results", "Search", "Settings"]) {
+    for (const name of ["Tracks", "Units", "Results", "Search", "Settings"]) {
       await user.click(within(nav).getByRole("link", { name }));
       expect(await screen.findByRole("heading", { level: 1, name })).toBeInTheDocument();
       expect(within(nav).getByRole("link", { name })).toHaveAttribute("aria-current", "page");
@@ -180,7 +180,7 @@ describe("settings", () => {
 describe("user menu", () => {
   it("signs out through the backend, with the CSRF token, and returns to sign-in", async () => {
     const { requests } = signedIn({}, { "POST /auth/logout": () => json({ logout_url: null }) });
-    const { user, router } = renderApp("/hypotheses");
+    const { user, router } = renderApp("/units");
     await user.click(await screen.findByRole("button", { name: "Account: Ada Lovelace" }));
     await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
     expect(await screen.findByRole("link", { name: "Sign in" })).toBeInTheDocument();

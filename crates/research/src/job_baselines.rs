@@ -308,7 +308,7 @@ pub fn pinned_control(
         .map_err(|_| ScienceError::InvalidNode)
         .map(Some)
 }
-/// A job's pinned hypothesis parameters, including explicit null/scalar legacy values.
+/// A job's pinned unit parameters, including explicit null/scalar legacy values.
 /// # Errors
 /// A spec without parameters (a job created before verify jobs pinned them) has none.
 pub fn pinned_parameters(spec: &Document) -> Result<Option<Document>, ScienceError> {

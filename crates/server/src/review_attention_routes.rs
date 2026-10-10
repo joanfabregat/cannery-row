@@ -17,14 +17,14 @@ use cannery_attempts::{
     repo::Repository,
 };
 use cannery_core::errors::{DomainError, ErrorCode};
-use cannery_hypotheses::repo as hypotheses;
 use cannery_reviews::repo;
+use cannery_units::repo as units;
 use sqlx::PgConnection;
 use std::{collections::BTreeMap, sync::Arc};
 /// Profiles and bounded preparation factories have no inferred production defaults.
 pub struct ReviewAttentionContext {
     pub reviews: cannery_reviews::JsonContext,
-    pub hypotheses: hypotheses::JsonContext,
+    pub units: units::JsonContext,
     pub attempts: cannery_attempts::model::JsonContext,
     pub response: ResponseContext,
 }
@@ -104,7 +104,7 @@ pub(crate) async fn case_detail(
     } else {
         None
     };
-    let decisions = hypotheses::list_decisions(c, &[case.id], s.hypotheses)
+    let decisions = units::list_decisions(c, &[case.id], s.units)
         .await
         .map_err(|_| internal(r, "review decisions"))?;
     let d = CaseDetail {

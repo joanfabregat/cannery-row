@@ -77,7 +77,7 @@ impl Experiment {
             generation,
             idempotency: None,
         };
-        let base = format!("{api}/hypotheses/{number}/attempts/{sequence}");
+        let base = format!("{api}/units/{number}/attempts/{sequence}");
         let heartbeat = worker::positive(&claim["heartbeat_seconds"])?;
         let expiry = worker::instant(worker::string(&claim, "lease_expires_at")?)?;
         let mut job = claim["workflow"].clone();

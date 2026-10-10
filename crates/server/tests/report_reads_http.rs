@@ -34,7 +34,7 @@ fn profile() -> ReportContext {
             encode_nesting_budget: 80,
             decode_nesting_budget: 80,
         },
-        hypotheses: cannery_hypotheses::repo::JsonContext {
+        units: cannery_units::repo::JsonContext {
             encode_nesting_budget: 80,
             decode_nesting_budget: 80,
         },
@@ -106,8 +106,8 @@ async fn storage(pool: &sqlx::PgPool) -> Result<Value> {
     let mut output = json!({});
     for (table, order) in [
         ("tracks", "id"),
-        ("hypotheses", "id"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "id"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("artifacts", "id"),
         ("measurements", "id"),
@@ -243,14 +243,9 @@ fn assert_integer_refusal(
         .iter()
         .map(|path| {
             assert!(
-                [
-                    "query/hypothesis",
-                    "query/limit",
-                    "path/number",
-                    "path/sequence"
-                ]
-                .iter()
-                .any(|expected| path == expected)
+                ["query/unit", "query/limit", "path/number", "path/sequence"]
+                    .iter()
+                    .any(|expected| path == expected)
             );
             json!({"path":path,"message":"Input should be a signed 64-bit integer"})
         })
@@ -287,7 +282,7 @@ async fn report_reads_match_production() -> Result<()> {
         .await?;
     let f = fixture()?;
     for (path, count) in [
-        ("query/hypothesis", 7),
+        ("query/unit", 7),
         ("query/limit", 4),
         ("path/number", 8),
         ("path/sequence", 5),

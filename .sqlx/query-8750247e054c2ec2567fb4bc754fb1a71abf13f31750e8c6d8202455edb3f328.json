@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT h.id AS \"id!: UnitId\" FROM units h JOIN tracks t ON t.id = h.track_id\n            WHERE h.project_id = $1 AND h.state = 'queued' AND t.state = 'active'\n              AND t.mode = $2\n              AND ($3::bigint IS NULL OR h.number = $4)\n              AND ($5::text IS NULL OR t.slug = $6)\n              AND t.slug <> ALL($7::text[])\n              AND NOT EXISTS (SELECT 1 FROM concerns c WHERE c.track_id = t.id AND c.state = 'open')\n            ORDER BY h.approved_at, h.number\n            LIMIT 1\n            FOR UPDATE OF h SKIP LOCKED\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: UnitId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int8",
+        "Int4",
+        "Text",
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8750247e054c2ec2567fb4bc754fb1a71abf13f31750e8c6d8202455edb3f328"
+}

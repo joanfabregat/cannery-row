@@ -1,4 +1,4 @@
-import type { Decision, HypothesisReview } from "@/api/types";
+import type { Decision, UnitReview } from "@/api/types";
 import { ImportedBadge } from "@/components/imported-badge";
 import { EmptyState } from "@/components/query-state";
 import { StatusChip } from "@/components/status-chip";
@@ -12,7 +12,7 @@ interface Entry {
   superseded: boolean;
 }
 
-function entries(reviews: HypothesisReview[]): Entry[] {
+function entries(reviews: UnitReview[]): Entry[] {
   const superseded = new Set(
     reviews.flatMap((r) => r.decisions.map((d) => d.supersedes)).filter(Boolean),
   );
@@ -35,8 +35,8 @@ function decidedBy(decision: Decision, person: (userId: string | null) => string
   return person(decision.actor_user_id);
 }
 
-/** Every decision on a hypothesis, newest first, each with its reason. */
-export function DecisionList({ reviews }: { reviews: HypothesisReview[] }) {
+/** Every decision on a unit, newest first, each with its reason. */
+export function DecisionList({ reviews }: { reviews: UnitReview[] }) {
   const person = usePeople();
   const list = entries(reviews);
   if (list.length === 0) {

@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plan_units (plan_revision_id, key, position, unit_id, redo_of, fields,\n        brief, science_revision)\n        SELECT $1, $2, coalesce(max(position), 0) + 1, $3, $4, $5::text::jsonb, $6, $7\n        FROM plan_units WHERE plan_revision_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bb5482d82f4602cc8684e32ac994f68d6e0c47bd57f01083c344c8c38d0b4ace"
+}

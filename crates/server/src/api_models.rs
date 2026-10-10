@@ -36,7 +36,7 @@ pub struct AttemptDetail {
     pub sequence: i64,
     pub state: String,
     pub track: String,
-    pub hypothesis_revision: i64,
+    pub unit_revision: i64,
     pub science_revision: i64,
     #[schema(required = true)]
     /// Legacy stored references remain readable; new requests use `RequestCommonProducerRef`.
@@ -95,7 +95,7 @@ pub struct AttemptOut {
     pub sequence: i64,
     pub state: String,
     pub track: String,
-    pub hypothesis_revision: i64,
+    pub unit_revision: i64,
     pub science_revision: i64,
     #[schema(required = true)]
     /// Legacy stored references remain readable; new requests use `RequestCommonProducerRef`.
@@ -149,10 +149,10 @@ pub enum AttemptState {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttentionFailure {
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
+    pub unit: i64,
+    pub unit_ref: String,
     pub title: String,
-    pub hypothesis_state: String,
+    pub unit_state: String,
     pub track: String,
     pub attempt_ref: String,
     pub stage: String,
@@ -174,12 +174,12 @@ pub struct AttentionOut {
     pub recent_failures: Vec<AttentionFailure>,
     pub stalled_verification_count: i64,
     pub stalled_verifications: Vec<AttentionStalledVerification>,
-    /// Hypotheses waiting for their write-up.
+    /// Units waiting for their write-up.
     pub pending_writeup_count: i64,
     pub pending_writeups: Vec<AttentionWriteup>,
 }
 
-/// The hypotheses waiting for their write-up, oldest first.
+/// The units waiting for their write-up, oldest first.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WriteupQueueOut {
@@ -187,20 +187,20 @@ pub struct WriteupQueueOut {
     pub items: Vec<AttentionWriteup>,
 }
 
-/// A hypothesis's write-up: whether it is still to write, being written,
+/// A unit's write-up: whether it is still to write, being written,
 /// written or skipped, and what it covers and cites.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WriteupOut {
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
-    pub hypothesis_state: String,
+    pub unit: i64,
+    pub unit_ref: String,
+    pub unit_state: String,
     /// `pending`, `claimed`, `written` or `skipped`.
     pub status: String,
     /// The document job; absent for an imported write-up.
     #[schema(format = "uuid", required = true)]
     pub job_id: Option<String>,
-    /// The attempt the write-up is filed on: the hypothesis's last.
+    /// The attempt the write-up is filed on: the unit's last.
     pub attempt_ref: String,
     /// The service account that claimed the document job.
     #[schema(format = "uuid", required = true)]
@@ -238,7 +238,7 @@ pub struct WriteupRecordOut {
     pub created_at: String,
 }
 
-/// A researcher writes a hypothesis up: the write-up, Markdown with YAML
+/// A researcher writes a unit up: the write-up, Markdown with YAML
 /// front matter (`writeup.schema.json`).
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -247,7 +247,7 @@ pub struct WriteupRequest {
     pub document: String,
 }
 
-/// A researcher skips a hypothesis's write-up, and says why.
+/// A researcher skips a unit's write-up, and says why.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct WriteupSkipRequest {
@@ -255,15 +255,15 @@ pub struct WriteupSkipRequest {
     pub reason: String,
 }
 
-/// A hypothesis waiting for its write-up, and its document job.
+/// A unit waiting for its write-up, and its document job.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttentionWriteup {
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
+    pub unit: i64,
+    pub unit_ref: String,
     pub title: String,
     pub track: String,
-    /// The hypothesis's last attempt, verified or stopped after a failure.
+    /// The unit's last attempt, verified or stopped after a failure.
     pub attempt_ref: String,
     pub attempt_state: String,
     #[schema(format = "uuid")]
@@ -283,10 +283,10 @@ pub struct AttentionWriteup {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttentionOutcome {
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
+    pub unit: i64,
+    pub unit_ref: String,
     pub title: String,
-    pub hypothesis_state: String,
+    pub unit_state: String,
     pub track: String,
     #[schema(required = true)]
     pub attempt_ref: Option<String>,
@@ -306,8 +306,8 @@ pub struct AttentionReview {
     pub subject_revision: i64,
     #[schema(format = "date-time")]
     pub opened_at: String,
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
+    pub unit: i64,
+    pub unit_ref: String,
     pub title: String,
     pub track: String,
     #[schema(required = true)]
@@ -330,8 +330,8 @@ pub struct AttentionReview {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttentionRunning {
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
+    pub unit: i64,
+    pub unit_ref: String,
     pub title: String,
     pub track: String,
     pub attempt_ref: String,
@@ -343,8 +343,8 @@ pub struct AttentionRunning {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AttentionStalledVerification {
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
+    pub unit: i64,
+    pub unit_ref: String,
     pub title: String,
     pub track: String,
     pub attempt_ref: String,
@@ -456,23 +456,27 @@ pub struct ContextBundleRef {
     pub bytes: i64,
 }
 
-/// A typed relation of a unit: to a hypothesis of the project (its number),
-/// of another project (`{project, number}`), or to another unit of the same
-/// plan by key. Exactly one of `hypothesis` and `unit`.
+/// A typed relation of a unit, whose `unit` is a unit of the project (its
+/// number), of another project (`{project, number}`), or another unit of the
+/// same plan (its key).
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UnitRelation {
     #[schema(pattern = "^(derived_from|supersedes|related_to)$")]
     pub kind: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hypothesis: Option<serde_json::Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schema(pattern = "^[a-z0-9][a-z0-9-]{0,62}$")]
-    pub unit: Option<String>,
+    pub unit: serde_json::Value,
+}
+
+impl UnitRelation {
+    /// The key of the unit of the same plan it names, if it names one.
+    #[must_use]
+    pub fn key(&self) -> Option<&str> {
+        self.unit.as_str()
+    }
 }
 
 /// Something a unit's performer should read: another unit (`unit`: a
-/// hypothesis number or a key of the same plan), an attempt's write-up
+/// unit number or a key of the same plan), an attempt's write-up
 /// (`writeup`: `unit` number and `attempt` sequence) or an artifact
 /// (`artifact`: its id). `note` says why it matters.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -491,9 +495,9 @@ pub struct ContextItem {
     pub note: Option<String>,
 }
 
-/// A new unit of a plan draft. `acceptance` is the hypothesis acceptance
+/// A new unit of a plan draft. `acceptance` is the unit acceptance
 /// plan (splits, primary metric, criteria, gates, budget); `parameters` are
-/// the project's hypothesis fields.
+/// the project's unit fields.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UnitCreate {
@@ -541,7 +545,7 @@ pub struct UnitUpdate {
 }
 
 /// A unit as a plan revision lists it. `number` and `state` name its
-/// hypothesis once it has one; `redo_of` is the unit it redoes.
+/// unit once it has one; `redo_of` is the unit it redoes.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlanUnitOut {
@@ -564,9 +568,9 @@ pub struct PlanUnitOut {
     pub context: Vec<ContextItem>,
     pub brief: String,
     pub science_revision: i64,
-    /// The hypothesis revision this entry wrote when its plan was approved.
+    /// The unit revision this entry wrote when its plan was approved.
     #[schema(required = true)]
-    pub hypothesis_revision: Option<i64>,
+    pub unit_revision: Option<i64>,
 }
 
 /// What a plan revision decides about a done or in-flight unit.
@@ -713,7 +717,7 @@ pub struct PlanCheckOut {
 
 /// A concern about a track's plan: Markdown with YAML front matter
 /// (`concern.schema.json`) naming its kind and, when it comes from one, the
-/// hypothesis or attempt; the argument as its body.
+/// unit or attempt; the argument as its body.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ConcernRaise {
@@ -738,10 +742,10 @@ pub struct ConcernOut {
     pub track: String,
     #[schema(pattern = "^(wrong_assumption|better_idea|blocker|other)$")]
     pub kind: String,
-    /// The hypothesis the concern comes from.
+    /// The unit the concern comes from.
     #[schema(required = true)]
-    pub hypothesis: Option<i64>,
-    /// The attempt of that hypothesis the concern comes from.
+    pub unit: Option<i64>,
+    /// The attempt of that unit the concern comes from.
     #[schema(required = true)]
     pub attempt: Option<i64>,
     pub front_matter: BTreeMap<String, serde_json::Value>,
@@ -814,10 +818,10 @@ pub struct PlanReview {
     pub reason: String,
 }
 
-/// A unit: a hypothesis with the plan fields it was approved with.
+/// A unit with the plan fields it was last approved with.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct UnitOut {
+pub struct UnitPlanOut {
     pub number: i64,
     pub track: String,
     #[schema(required = true)]
@@ -843,7 +847,7 @@ pub struct UnitOut {
     pub brief: String,
 }
 
-/// One revision of a unit's hypothesis.
+/// One revision of a unit.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct UnitRevisionOut {
@@ -949,7 +953,7 @@ pub struct ClaimOut {
 pub struct ClaimRequest {
     #[serde(default)]
     #[schema(minimum = 1.0, maximum = 2_147_483_647.0)]
-    pub hypothesis: Option<i64>,
+    pub unit: Option<i64>,
     #[serde(default)]
     pub track: Option<String>,
     #[serde(default)]
@@ -984,8 +988,8 @@ pub struct CommentEdit {
 pub struct CommentOut {
     #[schema(format = "uuid")]
     pub id: String,
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
+    pub unit: i64,
+    pub unit_ref: String,
     #[schema(required = true)]
     pub attempt_ref: Option<String>,
     #[schema(format = "uuid")]
@@ -1015,9 +1019,9 @@ pub struct CommentRevisionOut {
 pub struct ComparisonOut {
     pub id: i64,
     pub attempt_ref: String,
-    pub hypothesis: i64,
-    pub hypothesis_title: String,
-    pub hypothesis_state: String,
+    pub unit: i64,
+    pub unit_title: String,
+    pub unit_state: String,
     pub attempt_state: String,
     pub track: String,
     pub science_revision: i64,
@@ -1061,7 +1065,7 @@ pub struct Context {
     pub measured: i64,
     pub sample_count: i64,
     pub failed_attempts: i64,
-    /// Stored legacy controls may predate the fixed hypothesis control contract.
+    /// Stored legacy controls may predate the fixed unit control contract.
     pub controls: Vec<BTreeMap<String, serde_json::Value>>,
 }
 
@@ -1216,7 +1220,7 @@ pub struct HistoryEvent {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisOut {
+pub struct UnitOut {
     pub number: i64,
     pub r#ref: String,
     pub title: String,
@@ -1243,23 +1247,23 @@ pub struct HypothesisOut {
     #[schema(format = "uuid")]
     pub id: String,
     pub project: String,
-    pub document: HypothesisDocument,
+    pub document: UnitDocument,
     pub science_revision: i64,
     pub relations: Vec<LinkOut>,
     pub backlinks: Vec<LinkOut>,
-    pub reviews: Vec<cannery_row__hypotheses__routes__ReviewCaseOut>,
+    pub reviews: Vec<cannery_row__units__routes__ReviewCaseOut>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisPage {
-    pub items: Vec<HypothesisSummary>,
+pub struct UnitPage {
+    pub items: Vec<UnitSummary>,
     #[schema(required = true)]
     pub next_before: Option<i64>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum HypothesisState {
+pub enum UnitState {
     #[serde(rename = "queued")]
     Queued,
     #[serde(rename = "active")]
@@ -1282,7 +1286,7 @@ pub enum HypothesisState {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisSummary {
+pub struct UnitSummary {
     pub number: i64,
     pub r#ref: String,
     pub title: String,
@@ -1717,9 +1721,9 @@ pub struct Page_UserOut_UUID_ {
 pub struct PointOut {
     pub id: i64,
     pub attempt_ref: String,
-    pub hypothesis: i64,
-    pub hypothesis_title: String,
-    pub hypothesis_state: String,
+    pub unit_number: i64,
+    pub unit_title: String,
+    pub unit_state: String,
     pub attempt_state: String,
     pub track: String,
     pub science_revision: i64,
@@ -1888,8 +1892,8 @@ pub struct ReportOut {
     #[schema(format = "uuid")]
     pub id: String,
     pub attempt_ref: String,
-    pub hypothesis: i64,
-    pub hypothesis_title: String,
+    pub unit: i64,
+    pub unit_title: String,
     pub track: String,
     pub attempt_state: String,
     pub science_revision: i64,
@@ -1915,8 +1919,8 @@ pub struct ReportSummary {
     #[schema(format = "uuid")]
     pub id: String,
     pub attempt_ref: String,
-    pub hypothesis: i64,
-    pub hypothesis_title: String,
+    pub unit: i64,
+    pub unit_title: String,
     pub track: String,
     pub attempt_state: String,
     pub status: String,
@@ -1958,7 +1962,7 @@ pub struct RevisionOut {
     #[schema(format = "date-time")]
     pub created_at: String,
     pub origin: Origin,
-    pub document: HypothesisDocument,
+    pub document: UnitDocument,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -2013,7 +2017,7 @@ pub struct SearchHit {
     #[schema(required = true)]
     pub r#ref: Option<String>,
     #[schema(required = true)]
-    pub hypothesis: Option<i64>,
+    pub unit: Option<i64>,
     #[schema(required = true)]
     pub attempt_ref: Option<String>,
     pub title: String,
@@ -2021,7 +2025,7 @@ pub struct SearchHit {
     #[schema(required = true)]
     pub track: Option<String>,
     #[schema(required = true)]
-    pub hypothesis_state: Option<String>,
+    pub unit_state: Option<String>,
     #[schema(required = true)]
     pub attempt_state: Option<String>,
     #[schema(required = true)]
@@ -2347,7 +2351,7 @@ pub enum cannery_row__config__routes__Kind {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct cannery_row__hypotheses__routes__ReviewCaseOut {
+pub struct cannery_row__units__routes__ReviewCaseOut {
     #[schema(format = "uuid")]
     pub id: String,
     pub kind: String,
@@ -2383,9 +2387,9 @@ pub struct cannery_row__reviews__routes__ReviewCaseOut {
     pub kind: String,
     pub state: String,
     pub subject_revision: i64,
-    pub hypothesis: i64,
-    pub hypothesis_ref: String,
-    pub hypothesis_state: String,
+    pub unit: i64,
+    pub unit_ref: String,
+    pub unit_state: String,
     #[schema(required = true)]
     pub attempt_ref: Option<String>,
     #[schema(required = true)]
@@ -2409,8 +2413,8 @@ pub struct cannery_row__reviews__routes__ReviewCaseOut {
 pub enum cannery_row__search__routes__Kind {
     #[serde(rename = "track")]
     Track,
-    #[serde(rename = "hypothesis")]
-    Hypothesis,
+    #[serde(rename = "unit")]
+    Unit,
     #[serde(rename = "attempt")]
     Attempt,
     #[serde(rename = "report")]
@@ -2951,7 +2955,7 @@ pub struct JobFailureRequestLogsItem {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct NativeHypothesisDocument {
+pub struct NativeUnitDocument {
     pub schema_version: RequestCommonSchemaVersion,
     pub track: String,
     pub title: String,
@@ -2964,15 +2968,15 @@ pub struct NativeHypothesisDocument {
         deserialize_with = "optional_non_null"
     )]
     #[schema(nullable = false)]
-    pub control: Option<HypothesisDocumentControl>,
-    pub plan: HypothesisDocumentPlan,
+    pub control: Option<UnitDocumentControl>,
+    pub plan: UnitDocumentPlan,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "optional_non_null"
     )]
     #[schema(nullable = false)]
-    pub relations: Option<Vec<HypothesisDocumentRelation>>,
+    pub relations: Option<Vec<UnitDocumentRelation>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -2982,17 +2986,17 @@ pub struct NativeHypothesisDocument {
     pub project_fields: Option<BTreeMap<String, serde_json::Value>>,
 }
 
-/// Stored historical hypotheses can predate the full publication document.
+/// Stored historical units can predate the full publication document.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(untagged)]
-pub enum HypothesisDocument {
-    Native(Box<NativeHypothesisDocument>),
-    Legacy(LegacyHypothesisDocument),
+pub enum UnitDocument {
+    Native(Box<NativeUnitDocument>),
+    Legacy(LegacyUnitDocument),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct LegacyHypothesisDocument {
+pub struct LegacyUnitDocument {
     pub schema_version: RequestCommonSchemaVersion,
     pub track: String,
     pub title: String,
@@ -3003,7 +3007,7 @@ pub struct LegacyHypothesisDocument {
         deserialize_with = "optional_non_null"
     )]
     #[schema(nullable = false)]
-    pub relations: Option<Vec<HypothesisDocumentRelation>>,
+    pub relations: Option<Vec<UnitDocumentRelation>>,
 }
 
 /// Evidence reads include provenance that historical import records preserve.
@@ -3077,21 +3081,21 @@ pub enum ReadMeasurementAuthority {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisDocumentControl {
-    pub kind: HypothesisDocumentControlKind,
+pub struct UnitDocumentControl {
+    pub kind: UnitDocumentControlKind,
     pub id: String,
     pub revision: String,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum HypothesisDocumentControlKind {
+pub enum UnitDocumentControlKind {
     #[serde(rename = "baseline")]
     Baseline,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisDocumentPlan {
+pub struct UnitDocumentPlan {
     pub selection_splits: Vec<String>,
     pub confirmation_splits: Vec<String>,
     pub primary_metric: String,
@@ -3105,13 +3109,13 @@ pub struct HypothesisDocumentPlan {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisDocumentRelation {
-    pub kind: HypothesisDocumentRelationKind,
-    pub hypothesis: HypothesisDocumentRelationTarget,
+pub struct UnitDocumentRelation {
+    pub kind: UnitDocumentRelationKind,
+    pub unit: UnitDocumentRelationTarget,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum HypothesisDocumentRelationKind {
+pub enum UnitDocumentRelationKind {
     #[serde(rename = "derived_from")]
     DerivedFrom,
     #[serde(rename = "supersedes")]
@@ -3122,14 +3126,14 @@ pub enum HypothesisDocumentRelationKind {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(untagged)]
-pub enum HypothesisDocumentRelationTarget {
+pub enum UnitDocumentRelationTarget {
     Variant0(i64),
-    Variant1(HypothesisDocumentRelationProject),
+    Variant1(UnitDocumentRelationProject),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisDocumentRelationProject {
+pub struct UnitDocumentRelationProject {
     pub project: String,
     #[schema(value_type = i64)]
     pub number: serde_json::Number,
@@ -3445,7 +3449,7 @@ pub struct ScienceRevisionRequest {
         deserialize_with = "optional_non_null"
     )]
     #[schema(nullable = false)]
-    pub hypothesis_fields: Option<BTreeMap<String, serde_json::Value>>,
+    pub unit_fields: Option<BTreeMap<String, serde_json::Value>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -3538,7 +3542,7 @@ pub struct ScienceRevisionRequestVerifier {
     pub revision: String,
 }
 
-/// Who decides a written-up hypothesis: a researcher (the default when
+/// Who decides a written-up unit: a researcher (the default when
 /// absent), or the registered decider service account running its decider
 /// step, which promotes only on a `pass` verdict.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -4014,7 +4018,7 @@ mod request_tests {
     }
 }
 
-/// The claimed job: a verify job, or a hypothesis's document or decide job.
+/// The claimed job: a verify job, or a unit's document or decide job.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(untagged)]
 pub enum ClaimedJobDocument {
@@ -4030,13 +4034,13 @@ pub struct ClaimedDecideJob {
     pub schema_version: RequestCommonSchemaVersion,
     pub job_id: String,
     pub phase: ClaimedDecidePhase,
-    /// The hypothesis's last attempt.
+    /// The unit's last attempt.
     pub attempt_id: String,
     pub performer: ClaimedDecidePerformer,
     /// The registered decider and the revision of its step.
     pub decider: ClaimedJobPinnedRef,
     pub track: String,
-    pub hypothesis: i64,
+    pub unit: i64,
     pub science_revision: String,
     #[schema(format = "uuid")]
     pub review_case_id: String,
@@ -4080,11 +4084,11 @@ pub struct ClaimedDocumentJob {
     pub schema_version: RequestCommonSchemaVersion,
     pub job_id: String,
     pub phase: ClaimedDocumentPhase,
-    /// The hypothesis's last attempt, verified or stopped after a failure.
+    /// The unit's last attempt, verified or stopped after a failure.
     pub attempt_id: String,
     pub performer: ClaimedDocumentPerformer,
     pub track: String,
-    pub hypothesis: i64,
+    pub unit: i64,
     pub science_revision: String,
     pub inputs: ClaimedDocumentInputs,
     pub output_prefix: String,
@@ -4106,11 +4110,11 @@ pub enum ClaimedDocumentPerformer {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ClaimedDocumentInputs {
-    /// The sequence numbers of every attempt of the hypothesis: the
+    /// The sequence numbers of every attempt of the unit: the
     /// write-up's `attempts`.
     pub attempts: Vec<i64>,
     /// The verification report the write-up cites as its `verification`;
-    /// absent for a stopped hypothesis, whose write-up cites null.
+    /// absent for a stopped unit, whose write-up cites null.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification: Option<RequestCommonContentRef>,
 }
@@ -4285,7 +4289,7 @@ mod nested_contract_tests {
     use super::*;
     use serde_json::{Value, json};
 
-    /// A stored hypothesis document, as plan approval writes it.
+    /// A stored unit document, as plan approval writes it.
     const NATIVE_DOCUMENT: &[u8] = br#"{
         "schema_version": "0.2",
         "track": "compact-sparse",
@@ -4305,8 +4309,8 @@ mod nested_contract_tests {
             "compute_budget": {"gpu_hours_max": 12, "wall_clock_hours_max": 24.5}
         },
         "relations": [
-            {"kind": "derived_from", "hypothesis": 42},
-            {"kind": "related_to", "hypothesis": {"project": "other-project", "number": 7}}
+            {"kind": "derived_from", "unit": 42},
+            {"kind": "related_to", "unit": {"project": "other-project", "number": 7}}
         ],
         "project_fields": {"architecture": "sparse", "notes": {"free": ["form"]}}
     }"#;
@@ -4321,15 +4325,15 @@ mod nested_contract_tests {
     }
 
     #[test]
-    fn imported_example_hypotheses_preserve_their_normalized_read_documents()
+    fn imported_example_units_preserve_their_normalized_read_documents()
     -> Result<(), Box<dyn std::error::Error>> {
         // The importer synthesizes these four fields for histories without a full document.
         for example in [
-            include_str!("../../../examples/import/hypotheses/H-001.yaml"),
-            include_str!("../../../examples/import/hypotheses/H-002.yaml"),
-            include_str!("../../../examples/import/hypotheses/H-003.yaml"),
-            include_str!("../../../examples/import/hypotheses/H-004.yaml"),
-            include_str!("../../../examples/import/hypotheses/H-006.yaml"),
+            include_str!("../../../examples/import/units/H-001.yaml"),
+            include_str!("../../../examples/import/units/H-002.yaml"),
+            include_str!("../../../examples/import/units/H-003.yaml"),
+            include_str!("../../../examples/import/units/H-004.yaml"),
+            include_str!("../../../examples/import/units/H-006.yaml"),
         ] {
             let header = |field: &str| {
                 example
@@ -4339,10 +4343,10 @@ mod nested_contract_tests {
             };
             let document = json!({"schema_version":"0.2", "track":header("track")?,
                 "title":header("title")?, "question":header("claim")?});
-            let typed: HypothesisDocument = serde_json::from_value(document.clone())?;
-            assert!(matches!(typed, HypothesisDocument::Legacy(_)));
+            let typed: UnitDocument = serde_json::from_value(document.clone())?;
+            assert!(matches!(typed, UnitDocument::Legacy(_)));
             assert_eq!(serde_json::to_value(typed)?, document);
-            assert!(serde_json::from_value::<NativeHypothesisDocument>(document.clone()).is_err());
+            assert!(serde_json::from_value::<NativeUnitDocument>(document.clone()).is_err());
             let revision = json!({"revision":1,"science_revision":1,
                 "author":{"kind":"user","id":"00000000-0000-0000-0000-000000000001"},
                 "via_channel":"cli","via_client":"cannery import",
@@ -4350,19 +4354,19 @@ mod nested_contract_tests {
             round_trip::<RevisionOut>(&serde_json::to_vec(&revision)?)?;
             let mut malformed = document;
             malformed["plan"] = json!("invalid native plan");
-            assert!(serde_json::from_value::<HypothesisDocument>(malformed).is_err());
+            assert!(serde_json::from_value::<UnitDocument>(malformed).is_err());
         }
         let full = NATIVE_DOCUMENT;
-        let native: HypothesisDocument = serde_json::from_slice(full)?;
-        assert!(matches!(native, HypothesisDocument::Native(_)));
-        round_trip::<HypothesisDocument>(full)?;
+        let native: UnitDocument = serde_json::from_slice(full)?;
+        assert!(matches!(native, UnitDocument::Native(_)));
+        round_trip::<UnitDocument>(full)?;
         Ok(())
     }
 
     #[test]
     fn imported_measurements_preserve_authority_source_and_missing_values()
     -> Result<(), Box<dyn std::error::Error>> {
-        let example = include_str!("../../../examples/import/hypotheses/H-001.yaml");
+        let example = include_str!("../../../examples/import/units/H-001.yaml");
         let source = "gs://retrieval-history/runs/h001-seed-1/metrics.json#/mrr/overall";
         assert!(example.contains(source));
         let measurement = json!({"metric":"mrr","split":"dev","value":0.71,
@@ -4374,7 +4378,7 @@ mod nested_contract_tests {
             "missing_reason":"The English slice was not scored in this run.",
             "authority":"imported_transcribed","source":"notebook/2025-02.md:14@3f9c2ab",
             "unit":"ratio","direction":"higher"});
-        let example = include_str!("../../../examples/import/hypotheses/H-003.yaml");
+        let example = include_str!("../../../examples/import/units/H-003.yaml");
         assert!(example.contains(missing["source"].as_str().ok_or("source absent")?));
         round_trip::<ReadMeasurement>(&serde_json::to_vec(&missing)?)?;
         let mut malformed = missing;
@@ -4460,7 +4464,7 @@ mod nested_contract_tests {
     #[test]
     fn nested_publication_and_report_contracts_preserve_valid_documents()
     -> Result<(), Box<dyn std::error::Error>> {
-        round_trip::<NativeHypothesisDocument>(NATIVE_DOCUMENT)?;
+        round_trip::<NativeUnitDocument>(NATIVE_DOCUMENT)?;
         round_trip::<EvidenceEnvelopeRequest>(include_bytes!(
             "../../../tests/fixtures/contracts/evidence_envelope/valid/agent.json"
         ))?;
@@ -4492,7 +4496,7 @@ mod nested_contract_tests {
             serde_json::from_value(json!({"expected_revision":1,"producer":null}))?;
         assert!(patch.producer.is_none());
         let mut unit: Value = serde_json::from_slice(include_bytes!(
-            "../../../tests/fixtures/contracts/hypothesis/valid/full.json"
+            "../../../tests/fixtures/contracts/unit/valid/full.json"
         ))?;
         serde_json::from_value::<UnitCreate>(unit.clone())?;
         unit["relations"][0]["unknown"] = json!(1);

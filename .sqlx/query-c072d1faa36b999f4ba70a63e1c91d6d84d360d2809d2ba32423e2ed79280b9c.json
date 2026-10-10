@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT external_id AS \"external_id!\",id AS \"id: uuid::Uuid\",number FROM units WHERE project_id=$1 AND external_id IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "external_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "id: uuid::Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "number",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "c072d1faa36b999f4ba70a63e1c91d6d84d360d2809d2ba32423e2ed79280b9c"
+}

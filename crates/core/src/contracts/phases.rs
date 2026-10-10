@@ -23,13 +23,13 @@ pub enum Phase {
     Run,
     /// A verification report: the verdict, its gates and the verified measurements.
     Verification,
-    /// A hypothesis's write-up: its summary, the attempts it covers and the
+    /// A unit's write-up: its summary, the attempts it covers and the
     /// verification report it reports on; or an imported retrospective report.
     Writeup,
-    /// A hypothesis's decision: its outcome and the verification report and
+    /// A unit's decision: its outcome and the verification report and
     /// write-up it cites, with the reason as the body.
     Decision,
-    /// A concern about a track's plan: its kind and the hypothesis or attempt
+    /// A concern about a track's plan: its kind and the unit or attempt
     /// it comes from, with the argument as the body.
     Concern,
 }
@@ -377,7 +377,7 @@ mod tests {
         let schemas = schemas()?;
         let document = schemas.parse(
             Phase::Concern,
-            "---\nkind: wrong_assumption\nhypothesis: 12\nattempt: 2\n---\n\nThe tokenizer is not the bottleneck.\n",
+            "---\nkind: wrong_assumption\nunit: 12\nattempt: 2\n---\n\nThe tokenizer is not the bottleneck.\n",
             Limits::default(),
         )?;
         assert_eq!(document.front_matter["kind"], "wrong_assumption");
@@ -386,9 +386,9 @@ mod tests {
             json!({}),
             json!({"kind": "question"}),
             json!({"kind": "blocker", "attempt": 1}),
-            json!({"kind": "blocker", "hypothesis": 0}),
-            json!({"kind": "blocker", "hypothesis": "#12"}),
-            json!({"kind": "blocker", "unit": 12}),
+            json!({"kind": "blocker", "unit": 0}),
+            json!({"kind": "blocker", "unit": "#12"}),
+            json!({"kind": "blocker", "track": "t"}),
         ] {
             assert!(!accepts(&schemas, Phase::Concern, &invalid), "{invalid}");
         }

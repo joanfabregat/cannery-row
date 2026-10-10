@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT jsonb_build_object(\n    'id', c.id, 'attempt_ref', '#' || h.number || '.' || a.sequence,\n    'unit', h.number, 'unit_title', h.title, 'unit_state', h.state,\n    'attempt_state', a.state, 'track', t.slug, 'science_revision', a.science_revision,\n    'metric', c.metric, 'split', c.split, 'dimensions', c.dimensions, 'value', c.value,\n    'source', c.source, 'reference', jsonb_build_object('value', c.reference_value,\n       'label', c.reference_label, 'kind', c.reference_kind, 'ref', c.reference_ref),\n    'verdict', c.verdict, 'policy_revision', c.policy_revision,\n    'evidence_id', c.evidence_id, 'recorded_at', c.recorded_at, 'origin', a.origin\n)::text AS \"row!\"\nFROM comparisons c\nJOIN attempts a ON a.id = c.attempt_id\nJOIN units h ON h.id = c.unit_id\nJOIN tracks t ON t.id = c.track_id\nWHERE c.project_id = $1\nAND ($2::text IS NULL OR c.metric = $2)\nAND ($3::text IS NULL OR c.split = $3)\nAND ($4 OR c.dimension_keys = $5::text[])\nAND ($6::text::jsonb IS NULL OR NOT EXISTS (\n    SELECT 1 FROM jsonb_each($6::text::jsonb) AS f(name, allowed)\n    WHERE NOT coalesce(f.allowed ? (c.dimensions ->> f.name), false)))\nAND ($7::text[] IS NULL OR t.slug = ANY($7))\nAND ($8::text[] IS NULL OR a.state = ANY($8))\nAND ($9::text[] IS NULL OR c.verdict = ANY($9))\nAND ($10::text::timestamptz IS NULL OR c.recorded_at >= $10::text::timestamptz)\nAND ($11::text::timestamptz IS NULL OR c.recorded_at < $11::text::timestamptz)\nAND ($12::text IS NULL OR a.origin = $12)\nAND ($13::bigint IS NULL OR c.id < $13)\nORDER BY c.id DESC LIMIT $14\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "row!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Bool",
+        "TextArray",
+        "Text",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "3547759cba7eb73be0dddb2d25960c3b8c97d3f80b0fd0240d4947c34d017cd0"
+}

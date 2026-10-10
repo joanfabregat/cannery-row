@@ -115,8 +115,8 @@ async fn storage(pool: &PgPool) -> Result<Value> {
     let mut value = json!({});
     for (table, order) in [
         ("tracks", "id"),
-        ("hypotheses", "id"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "id"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("artifacts", "id"),
         ("attempt_failures", "id"),
@@ -235,19 +235,19 @@ fn project(
         let expires = micros(&a["lease_expires_at"])?;
         assert_eq!(expires, claimed + 90_000_000);
         assert_eq!(a["state"], "claimed");
-        let prior_rows = initial["hypotheses"]
+        let prior_rows = initial["units"]
             .as_array()
-            .ok_or("hypotheses")?
+            .ok_or("units")?
             .iter()
             .map(|raw| decode(raw.as_str().ok_or("raw")?))
             .collect::<Result<Vec<_>>>()?;
-        let hypothesis = prior_rows
+        let unit = prior_rows
             .iter()
-            .find(|h| h["id"] == a["hypothesis_id"])
-            .ok_or("claim hypothesis")?;
+            .find(|h| h["id"] == a["unit_id"])
+            .ok_or("claim unit")?;
         assert_eq!(
             a["lease_generation"].as_i64().ok_or("generation")?,
-            hypothesis["lease_generation"]
+            unit["lease_generation"]
                 .as_i64()
                 .ok_or("prior generation")?
                 + 1
@@ -260,7 +260,7 @@ fn project(
             .collect::<Result<Vec<_>>>()?;
         let predecessor = attempts
             .iter()
-            .filter(|p| p["hypothesis_id"] == a["hypothesis_id"])
+            .filter(|p| p["unit_id"] == a["unit_id"])
             .max_by_key(|p| p["sequence"].as_i64());
         assert_eq!(
             a["sequence"].as_i64().ok_or("sequence")?,
@@ -275,7 +275,7 @@ fn project(
                 a["id"].as_str().ok_or("id")?.into(),
                 format!(
                     "@checked-attempt-{}-{}",
-                    a["hypothesis_id"].as_str().ok_or("hypothesis")?,
+                    a["unit_id"].as_str().ok_or("unit")?,
                     a["sequence"]
                 ),
             );
@@ -334,14 +334,14 @@ fn project(
             .filter(|e| e["subject_id"] == a["id"])
             .collect::<Vec<_>>();
         assert_eq!(linked.len(), 1);
-        let number = a["hypothesis_id"].as_str().ok_or("hypothesis")?[33..].parse::<i32>()?;
+        let number = a["unit_id"].as_str().ok_or("unit")?[33..].parse::<i32>()?;
         assert_eq!(
             linked[0]["new_state"]["ref"],
             format!("#{number}.{}", a["sequence"])
         );
     }
     for (table, field) in [
-        ("hypotheses", "updated_at"),
+        ("units", "updated_at"),
         ("audit_events", "occurred_at"),
         ("search_documents", "updated_at"),
         ("search_documents", "occurred_at"),
@@ -440,8 +440,8 @@ async fn attempt_claims_match_production() -> Result<()> {
                     .execute(&mut *tx)
                     .await?;
             } else {
-                sqlx::query("SELECT id FROM hypotheses WHERE number=$1 FOR UPDATE")
-                    .bind(if hold == "hypothesis" { 1_i32 } else { 2_i32 })
+                sqlx::query("SELECT id FROM units WHERE number=$1 FOR UPDATE")
+                    .bind(if hold == "unit" { 1_i32 } else { 2_i32 })
                     .execute(&mut *tx)
                     .await?;
             }
@@ -479,13 +479,12 @@ async fn attempt_claims_match_production() -> Result<()> {
                 vec![1]
             } {
                 let mut check = state.pool.begin().await?;
-                let err =
-                    sqlx::query("SELECT id FROM hypotheses WHERE number=$1 FOR UPDATE NOWAIT")
-                        .bind(number)
-                        .execute(&mut *check)
-                        .await
-                        .err()
-                        .ok_or("track waiter lacked hypothesis lock")?;
+                let err = sqlx::query("SELECT id FROM units WHERE number=$1 FOR UPDATE NOWAIT")
+                    .bind(number)
+                    .execute(&mut *check)
+                    .await
+                    .err()
+                    .ok_or("track waiter lacked unit lock")?;
                 assert_eq!(
                     err.as_database_error()
                         .and_then(sqlx::error::DatabaseError::code)

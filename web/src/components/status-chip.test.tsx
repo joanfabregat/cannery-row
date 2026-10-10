@@ -6,7 +6,7 @@ import { StatusChip } from "./status-chip";
 
 describe("StatusChip", () => {
   it("shows the plain word and an icon", () => {
-    render(<StatusChip domain="hypothesis" value="deciding" />);
+    render(<StatusChip domain="unit" value="deciding" />);
     const chip = screen.getByText("Needs a decision");
     expect(chip).toHaveAttribute("data-tone", "attention");
     const icon = chip.querySelector("svg");

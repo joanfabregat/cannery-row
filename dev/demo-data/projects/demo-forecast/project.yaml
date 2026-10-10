@@ -1,5 +1,5 @@
 # Demo project: daily demand forecasts for a fictional bakery chain. Its
-# notebook-era history (hypotheses #1 to #5) comes from the import bundle in
+# notebook-era history (units #1 to #5) comes from the import bundle in
 # dev/demo-data/import/demo-forecast; this file is the live work that
 # continues it. Fictional demo data for dev/seed-demo.sh.
 slug: demo-forecast
@@ -43,7 +43,7 @@ brief:
     - Report backtest MASE per `horizon` slice, `d1` and `d7`.
     - The notebook-era four-week average (#1) is the control to beat.
 
-hypotheses:
+units:
   - key: lgbm-global
     doc:
       track: global-models
@@ -63,8 +63,8 @@ hypotheses:
         compute_budget: {cpu_hours_max: 6}
       project_fields: {horizon_days: 7, seed: 11}
       relations:
-        - {kind: derived_from, hypothesis: 1}
-        - {kind: supersedes, hypothesis: 3}
+        - {kind: derived_from, unit: 1}
+        - {kind: supersedes, unit: 3}
     attempts:
       - by: agent
         stop: verified
@@ -119,7 +119,7 @@ hypotheses:
             A single global model is good enough to replace the per-shop baselines for the weekly forecast.
         decision: {by: chloe, action: promote, reason: "Clear gain at both horizons and fast enough to retrain weekly. This is the production candidate."}
     comments:
-      - {by: ada, on: hypothesis, body: "Worth noting in the report that #4 (holiday-aware average, still awaiting review) is now mostly moot: the holiday flag here does the same job."}
+      - {by: ada, on: unit, body: "Worth noting in the report that #4 (holiday-aware average, still awaiting review) is now mostly moot: the holiday flag here does the same job."}
       - {by: chloe, on: 1, body: "The new shops are the weak spot. I'll draft something on borrowing strength from similar shops."}
 
   - key: lgbm-weather
@@ -141,7 +141,7 @@ hypotheses:
         compute_budget: {cpu_hours_max: 6}
       project_fields: {horizon_days: 7, seed: 11}
       relations:
-        - {kind: derived_from, hypothesis: lgbm-global}
+        - {kind: derived_from, unit: lgbm-global}
     attempts:
       - by: agent
         stop: verifying
@@ -182,7 +182,7 @@ hypotheses:
         regression_gates: []
         compute_budget: {cpu_hours_max: 8}
       relations:
-        - {kind: derived_from, hypothesis: lgbm-global}
+        - {kind: derived_from, unit: lgbm-global}
     attempts:
       - by: chloe
         stop: verified
@@ -247,7 +247,7 @@ hypotheses:
         regression_gates: [horizon]
         compute_budget: {cpu_hours_max: 2}
       relations:
-        - {kind: related_to, hypothesis: lgbm-global}
+        - {kind: related_to, unit: lgbm-global}
 
   - key: new-shops
     doc:
@@ -266,5 +266,5 @@ hypotheses:
         regression_gates: [horizon]
         compute_budget: {cpu_hours_max: 4}
       relations:
-        - {kind: derived_from, hypothesis: lgbm-global}
+        - {kind: derived_from, unit: lgbm-global}
     later: {review: pending}

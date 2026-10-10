@@ -149,7 +149,7 @@ export type ReferenceTarget = { kind: "internal"; to: string } | { kind: "extern
 const PROJECT_PREFIX = /^\s*([a-z0-9][a-z0-9-]{0,62})#/;
 
 /**
- * Where a reference's `ref` leads: a hypothesis (`#12`) or attempt (`#12.3`)
+ * Where a reference's `ref` leads: a unit (`#12`) or attempt (`#12.3`)
  * of this project, or an http(s) address opened in a new tab. A ref naming
  * another project (`other#12`) is not followed: the comparison's verifier
  * reports on this project only. A baseline id, a DOI or anything else stays

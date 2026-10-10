@@ -14,8 +14,8 @@ use cannery_core::json::{
     Document, Node,
     model::{self, ModelEncodeError},
 };
-use cannery_hypotheses::repo::Decision;
 use cannery_reviews::repo::{Case, Failure};
+use cannery_units::repo::Decision;
 use std::collections::BTreeMap;
 type Result<T> = std::result::Result<T, ModelEncodeError>;
 #[derive(Clone, Copy)]
@@ -79,10 +79,10 @@ pub(crate) fn case(d: &CaseDetail, p: ResponseContext) -> Result<Vec<u8>> {
         kind: convert(c.kind.as_str())?,
         state: convert(c.state.as_str())?,
         subject_revision: convert(c.subject_revision)?,
-        hypothesis: convert(c.hypothesis_number)?,
-        hypothesis_ref: convert(format!("#{}", c.hypothesis_number))?,
-        hypothesis_state: convert(c.hypothesis_state.as_str())?,
-        attempt_ref: convert(attempt_ref(c.hypothesis_number, c.attempt_sequence))?,
+        unit: convert(c.unit_number)?,
+        unit_ref: convert(format!("#{}", c.unit_number))?,
+        unit_state: convert(c.unit_state.as_str())?,
+        attempt_ref: convert(attempt_ref(c.unit_number, c.attempt_sequence))?,
         attempt_state: convert(c.attempt_state.map(cannery_reviews::AttemptState::as_str))?,
         opened_at: convert(timestamp(c.opened_at))?,
         resolved_at: convert(c.resolved_at.map(timestamp))?,
@@ -114,9 +114,7 @@ pub(crate) fn case(d: &CaseDetail, p: ResponseContext) -> Result<Vec<u8>> {
                 })
             })
             .transpose()?,
-        decisions: decode(&array(
-            d.decisions.iter().map(crate::hypothesis_wire::decision),
-        )?)?,
+        decisions: decode(&array(d.decisions.iter().map(crate::unit_wire::decision))?)?,
     })
 }
 pub(crate) fn page(
@@ -162,14 +160,11 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
                 kind: convert(v.kind.as_str())?,
                 subject_revision: convert(v.subject_revision)?,
                 opened_at: convert(timestamp(v.opened_at))?,
-                hypothesis: convert(v.hypothesis_number)?,
-                hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
-                title: v
-                    .hypothesis_title
-                    .as_utf8()
-                    .ok_or(ModelEncodeError::Encoding)?,
+                unit: convert(v.unit_number)?,
+                unit_ref: convert(format!("#{}", v.unit_number))?,
+                title: v.unit_title.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-                attempt_ref: convert(attempt_ref(v.hypothesis_number, v.attempt_sequence))?,
+                attempt_ref: convert(attempt_ref(v.unit_number, v.attempt_sequence))?,
                 verdict: (v.verdict.as_ref())
                     .map(|v| v.as_utf8().ok_or(ModelEncodeError::Encoding))
                     .transpose()?,
@@ -187,29 +182,23 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
         running_count: convert(d.running_count)?,
         running: decode(&array(d.running.iter().map(|v| {
             encode(&AttentionRunning {
-                hypothesis: convert(v.hypothesis_number)?,
-                hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
-                title: v
-                    .hypothesis_title
-                    .as_utf8()
-                    .ok_or(ModelEncodeError::Encoding)?,
+                unit: convert(v.unit_number)?,
+                unit_ref: convert(format!("#{}", v.unit_number))?,
+                title: v.unit_title.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-                attempt_ref: convert(format!("#{}.{}", v.hypothesis_number, v.attempt_sequence))?,
+                attempt_ref: convert(format!("#{}.{}", v.unit_number, v.attempt_sequence))?,
                 state: convert(v.state.as_str())?,
                 claimed_at: convert(timestamp(v.claimed_at))?,
             })
         }))?)?,
         recent_outcomes: decode(&array(d.outcomes.iter().map(|v| {
             encode(&AttentionOutcome {
-                hypothesis: convert(v.hypothesis_number)?,
-                hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
-                title: v
-                    .hypothesis_title
-                    .as_utf8()
-                    .ok_or(ModelEncodeError::Encoding)?,
-                hypothesis_state: convert(v.hypothesis_state.as_str())?,
+                unit: convert(v.unit_number)?,
+                unit_ref: convert(format!("#{}", v.unit_number))?,
+                title: v.unit_title.as_utf8().ok_or(ModelEncodeError::Encoding)?,
+                unit_state: convert(v.unit_state.as_str())?,
                 track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-                attempt_ref: convert(attempt_ref(v.hypothesis_number, v.attempt_sequence))?,
+                attempt_ref: convert(attempt_ref(v.unit_number, v.attempt_sequence))?,
                 action: convert(v.action.as_str())?,
                 reason: v.reason.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 decided_at: convert(timestamp(v.decided_at))?,
@@ -218,15 +207,12 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
         }))?)?,
         recent_failures: decode(&array(d.failures.iter().map(|v| {
             encode(&AttentionFailure {
-                hypothesis: convert(v.hypothesis_number)?,
-                hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
-                title: v
-                    .hypothesis_title
-                    .as_utf8()
-                    .ok_or(ModelEncodeError::Encoding)?,
-                hypothesis_state: convert(v.hypothesis_state.as_str())?,
+                unit: convert(v.unit_number)?,
+                unit_ref: convert(format!("#{}", v.unit_number))?,
+                title: v.unit_title.as_utf8().ok_or(ModelEncodeError::Encoding)?,
+                unit_state: convert(v.unit_state.as_str())?,
                 track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-                attempt_ref: convert(format!("#{}.{}", v.hypothesis_number, v.attempt_sequence))?,
+                attempt_ref: convert(format!("#{}.{}", v.unit_number, v.attempt_sequence))?,
                 stage: convert(v.stage.as_str())?,
                 code: v.code.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 reason: v.reason.as_utf8().ok_or(ModelEncodeError::Encoding)?,
@@ -251,19 +237,16 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
                 _ => String::from("an agent or a researcher"),
             };
             encode(&AttentionStalledVerification {
-                hypothesis: convert(v.hypothesis_number)?,
-                hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
-                title: v
-                    .hypothesis_title
-                    .as_utf8()
-                    .ok_or(ModelEncodeError::Encoding)?,
+                unit: convert(v.unit_number)?,
+                unit_ref: convert(format!("#{}", v.unit_number))?,
+                title: v.unit_title.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-                attempt_ref: convert(format!("#{}.{}", v.hypothesis_number, v.attempt_sequence))?,
+                attempt_ref: convert(format!("#{}.{}", v.unit_number, v.attempt_sequence))?,
                 performer: v.performer.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 waiting_since: convert(timestamp(v.waiting_since))?,
                 message: convert(format!(
                     "verification of #{}.{} waits for {waiting_for}",
-                    v.hypothesis_number, v.attempt_sequence
+                    v.unit_number, v.attempt_sequence
                 ))?,
                 verifier,
                 revision,
@@ -273,20 +256,17 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
         pending_writeups: decode(&array(d.writeups.iter().map(writeup))?)?,
     })
 }
-/// A hypothesis waiting for its write-up, as Home and the write-up queue list it.
+/// A unit waiting for its write-up, as Home and the write-up queue list it.
 pub(crate) fn writeup(v: &PendingWriteup) -> Result<Vec<u8>> {
     encode(&writeup_model(v)?)
 }
 pub(crate) fn writeup_model(v: &PendingWriteup) -> Result<AttentionWriteup> {
     Ok(AttentionWriteup {
-        hypothesis: convert(v.hypothesis_number)?,
-        hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
-        title: v
-            .hypothesis_title
-            .as_utf8()
-            .ok_or(ModelEncodeError::Encoding)?,
+        unit: convert(v.unit_number)?,
+        unit_ref: convert(format!("#{}", v.unit_number))?,
+        title: v.unit_title.as_utf8().ok_or(ModelEncodeError::Encoding)?,
         track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-        attempt_ref: format!("#{}.{}", v.hypothesis_number, v.attempt_sequence),
+        attempt_ref: format!("#{}.{}", v.unit_number, v.attempt_sequence),
         attempt_state: convert(v.attempt_state.as_str())?,
         job_id: v.job_id.to_string(),
         job_state: v.job_state.as_utf8().ok_or(ModelEncodeError::Encoding)?,

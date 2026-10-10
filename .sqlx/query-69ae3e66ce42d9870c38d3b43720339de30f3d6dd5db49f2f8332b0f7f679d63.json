@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id AS \"id!: AttemptId\", a.sequence, a.state FROM attempts a\n        WHERE a.unit_id = $1\n          AND EXISTS (SELECT 1 FROM phase_outputs o WHERE o.attempt_id = a.id\n                      AND o.stage IN ('writeup', 'agent'))\n        ORDER BY a.sequence DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "sequence",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "state",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "69ae3e66ce42d9870c38d3b43720339de30f3d6dd5db49f2f8332b0f7f679d63"
+}

@@ -17,9 +17,7 @@ export function page<T>(items: T[], next_before: unknown = null) {
   return { items, next_before };
 }
 
-export function summary(
-  overrides: Partial<Schemas["HypothesisSummary"]> = {},
-): Schemas["HypothesisSummary"] {
+export function summary(overrides: Partial<Schemas["UnitSummary"]> = {}): Schemas["UnitSummary"] {
   const number = overrides.number ?? 12;
   return {
     number,
@@ -59,9 +57,9 @@ export function decision(overrides: Partial<Schemas["DecisionOut"]> = {}): Schem
   };
 }
 
-export type HypothesisReview = Schemas["cannery_row__hypotheses__routes__ReviewCaseOut"];
+export type UnitReview = Schemas["cannery_row__units__routes__ReviewCaseOut"];
 
-export function review(overrides: Partial<HypothesisReview> = {}): HypothesisReview {
+export function review(overrides: Partial<UnitReview> = {}): UnitReview {
   return {
     id: uuid(),
     kind: "decision",
@@ -76,9 +74,7 @@ export function review(overrides: Partial<HypothesisReview> = {}): HypothesisRev
   };
 }
 
-export function hypothesis(
-  overrides: Partial<Schemas["HypothesisOut"]> = {},
-): Schemas["HypothesisOut"] {
+export function unit(overrides: Partial<Schemas["UnitOut"]> = {}): Schemas["UnitOut"] {
   const base = summary(overrides);
   return {
     ...base,
@@ -124,7 +120,7 @@ export function attempt(
     track: "tokenizer",
     mode: "agent",
     workflow: null,
-    hypothesis_revision: 1,
+    unit_revision: 1,
     science_revision: 1,
     producer: null,
     claimed_by: { kind: "service", id: "codex" },
@@ -151,8 +147,8 @@ export function report(overrides: Partial<Schemas["ReportOut"]> = {}): Schemas["
   return {
     id: uuid(),
     attempt_ref: "#12.1",
-    hypothesis: 12,
-    hypothesis_title: "Shorter prompts",
+    unit: 12,
+    unit_title: "Shorter prompts",
     track: "tokenizer",
     attempt_state: "verified",
     science_revision: 1,
@@ -187,9 +183,9 @@ export function reviewCase(overrides: Partial<ReviewCase> = {}): ReviewCase {
     kind: "decision",
     state: "pending",
     subject_revision: 3,
-    hypothesis: 12,
-    hypothesis_ref: "#12",
-    hypothesis_state: "deciding",
+    unit: 12,
+    unit_ref: "#12",
+    unit_state: "deciding",
     attempt_ref: "#12.1",
     attempt_state: "verified",
     opened_at: "2026-03-04T10:00:00Z",
@@ -206,8 +202,8 @@ export function reviewCase(overrides: Partial<ReviewCase> = {}): ReviewCase {
 export function comment(overrides: Partial<Schemas["CommentOut"]> = {}): Schemas["CommentOut"] {
   return {
     id: uuid(),
-    hypothesis: 12,
-    hypothesis_ref: "#12",
+    unit: 12,
+    unit_ref: "#12",
     attempt_ref: null,
     author_user_id: USER_ID,
     body_markdown: "Looks good",
@@ -281,16 +277,16 @@ export function attention(
 
 export function searchHit(overrides: Partial<Schemas["SearchHit"]> = {}): Schemas["SearchHit"] {
   return {
-    kind: "hypothesis",
+    kind: "unit",
     source_id: uuid(),
     project: "sardines",
     ref: "sardines#12",
-    hypothesis: 12,
+    unit: 12,
     attempt_ref: null,
     title: "Shorter prompts",
     snippet: "Cut the \u0001tokenizer\u0002 prompt",
     track: "tokenizer",
-    hypothesis_state: "promoted",
+    unit_state: "promoted",
     attempt_state: null,
     verdict: null,
     decision: null,
@@ -369,9 +365,9 @@ export function job(overrides: Partial<Schemas["JobOut"]> = {}): Schemas["JobOut
 
 type Handler = (request: Request) => Response | Promise<Response>;
 
-/** The requests a hypothesis page makes, answered from these records. */
-export function hypothesisApi(
-  h: Schemas["HypothesisOut"],
+/** The requests a unit page makes, answered from these records. */
+export function unitApi(
+  h: Schemas["UnitOut"],
   {
     attempts = [],
     reports = {},
@@ -389,7 +385,7 @@ export function hypothesisApi(
     project?: string;
   } = {},
 ): Record<string, Handler> {
-  const base = `/api/projects/${project}/hypotheses/${h.number}`;
+  const base = `/api/projects/${project}/units/${h.number}`;
   const handlers: Record<string, Handler> = {
     [`GET ${base}`]: () => json(h),
     [`GET ${base}/attempts`]: () => json(page(attempts)),
@@ -410,9 +406,9 @@ export function hypothesisApi(
   return handlers;
 }
 
-/** A hypothesis a researcher accepted, with its attempt and report. */
-export function promotedHypothesis() {
-  const h = hypothesis({
+/** A unit a researcher accepted, with its attempt and report. */
+export function promotedUnit() {
+  const h = unit({
     state: "promoted",
     reviews: [review({ kind: "decision", decisions: [decision()] })],
   });

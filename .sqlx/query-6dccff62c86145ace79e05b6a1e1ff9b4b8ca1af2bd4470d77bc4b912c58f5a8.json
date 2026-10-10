@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO review_cases (project_id, unit_id, kind, subject_revision)\n        VALUES ($1, NULL, 'plan', $2) RETURNING id AS \"id!: ReviewCaseId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: ReviewCaseId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6dccff62c86145ace79e05b6a1e1ff9b4b8ca1af2bd4470d77bc4b912c58f5a8"
+}

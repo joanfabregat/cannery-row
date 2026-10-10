@@ -8,7 +8,7 @@
     "performer": "agent",
     "decider": {"id": "pass-decider", "revision": "r1"},
     "track": "compact-sparse",
-    "hypothesis": 12,
+    "unit": 12,
     "science_revision": "3",
     "review_case_id": "review-case-id",
     "inputs": {},

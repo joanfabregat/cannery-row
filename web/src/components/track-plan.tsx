@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { describeError } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
 import { label } from "@/lib/labels";
-import { hypothesisPath, planEditorPath } from "@/lib/paths";
+import { unitPath, planEditorPath } from "@/lib/paths";
 
 /**
  * A track's plan: the approach and the units it defines, the open revision
@@ -28,13 +28,13 @@ function writtenBy(plan: Plan | PlanRevision): string {
   return plan.via_client ? `${who} (${through}, ${plan.via_client})` : `${who} (${through})`;
 }
 
-/** A unit's line: its key, its hypothesis once approved and its state. */
+/** A unit's line: its key, its unit once approved and its state. */
 export function UnitLine({ unit }: { unit: PlanUnit }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="font-medium">
         {unit.number != null ? (
-          <Link to={hypothesisPath(unit.number)} className="hover:underline">
+          <Link to={unitPath(unit.number)} className="hover:underline">
             #{unit.number} {unit.title}
           </Link>
         ) : (
@@ -46,7 +46,7 @@ export function UnitLine({ unit }: { unit: PlanUnit }) {
         ) : null}
       </span>
       {unit.state ? (
-        <StatusChip domain="hypothesis" value={unit.state} />
+        <StatusChip domain="unit" value={unit.state} />
       ) : (
         <span className="text-sm text-muted-foreground">New</span>
       )}
@@ -91,7 +91,7 @@ function Alignments({ plan }: { plan: Plan }) {
       <ul className="flex flex-col gap-1 text-sm">
         {plan.alignments.map((a) => (
           <li key={a.number}>
-            <Link to={hypothesisPath(a.number)} className="font-medium hover:underline">
+            <Link to={unitPath(a.number)} className="font-medium hover:underline">
               #{a.number} {a.title}
             </Link>
             : {label("alignment", a.decision)} · “{a.reason}”
@@ -124,7 +124,7 @@ const REVIEW_CHOICES: DecisionChoice<"approve" | "send_back" | "decline">[] = [
     action: "approve",
     label: "Approve",
     effect:
-      "The plan's new units become queued hypotheses, changed ones get a new revision, dropped ones are cancelled and the alignment entries apply.",
+      "The plan's new units are queued, changed ones get a new revision, dropped ones are cancelled and the alignment entries apply.",
     variant: "default",
   },
   {

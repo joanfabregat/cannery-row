@@ -7,7 +7,7 @@ use cannery_comments_reports::{
     reports::{self, EvidenceId, EvidenceRow, ImportedReportRow, JsonContext, ReportRow},
 };
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, ProjectId, UserId},
+    ids::{AttemptId, ProjectId, UnitId, UserId},
     json,
     principal::{Channel, UserPrincipal, Via},
     timestamps::Timestamp,
@@ -39,13 +39,13 @@ fn document(v: &json::Document) -> Value {
     serde_json::from_str(&json::encode_ascii_pretty(v, 1000).unwrap()).unwrap()
 }
 fn comment(c: &Comment) -> Value {
-    value!({"id":c.id.0.to_string(),"project_id":c.project_id.to_string(),"hypothesis_id":c.hypothesis_id.to_string(),"hypothesis_number":c.hypothesis_number,"attempt_id":c.attempt_id.map(|i|i.to_string()),"attempt_sequence":c.attempt_sequence,"author_user":c.author_user.to_string(),"body_markdown":c.body_markdown,"revision":c.revision,"created_at":datetime(c.created_at),"edited_at":optional_datetime(c.edited_at)})
+    value!({"id":c.id.0.to_string(),"project_id":c.project_id.to_string(),"unit_id":c.unit_id.to_string(),"unit_number":c.unit_number,"attempt_id":c.attempt_id.map(|i|i.to_string()),"attempt_sequence":c.attempt_sequence,"author_user":c.author_user.to_string(),"body_markdown":c.body_markdown,"revision":c.revision,"created_at":datetime(c.created_at),"edited_at":optional_datetime(c.edited_at)})
 }
 fn revision(c: &CommentRevision) -> Value {
     value!({"revision":c.revision,"body_markdown":c.body_markdown,"via_channel":c.via_channel,"via_client":c.via_client,"created_at":datetime(c.created_at)})
 }
 fn report(r: &ReportRow) -> Value {
-    value!({"id":r.id.0.to_string(),"attempt_id":r.attempt_id.to_string(),"status":r.status.as_str(),"report":r.report.as_ref().map(document),"created_at":datetime(r.created_at),"producer_user":r.producer_user.map(|i|i.to_string()),"producer_service":r.producer_service.map(|i|i.to_string()),"hypothesis_number":r.hypothesis_number,"hypothesis_title":r.hypothesis_title,"track_slug":r.track_slug,"attempt_sequence":r.attempt_sequence,"attempt_state":r.attempt_state.as_str(),"origin":r.origin.as_str()})
+    value!({"id":r.id.0.to_string(),"attempt_id":r.attempt_id.to_string(),"status":r.status.as_str(),"report":r.report.as_ref().map(document),"created_at":datetime(r.created_at),"producer_user":r.producer_user.map(|i|i.to_string()),"producer_service":r.producer_service.map(|i|i.to_string()),"unit_number":r.unit_number,"unit_title":r.unit_title,"track_slug":r.track_slug,"attempt_sequence":r.attempt_sequence,"attempt_state":r.attempt_state.as_str(),"origin":r.origin.as_str()})
 }
 fn evidence(r: &EvidenceRow) -> Value {
     value!({"id":r.id.0.to_string(),"stage":r.stage.as_str(),"status":r.status.as_str(),"revision":r.revision,"content":document(&r.content),"producer_user":r.producer_user.map(|i|i.to_string()),"producer_service":r.producer_service.map(|i|i.to_string()),"created_at":datetime(r.created_at),"origin":r.origin.as_str(),"source_ref":r.source_ref})
@@ -91,7 +91,7 @@ async fn operation(conn: &mut PgConnection, r: &Value) -> Result<Value, Reposito
         "list_comments" => Ok(Value::Array(
             comments::list_comments(
                 conn,
-                HypothesisId(uid(100)),
+                UnitId(uid(100)),
                 attempt,
                 before.map(CommentId),
                 limit.as_ref(),
@@ -157,7 +157,7 @@ async fn operation(conn: &mut PgConnection, r: &Value) -> Result<Value, Reposito
                     identifier = comments::create_comment(
                         conn,
                         project,
-                        HypothesisId(uid(100)),
+                        UnitId(uid(100)),
                         None,
                         body,
                         &author,
@@ -205,7 +205,7 @@ async fn operation(conn: &mut PgConnection, r: &Value) -> Result<Value, Reposito
                     }
                 }
             }
-            let row=sqlx::query("SELECT title,body,actor_user,actor_service,project_id,hypothesis_id,attempt_id,occurred_at,updated_at,tsv::text FROM search_documents WHERE kind='comment' AND source_id=$1").bind(identifier.0).fetch_optional(conn).await.map_err(|_|RepositoryError::Invariant)?;
+            let row=sqlx::query("SELECT title,body,actor_user,actor_service,project_id,unit_id,attempt_id,occurred_at,updated_at,tsv::text FROM search_documents WHERE kind='comment' AND source_id=$1").bind(identifier.0).fetch_optional(conn).await.map_err(|_|RepositoryError::Invariant)?;
             let search = row.map_or(Value::Null, |r| {
                 let time = |i| {
                     let value = r.get::<Timestamp, _>(i);
@@ -289,7 +289,7 @@ async fn raw_storage(conn: &mut PgConnection) -> Result<Value, Box<dyn Error>> {
         ("review_cases", "id"),
         ("audit_events", "seq"),
         ("attempts", "id"),
-        ("hypotheses", "id"),
+        ("units", "id"),
     ] {
         snapshot[table] = value!(
             sqlx::query_scalar::<_, String>(&format!(

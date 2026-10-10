@@ -29,11 +29,11 @@ export const navItems: NavItem[] = [
     to: "/tracks",
     label: "Tracks",
     icon: LayersIcon,
-    description: "Research directions and the hypotheses grouped under each one.",
+    description: "Research directions and the units grouped under each one.",
   },
   {
-    to: "/hypotheses",
-    label: "Hypotheses",
+    to: "/units",
+    label: "Units",
     icon: LightbulbIcon,
     description: "Every idea tried: what was tested, what happened and what was decided.",
   },
@@ -47,7 +47,7 @@ export const navItems: NavItem[] = [
     to: "/search",
     label: "Search",
     icon: SearchIcon,
-    description: "Find hypotheses, reports, decisions and comments.",
+    description: "Find units, reports, decisions and comments.",
   },
   {
     to: "/settings",

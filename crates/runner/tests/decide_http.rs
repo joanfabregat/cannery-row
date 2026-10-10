@@ -30,7 +30,7 @@ use std::{
 type Error = Box<dyn std::error::Error + Send + Sync>;
 const JOB: &str = "00000000-0000-0000-0000-0000000000d1";
 const BUNDLE: &str = "---\nphase: decide\n---\n# The decider's bundle\n";
-const VERIFICATION: &str = "/api/projects/fixture/hypotheses/1/attempts/1/verification";
+const VERIFICATION: &str = "/api/projects/fixture/units/1/attempts/1/verification";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Case {
@@ -83,7 +83,7 @@ fn claim(case: Case) -> Value {
         "decider-1"
     };
     let lease = (chrono::Utc::now() + chrono::Duration::seconds(120)).to_rfc3339();
-    json!({"job":{"schema_version":"0.2","job_id":JOB,"phase":"decide","attempt_id":"00000000-0000-0000-0000-000000000002","performer":"runner","decider":{"id":"fixture-decider","revision":revision},"track":"workflow","hypothesis":1,"science_revision":"1","review_case_id":"00000000-0000-0000-0000-0000000000c1","inputs":{"verification":{"ref":VERIFICATION,"sha256":"a".repeat(64)}},"output_prefix":"jobs/decide","deadline":lease,"limits":{"max_output_bytes":1_048_576},"lease":{"token":"synthetic-job-lease","generation":1,"expires_at":lease}},"attempt_ref":"#1.1","heartbeat_seconds":60.0,"context":{"ref":"/api/projects/fixture/hypotheses/1/attempts/1/context.md?phase=decide","bytes":BUNDLE.len()}})
+    json!({"job":{"schema_version":"0.2","job_id":JOB,"phase":"decide","attempt_id":"00000000-0000-0000-0000-000000000002","performer":"runner","decider":{"id":"fixture-decider","revision":revision},"track":"workflow","unit":1,"science_revision":"1","review_case_id":"00000000-0000-0000-0000-0000000000c1","inputs":{"verification":{"ref":VERIFICATION,"sha256":"a".repeat(64)}},"output_prefix":"jobs/decide","deadline":lease,"limits":{"max_output_bytes":1_048_576},"lease":{"token":"synthetic-job-lease","generation":1,"expires_at":lease}},"attempt_ref":"#1.1","heartbeat_seconds":60.0,"context":{"ref":"/api/projects/fixture/units/1/attempts/1/context.md?phase=decide","bytes":BUNDLE.len()}})
 }
 #[allow(clippy::too_many_lines)] // One bounded protocol peer for every decide route.
 fn peer(case: Case) -> Result<Peer, Error> {

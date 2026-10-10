@@ -204,11 +204,7 @@ fn typed_wire(recipe: &Value, hex: &str) -> Result<()> {
         .chunks(2)
         .map(|part| Ok(u8::from_str_radix(std::str::from_utf8(part)?, 16)?))
         .collect::<Result<Vec<_>>>()?;
-    let encoded = if recipe["path"]
-        .as_str()
-        .ok_or("path")?
-        .contains("/hypotheses/")
-    {
+    let encoded = if recipe["path"].as_str().ok_or("path")?.contains("/units/") {
         serde_json::to_vec(&serde_json::from_slice::<Page_JobOut_UUID_>(&bytes)?)?
     } else {
         serde_json::to_vec(&serde_json::from_slice::<JobOut>(&bytes)?)?
@@ -220,8 +216,8 @@ async fn storage(pool: &sqlx::PgPool) -> Result<Value> {
     let mut output = json!({});
     for (table, order) in [
         ("tracks", "id"),
-        ("hypotheses", "id"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "id"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("artifacts", "id"),
         ("measurements", "id"),

@@ -1,15 +1,15 @@
 
             WITH bumped AS (
-                UPDATE hypotheses SET state = 'active', lease_generation = lease_generation + 1,
+                UPDATE units SET state = 'active', lease_generation = lease_generation + 1,
                                       updated_at = now()
                 WHERE id = $1
                 RETURNING id, project_id, track_id, approved_revision, lease_generation
             ), previous AS (
                 SELECT max(sequence) AS sequence,
                        (array_agg(id ORDER BY sequence DESC))[1] AS id
-                FROM attempts WHERE hypothesis_id = $1
+                FROM attempts WHERE unit_id = $1
             )
-            INSERT INTO attempts (project_id, hypothesis_id, sequence, hypothesis_revision,
+            INSERT INTO attempts (project_id, unit_id, sequence, unit_revision,
                                   science_revision, track_id, producer,
                                   claimed_by_user, claimed_by_service, via_channel, via_client,
                                   predecessor_id, lease_generation, lease_token_hash,

@@ -275,9 +275,9 @@ async fn operation(
             .into_iter()
             .enumerate()
             {
-                sqlx::query("INSERT INTO hypotheses(project_id,number,track_id,state,title,created_by_user,approved_revision,approved_at) VALUES($1,$2,$3,$4,'fixture',$5,1,now())").bind(p).bind(i32::try_from(index+1)?).bind(first).bind(state).bind(u).execute(&mut *c).await?;
+                sqlx::query("INSERT INTO units(project_id,number,track_id,state,title,created_by_user,approved_revision,approved_at) VALUES($1,$2,$3,$4,'fixture',$5,1,now())").bind(p).bind(i32::try_from(index+1)?).bind(first).bind(state).bind(u).execute(&mut *c).await?;
             }
-            repo::count_open_hypotheses(c, first)
+            repo::count_open_units(c, first)
                 .await
                 .map(|count| value!(count))
         }

@@ -5,7 +5,7 @@ use cannery_core::{
     timestamps::Timestamp,
 };
 use cannery_reviews::{
-    Action, AttemptState, CaseKind, Error, HypothesisState, Origin, Stage, binding::Integer,
+    Action, AttemptState, CaseKind, Error, Origin, Stage, UnitState, binding::Integer,
 };
 use num_bigint::BigInt;
 use sqlx::PgConnection;
@@ -15,8 +15,8 @@ pub struct PendingReview {
     pub kind: CaseKind,
     pub subject_revision: i32,
     pub opened_at: Timestamp,
-    pub hypothesis_number: i32,
-    pub hypothesis_title: String,
+    pub unit_number: i32,
+    pub unit_title: String,
     pub track_slug: String,
     pub attempt_sequence: Option<i32>,
     pub verdict: Option<String>,
@@ -37,8 +37,8 @@ struct RawPendingReview {
     kind: String,
     subject_revision: i32,
     opened_at: Timestamp,
-    hypothesis_number: i32,
-    hypothesis_title: String,
+    unit_number: i32,
+    unit_title: String,
     track_slug: String,
     attempt_sequence: Option<i32>,
     verdict: Option<String>,
@@ -54,8 +54,8 @@ fn decode_pendingreview(r: &RawPendingReview) -> Result<PendingReview, Error> {
         kind: CaseKind::try_from(r.kind.as_str())?,
         subject_revision: r.subject_revision,
         opened_at: r.opened_at,
-        hypothesis_number: r.hypothesis_number,
-        hypothesis_title: String::from(&r.hypothesis_title),
+        unit_number: r.unit_number,
+        unit_title: String::from(&r.unit_title),
         track_slug: String::from(&r.track_slug),
         attempt_sequence: r.attempt_sequence,
         verdict: r.verdict.as_deref().map(String::from),
@@ -71,8 +71,8 @@ fn decode_pendingreview(r: &RawPendingReview) -> Result<PendingReview, Error> {
     })
 }
 pub struct RunningAttempt {
-    pub hypothesis_number: i32,
-    pub hypothesis_title: String,
+    pub unit_number: i32,
+    pub unit_title: String,
     pub track_slug: String,
     pub attempt_sequence: i32,
     pub state: AttemptState,
@@ -84,8 +84,8 @@ impl std::fmt::Debug for RunningAttempt {
     }
 }
 struct RawRunningAttempt {
-    hypothesis_number: i32,
-    hypothesis_title: String,
+    unit_number: i32,
+    unit_title: String,
     track_slug: String,
     attempt_sequence: i32,
     state: String,
@@ -93,8 +93,8 @@ struct RawRunningAttempt {
 }
 fn decode_runningattempt(r: &RawRunningAttempt) -> Result<RunningAttempt, Error> {
     Ok(RunningAttempt {
-        hypothesis_number: r.hypothesis_number,
-        hypothesis_title: String::from(&r.hypothesis_title),
+        unit_number: r.unit_number,
+        unit_title: String::from(&r.unit_title),
         track_slug: String::from(&r.track_slug),
         attempt_sequence: r.attempt_sequence,
         state: AttemptState::try_from(r.state.as_str())?,
@@ -102,9 +102,9 @@ fn decode_runningattempt(r: &RawRunningAttempt) -> Result<RunningAttempt, Error>
     })
 }
 pub struct Outcome {
-    pub hypothesis_number: i32,
-    pub hypothesis_title: String,
-    pub hypothesis_state: HypothesisState,
+    pub unit_number: i32,
+    pub unit_title: String,
+    pub unit_state: UnitState,
     pub track_slug: String,
     pub attempt_sequence: Option<i32>,
     pub action: Action,
@@ -118,9 +118,9 @@ impl std::fmt::Debug for Outcome {
     }
 }
 struct RawOutcome {
-    hypothesis_number: i32,
-    hypothesis_title: String,
-    hypothesis_state: String,
+    unit_number: i32,
+    unit_title: String,
+    unit_state: String,
     track_slug: String,
     attempt_sequence: Option<i32>,
     action: String,
@@ -130,9 +130,9 @@ struct RawOutcome {
 }
 fn decode_outcome(r: &RawOutcome) -> Result<Outcome, Error> {
     Ok(Outcome {
-        hypothesis_number: r.hypothesis_number,
-        hypothesis_title: String::from(&r.hypothesis_title),
-        hypothesis_state: HypothesisState::try_from(r.hypothesis_state.as_str())?,
+        unit_number: r.unit_number,
+        unit_title: String::from(&r.unit_title),
+        unit_state: UnitState::try_from(r.unit_state.as_str())?,
         track_slug: String::from(&r.track_slug),
         attempt_sequence: r.attempt_sequence,
         action: Action::try_from(r.action.as_str())?,
@@ -142,9 +142,9 @@ fn decode_outcome(r: &RawOutcome) -> Result<Outcome, Error> {
     })
 }
 pub struct RecentFailure {
-    pub hypothesis_number: i32,
-    pub hypothesis_title: String,
-    pub hypothesis_state: HypothesisState,
+    pub unit_number: i32,
+    pub unit_title: String,
+    pub unit_state: UnitState,
     pub track_slug: String,
     pub attempt_sequence: i32,
     pub stage: Stage,
@@ -159,9 +159,9 @@ impl std::fmt::Debug for RecentFailure {
     }
 }
 struct RawRecentFailure {
-    hypothesis_number: i32,
-    hypothesis_title: String,
-    hypothesis_state: String,
+    unit_number: i32,
+    unit_title: String,
+    unit_state: String,
     track_slug: String,
     attempt_sequence: i32,
     stage: String,
@@ -172,9 +172,9 @@ struct RawRecentFailure {
 }
 fn decode_recentfailure(r: &RawRecentFailure) -> Result<RecentFailure, Error> {
     Ok(RecentFailure {
-        hypothesis_number: r.hypothesis_number,
-        hypothesis_title: String::from(&r.hypothesis_title),
-        hypothesis_state: HypothesisState::try_from(r.hypothesis_state.as_str())?,
+        unit_number: r.unit_number,
+        unit_title: String::from(&r.unit_title),
+        unit_state: UnitState::try_from(r.unit_state.as_str())?,
         track_slug: String::from(&r.track_slug),
         attempt_sequence: r.attempt_sequence,
         stage: Stage::try_from(r.stage.as_str())?,
@@ -185,8 +185,8 @@ fn decode_recentfailure(r: &RawRecentFailure) -> Result<RecentFailure, Error> {
     })
 }
 pub struct StalledVerification {
-    pub hypothesis_number: i32,
-    pub hypothesis_title: String,
+    pub unit_number: i32,
+    pub unit_title: String,
     pub track_slug: String,
     pub attempt_sequence: i32,
     pub performer: String,
@@ -200,8 +200,8 @@ impl std::fmt::Debug for StalledVerification {
     }
 }
 struct RawStalledVerification {
-    hypothesis_number: i32,
-    hypothesis_title: String,
+    unit_number: i32,
+    unit_title: String,
     track_slug: String,
     attempt_sequence: i32,
     performer: String,
@@ -211,8 +211,8 @@ struct RawStalledVerification {
 }
 fn decode_stalledverification(r: &RawStalledVerification) -> StalledVerification {
     StalledVerification {
-        hypothesis_number: r.hypothesis_number,
-        hypothesis_title: String::from(&r.hypothesis_title),
+        unit_number: r.unit_number,
+        unit_title: String::from(&r.unit_title),
         track_slug: String::from(&r.track_slug),
         attempt_sequence: r.attempt_sequence,
         performer: String::from(&r.performer),
@@ -230,7 +230,7 @@ pub async fn pending_reviews(
     limit: Option<&BigInt>,
 ) -> Result<Vec<PendingReview>, Error> {
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.front_matter ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\", (SELECT j.verifier_id FROM jobs j WHERE j.phase = 'decide' AND j.state IN ('pending', 'claimed') AND j.spec ->> 'review_case_id' = c.id::text LIMIT 1) AS \"decider?\" FROM review_cases c\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN phase_outputs e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending' AND c.kind <> 'plan'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"unit_number!\", h.title AS \"unit_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.front_matter ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\", (SELECT j.verifier_id FROM jobs j WHERE j.phase = 'decide' AND j.state IN ('pending', 'claimed') AND j.spec ->> 'review_case_id' = c.id::text LIMIT 1) AS \"decider?\" FROM review_cases c\n            JOIN units h ON h.id = c.unit_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN phase_outputs e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending' AND c.kind <> 'plan'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_pendingreview).collect()
 }
 /// Execute the source SQL on the caller-owned connection.
@@ -242,7 +242,7 @@ pub async fn recent_outcomes(
     limit: Option<&BigInt>,
 ) -> Result<Vec<Outcome>, Error> {
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawOutcome,"\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", h.state AS \"hypothesis_state!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", d.action AS \"action!\", d.reason AS \"reason!\", d.decided_at AS \"decided_at!: _\", d.origin AS \"origin!\" FROM decisions d\n            JOIN review_cases c ON c.id = d.review_case_id\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            WHERE c.project_id = $1 AND c.kind = 'decision'\n              AND NOT EXISTS (SELECT 1 FROM decisions s WHERE s.supersedes = d.id)\n            ORDER BY d.decided_at DESC, d.id DESC\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawOutcome,"\n            SELECT h.number AS \"unit_number!\", h.title AS \"unit_title!\", h.state AS \"unit_state!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", d.action AS \"action!\", d.reason AS \"reason!\", d.decided_at AS \"decided_at!: _\", d.origin AS \"origin!\" FROM decisions d\n            JOIN review_cases c ON c.id = d.review_case_id\n            JOIN units h ON h.id = c.unit_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            WHERE c.project_id = $1 AND c.kind = 'decision'\n              AND NOT EXISTS (SELECT 1 FROM decisions s WHERE s.supersedes = d.id)\n            ORDER BY d.decided_at DESC, d.id DESC\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_outcome).collect()
 }
 /// Execute the source SQL on the caller-owned connection.
@@ -254,7 +254,7 @@ pub async fn recent_failures(
     limit: Option<&BigInt>,
 ) -> Result<Vec<RecentFailure>, Error> {
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawRecentFailure,"\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", h.state AS \"hypothesis_state!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", f.stage AS \"stage!\", f.code AS \"code!\", f.reason AS \"reason!\", f.created_at AS \"created_at!: _\", a.origin AS \"origin!\" FROM attempt_failures f\n            JOIN attempts a ON a.id = f.attempt_id\n            JOIN hypotheses h ON h.id = a.hypothesis_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE a.project_id = $1\n            ORDER BY f.created_at DESC, f.id DESC\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawRecentFailure,"\n            SELECT h.number AS \"unit_number!\", h.title AS \"unit_title!\", h.state AS \"unit_state!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", f.stage AS \"stage!\", f.code AS \"code!\", f.reason AS \"reason!\", f.created_at AS \"created_at!: _\", a.origin AS \"origin!\" FROM attempt_failures f\n            JOIN attempts a ON a.id = f.attempt_id\n            JOIN units h ON h.id = a.unit_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE a.project_id = $1\n            ORDER BY f.created_at DESC, f.id DESC\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_recentfailure).collect()
 }
 /// Execute the source SQL on the caller-owned connection.
@@ -298,7 +298,7 @@ pub async fn running_attempts(
     .await?;
     let total = total.map_or(0, |r| r.count);
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawRunningAttempt,"\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", a.state AS \"state!\", a.claimed_at AS \"claimed_at!: _\" FROM attempts a\n            JOIN hypotheses h ON h.id = a.hypothesis_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE a.project_id = $1 AND a.state = ANY($2)\n            ORDER BY a.claimed_at DESC, a.id DESC\n            LIMIT $3\n            ",project as ProjectId,&states,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawRunningAttempt,"\n            SELECT h.number AS \"unit_number!\", h.title AS \"unit_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", a.state AS \"state!\", a.claimed_at AS \"claimed_at!: _\" FROM attempts a\n            JOIN units h ON h.id = a.unit_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE a.project_id = $1 AND a.state = ANY($2)\n            ORDER BY a.claimed_at DESC, a.id DESC\n            LIMIT $3\n            ",project as ProjectId,&states,limit as _).fetch_all(&mut *c).await?;
     Ok((
         total,
         rows.iter()
@@ -325,13 +325,13 @@ pub async fn stalled_verifications(
     .await?;
     let total = total.map_or(0, |r| r.count);
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawStalledVerification,"\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", j.performer AS \"performer!\", j.verifier_id AS \"verifier?\", j.spec -> 'verifier' ->> 'revision' AS \"revision?\", j.created_at AS \"waiting_since!: _\" FROM jobs j\n            JOIN attempts a ON a.id = j.attempt_id\n            JOIN hypotheses h ON h.id = a.hypothesis_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE \n        j.project_id = $1 AND j.phase = 'verify' AND j.state = 'pending'\n        AND j.created_at < now() - make_interval(secs => $2)\n    \n            ORDER BY j.created_at, j.id\n            LIMIT $3\n            ",project as ProjectId,seconds as _,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawStalledVerification,"\n            SELECT h.number AS \"unit_number!\", h.title AS \"unit_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", j.performer AS \"performer!\", j.verifier_id AS \"verifier?\", j.spec -> 'verifier' ->> 'revision' AS \"revision?\", j.created_at AS \"waiting_since!: _\" FROM jobs j\n            JOIN attempts a ON a.id = j.attempt_id\n            JOIN units h ON h.id = a.unit_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE \n        j.project_id = $1 AND j.phase = 'verify' AND j.state = 'pending'\n        AND j.created_at < now() - make_interval(secs => $2)\n    \n            ORDER BY j.created_at, j.id\n            LIMIT $3\n            ",project as ProjectId,seconds as _,limit as _).fetch_all(&mut *c).await?;
     Ok((total, rows.iter().map(decode_stalledverification).collect()))
 }
-/// A hypothesis waiting for its write-up, with its document job.
+/// A unit waiting for its write-up, with its document job.
 pub struct PendingWriteup {
-    pub hypothesis_number: i32,
-    pub hypothesis_title: String,
+    pub unit_number: i32,
+    pub unit_title: String,
     pub track_slug: String,
     pub attempt_sequence: i32,
     pub attempt_state: AttemptState,
@@ -348,8 +348,8 @@ impl std::fmt::Debug for PendingWriteup {
     }
 }
 struct RawPendingWriteup {
-    hypothesis_number: i32,
-    hypothesis_title: String,
+    unit_number: i32,
+    unit_title: String,
     track_slug: String,
     attempt_sequence: i32,
     attempt_state: String,
@@ -359,7 +359,7 @@ struct RawPendingWriteup {
     claimed_by_user: Option<UserId>,
     waiting_since: Timestamp,
 }
-/// Hypotheses waiting in `documenting`, oldest first, and how many there are.
+/// Units waiting in `documenting`, oldest first, and how many there are.
 /// # Errors
 /// Returns sanitized driver, server or invariant failures.
 pub async fn pending_writeups(
@@ -368,7 +368,7 @@ pub async fn pending_writeups(
     limit: Option<&BigInt>,
 ) -> Result<(i64, Vec<PendingWriteup>), Error> {
     let total = sqlx::query_scalar!(
-        "SELECT count(*) AS \"count!\" FROM hypotheses WHERE project_id = $1 AND state = 'documenting'",
+        "SELECT count(*) AS \"count!\" FROM units WHERE project_id = $1 AND state = 'documenting'",
         project as ProjectId
     )
     .fetch_one(&mut *c)
@@ -376,15 +376,15 @@ pub async fn pending_writeups(
     let limit = limit.map(Integer::new).transpose()?;
     let rows = sqlx::query_as!(
         RawPendingWriteup,
-        "SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\",
+        "SELECT h.number AS \"unit_number!\", h.title AS \"unit_title!\", t.slug AS \"track_slug!\",
                 a.sequence AS \"attempt_sequence!\", a.state AS \"attempt_state!\", j.id AS \"job_id!: _\",
                 j.state AS \"job_state!\", j.claimed_by_service AS \"claimed_by_service?: _\",
                 j.claimed_by_user AS \"claimed_by_user?: _\", j.created_at AS \"waiting_since!: _\"
-         FROM hypotheses h
+         FROM units h
          JOIN tracks t ON t.id = h.track_id
          JOIN LATERAL (SELECT * FROM jobs d
                        WHERE d.phase = 'document'
-                         AND d.attempt_id IN (SELECT id FROM attempts WHERE hypothesis_id = h.id)
+                         AND d.attempt_id IN (SELECT id FROM attempts WHERE unit_id = h.id)
                        ORDER BY d.created_at DESC, d.run_number DESC LIMIT 1) j ON true
          JOIN attempts a ON a.id = j.attempt_id
          WHERE h.project_id = $1 AND h.state = 'documenting'
@@ -399,8 +399,8 @@ pub async fn pending_writeups(
         .into_iter()
         .map(|r| {
             Ok(PendingWriteup {
-                hypothesis_number: r.hypothesis_number,
-                hypothesis_title: r.hypothesis_title,
+                unit_number: r.unit_number,
+                unit_title: r.unit_title,
                 track_slug: r.track_slug,
                 attempt_sequence: r.attempt_sequence,
                 attempt_state: AttemptState::try_from(r.attempt_state.as_str())?,

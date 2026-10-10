@@ -6,10 +6,10 @@
 //! with a reference for each context item and each unit it derives from.
 use crate::{
     api_models::{ContextBundleRef, ContextItem, PlanRef},
-    hypothesis_routes::{Failure, RouteState, domain, internal},
     plan_routes::{context_label, paths, positive},
     plan_units::{self, UnitFields, first_line, truncate},
     requests::RequestContext,
+    unit_routes::{Failure, RouteState, domain, internal},
 };
 use axum::{
     extract::{Request, State},
@@ -61,7 +61,7 @@ pub(crate) async fn pins(
 
 /// Where an attempt's bundle is read.
 pub(crate) fn bundle_path(slug: &str, number: i32, sequence: i32) -> String {
-    format!("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md")
+    format!("/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md")
 }
 
 /// The plan revision an attempt pinned and its bundle's reference, as claims,
@@ -128,7 +128,7 @@ async fn item_line(
                     .map_err(persistence(context))?
                 {
                     Some((_, unit)) => {
-                        let brief = plans::current_unit_brief(conn, unit.hypothesis_id)
+                        let brief = plans::current_unit_brief(conn, unit.unit_id)
                             .await
                             .map_err(persistence(context))?
                             .map(|brief| first_line(&brief))
@@ -140,7 +140,7 @@ async fn item_line(
                         };
                         (
                             format!("#{number} {} ({}){detail}", unit.title, unit.state),
-                            format!("/api/projects/{slug}/units/{number}"),
+                            format!("/api/projects/{slug}/units/{number}/plan"),
                         )
                     }
                     None => (format!("#{number} (not found)"), String::new()),
@@ -166,7 +166,7 @@ async fn item_line(
             };
             (
                 format!("write-up of #{unit}.{attempt}: {text}"),
-                format!("/api/projects/{slug}/hypotheses/{unit}/attempts/{attempt}/report"),
+                format!("/api/projects/{slug}/units/{unit}/attempts/{attempt}/report"),
             )
         }
         _ => {
@@ -204,7 +204,7 @@ async fn item_line(
 }
 
 /// What a bundle holds: the performer's full or compact bundle, or the
-/// documenter's and the decider's, which add the hypothesis's record.
+/// documenter's and the decider's, which add the unit's record.
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Detail {
     Full,
@@ -244,7 +244,7 @@ fn fenced(value: &str) -> String {
     format!("{fence}\n{}\n{fence}", value.trim_end())
 }
 
-/// The hypothesis's record, in attempt order: each attempt's run document
+/// The unit's record, in attempt order: each attempt's run document
 /// and notes, failures with their logs and verification reports, then the
 /// comments, and for the decider the write-up or why there is none.
 #[allow(
@@ -261,8 +261,8 @@ async fn record(
 ) -> Result<(), Failure> {
     let fail = |_| internal(context, "bundle record");
     let attempts = sqlx::query!(
-        r#"SELECT id AS "id: uuid::Uuid", sequence, state FROM attempts WHERE hypothesis_id=$1 ORDER BY sequence"#,
-        pins.hypothesis_id.0 as _
+        r#"SELECT id AS "id: uuid::Uuid", sequence, state FROM attempts WHERE unit_id=$1 ORDER BY sequence"#,
+        pins.unit_id.0 as _
     )
     .fetch_all(&mut *conn)
     .await
@@ -270,9 +270,9 @@ async fn record(
     let outputs = sqlx::query!(
         r#"SELECT p.attempt_id AS "attempt_id: uuid::Uuid", p.stage, p.revision, p.front_matter::text AS "front_matter!", p.body AS "body!", p.sha256 AS "sha256?", p.id AS "id: uuid::Uuid"
            FROM phase_outputs p JOIN attempts a ON a.id=p.attempt_id
-           WHERE a.hypothesis_id=$1 AND p.status='completed' AND p.stage IN ('agent','verification','writeup')
+           WHERE a.unit_id=$1 AND p.status='completed' AND p.stage IN ('agent','verification','writeup')
            ORDER BY a.sequence, p.created_at, p.id"#,
-        pins.hypothesis_id.0 as _
+        pins.unit_id.0 as _
     )
     .fetch_all(&mut *conn)
     .await
@@ -280,8 +280,8 @@ async fn record(
     let failures = sqlx::query!(
         r#"SELECT f.attempt_id AS "attempt_id: uuid::Uuid", f.stage, f.code, f.reason, f.log_refs::text AS "log_refs!"
            FROM attempt_failures f JOIN attempts a ON a.id=f.attempt_id
-           WHERE a.hypothesis_id=$1 ORDER BY a.sequence, f.created_at, f.id"#,
-        pins.hypothesis_id.0 as _
+           WHERE a.unit_id=$1 ORDER BY a.sequence, f.created_at, f.id"#,
+        pins.unit_id.0 as _
     )
     .fetch_all(&mut *conn)
     .await
@@ -305,7 +305,7 @@ async fn record(
             let (title, reference) = if output.stage == "agent" {
                 (
                     format!("Run document (revision {})", output.revision),
-                    format!("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/report"),
+                    format!("/api/projects/{slug}/units/{number}/attempts/{sequence}/report"),
                 )
             } else {
                 (
@@ -315,7 +315,7 @@ async fn record(
                         output.id,
                         output.sha256.as_deref().unwrap_or_default()
                     ),
-                    format!("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}"),
+                    format!("/api/projects/{slug}/units/{number}/attempts/{sequence}"),
                 )
             };
             let front_matter: Value =
@@ -362,8 +362,8 @@ async fn record(
     let comments = sqlx::query!(
         r#"SELECT c.body_markdown, c.created_at AS "created_at: cannery_core::timestamps::Timestamp", a.sequence AS "sequence?", coalesce(u.display_name, u.email, 'a researcher') AS "author!"
            FROM comments c JOIN users u ON u.id=c.author_user LEFT JOIN attempts a ON a.id=c.attempt_id
-           WHERE c.hypothesis_id=$1 ORDER BY c.created_at, c.id"#,
-        pins.hypothesis_id.0 as _
+           WHERE c.unit_id=$1 ORDER BY c.created_at, c.id"#,
+        pins.unit_id.0 as _
     )
     .fetch_all(&mut *conn)
     .await
@@ -390,9 +390,9 @@ async fn record(
         let writeup = outputs.iter().rfind(|output| output.stage == "writeup");
         let skipped = sqlx::query_scalar!(
             r#"SELECT j.error_reason AS "reason!" FROM jobs j JOIN attempts a ON a.id=j.attempt_id
-               WHERE a.hypothesis_id=$1 AND j.phase='document' AND j.state='skipped'
+               WHERE a.unit_id=$1 AND j.phase='document' AND j.state='skipped'
                ORDER BY j.created_at DESC LIMIT 1"#,
-            pins.hypothesis_id.0 as _
+            pins.unit_id.0 as _
         )
         .fetch_optional(&mut *conn)
         .await
@@ -403,7 +403,7 @@ async fn record(
                     serde_json::from_str(&writeup.front_matter).unwrap_or_default();
                 let _ = writeln!(
                     body,
-                    "(ref {}, sha256 {}; /api/projects/{slug}/hypotheses/{number}/writeup)\n\n{}\n\n{}\n",
+                    "(ref {}, sha256 {}; /api/projects/{slug}/units/{number}/writeup)\n\n{}\n\n{}\n",
                     writeup.id,
                     writeup.sha256.as_deref().unwrap_or_default(),
                     fenced(&serde_json::to_string_pretty(&front_matter).unwrap_or_default()),
@@ -447,13 +447,13 @@ pub(crate) async fn build_for(
             .map_err(persistence(context))?,
         None => None,
     };
-    let stored = plans::unit_revision(conn, pins.hypothesis_id, pins.hypothesis_revision)
+    let stored = plans::unit_revision(conn, pins.unit_id, pins.unit_revision)
         .await
         .map_err(persistence(context))?
         .ok_or_else(|| internal(context, "bundle unit revision"))?;
     let document: Value =
         serde_json::from_str(&stored.content).map_err(|_| internal(context, "bundle unit"))?;
-    let mut fields = plan_units::fields_from_hypothesis(&document);
+    let mut fields = plan_units::fields_from_unit(&document);
     let mut key = None;
     let mut keys: std::collections::BTreeMap<String, i32> = plans::known_keys(conn, pins.track_id)
         .await
@@ -469,7 +469,7 @@ pub(crate) async fn build_for(
             if let Some(number) = entry.number {
                 keys.insert(entry.key.clone(), number);
             }
-            if entry.hypothesis_id == Some(pins.hypothesis_id) {
+            if entry.unit_id == Some(pins.unit_id) {
                 let planned: UnitFields = serde_json::from_str(&entry.fields)
                     .map_err(|_| internal(context, "bundle plan fields"))?;
                 fields.context = planned.context;
@@ -527,8 +527,8 @@ pub(crate) async fn build_for(
     }
     let _ = writeln!(
         body,
-        "- Hypothesis revision: {}\n\n### Acceptance\n\n```json\n{}\n```\n",
-        pins.hypothesis_revision,
+        "- Unit revision: {}\n\n### Acceptance\n\n```json\n{}\n```\n",
+        pins.unit_revision,
         serde_json::to_string_pretty(&fields.acceptance).unwrap_or_default()
     );
     if let Some(parameters) = &fields.parameters {
@@ -551,7 +551,7 @@ pub(crate) async fn build_for(
     let others: Vec<_> = index
         .iter()
         .rev()
-        .filter(|unit| unit.hypothesis_id != pins.hypothesis_id)
+        .filter(|unit| unit.unit_id != pins.unit_id)
         .collect();
     let _ = writeln!(body, "## Track {}: other units\n", pins.track_slug);
     if others.is_empty() {
@@ -587,7 +587,7 @@ pub(crate) async fn build_for(
             .relations
             .iter()
             .filter(|relation| relation.kind == "derived_from")
-            .filter_map(|relation| relation.hypothesis.as_ref()?.as_i64())
+            .filter_map(|relation| relation.unit.as_i64())
             .filter_map(|number| i32::try_from(number).ok())
             .collect();
         if !derived.is_empty() {
@@ -598,13 +598,13 @@ pub(crate) async fn build_for(
                     .map_err(persistence(context))?
                 {
                     Some((_, unit)) => {
-                        match plans::latest_output(conn, unit.hypothesis_id)
+                        match plans::latest_output(conn, unit.unit_id)
                             .await
                             .map_err(persistence(context))?
                         {
                             Some((sequence, state, text)) => format!(
                                 "#{number} {} ({}): #{number}.{sequence} {state}: {} \
-                                 (/api/projects/{}/hypotheses/{number}/attempts/{sequence}/report)",
+                                 (/api/projects/{}/units/{number}/attempts/{sequence}/report)",
                                 unit.title,
                                 unit.state,
                                 text.map(|text| first_line(&text)).unwrap_or_default(),
@@ -640,7 +640,7 @@ pub(crate) async fn build_for(
         );
         let _ = writeln!(header, "track: {}", yaml(&pins.track_slug));
         let _ = writeln!(header, "unit: {}", yaml(&key));
-        let _ = writeln!(header, "hypothesis_revision: {}", pins.hypothesis_revision);
+        let _ = writeln!(header, "unit_revision: {}", pins.unit_revision);
         let _ = writeln!(header, "brief_revision: {}", yaml(&pins.brief_revision));
         let _ = writeln!(header, "plan_revision: {}", yaml(&pins.plan_revision));
         let _ = writeln!(
@@ -686,10 +686,10 @@ pub(crate) async fn build_for(
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md",
-    operation_id = "get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md",
+    operation_id = "get_context_api_projects__slug__units__number__attempts__sequence__context_md_get",
     summary = "Get Context Bundle",
-    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB. `phase=document` is the\ndocumenter's bundle: the full bundle and the hypothesis's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
+    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB. `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
     params(("slug" = String, Path), ("number" = i64, Path), ("sequence" = i64, Path),
         ("detail" = Option<String>, Query, description = "`full` (the default) or `compact`."),
         ("phase" = Option<String>, Query, description = "`document` or `decide`: the documenter's or the decider's bundle.")),

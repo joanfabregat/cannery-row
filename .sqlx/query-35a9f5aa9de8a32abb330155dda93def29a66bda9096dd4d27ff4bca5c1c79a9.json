@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO unit_relations(unit_id,kind,target_id) SELECT $1,kind,target FROM unnest($2::text[],$3::uuid[]) AS r(kind,target)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "35a9f5aa9de8a32abb330155dda93def29a66bda9096dd4d27ff4bca5c1c79a9"
+}

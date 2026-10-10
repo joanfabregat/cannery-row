@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 
-import { useHypotheses, useTrack, useTrackHistory } from "@/api/queries";
+import { useUnits, useTrack, useTrackHistory } from "@/api/queries";
 import type { Track } from "@/api/types";
 import { TrackConcerns } from "@/components/concerns";
 import { TrackExecution } from "@/components/execution";
@@ -16,7 +16,7 @@ import { TrackPlan } from "@/components/track-plan";
 import { formatDateTime } from "@/lib/format";
 import { humanize, label } from "@/lib/labels";
 import { useNotice } from "@/lib/navigation";
-import { hypothesisPath } from "@/lib/paths";
+import { unitPath } from "@/lib/paths";
 import { TRACK_TRANSITIONS } from "@/lib/states";
 import type { Project } from "@/projects/project-context";
 import { usePermissions } from "@/projects/use-permissions";
@@ -105,7 +105,7 @@ function TrackView({ project, slug }: { project: Project; slug: string }) {
           isResearcher={isResearcher}
         />
         <TrackExecution track={t} />
-        <TrackHypotheses project={project.slug} track={t.slug} />
+        <TrackUnits project={project.slug} track={t.slug} />
         <TrackDetails project={project.slug} track={t} />
       </div>
     </>
@@ -114,29 +114,29 @@ function TrackView({ project, slug }: { project: Project; slug: string }) {
 
 const TRACK_STATE_WORDS: Record<string, string> = {
   planning: "Planning: nothing in it can start until a researcher approves its first plan.",
-  active: "Active: its queued hypotheses can start, and its plan can be revised.",
-  paused: "Paused: its plan can be revised and reviewed, but its queued hypotheses do not start.",
+  active: "Active: its queued units can start, and its plan can be revised.",
+  paused: "Paused: its plan can be revised and reviewed, but its queued units do not start.",
   archived: "Archived: read-only; it takes no new plan.",
 };
 
-function TrackHypotheses({ project, track }: { project: string; track: string }) {
-  const hypotheses = useHypotheses(project, { track, archived: null, limit: 20 });
+function TrackUnits({ project, track }: { project: string; track: string }) {
+  const units = useUnits(project, { track, archived: null, limit: 20 });
   return (
     <Section
-      title="Hypotheses in this track"
+      title="Units in this track"
       actions={
         <Link
-          to={`/hypotheses?track=${encodeURIComponent(track)}&archived=1`}
+          to={`/units?track=${encodeURIComponent(track)}&archived=1`}
           className="text-sm font-medium underline underline-offset-4"
         >
           See all in the list
         </Link>
       }
     >
-      <QueryView query={hypotheses}>
+      <QueryView query={units}>
         {(page) =>
           page.items.length === 0 ? (
-            <EmptyState>No hypothesis in this track yet.</EmptyState>
+            <EmptyState>No unit in this track yet.</EmptyState>
           ) : (
             <ul className="flex flex-col divide-y">
               {page.items.map((h) => (
@@ -144,10 +144,10 @@ function TrackHypotheses({ project, track }: { project: string; track: string })
                   key={h.number}
                   className="flex flex-wrap items-center justify-between gap-2 py-2.5"
                 >
-                  <Link to={hypothesisPath(h.number)} className="font-medium hover:underline">
+                  <Link to={unitPath(h.number)} className="font-medium hover:underline">
                     {h.ref} {h.title}
                   </Link>
-                  <StatusChip domain="hypothesis" value={h.state} />
+                  <StatusChip domain="unit" value={h.state} />
                 </li>
               ))}
             </ul>

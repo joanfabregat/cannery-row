@@ -3,8 +3,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import {
   attention,
   comment,
-  hypothesis,
-  hypothesisApi,
+  unit,
+  unitApi,
   member,
   page,
   RESEARCHER_ID,
@@ -28,8 +28,8 @@ describe("Home", () => {
                   kind: "failure",
                   subject_revision: 1,
                   opened_at: "2026-03-01T10:00:00Z",
-                  hypothesis: 4,
-                  hypothesis_ref: "#4",
+                  unit: 4,
+                  unit_ref: "#4",
                   title: "Fewer layers",
                   track: "tokenizer",
                   attempt_ref: "#4.1",
@@ -44,8 +44,8 @@ describe("Home", () => {
                   kind: "decision",
                   subject_revision: 3,
                   opened_at: "2026-03-02T10:00:00Z",
-                  hypothesis: 12,
-                  hypothesis_ref: "#12",
+                  unit: 12,
+                  unit_ref: "#12",
                   title: "Shorter prompts",
                   track: "tokenizer",
                   attempt_ref: "#12.1",
@@ -59,8 +59,8 @@ describe("Home", () => {
               running_count: 1,
               running: [
                 {
-                  hypothesis: 9,
-                  hypothesis_ref: "#9",
+                  unit: 9,
+                  unit_ref: "#9",
                   title: "Warm cache",
                   track: "tokenizer",
                   attempt_ref: "#9.2",
@@ -76,14 +76,14 @@ describe("Home", () => {
     const queue = await screen.findByRole("region", { name: "Decisions to take" });
     const links = within(queue).getAllByRole("link");
     expect(links.map((l) => l.getAttribute("href"))).toEqual([
-      "/hypotheses/4/review",
-      "/hypotheses/12/review",
+      "/units/4/review",
+      "/units/12/review",
     ]);
     expect(within(queue).getByText(/1 decision and 1 failure/)).toBeInTheDocument();
     const running = screen.getByRole("region", { name: "Running now" });
     expect(within(running).getByRole("link", { name: "#9.2 Warm cache" })).toHaveAttribute(
       "href",
-      "/hypotheses/9/attempts/2",
+      "/units/9/attempts/2",
     );
   });
 
@@ -95,8 +95,8 @@ describe("Home", () => {
       stalled_verification_count: count,
       stalled_verifications: [
         {
-          hypothesis: 12,
-          hypothesis_ref: "#12",
+          unit: 12,
+          unit_ref: "#12",
           title: "Shorter prompts",
           track: "tokenizer",
           attempt_ref: "#12.1",
@@ -122,7 +122,7 @@ describe("Home", () => {
     const stalled = await screen.findByRole("region", { name: "Waiting for verification" });
     expect(within(stalled).getByRole("link", { name: "#12.1 Shorter prompts" })).toHaveAttribute(
       "href",
-      "/hypotheses/12/attempts/1",
+      "/units/12/attempts/1",
     );
     expect(
       within(stalled).getByText(
@@ -183,9 +183,9 @@ describe("Search", () => {
       next_before: null,
       total: items.length,
       facets: {
-        kind: { hypothesis: 1, comment: 1 },
+        kind: { unit: 1, comment: 1 },
         project: { sardines: 2 },
-        hypothesis_state: { promoted: 2 },
+        unit_state: { promoted: 2 },
       },
     });
   };
@@ -205,27 +205,27 @@ describe("Search", () => {
     expect(last.searchParams.getAll("kind")).toEqual(["comment"]);
   });
 
-  it("jumps straight to a hypothesis or an attempt from a reference", async () => {
-    signedIn({}, hypothesisApi(hypothesis()));
+  it("jumps straight to a unit or an attempt from a reference", async () => {
+    signedIn({}, unitApi(unit()));
     const { user, router } = renderApp("/tracks");
     const box = await screen.findByRole("searchbox", { name: "Search" });
     await user.type(box, "#12{Enter}");
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe("/hypotheses/12");
+      expect(router.state.location.pathname).toBe("/units/12");
     });
     await user.clear(box);
     await user.type(box, "sardines#12.3{Enter}");
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe("/hypotheses/12/attempts/3");
+      expect(router.state.location.pathname).toBe("/units/12/attempts/3");
     });
     expect(router.state.location.search).toBe("?project=sardines");
   });
 
   it("follows a reference typed in the address, too", async () => {
-    signedIn({}, hypothesisApi(hypothesis()));
+    signedIn({}, unitApi(unit()));
     const { router } = renderApp("/search?q=%2312");
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe("/hypotheses/12");
+      expect(router.state.location.pathname).toBe("/units/12");
     });
   });
 });
@@ -239,8 +239,8 @@ describe("comments", () => {
     signedIn(
       { projects: [project("sardines", "Sardines", "member")] },
       {
-        ...hypothesisApi(hypothesis(), { comments: [mine, theirs], members: [member()] }),
-        "POST /api/projects/sardines/hypotheses/12/comments": (request) => {
+        ...unitApi(unit(), { comments: [mine, theirs], members: [member()] }),
+        "POST /api/projects/sardines/units/12/comments": (request) => {
           posted.push(request.clone());
           return json(comment({ body_markdown: "New note" }), 201);
         },
@@ -261,11 +261,11 @@ describe("comments", () => {
           ),
       },
     );
-    const { user } = renderApp("/hypotheses/12");
+    const { user } = renderApp("/units/12");
     const section = await screen.findByRole("region", { name: "Comments" });
     expect(await within(section).findByRole("link", { name: "#7" })).toHaveAttribute(
       "href",
-      "/hypotheses/7",
+      "/units/7",
     );
     expect(within(section).getByText("Grace Hopper")).toBeInTheDocument();
     // Only one's own comment has an Edit button.
@@ -306,7 +306,7 @@ describe("track management", () => {
       {
         "GET /api/projects/sardines/tracks/tokenizer": () => json(track({ revision: 4 })),
         "GET /api/projects/sardines/tracks/tokenizer/history": () => json(page([])),
-        "GET /api/projects/sardines/hypotheses": () => json(page([])),
+        "GET /api/projects/sardines/units": () => json(page([])),
         "POST /api/projects/sardines/tracks/tokenizer/transitions": (request) => {
           posted.push(request.clone());
           return json(track({ state: "paused", revision: 5 }));
@@ -336,7 +336,7 @@ describe("track management", () => {
       {
         "GET /api/projects/sardines/tracks/tokenizer": () => json(track({ state: "archived" })),
         "GET /api/projects/sardines/tracks/tokenizer/history": () => json(page([])),
-        "GET /api/projects/sardines/hypotheses": () => json(page([])),
+        "GET /api/projects/sardines/units": () => json(page([])),
       },
     );
     renderApp("/tracks/tokenizer");
@@ -355,7 +355,7 @@ describe("names of people", () => {
     const { requests } = signedIn(
       {},
       {
-        ...hypothesisApi(hypothesis(), {
+        ...unitApi(unit(), {
           comments: [comment({ author_user_id: later.user_id, body_markdown: "Hello" })],
         }),
         "GET /api/projects/sardines/members": (request) =>
@@ -364,7 +364,7 @@ describe("names of people", () => {
             : json(page([member()], RESEARCHER_ID)),
       },
     );
-    renderApp("/hypotheses/12");
+    renderApp("/units/12");
     const section = await screen.findByRole("region", { name: "Comments" });
     expect(await within(section).findByText("Alan Turing")).toBeInTheDocument();
     const pages = requests

@@ -95,7 +95,7 @@ fn criteria(recipe: &Value) -> Criteria {
     c.projects = strings(recipe, "projects");
     c.kinds = strings(recipe, "kinds");
     c.tracks = strings(recipe, "tracks");
-    c.hypothesis_states = strings(recipe, "hypothesis_states");
+    c.unit_states = strings(recipe, "unit_states");
     c.attempt_states = strings(recipe, "attempt_states");
     c.verdicts = strings(recipe, "verdicts");
     c.decisions = strings(recipe, "decisions");
@@ -112,7 +112,7 @@ fn criteria(recipe: &Value) -> Criteria {
     c
 }
 fn hit(value: &Hit) -> Value {
-    json!({"id":value.id.0,"kind":value.kind.as_str(),"source_id":value.source_id.0.to_string(),"project":value.project,"track":value.track,"hypothesis_number":value.hypothesis_number,"hypothesis_title":value.hypothesis_title,"attempt_sequence":value.attempt_sequence,"doc_title":value.doc_title,"snippet":value.snippet,"hypothesis_state":value.hypothesis_state.map(repo::HypothesisState::as_str),"attempt_state":value.attempt_state.map(repo::AttemptState::as_str),"verdict":value.verdict,"decision":value.decision.map(repo::Decision::as_str),"actor_user":value.actor_user.map(|value|value.0.to_string()),"actor_service":value.actor_service.map(|value|value.0.to_string()),"occurred_at":value.occurred_at.isoformat(),"origin":value.origin.as_str(),"score":{"float_bits":format!("{:016x}",value.score.to_bits())}})
+    json!({"id":value.id.0,"kind":value.kind.as_str(),"source_id":value.source_id.0.to_string(),"project":value.project,"track":value.track,"unit_number":value.unit_number,"unit_title":value.unit_title,"attempt_sequence":value.attempt_sequence,"doc_title":value.doc_title,"snippet":value.snippet,"unit_state":value.unit_state.map(repo::UnitState::as_str),"attempt_state":value.attempt_state.map(repo::AttemptState::as_str),"verdict":value.verdict,"decision":value.decision.map(repo::Decision::as_str),"actor_user":value.actor_user.map(|value|value.0.to_string()),"actor_service":value.actor_service.map(|value|value.0.to_string()),"occurred_at":value.occurred_at.isoformat(),"origin":value.origin.as_str(),"score":{"float_bits":format!("{:016x}",value.score.to_bits())}})
 }
 async fn observe(
     conn: &mut PgConnection,
@@ -124,7 +124,7 @@ async fn observe(
             [
                 "comment",
                 "track",
-                "hypothesis",
+                "unit",
                 "agent",
                 "null_assessment",
                 "array_verdict",

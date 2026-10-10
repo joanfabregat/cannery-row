@@ -15,7 +15,7 @@ function cite(value: ContentRef): string {
   return value === null ? "null" : JSON.stringify({ ref: value.ref, sha256: value.sha256 });
 }
 
-/** A write-up to start from: the front matter the hypothesis's inputs require, and headings. */
+/** A write-up to start from: the front matter the unit's inputs require, and headings. */
 export function writeupTemplate(writeup: Writeup): string {
   const attempts = writeup.inputs?.attempts ?? [];
   return [

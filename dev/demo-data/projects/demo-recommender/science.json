@@ -2,7 +2,7 @@
   "schema_version": "0.2",
   "verify": {"performer": "agent"},
   "decide": {"performer": "step", "decider": {"id": "demo-decider", "revision": "recommender-decider-1"}},
-  "hypothesis_fields": {
+  "unit_fields": {
     "type": "object",
     "properties": {
       "factors": {"type": "integer", "minimum": 1, "description": "Latent factors of a factorization model."},

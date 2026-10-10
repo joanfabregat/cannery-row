@@ -1,7 +1,7 @@
 -- Recovery fixtures in a uniquely owned migrated child, with genuine operational PG clocks.
-UPDATE hypotheses SET state='active',revision=2,approved_revision=2,approved_at=now() WHERE number IN (5,6) AND project_id='00000000-0000-0000-0000-000000000010';
-INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel)
-SELECT id,2,'{"project_fields":{},"control":null}',3,created_by_user,'api' FROM hypotheses WHERE number IN (5,6) AND project_id='00000000-0000-0000-0000-000000000010';
+UPDATE units SET state='active',revision=2,approved_revision=2,approved_at=now() WHERE number IN (5,6) AND project_id='00000000-0000-0000-0000-000000000010';
+INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel)
+SELECT id,2,'{"project_fields":{},"control":null}',3,created_by_user,'api' FROM units WHERE number IN (5,6) AND project_id='00000000-0000-0000-0000-000000000010';
 INSERT INTO config_revisions(project_id,kind,revision,content,created_by)
 VALUES('00000000-0000-0000-0000-000000000010','science',3,
 '{"baselines":[],"datasets":[{"id":"fixture","revision":"data-1","held_out_labels":false}],"metrics":[],"interfaces":[{"name":"fixture-json","version":1,"encoding":"json","schema":{"type":"object"}}],"verify":{"performer":"runner","verifier":{"id":"fixture-verifier","revision":"policy-1"}},"scorer":{"name":"scorer","spec":{"inputs":{"artifacts":[{"source":"fixture"}]} }},"required_artifact_roles":{"verify":[]},"limits":{"report_max_bytes":10000,"max_output_bytes":10000},"max_auto_retries":1}',

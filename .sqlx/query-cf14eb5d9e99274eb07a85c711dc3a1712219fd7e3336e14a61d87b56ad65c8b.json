@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id AS \"attempt_id!: _\", a.sequence, h.id AS \"unit_id!: _\", h.number,\n        h.title, t.id AS \"track_id!: _\", t.slug AS track_slug, t.title AS track_title,\n        a.unit_revision, a.brief_revision, a.plan_revision\n        FROM attempts a JOIN units h ON h.id = a.unit_id\n        JOIN tracks t ON t.id = a.track_id\n        WHERE a.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempt_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "sequence",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "track_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "track_slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "track_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "unit_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "brief_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "plan_revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "cf14eb5d9e99274eb07a85c711dc3a1712219fd7e3336e14a61d87b56ad65c8b"
+}

@@ -247,13 +247,13 @@ async fn concerns_block_claims_until_answered_or_dismissed() -> Result<()> {
     let number = claimed["attempt"]["number"].as_i64().ok_or("number")?;
     let sequence = claimed["attempt"]["sequence"].as_i64().ok_or("sequence")?;
 
-    // A concern names a hypothesis and an attempt of its own track only.
+    // A concern names a unit and an attempt of its own track only.
     let (status, value) = call(
         &app,
         "agent",
         "POST",
         concerns,
-        Some(json!({"document": "---\nkind: blocker\nhypothesis: 99\n---\nNo such hypothesis.\n"})),
+        Some(json!({"document": "---\nkind: blocker\nunit: 99\n---\nNo such unit.\n"})),
     )
     .await?;
     assert_eq!(status, 422, "{value}");
@@ -292,14 +292,14 @@ async fn concerns_block_claims_until_answered_or_dismissed() -> Result<()> {
         "POST",
         concerns,
         Some(json!({"document": format!(
-            "---\nkind: wrong_assumption\nhypothesis: {number}\nattempt: {sequence}\n---\nThe train split leaks into test.\n"
+            "---\nkind: wrong_assumption\nunit: {number}\nattempt: {sequence}\n---\nThe train split leaks into test.\n"
         )})),
     )
     .await?;
     assert_eq!(status, 201, "{first}");
     assert_eq!(first["state"], "open");
     assert_eq!(first["kind"], "wrong_assumption");
-    assert_eq!(first["hypothesis"], number);
+    assert_eq!(first["unit"], number);
     assert_eq!(first["attempt"], sequence);
     assert_eq!(first["raised_by_kind"], "service");
     assert_eq!(first["raised_by_name"], "fixture-agent");
@@ -397,7 +397,7 @@ async fn concerns_block_claims_until_answered_or_dismissed() -> Result<()> {
     .await?;
     assert_eq!(status, 201, "{second}");
     assert_eq!(second["raised_by_kind"], "user");
-    assert_eq!(second["hypothesis"], Value::Null);
+    assert_eq!(second["unit"], Value::Null);
     let second_id = second["id"].as_str().ok_or("id")?.to_owned();
     let (status, refused) = claim(&app).await?;
     assert_eq!(
@@ -481,7 +481,7 @@ async fn concerns_block_claims_until_answered_or_dismissed() -> Result<()> {
         "{markdown}"
     );
 
-    // No concern is open: the track's next hypothesis is claimed again.
+    // No concern is open: the track's next unit is claimed again.
     let (status, claimed) = claim(&app).await?;
     assert_eq!(status, 201, "{claimed}");
     let (status, all) = call(&app, "viewer", "GET", "/api/projects/matrix/concerns", None).await?;

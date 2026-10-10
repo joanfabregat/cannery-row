@@ -22,7 +22,7 @@ import { usePermissions } from "@/projects/use-permissions";
 import { usePeople } from "@/projects/use-people";
 
 /**
- * Discussion on a hypothesis or an attempt. Members and researchers comment;
+ * Discussion on a unit or an attempt. Members and researchers comment;
  * authors edit their own comments, and every edit stays visible as history.
  * Comments never change a state, a verdict or a decision.
  */
@@ -67,14 +67,14 @@ function NewComment({ project, target }: { project: string; target: CommentTarge
     mutationFn: async (text: string) => {
       if (target.sequence === undefined) {
         return unwrap(
-          await api.POST("/api/projects/{slug}/hypotheses/{number}/comments", {
+          await api.POST("/api/projects/{slug}/units/{number}/comments", {
             params: { path: { slug: project, number: target.number } },
             body: { body_markdown: text },
           }),
         );
       }
       return unwrap(
-        await api.POST("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments", {
+        await api.POST("/api/projects/{slug}/units/{number}/attempts/{sequence}/comments", {
           params: { path: { slug: project, number: target.number, sequence: target.sequence } },
           body: { body_markdown: text },
         }),
@@ -83,7 +83,7 @@ function NewComment({ project, target }: { project: string; target: CommentTarge
     onSuccess: async () => {
       setBody("");
       await queryClient.invalidateQueries({ queryKey: commentsKey(project, target) });
-      // Mentions add backlinks to other hypotheses.
+      // Mentions add backlinks to other units.
       await queryClient.invalidateQueries({ queryKey: projectKey(project) });
     },
   });
@@ -104,7 +104,7 @@ function NewComment({ project, target }: { project: string; target: CommentTarge
         onChange={(event) => {
           setBody(event.target.value);
         }}
-        placeholder="Markdown is supported. Mention a hypothesis with #12."
+        placeholder="Markdown is supported. Mention a unit with #12."
       />
       {add.isError ? (
         <p role="alert" className="text-sm text-status-danger">

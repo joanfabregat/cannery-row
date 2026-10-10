@@ -59,7 +59,7 @@ fn hit(
 ) -> Result<crate::api_models::SearchHit, cannery_core::json::model::ModelEncodeError> {
     use crate::api_contract::convert;
     let reference = row
-        .hypothesis_number
+        .unit_number
         .map(|number| format!("{}#{number}", row.project));
     let attempt = reference
         .as_ref()
@@ -83,16 +83,12 @@ fn hit(
         source_id: row.source_id.0.to_string(),
         project: row.project.clone(),
         r#ref: attempt.as_ref().or(reference.as_ref()).cloned(),
-        hypothesis: row.hypothesis_number.map(i64::from),
+        unit: row.unit_number.map(i64::from),
         attempt_ref: attempt,
-        title: row
-            .hypothesis_title
-            .as_ref()
-            .unwrap_or(&row.doc_title)
-            .clone(),
+        title: row.unit_title.as_ref().unwrap_or(&row.doc_title).clone(),
         snippet: row.snippet.clone(),
         track: row.track.clone(),
-        hypothesis_state: row.hypothesis_state.map(|v| v.as_str().to_owned()),
+        unit_state: row.unit_state.map(|v| v.as_str().to_owned()),
         attempt_state: row.attempt_state.map(|v| v.as_str().to_owned()),
         verdict: row.verdict.clone(),
         decision: row.decision.map(|v| v.as_str().to_owned()),
@@ -116,7 +112,7 @@ fn hit(
         ("project" = Option<Vec<String>>, Query, description = "Project slugs."),
         ("kind" = Option<Vec<crate::api_models::cannery_row__search__routes__Kind>>, Query),
         ("track" = Option<Vec<String>>, Query, description = "Track slugs."),
-        ("hypothesis_state" = Option<Vec<crate::api_models::HypothesisState>>, Query),
+        ("unit_state" = Option<Vec<crate::api_models::UnitState>>, Query),
         ("attempt_state" = Option<Vec<crate::api_models::AttemptState>>, Query),
         ("verdict" = Option<Vec<crate::api_models::Verdict>>, Query),
         ("decision" = Option<Vec<crate::api_models::ResultDecision>>, Query),

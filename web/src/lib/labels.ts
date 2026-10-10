@@ -30,7 +30,7 @@ export interface StatusMeta {
 
 const s = (label: string, tone: Tone, icon: StatusIcon): StatusMeta => ({ label, tone, icon });
 
-const hypothesisState = {
+const unitState = {
   queued: s("Waiting to start", "neutral", "waiting"),
   active: s("In progress", "info", "progress"),
   documenting: s("Being written up", "info", "progress"),
@@ -106,7 +106,7 @@ const jobState = {
   skipped: s("Skipped", "neutral", "stopped"),
 };
 
-/** A hypothesis's write-up, from its document job. */
+/** A unit's write-up, from its document job. */
 const writeup = {
   pending: s("To write", "attention", "waiting"),
   claimed: s("Being written", "info", "progress"),
@@ -145,7 +145,7 @@ const account = {
 };
 
 export const statusDomains = {
-  hypothesis: hypothesisState,
+  unit: unitState,
   attempt: attemptState,
   track: trackState,
   plan: planState,
@@ -200,7 +200,7 @@ export const labels = {
   },
   searchKind: {
     track: "Track",
-    hypothesis: "Hypothesis",
+    unit: "Unit",
     attempt: "Attempt",
     report: "Report",
     verification: "Verification report",
@@ -211,7 +211,7 @@ export const labels = {
     kind: "Type",
     project: "Project",
     track: "Track",
-    hypothesis_state: "Hypothesis status",
+    unit_state: "Unit status",
     attempt_state: "Attempt status",
     verdict: "Verification verdict",
     decision: "Decision",

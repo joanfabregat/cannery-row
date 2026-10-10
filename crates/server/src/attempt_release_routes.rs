@@ -69,10 +69,10 @@ fn documents(
 )]
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/release",
-    operation_id = "release_api_projects__slug__hypotheses__number__attempts__sequence__release_post",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/release",
+    operation_id = "release_api_projects__slug__units__number__attempts__sequence__release_post",
     summary = "Release",
-    description = "Give up the attempt. It fails and a researcher decides whether to retry.\n\nAn experimenter (a Cannery Row runner) giving up a runner-driven attempt\nreports why with ``code``, the failing ``step`` and its ``logs``. Its\nreport is trusted: the failure is one of the run, and the hypothesis is\nqueued again automatically while retries remain (docs/spec.md). Only an\nexperimenter may send them.",
+    description = "Give up the attempt. It fails and a researcher decides whether to retry.\n\nAn experimenter (a Cannery Row runner) giving up a runner-driven attempt\nreports why with ``code``, the failing ``step`` and its ``logs``. Its\nreport is trusted: the failure is one of the run, and the unit is\nqueued again automatically while retries remain (docs/spec.md). Only an\nexperimenter may send them.",
     params(("slug" = String, Path),
         ("number" = i64, Path),
         ("sequence" = i64, Path),

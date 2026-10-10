@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT r.content -> 'project_fields' AS \"value?: JsonbText\"\n            FROM units h\n            JOIN unit_revisions r\n              ON r.unit_id = h.id AND r.revision = h.approved_revision\n            WHERE h.id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value?: JsonbText",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9ddc9fc151c4bdfe29fc0ac3bff0a59cac371357a94732e293403cad23e1d93b"
+}

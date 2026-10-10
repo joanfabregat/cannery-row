@@ -182,7 +182,7 @@ struct RouteContexts {
     attempt_reads: Option<Arc<crate::attempt_read_routes::AttemptReadContext>>,
     config: Option<Arc<crate::config_routes::ConfigContext>>,
     tracks: Option<Arc<crate::track_routes::TrackContext>>,
-    hypotheses: Option<Arc<crate::hypothesis_routes::HypothesisContext>>,
+    units: Option<Arc<crate::unit_routes::UnitContext>>,
     review_attention: Option<Arc<crate::review_attention_routes::ReviewAttentionContext>>,
     metrics: Option<Arc<crate::metric_routes::MetricContext>>,
     search: Option<Arc<crate::search_routes::SearchContext>>,
@@ -285,15 +285,14 @@ fn application_with_proxy(
                     crate::review_attention_routes::routes(state.clone(), context)
                 }),
         )
-        .merge(contexts.hypotheses.map_or_else(Router::new, |context| {
+        .merge(contexts.units.map_or_else(Router::new, |context| {
             let plans = context.mutations.is_some().then(|| {
-                crate::plan_routes::routes(crate::hypothesis_routes::RouteState {
+                crate::plan_routes::routes(crate::unit_routes::RouteState {
                     app: state.clone(),
                     context: context.clone(),
                 })
             });
-            crate::hypothesis_routes::routes(state.clone(), context)
-                .merge(plans.unwrap_or_default())
+            crate::unit_routes::routes(state.clone(), context).merge(plans.unwrap_or_default())
         }))
         .merge(contexts.metrics.map_or_else(Router::new, |context| {
             crate::metric_routes::routes(state.clone(), context)
@@ -469,19 +468,19 @@ async fn shutdown() {
     }
 }
 
-/// Construct five hypothesis routes with explicitly selected compatibility contexts.
+/// Construct five unit routes with explicitly selected compatibility contexts.
 /// # Errors
 /// Preserves application startup failures without choosing a production profile.
-pub fn application_with_hypothesis_context(
+pub fn application_with_unit_context(
     settings: Settings,
-    context: Arc<crate::hypothesis_routes::HypothesisContext>,
+    context: Arc<crate::unit_routes::UnitContext>,
 ) -> Result<(Router, AppState), ServerError> {
     application_with_proxy(
         settings,
         "127.0.0.1,::1",
         None,
         RouteContexts {
-            hypotheses: Some(context),
+            units: Some(context),
             ..RouteContexts::default()
         },
     )

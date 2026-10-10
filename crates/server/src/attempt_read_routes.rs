@@ -25,7 +25,7 @@ use std::{collections::BTreeMap, sync::Arc};
 pub struct AttemptReadContext {
     pub repository: JsonContext,
     pub response: ResponseContext,
-    pub hypothesis_lookup: crate::attempt_read_lookup::LookupContext,
+    pub unit_lookup: crate::attempt_read_lookup::LookupContext,
 }
 #[derive(Clone)]
 pub(crate) struct RouteState {
@@ -54,12 +54,12 @@ fn missing(message: String) -> Failure {
 pub fn routes(app: AppState, context: Arc<AttemptReadContext>) -> Router {
     Router::new()
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts",
-            get(hypothesis).head(head),
+            "/api/projects/{slug}/units/{number}/attempts",
+            get(unit).head(head),
         )
         .route("/api/projects/{slug}/attempts", get(project).head(head))
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}",
             get(detail).head(head),
         )
         .with_state(RouteState { app, context })
@@ -69,10 +69,10 @@ async fn head() -> impl IntoResponse {
 }
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts",
-    operation_id = "list_attempts_api_projects__slug__hypotheses__number__attempts_get",
+    path = "/api/projects/{slug}/units/{number}/attempts",
+    operation_id = "list_attempts_api_projects__slug__units__number__attempts_get",
     summary = "List Attempts",
-    description = "The hypothesis's attempts, by sequence.",
+    description = "The unit's attempts, by sequence.",
     params(("slug" = String, Path),
         ("number" = i64, Path),
         ("before" = Option<i64>, Query, description = "Continue after this sequence.", minimum = 0, maximum = 2_147_483_647),
@@ -87,12 +87,12 @@ async fn head() -> impl IntoResponse {
         (status = 503, description = "Service unavailable", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
 )]
-pub(crate) async fn hypothesis(
+pub(crate) async fn unit(
     State(state): State<RouteState>,
     axum::Extension(context): axum::Extension<RequestContext>,
     request: Request,
 ) -> Result<Response, Failure> {
-    read(state, context, request, Operation::Hypothesis).await
+    read(state, context, request, Operation::Unit).await
 }
 #[utoipa::path(
     get,
@@ -124,8 +124,8 @@ pub(crate) async fn project(
 }
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}",
-    operation_id = "get_attempt_api_projects__slug__hypotheses__number__attempts__sequence__get",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}",
+    operation_id = "get_attempt_api_projects__slug__units__number__attempts__sequence__get",
     summary = "Get Attempt",
     params(("slug" = String, Path),
         ("number" = i64, Path),
@@ -187,23 +187,23 @@ async fn read(
             .await
             .map_err(|error| failure(context.project_error(error)))?;
     let bytes = match operation {
-        Operation::Hypothesis => {
+        Operation::Unit => {
             let number = params
                 .number
                 .as_ref()
-                .ok_or_else(|| internal(&context, "attempt hypothesis path"))?;
-            let hypothesis = crate::attempt_read_lookup::hypothesis(
+                .ok_or_else(|| internal(&context, "attempt unit path"))?;
+            let unit = crate::attempt_read_lookup::unit(
                 &mut auth.connection,
                 project.id,
                 number,
-                state.context.hypothesis_lookup,
+                state.context.unit_lookup,
             )
             .await
-            .map_err(|_| internal(&context, "attempt hypothesis"))?
-            .ok_or_else(|| missing(format!("hypothesis #{number} not found")))?;
+            .map_err(|_| internal(&context, "attempt unit"))?
+            .ok_or_else(|| missing(format!("unit #{number} not found")))?;
             let rows = Repository::new(&mut auth.connection, state.context.repository)
                 .list_attempts(
-                    hypothesis,
+                    unit,
                     params.after.as_ref(),
                     Some(&BigInt::from(params.limit + 1)),
                 )

@@ -2,13 +2,12 @@
 //!
 //! A concern is raised once on a track's plan and is then immutable but for
 //! closing it: a plan revision answers it on approval, or a researcher
-//! dismisses it with a reason. While one is open, no new hypothesis of its
+//! dismisses it with a reason. While one is open, no new unit of its
 //! track is claimed.
 use crate::repo::TrackError;
 use cannery_core::{
     ids::{
-        AttemptId, ConcernId, HypothesisId, PlanRevisionId, ProjectId, ServiceAccountId, TrackId,
-        UserId,
+        AttemptId, ConcernId, PlanRevisionId, ProjectId, ServiceAccountId, TrackId, UnitId, UserId,
     },
     timestamps::Timestamp,
 };
@@ -22,8 +21,8 @@ pub struct Concern {
     pub track_id: TrackId,
     pub track_slug: String,
     pub kind: String,
-    pub hypothesis_id: Option<HypothesisId>,
-    pub hypothesis_number: Option<i32>,
+    pub unit_id: Option<UnitId>,
+    pub unit_number: Option<i32>,
     pub attempt_sequence: Option<i32>,
     /// The front matter as JSON text.
     pub front_matter: String,
@@ -49,7 +48,7 @@ pub struct NewConcern<'a> {
     pub project_id: ProjectId,
     pub track_id: TrackId,
     pub kind: &'a str,
-    pub hypothesis_id: Option<HypothesisId>,
+    pub unit_id: Option<UnitId>,
     pub attempt_id: Option<AttemptId>,
     /// The front matter as JSON text.
     pub front_matter: &'a str,
@@ -93,7 +92,7 @@ pub async fn select(
         Concern,
         r#"SELECT c.id AS "id!: _", c.project_id AS "project_id!: _",
         c.track_id AS "track_id!: _", t.slug AS track_slug, c.kind,
-        c.hypothesis_id AS "hypothesis_id?: _", h.number AS "hypothesis_number?",
+        c.unit_id AS "unit_id?: _", h.number AS "unit_number?",
         a.sequence AS "attempt_sequence?", c.front_matter::text AS "front_matter!", c.body,
         c.sha256, c.raised_by_user AS "raised_by_user?: _",
         coalesce(u.display_name, u.email) AS "raised_by_user_name?",
@@ -103,7 +102,7 @@ pub async fn select(
         coalesce(d.display_name, d.email) AS "dismissed_by_name?", c.dismissal_reason,
         c.closed_at AS "closed_at?: _"
         FROM concerns c JOIN tracks t ON t.id = c.track_id
-        LEFT JOIN hypotheses h ON h.id = c.hypothesis_id
+        LEFT JOIN units h ON h.id = c.unit_id
         LEFT JOIN attempts a ON a.id = c.attempt_id
         LEFT JOIN users u ON u.id = c.raised_by_user
         LEFT JOIN service_accounts s ON s.id = c.raised_by_service
@@ -186,8 +185,8 @@ pub async fn blocked_tracks(
 }
 
 /// The slugs of the project's active tracks in `mode` whose queued
-/// hypotheses wait only because an open concern blocks the track: of one
-/// track, or holding one hypothesis number, when given.
+/// units wait only because an open concern blocks the track: of one
+/// track, or holding one unit number, when given.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn blocked_queued(
@@ -198,7 +197,7 @@ pub async fn blocked_queued(
     track: Option<&str>,
 ) -> Result<Vec<String>, TrackError> {
     Ok(sqlx::query_scalar!(
-        r#"SELECT DISTINCT t.slug FROM hypotheses h JOIN tracks t ON t.id = h.track_id
+        r#"SELECT DISTINCT t.slug FROM units h JOIN tracks t ON t.id = h.track_id
         WHERE h.project_id = $1 AND h.state = 'queued' AND t.state = 'active' AND t.mode = $2
           AND ($3::integer IS NULL OR h.number = $3) AND ($4::text IS NULL OR t.slug = $4)
           AND EXISTS (SELECT 1 FROM concerns c WHERE c.track_id = t.id AND c.state = 'open')
@@ -238,14 +237,14 @@ pub async fn insert(
     concern: NewConcern<'_>,
 ) -> Result<ConcernId, TrackError> {
     Ok(sqlx::query_scalar!(
-        r#"INSERT INTO concerns (project_id, track_id, kind, hypothesis_id, attempt_id,
+        r#"INSERT INTO concerns (project_id, track_id, kind, unit_id, attempt_id,
         front_matter, body, sha256, raised_by_user, raised_by_service, via_channel, via_client)
         VALUES ($1, $2, $3, $4, $5, $6::text::jsonb, $7, $8, $9, $10, $11, $12)
         RETURNING id AS "id!: ConcernId""#,
         concern.project_id as ProjectId,
         concern.track_id as TrackId,
         concern.kind,
-        concern.hypothesis_id as Option<HypothesisId>,
+        concern.unit_id as Option<UnitId>,
         concern.attempt_id as Option<AttemptId>,
         concern.front_matter,
         concern.body,

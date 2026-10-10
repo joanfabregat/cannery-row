@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT a.id AS \"id!: AttemptId\" FROM attempts a JOIN units h ON h.id = a.unit_id\n                WHERE h.project_id = $1 AND h.number = $2 AND a.sequence = $3\n                FOR UPDATE OF a\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fdd9e0ccc8f5962be53450d04cf168238330ffad291f62944d90d711f5f9729e"
+}

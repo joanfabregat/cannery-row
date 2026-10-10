@@ -29,11 +29,11 @@ use cannery_core::{
     json::{Document, Node},
     principal::{Principal, Role, UserPrincipal},
 };
-use cannery_hypotheses::repo::{
-    self as hypotheses, Decision, DecisionAction, DecisionId, HypothesisState, RecordDecision,
-};
 use cannery_jobs::repo as jobs;
 use cannery_reviews::{CaseKind, CaseState, Stage, repo};
+use cannery_units::repo::{
+    self as units, Decision, DecisionAction, DecisionId, RecordDecision, UnitState,
+};
 use num_bigint::BigInt;
 use sqlx::{Acquire, PgConnection};
 use std::{
@@ -146,7 +146,7 @@ pub fn reference_request_hash(
     decision: &Document,
     budget: usize,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-    crate::hypothesis_idempotency::decision_hash(project, decision, budget)
+    crate::unit_idempotency::decision_hash(project, decision, budget)
 }
 #[derive(Clone)]
 pub(crate) struct RouteState {
@@ -408,7 +408,7 @@ async fn record(
     s: &ReviewDecisionContext,
     r: &RequestContext,
 ) -> Result<Decision, Failure> {
-    hypotheses::record_decision(
+    units::record_decision(
         c,
         RecordDecision {
             case_id: case.id,
@@ -422,7 +422,7 @@ async fn record(
                 .as_ref()
                 .map(|document| (document.text.as_str(), document.sha256.as_str())),
         },
-        s.reads.hypotheses,
+        s.reads.units,
     )
     .await
     .map_err(|_| internal(r, "review record decision"))
@@ -520,7 +520,7 @@ async fn decision(
             "a decision case is decided with a decision document",
         ));
     };
-    let decisions = hypotheses::list_decisions(c, &[case.id], s.reads.hypotheses)
+    let decisions = units::list_decisions(c, &[case.id], s.reads.units)
         .await
         .map_err(|_| internal(r, "review current decisions"))?;
     let old_ids = decisions
@@ -571,7 +571,7 @@ async fn decision(
         }
         // A project that registers a decider step decides automatically; a
         // researcher corrects that decision once it is recorded.
-        if let Some(job) = jobs::decide_job(c, case.hypothesis_id, s.jobs)
+        if let Some(job) = jobs::decide_job(c, case.unit_id, s.jobs)
             .await
             .map_err(|_| internal(r, "review decide job"))?
             .filter(|job| matches!(job.state, jobs::State::Pending | jobs::State::Claimed))
@@ -579,7 +579,7 @@ async fn decision(
             return Err(domain(
                 ErrorCode::Conflict,
                 format!(
-                    "decider {} decides this hypothesis (decide job {} is {}); once its decision is recorded, a researcher may correct it with supersedes",
+                    "decider {} decides this unit (decide job {} is {}); once its decision is recorded, a researcher may correct it with supersedes",
                     job.verifier_id.as_deref().unwrap_or_default(),
                     job.id,
                     job.state.as_str()
@@ -595,7 +595,7 @@ async fn decision(
             "/document",
             &if verification.is_null() {
                 String::from(
-                    "front matter /verification: null; the hypothesis was stopped after a failure",
+                    "front matter /verification: null; the unit was stopped after a failure",
                 )
             } else {
                 format!(
@@ -647,13 +647,13 @@ async fn decision(
         (None, _) => {
             return Err(violation(
                 "/document",
-                "front matter /outcome: a hypothesis stopped after a failure is decided failed",
+                "front matter /outcome: a unit stopped after a failure is decided failed",
             ));
         }
         (Some(_), DecisionAction::Failed) => {
             return Err(violation(
                 "/document",
-                "front matter /outcome: failed is the outcome of a hypothesis stopped after a failure",
+                "front matter /outcome: failed is the outcome of a unit stopped after a failure",
             ));
         }
         (Some(verdict), DecisionAction::Promote) if verdict != "pass" => {
@@ -666,26 +666,26 @@ async fn decision(
         }
         _ => {}
     }
-    if case.hypothesis_state.as_str() != expected {
+    if case.unit_state.as_str() != expected {
         return Err(domain(
             ErrorCode::Conflict,
             format!(
-                "the hypothesis is {}; nothing awaits this decision",
-                case.hypothesis_state.as_str()
+                "the unit is {}; nothing awaits this decision",
+                case.unit_state.as_str()
             ),
         ));
     }
     let d = record(c, &case, input, user, supersedes, s, r).await?;
     event(c,principal,project,Audit{action:&format!("review.{}",input.action.as_str()),subject_type:"review_case",id:case.id.to_string(),prior:Some(serde_json::json!({"state":case.state.as_str(),"kind":"decision","decision_id":current.map(|v|v.id.0.to_string())})),new:serde_json::json!({"state":"resolved","decision_id":d.id.0.to_string(),"action":input.action.as_str(),"subject_revision":case.subject_revision,"verdict":verdict,"decision_sha256":document.sha256,"supersedes":supersedes.map(|v|v.0.to_string())}),reason:Some(&input.reason),key},r).await?;
-    hypotheses::set_state(
+    units::set_state(
         c,
-        case.hypothesis_id,
-        HypothesisState::try_from(to).map_err(|_| internal(r, "review outcome"))?,
+        case.unit_id,
+        UnitState::try_from(to).map_err(|_| internal(r, "review outcome"))?,
         None,
     )
     .await
     .map_err(|_| internal(r, "review decision state"))?;
-    event(c,principal,project,Audit{action:if supersedes.is_some(){"hypothesis.decision_corrected"}else{"hypothesis.decided"},subject_type:"hypothesis",id:case.hypothesis_id.to_string(),prior:Some(serde_json::json!({"state":case.hypothesis_state.as_str()})),new:serde_json::json!({"state":to,"attempt_id":attempt.id.to_string(),"decision_id":d.id.0.to_string()}),reason:Some(&input.reason),key},r).await?;
+    event(c,principal,project,Audit{action:if supersedes.is_some(){"unit.decision_corrected"}else{"unit.decided"},subject_type:"unit",id:case.unit_id.to_string(),prior:Some(serde_json::json!({"state":case.unit_state.as_str()})),new:serde_json::json!({"state":to,"attempt_id":attempt.id.to_string(),"decision_id":d.id.0.to_string()}),reason:Some(&input.reason),key},r).await?;
     Ok((d, false))
 }
 #[allow(
@@ -765,7 +765,7 @@ async fn failure_case(
         .ok_or_else(|| internal(r, "review failed attempt invariant"))?;
     let case = load_invariant(c, project, peek.id, true, r).await?;
     if case.state == CaseState::Resolved {
-        let mut decisions = hypotheses::list_decisions(c, &[case.id], s.reads.hypotheses)
+        let mut decisions = units::list_decisions(c, &[case.id], s.reads.units)
             .await
             .map_err(|_| internal(r, "review failure decisions"))?;
         let last=decisions.pop().ok_or_else(||domain(ErrorCode::Conflict,"this failure case is already decided; a failure decision takes effect when recorded and is not superseded"))?;
@@ -798,13 +798,13 @@ async fn failure_case(
             ),
         ));
     }
-    if attempt.state.as_str() != "failed" || case.hypothesis_state.as_str() != "active" {
+    if attempt.state.as_str() != "failed" || case.unit_state.as_str() != "active" {
         return Err(domain(
             ErrorCode::Conflict,
             format!(
-                "the attempt is {} and the hypothesis {}; nothing awaits this decision",
+                "the attempt is {} and the unit {}; nothing awaits this decision",
                 attempt.state.as_str(),
-                case.hypothesis_state.as_str()
+                case.unit_state.as_str()
             ),
         ));
     }
@@ -828,9 +828,9 @@ async fn failure_case(
         .as_utf8()
         .ok_or_else(|| internal(r, "review failure code"))?;
     if input.action == DecisionAction::Stop {
-        // A stopped hypothesis is written up, then decided failed.
+        // A stopped unit is written up, then decided failed.
         let job = crate::document_jobs::stop(c, principal, &attempt, &s.lifecycle, r).await?;
-        event(c,principal,project,Audit{action:"hypothesis.stopped",subject_type:"hypothesis",id:case.hypothesis_id.to_string(),prior:Some(serde_json::json!({"state":case.hypothesis_state.as_str()})),new:serde_json::json!({"state":"documenting","attempt_id":attempt.id.to_string(),"job_id":job.id.to_string(),"failure_stage":found.stage.as_str(),"failure_code":code}),reason:Some(&reason),key},r).await?;
+        event(c,principal,project,Audit{action:"unit.stopped",subject_type:"unit",id:case.unit_id.to_string(),prior:Some(serde_json::json!({"state":case.unit_state.as_str()})),new:serde_json::json!({"state":"documenting","attempt_id":attempt.id.to_string(),"job_id":job.id.to_string(),"failure_stage":found.stage.as_str(),"failure_code":code}),reason:Some(&reason),key},r).await?;
         return Ok((d, false));
     }
     let to = if found.stage == Stage::Agent {
@@ -839,15 +839,15 @@ async fn failure_case(
         rerun(c, principal, &attempt, overhead, &reason, key, s, r).await?;
         "active"
     };
-    hypotheses::set_state(
+    units::set_state(
         c,
-        case.hypothesis_id,
-        HypothesisState::try_from(to).map_err(|_| internal(r, "review retry outcome"))?,
+        case.unit_id,
+        UnitState::try_from(to).map_err(|_| internal(r, "review retry outcome"))?,
         None,
     )
     .await
     .map_err(|_| internal(r, "review retry state"))?;
-    event(c,principal,project,Audit{action:"hypothesis.retried",subject_type:"hypothesis",id:case.hypothesis_id.to_string(),prior:Some(serde_json::json!({"state":case.hypothesis_state.as_str()})),new:serde_json::json!({"state":to,"attempt_id":attempt.id.to_string(),"failure_stage":found.stage.as_str(),"failure_code":code}),reason:Some(&reason),key},r).await?;
+    event(c,principal,project,Audit{action:"unit.retried",subject_type:"unit",id:case.unit_id.to_string(),prior:Some(serde_json::json!({"state":case.unit_state.as_str()})),new:serde_json::json!({"state":to,"attempt_id":attempt.id.to_string(),"failure_stage":found.stage.as_str(),"failure_code":code}),reason:Some(&reason),key},r).await?;
     Ok((d, false))
 }
 #[allow(
@@ -860,7 +860,7 @@ async fn failure_case(
     path = "/api/projects/{slug}/review-cases/{case_id}/decisions",
     operation_id = "decide_api_projects__slug__review_cases__case_id__decisions_post",
     summary = "Decide",
-    description = "Record a researcher's decision on a pending review case.\n\nA decision case is decided with a decision document: Markdown with YAML\nfront matter (``decision.schema.json``) naming the outcome (`promote`,\n`reject`, `inconclusive`, or `failed` for a hypothesis stopped after a\nfailure) and citing the case's verification report and write-up, each\nnull when there is none; its body is the reason. A promotion requires a\n`pass` verdict. A decided case is corrected with `supersedes`.\n\nA failure case is decided with `retry` or `stop`, the failure revision and\na reason: `stop` sends the hypothesis to be written up, then decided.",
+    description = "Record a researcher's decision on a pending review case.\n\nA decision case is decided with a decision document: Markdown with YAML\nfront matter (``decision.schema.json``) naming the outcome (`promote`,\n`reject`, `inconclusive`, or `failed` for a unit stopped after a\nfailure) and citing the case's verification report and write-up, each\nnull when there is none; its body is the reason. A promotion requires a\n`pass` verdict. A decided case is corrected with `supersedes`.\n\nA failure case is decided with `retry` or `stop`, the failure revision and\na reason: `stop` sends the unit to be written up, then decided.",
     params(("slug" = String, Path),
         ("case_id" = String, Path, format = "uuid"),
         ("idempotency-key" = Option<String>, Header)),
@@ -951,12 +951,9 @@ pub(crate) async fn decide(
             "Idempotency-Key must be 1 to 200 characters",
         ));
     }
-    let hash = crate::hypothesis_idempotency::decision_hash(
-        &project.slug,
-        d,
-        s.context.request_hash_budget,
-    )
-    .map_err(|_| internal(&r, "review request hash"))?;
+    let hash =
+        crate::unit_idempotency::decision_hash(&project.slug, d, s.context.request_hash_budget)
+            .map_err(|_| internal(&r, "review request hash"))?;
     let text = |name: &str| {
         d.field(d.root(), name)
             .and_then(|v| d.node(v))

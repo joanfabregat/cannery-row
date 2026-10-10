@@ -5,8 +5,8 @@ import { Loading } from "@/components/query-state";
 import { AttemptPage } from "@/pages/attempt-page";
 import { BriefPage } from "@/pages/brief-page";
 import { HomePage } from "@/pages/home-page";
-import { HypothesesPage } from "@/pages/hypotheses-page";
-import { HypothesisPage } from "@/pages/hypothesis-page";
+import { UnitsPage } from "@/pages/units-page";
+import { UnitPage } from "@/pages/unit-page";
 import { NotFoundPage } from "@/pages/not-found-page";
 import { PlanEditPage } from "@/pages/plan-edit-page";
 import { ReviewPage } from "@/pages/review-page";
@@ -27,11 +27,11 @@ export const routes: RouteObject[] = [
       { path: "tracks", element: <TracksPage /> },
       { path: "tracks/:track", element: <TrackPage /> },
       { path: "tracks/:track/plan", element: <PlanEditPage /> },
-      { path: "hypotheses", element: <HypothesesPage /> },
-      { path: "hypotheses/:number", element: <HypothesisPage /> },
-      { path: "hypotheses/:number/review", element: <ReviewPage /> },
-      { path: "hypotheses/:number/writeup", element: <WriteupPage /> },
-      { path: "hypotheses/:number/attempts/:sequence", element: <AttemptPage /> },
+      { path: "units", element: <UnitsPage /> },
+      { path: "units/:number", element: <UnitPage /> },
+      { path: "units/:number/review", element: <ReviewPage /> },
+      { path: "units/:number/writeup", element: <WriteupPage /> },
+      { path: "units/:number/attempts/:sequence", element: <AttemptPage /> },
       {
         path: "results",
         // The chart library is loaded with the only page that draws charts.

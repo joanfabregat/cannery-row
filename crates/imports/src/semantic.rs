@@ -38,7 +38,7 @@ pub(crate) fn imported_document(content: &Value, numbers: &BTreeMap<String, i32>
     } else {
         value["question"] = content["claim"].clone();
     }
-    let relations=items(content,"relations").iter().map(|relation|json!({"kind":relation["type"],"hypothesis":relation["to"].as_str().and_then(|key|numbers.get(key)).copied().unwrap_or(1)})).collect::<Vec<_>>();
+    let relations=items(content,"relations").iter().map(|relation|json!({"kind":relation["type"],"unit":relation["to"].as_str().and_then(|key|numbers.get(key)).copied().unwrap_or(1)})).collect::<Vec<_>>();
     if !relations.is_empty() {
         value["relations"] = json!(relations);
     }
@@ -46,7 +46,7 @@ pub(crate) fn imported_document(content: &Value, numbers: &BTreeMap<String, i32>
 }
 pub(crate) struct Knowledge<'a> {
     pub tracks: &'a BTreeMap<String, Value>,
-    pub hypotheses: &'a BTreeSet<String>,
+    pub units: &'a BTreeSet<String>,
     pub policies: &'a BTreeMap<String, Value>,
     pub artifact_uris: &'a BTreeSet<String>,
     pub users: &'a BTreeMap<String, UserId>,
@@ -191,7 +191,7 @@ pub(crate) fn equal_numbers(left: &Value, right: &Value) -> bool {
             .is_some_and(|(left, right)| left == right)
 }
 #[allow(clippy::too_many_lines)] // Historical cross-reference checks accumulate file-local problems.
-pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Result<Vec<Problem>> {
+pub(crate) fn check_unit(entry: &Entry, knowledge: &Knowledge<'_>) -> Result<Vec<Problem>> {
     let content = &entry.content;
     let mut problems = Vec::new();
     let state = text(content, "state")?;
@@ -203,7 +203,7 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
                 &mut problems,
                 entry,
                 "/state",
-                "an archived track has no pending hypothesis",
+                "an archived track has no pending unit",
             );
         }
         if time::before(created, text(track, "created_at")?)? {
@@ -223,8 +223,8 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
         );
     }
     let mut references = Vec::new();
-    if let Some(target) = content["control"].get("hypothesis").and_then(Value::as_str) {
-        references.push(("/control/hypothesis".into(), target));
+    if let Some(target) = content["control"].get("unit").and_then(Value::as_str) {
+        references.push(("/control/unit".into(), target));
     }
     for (index, relation) in items(content, "relations").iter().enumerate() {
         references.push((format!("/relations/{index}/to"), text(relation, "to")?));
@@ -235,15 +235,10 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
                 &mut problems,
                 entry,
                 &path,
-                "a hypothesis cannot reference itself",
+                "a unit cannot reference itself",
             );
-        } else if !knowledge.hypotheses.contains(target) {
-            violation(
-                &mut problems,
-                entry,
-                &path,
-                "no such hypothesis in the history",
-            );
+        } else if !knowledge.units.contains(target) {
+            violation(&mut problems, entry, &path, "no such unit in the history");
         }
     }
     let attempts = items(content, "attempts");
@@ -268,7 +263,7 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
                 &mut problems,
                 entry,
                 &format!("{path}/started_at"),
-                "before the hypothesis was created",
+                "before the unit was created",
             );
         }
         if time::before(ended, started)? {
@@ -407,7 +402,7 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
                 &mut problems,
                 entry,
                 "/decision",
-                "a pending hypothesis has no decision yet",
+                "a pending unit has no decision yet",
             );
         }
         if !attempts.last().is_some_and(|attempt| {
@@ -433,7 +428,7 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
                 &mut problems,
                 entry,
                 "/decision/action",
-                "does not lead to the hypothesis state",
+                "does not lead to the unit state",
             );
         }
         match knowledge.users.get(text(decision, "decided_by")?) {
@@ -522,7 +517,7 @@ pub(crate) fn check_hypothesis(entry: &Entry, knowledge: &Knowledge<'_>) -> Resu
             &mut problems,
             entry,
             "/decision",
-            "a terminal hypothesis requires its human decision",
+            "a terminal unit requires its human decision",
         );
     }
     Ok(problems)

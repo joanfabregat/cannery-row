@@ -51,7 +51,7 @@ pub fn routes(app: AppState, profile: Arc<JobReadContext>) -> Router {
             get(detail).head(head).fallback(method),
         )
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/jobs",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/jobs",
             get(list).head(head).fallback(method),
         )
         .with_state(RouteState { app, profile })
@@ -99,8 +99,8 @@ pub(crate) async fn detail(
 }
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/jobs",
-    operation_id = "list_attempt_jobs_api_projects__slug__hypotheses__number__attempts__sequence__jobs_get",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/jobs",
+    operation_id = "list_attempt_jobs_api_projects__slug__units__number__attempts__sequence__jobs_get",
     summary = "List Attempt Jobs",
     description = "The attempt's verify jobs, by run number.",
     params(("slug" = String, Path),

@@ -1,7 +1,7 @@
 //! Lossless stored values; no authorization or lifecycle policy is inferred.
 use crate::repo::AttemptError;
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, JobId, ProjectId, ServiceAccountId, TrackId, UserId},
+    ids::{AttemptId, JobId, ProjectId, ServiceAccountId, TrackId, UnitId, UserId},
     json::{Document, Node},
     principal::Principal,
     timestamps::Timestamp,
@@ -51,11 +51,11 @@ pub struct JsonContext {
 pub struct Attempt {
     pub id: AttemptId,
     pub project_id: ProjectId,
-    pub hypothesis_id: HypothesisId,
-    pub hypothesis_number: i32,
+    pub unit_id: UnitId,
+    pub unit_number: i32,
     pub sequence: i32,
     pub state: State,
-    pub hypothesis_revision: i32,
+    pub unit_revision: i32,
     pub science_revision: i32,
     pub track_id: TrackId,
     pub track_slug: String,

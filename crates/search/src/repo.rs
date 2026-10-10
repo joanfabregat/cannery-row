@@ -16,7 +16,7 @@ pub const FACETS: [&str; 8] = [
     "kind",
     "project",
     "track",
-    "hypothesis_state",
+    "unit_state",
     "attempt_state",
     "verdict",
     "decision",
@@ -41,10 +41,10 @@ macro_rules! domain {
         }
     }
 }
-domain!(Kind {Track=>"track",Hypothesis=>"hypothesis",Attempt=>"attempt",Report=>"report",Verification=>"verification",Writeup=>"writeup",DecisionReason=>"decision_reason",Comment=>"comment"});
+domain!(Kind {Track=>"track",Unit=>"unit",Attempt=>"attempt",Report=>"report",Verification=>"verification",Writeup=>"writeup",DecisionReason=>"decision_reason",Comment=>"comment"});
 domain!(Origin {Live=>"live",Imported=>"imported"});
 domain!(Decision {Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Failed=>"failed",Retry=>"retry",Stop=>"stop"});
-domain!(HypothesisState {Queued=>"queued",Active=>"active",Documenting=>"documenting",Deciding=>"deciding",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
+domain!(UnitState {Queued=>"queued",Active=>"active",Documenting=>"documenting",Deciding=>"deciding",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
 domain!(AttemptState {Claimed=>"claimed",Running=>"running",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 
 #[derive(Clone, Copy)]
@@ -69,7 +69,7 @@ pub struct Criteria {
     pub projects: Option<Vec<String>>,
     pub kinds: Option<Vec<String>>,
     pub tracks: Option<Vec<String>>,
-    pub hypothesis_states: Option<Vec<String>>,
+    pub unit_states: Option<Vec<String>>,
     pub attempt_states: Option<Vec<String>>,
     pub verdicts: Option<Vec<String>>,
     pub decisions: Option<Vec<String>>,
@@ -94,7 +94,7 @@ impl Criteria {
             projects: None,
             kinds: None,
             tracks: None,
-            hypothesis_states: None,
+            unit_states: None,
             attempt_states: None,
             verdicts: None,
             decisions: None,
@@ -122,7 +122,7 @@ impl Criteria {
                 &self.projects,
                 &self.kinds,
                 &self.tracks,
-                &self.hypothesis_states,
+                &self.unit_states,
                 &self.attempt_states,
                 &self.verdicts,
                 &self.decisions,
@@ -199,12 +199,12 @@ pub struct Hit {
     pub source_id: SourceId,
     pub project: String,
     pub track: Option<String>,
-    pub hypothesis_number: Option<i32>,
-    pub hypothesis_title: Option<String>,
+    pub unit_number: Option<i32>,
+    pub unit_title: Option<String>,
     pub attempt_sequence: Option<i32>,
     pub doc_title: String,
     pub snippet: String,
-    pub hypothesis_state: Option<HypothesisState>,
+    pub unit_state: Option<UnitState>,
     pub attempt_state: Option<AttemptState>,
     /// Legacy evaluator verdicts are unrestricted stored text.
     pub verdict: Option<String>,
@@ -232,18 +232,18 @@ struct RawHit {
     project: String,
     #[sqlx(rename = "track?")]
     track: Option<String>,
-    #[sqlx(rename = "hypothesis_number?")]
-    hypothesis_number: Option<i32>,
-    #[sqlx(rename = "hypothesis_title?")]
-    hypothesis_title: Option<String>,
+    #[sqlx(rename = "unit_number?")]
+    unit_number: Option<i32>,
+    #[sqlx(rename = "unit_title?")]
+    unit_title: Option<String>,
     #[sqlx(rename = "attempt_sequence?")]
     attempt_sequence: Option<i32>,
     #[sqlx(rename = "doc_title!")]
     doc_title: String,
     #[sqlx(rename = "snippet!")]
     snippet: String,
-    #[sqlx(rename = "hypothesis_state?")]
-    hypothesis_state: Option<String>,
+    #[sqlx(rename = "unit_state?")]
+    unit_state: Option<String>,
     #[sqlx(rename = "attempt_state?")]
     attempt_state: Option<String>,
     #[sqlx(rename = "verdict?")]
@@ -269,15 +269,15 @@ impl RawHit {
             source_id: self.source_id,
             project: self.project,
             track: self.track,
-            hypothesis_number: self.hypothesis_number,
-            hypothesis_title: self.hypothesis_title,
+            unit_number: self.unit_number,
+            unit_title: self.unit_title,
             attempt_sequence: self.attempt_sequence,
             doc_title: self.doc_title,
             snippet: self.snippet,
-            hypothesis_state: self
-                .hypothesis_state
+            unit_state: self
+                .unit_state
                 .as_deref()
-                .map(HypothesisState::parse)
+                .map(UnitState::parse)
                 .transpose()?,
             attempt_state: self
                 .attempt_state
@@ -327,7 +327,7 @@ pub async fn search(
     let score = after.map(|value| value.0);
     let after_id = integer(after.map(|value| value.1))?;
     let limit = integer(limit)?;
-    macro_rules! query {($path:literal,$($facts:expr),*)=>{{let query=sqlx::query_file_as!(RawHit,$path,c.readable.as_deref() as _,p.text.as_deref(),p.fuzzy,c.ref_project.as_deref(),p.number.as_ref() as _,p.sequence.as_ref() as _,c.projects.as_deref(),c.kinds.as_deref(),c.tracks.as_deref(),c.hypothesis_states.as_deref(),c.attempt_states.as_deref(),$( $facts, )*c.actors.as_deref() as _,p.since_aware as _,p.since_naive as _,p.until_aware as _,p.until_naive as _,score,after_id.as_ref() as _,limit.as_ref() as _);query.fetch_all(&mut *conn).await.map_err(|error| SearchError::database(&error))?}}}
+    macro_rules! query {($path:literal,$($facts:expr),*)=>{{let query=sqlx::query_file_as!(RawHit,$path,c.readable.as_deref() as _,p.text.as_deref(),p.fuzzy,c.ref_project.as_deref(),p.number.as_ref() as _,p.sequence.as_ref() as _,c.projects.as_deref(),c.kinds.as_deref(),c.tracks.as_deref(),c.unit_states.as_deref(),c.attempt_states.as_deref(),$( $facts, )*c.actors.as_deref() as _,p.since_aware as _,p.since_naive as _,p.until_aware as _,p.until_naive as _,score,after_id.as_ref() as _,limit.as_ref() as _);query.fetch_all(&mut *conn).await.map_err(|error| SearchError::database(&error))?}}}
     // Python chooses this path by truthiness, not by presence. Empty fact
     // filters are consequently ignored by search but still filter facets.
     let filtered = c.verdicts.as_ref().is_some_and(|values| !values.is_empty())
@@ -361,7 +361,7 @@ pub async fn facets(conn: &mut PgConnection, c: &Criteria) -> Result<(i64, Facet
         c.projects.as_deref(),
         c.kinds.as_deref(),
         c.tracks.as_deref(),
-        c.hypothesis_states.as_deref(),
+        c.unit_states.as_deref(),
         c.attempt_states.as_deref(),
         c.verdicts.as_deref(),
         c.decisions.as_deref(),

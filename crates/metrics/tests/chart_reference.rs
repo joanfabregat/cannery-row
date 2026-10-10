@@ -72,7 +72,7 @@ fn point(default: &Value, overrides: &Value, index: i32) -> Result<Point> {
     let mut row = default.clone();
     let fields = row.as_object_mut().ok_or("fixture point")?;
     fields.insert("id".into(), Value::from(index));
-    fields.insert("hypothesis_number".into(), Value::from(index));
+    fields.insert("unit_number".into(), Value::from(index));
     fields.insert(
         "value".into(),
         serde_json::json!({"float_bits":format!("{:016x}",f64::from(index).to_bits())}),
@@ -94,9 +94,9 @@ fn point(default: &Value, overrides: &Value, index: i32) -> Result<Point> {
     Ok(Point {
         id: number(&row, "id")?,
         attempt_id: AttemptId(format!("00000000-0000-0000-0000-{index:012}").parse()?),
-        hypothesis_number: i32::try_from(number(&row, "hypothesis_number")?)?,
-        hypothesis_title: string(&row, "hypothesis_title")?,
-        hypothesis_state: string(&row, "hypothesis_state")?,
+        unit_number: i32::try_from(number(&row, "unit_number")?)?,
+        unit_title: string(&row, "unit_title")?,
+        unit_state: string(&row, "unit_state")?,
         attempt_sequence: i32::try_from(number(&row, "attempt_sequence")?)?,
         attempt_state: string(&row, "attempt_state")?,
         science_revision: i32::try_from(number(&row, "science_revision")?)?,

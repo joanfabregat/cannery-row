@@ -43,7 +43,7 @@ pub(crate) struct RouteState {
 pub fn routes(app: AppState, profile: Arc<PredecessorInputContext>) -> Router {
     Router::new()
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}",
             get(input).head(head).fallback(method),
         )
         .with_state(RouteState { app, profile })
@@ -74,8 +74,8 @@ fn missing(message: &str) -> Failure {
 )]
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}",
-    operation_id = "predecessor_input_api_projects__slug__hypotheses__number__attempts__sequence__inputs_predecessor__artifact_id__get",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}",
+    operation_id = "predecessor_input_api_projects__slug__units__number__attempts__sequence__inputs_predecessor__artifact_id__get",
     summary = "Predecessor Input",
     description = "Read a verified artifact of the predecessor attempt, under the lease.\n\nHow an experimenter stages an experiment step's ``from: attempt`` input;\nonly an experimenter may, on its runner-driven attempt, and only its\npredecessor's own verified uploads of a role some pinned step reads\n(listed in its claim's ``workflow.inputs.predecessor``) are readable. With\nan object store that presigns, the answer is a redirect (302) to a\nshort-lived presigned GET: follow it without this request's headers, and\ncheck the bytes against the listed size and SHA-256.",
     params(("slug" = String, Path),

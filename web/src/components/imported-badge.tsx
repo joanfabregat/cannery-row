@@ -3,7 +3,7 @@ import { HistoryIcon } from "lucide-react";
 /**
  * Marks a record loaded from a reviewed research history by `cannery import`
  * (docs/import.md): it was not produced by this project's agents or
- * verifiers. An imported hypothesis also shows its id in the source history.
+ * verifiers. An imported unit also shows its id in the source history.
  * Where it comes from (a document location or an artifact URI) is written
  * out with `showSource`, as on detail pages; otherwise it is the tooltip and
  * is read out to screen readers.

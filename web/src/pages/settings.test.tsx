@@ -65,9 +65,9 @@ describe("Results", () => {
               {
                 id: 1,
                 attempt_ref: "#12.1",
-                hypothesis: 12,
-                hypothesis_title: "Shorter prompts",
-                hypothesis_state: "promoted",
+                unit_number: 12,
+                unit_title: "Shorter prompts",
+                unit_state: "promoted",
                 attempt_state: "promoted",
                 track: "tokenizer",
                 science_revision: 1,

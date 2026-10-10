@@ -3,8 +3,8 @@ import { screen, within } from "@testing-library/react";
 import {
   artifact,
   attempt,
-  hypothesis,
-  hypothesisApi,
+  unit,
+  unitApi,
   job,
   page,
   report,
@@ -17,19 +17,17 @@ function trackApi(t: ReturnType<typeof track>) {
   return {
     "GET /api/projects/sardines/tracks/tokenizer": () => json(t),
     "GET /api/projects/sardines/tracks/tokenizer/history": () => json(page([])),
-    "GET /api/projects/sardines/hypotheses": () => json(page([])),
+    "GET /api/projects/sardines/units": () => json(page([])),
   };
 }
 
 describe("a track's execution mode", () => {
-  it("says an agent-mode track's hypotheses are run by outside agents, with no workflow", async () => {
+  it("says an agent-mode track's units are run by outside agents, with no workflow", async () => {
     signedIn({}, trackApi(track()));
     renderApp("/tracks/tokenizer");
     const execution = await screen.findByRole("region", { name: "Execution" });
     expect(within(execution).getByText("Agent")).toBeInTheDocument();
-    expect(
-      within(execution).getByText(/An outside agent claims each hypothesis/),
-    ).toBeInTheDocument();
+    expect(within(execution).getByText(/An outside agent claims each unit/)).toBeInTheDocument();
     expect(within(execution).queryByRole("heading", { name: "Workflow" })).not.toBeInTheDocument();
   });
 
@@ -43,7 +41,7 @@ describe("a track's execution mode", () => {
     signedIn({}, trackApi(track({ mode: "workflow", workflow })));
     renderApp("/tracks/tokenizer");
     const execution = await screen.findByRole("region", { name: "Execution" });
-    expect(execution).toHaveTextContent("Workflow: A Cannery Row runner claims each hypothesis");
+    expect(execution).toHaveTextContent("Workflow: A Cannery Row runner claims each unit");
     expect(within(execution).getByRole("heading", { name: "Workflow" })).toBeInTheDocument();
     const steps = within(execution).getAllByRole("listitem");
     expect(steps.map((s) => s.textContent)).toEqual([
@@ -94,13 +92,13 @@ describe("how an attempt ran", () => {
     const { a, experimentLog, verifier, rerun, rerunLog } = workflowAttempt();
     signedIn(
       {},
-      hypothesisApi(hypothesis(), {
+      unitApi(unit(), {
         attempts: [a],
         reports: { 1: report() },
         jobs: { 1: [verifier, rerun] },
       }),
     );
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     const ran = await screen.findByRole("region", { name: "How it ran" });
 
     const experiment = within(ran).getByRole("region", { name: "Experiment run" });
@@ -148,12 +146,12 @@ describe("how an attempt ran", () => {
     const { a } = workflowAttempt();
     signedIn(
       {},
-      hypothesisApi(hypothesis(), {
+      unitApi(unit(), {
         attempts: [{ ...a, via_client: "cli" }],
         reports: { 1: report() },
       }),
     );
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     const ran = await screen.findByRole("region", { name: "How it ran" });
     const experiment = within(ran).getByRole("region", { name: "Experiment run" });
     expect(experiment).toHaveTextContent("The runner cli");
@@ -164,8 +162,8 @@ describe("how an attempt ran", () => {
   });
 
   it("says an agent ran the experiment, and that no verify run has started", async () => {
-    signedIn({}, hypothesisApi(hypothesis(), { attempts: [attempt()], reports: { 1: report() } }));
-    renderApp("/hypotheses/12/attempts/1");
+    signedIn({}, unitApi(unit(), { attempts: [attempt()], reports: { 1: report() } }));
+    renderApp("/units/12/attempts/1");
     const ran = await screen.findByRole("region", { name: "How it ran" });
     const experiment = within(ran).getByRole("region", { name: "Experiment run" });
     expect(within(experiment).getByText("Agent")).toBeInTheDocument();
@@ -178,13 +176,13 @@ describe("how an attempt ran", () => {
     const { a, verifier, rerun } = workflowAttempt();
     signedIn(
       { projects: [project("sardines", "Sardines", "viewer")] },
-      hypothesisApi(hypothesis(), {
+      unitApi(unit(), {
         attempts: [a],
         reports: { 1: report() },
         jobs: { 1: [verifier, rerun] },
       }),
     );
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     const ran = await screen.findByRole("region", { name: "How it ran" });
     const experiment = within(ran).getByRole("region", { name: "Experiment run" });
     expect(experiment).toHaveTextContent("One log: members can download them.");
@@ -214,15 +212,15 @@ describe("how an attempt ran", () => {
         },
       ],
     };
-    signedIn({}, hypothesisApi(hypothesis(), { attempts: [failed] }));
-    renderApp("/hypotheses/12/attempts/1");
+    signedIn({}, unitApi(unit(), { attempts: [failed] }));
+    renderApp("/units/12/attempts/1");
     const wrong = await screen.findByRole("region", { name: "What went wrong" });
     expect(
       within(wrong).getByText(
         "Experiment, step fixture-experiment: step fixture-experiment exited with code 4",
       ),
     ).toBeInTheDocument();
-    expect(wrong).toHaveTextContent("the hypothesis was queued again automatically");
+    expect(wrong).toHaveTextContent("the unit was queued again automatically");
     expect(within(wrong).getByText("Logs of the failing run")).toBeInTheDocument();
     expect(within(wrong).getByRole("link", { name: "fixture-experiment.log" })).toHaveAttribute(
       "href",
@@ -233,8 +231,8 @@ describe("how an attempt ran", () => {
 
 describe("the verification", () => {
   it("shows one report: the measurements, then the verdict", async () => {
-    signedIn({}, hypothesisApi(hypothesis(), { attempts: [attempt()], reports: { 1: report() } }));
-    renderApp("/hypotheses/12/attempts/1");
+    signedIn({}, unitApi(unit(), { attempts: [attempt()], reports: { 1: report() } }));
+    renderApp("/units/12/attempts/1");
     const verification = await screen.findByRole("region", { name: "Verification" });
     expect(screen.getByRole("heading", { level: 2, name: "Verification" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "Assessment" })).not.toBeInTheDocument();
@@ -255,14 +253,14 @@ describe("the verification", () => {
   it("shows the verifier's notes from the report body", async () => {
     signedIn(
       {},
-      hypothesisApi(hypothesis(), {
+      unitApi(unit(), {
         attempts: [attempt()],
         reports: {
           1: report({ verification: verification({ body_markdown: "Re-ran on **two** seeds." }) }),
         },
       }),
     );
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     const measured = await screen.findByRole("region", { name: "Measurements" });
     expect(within(measured).getByRole("heading", { name: "Verifier notes" })).toBeInTheDocument();
     expect(within(measured).getByText("two")).toBeInTheDocument();
@@ -271,12 +269,12 @@ describe("the verification", () => {
   it("says when the verification has not published its report yet", async () => {
     signedIn(
       {},
-      hypothesisApi(hypothesis(), {
+      unitApi(unit(), {
         attempts: [attempt({ state: "verifying" })],
         reports: { 1: report({ verification: null }) },
       }),
     );
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     const section = await screen.findByRole("region", { name: "Verification" });
     expect(section).toHaveTextContent("The verification has not published its report yet.");
   });

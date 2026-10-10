@@ -561,7 +561,7 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
             )?;
             assert_eq!(
                 Value::Object(document.front_matter),
-                json!({"kind":"blocker","hypothesis":1,"attempt":1})
+                json!({"kind":"blocker","unit":1,"attempt":1})
             );
             assert_eq!(document.body, "The plan assumes a GPU.\n");
         } else {

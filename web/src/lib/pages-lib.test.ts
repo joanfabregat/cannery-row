@@ -3,7 +3,7 @@ import {
   artifact,
   attempt,
   decision,
-  hypothesis,
+  unit,
   dashboardView,
   metric,
   nativeReport,
@@ -32,14 +32,14 @@ import {
 import { jobLogsByStep, runnerLabel, runnerName, stepText, workflowSteps } from "./execution";
 import { formatDelta, formatWaited } from "./format";
 import { controlText, currentDecision, quoteReason, summarizeOutcome } from "./outcome";
-import { hypothesisPath, parseAttemptRef } from "./paths";
+import { unitPath, parseAttemptRef } from "./paths";
 import { plainText } from "./plain-text";
 import { refTarget } from "./refs";
 import { tokenNameProblem, tokenStatus } from "./tokens";
 
 describe("the outcome sentence", () => {
   it("names what was tried, what happened, the decision and its reason", () => {
-    const h = hypothesis({
+    const h = unit({
       state: "rejected",
       reviews: [review({ decisions: [decision({ action: "reject", reason: "Too slow!" })] })],
     });
@@ -65,25 +65,20 @@ describe("the outcome sentence", () => {
     });
     const r = review({ decisions: [first, corrected] });
     expect(currentDecision(r)?.reason).toBe("Leak in the test split");
-    const summary = summarizeOutcome(
-      hypothesis({ state: "inconclusive", reviews: [r] }),
-      null,
-      null,
-    );
+    const summary = summarizeOutcome(unit({ state: "inconclusive", reviews: [r] }), null, null);
     expect(summary.sentence).toBe(
       "We tried “Shorter prompts”, and a researcher marked it inconclusive because “Leak in the test split.”",
     );
   });
 
   it("describes the queue and work in progress", () => {
-    const queued = summarizeOutcome(hypothesis({ state: "queued" }), null, null);
+    const queued = summarizeOutcome(unit({ state: "queued" }), null, null);
     expect(queued.sentence).toBe(
       "“Shorter prompts” is planned and waiting for an agent to try it.",
     );
     expect(queued.decision).toBeNull();
     expect(
-      summarizeOutcome(hypothesis({ state: "active" }), attempt({ state: "running" }), null)
-        .sentence,
+      summarizeOutcome(unit({ state: "active" }), attempt({ state: "running" }), null).sentence,
     ).toMatch(/^“Shorter prompts” is being tried now \(attempt #12\.1: /);
   });
 
@@ -95,16 +90,16 @@ describe("the outcome sentence", () => {
 
 describe("references", () => {
   it("leads #N, slug#N and #N.M to their page", () => {
-    expect(refTarget("#12")).toBe("/hypotheses/12");
-    expect(refTarget(" sardines#12 ")).toBe("/hypotheses/12?project=sardines");
-    expect(refTarget("#12.3")).toBe("/hypotheses/12/attempts/3");
+    expect(refTarget("#12")).toBe("/units/12");
+    expect(refTarget(" sardines#12 ")).toBe("/units/12?project=sardines");
+    expect(refTarget("#12.3")).toBe("/units/12/attempts/3");
     expect(refTarget("see #12")).toBeNull();
     expect(refTarget("#0")).toBeNull();
     expect(refTarget("Sardines#1")).toBeNull();
   });
 
   it("builds and reads addresses", () => {
-    expect(hypothesisPath(4)).toBe("/hypotheses/4");
+    expect(unitPath(4)).toBe("/units/4");
     expect(parseAttemptRef("sardines#12.3")).toEqual([12, 3]);
     expect(parseAttemptRef("sardines#12")).toBeNull();
   });
@@ -129,24 +124,24 @@ describe("token rules", () => {
   });
 });
 
-describe("hypotheses without a control", () => {
-  const withControl = hypothesis({
+describe("units without a control", () => {
+  const withControl = unit({
     document: {
-      ...hypothesis().document,
+      ...unit().document,
       control: { kind: "baseline", id: "base-camp", revision: "r3" },
     },
   });
 
   it("name the control only when there is one", () => {
     expect(controlText(withControl.document)).toBe("base-camp, revision r3");
-    expect(controlText(hypothesis().document)).toBeNull();
+    expect(controlText(unit().document)).toBeNull();
     expect(controlText({ control: {} })).toBeNull();
     expect(controlText(null)).toBeNull();
   });
 
   it("never mention a missing control in the outcome", () => {
     for (const state of ["queued", "documenting", "deciding", "promoted"]) {
-      const summary = summarizeOutcome(hypothesis({ state }), attempt(), report());
+      const summary = summarizeOutcome(unit({ state }), attempt(), report());
       expect(summary.sentence).not.toMatch(/undefined|null|control/i);
       expect(summary.tried).not.toMatch(/undefined|null/);
     }
@@ -250,11 +245,11 @@ describe("verification comparisons", () => {
     ).toEqual({ ndcg: "higher", latency: "lower" });
   });
 
-  it("link hypothesis and attempt refs in the app and http(s) addresses outside it", () => {
-    expect(referenceTarget("#42", "sardines")).toEqual({ kind: "internal", to: "/hypotheses/42" });
+  it("link unit and attempt refs in the app and http(s) addresses outside it", () => {
+    expect(referenceTarget("#42", "sardines")).toEqual({ kind: "internal", to: "/units/42" });
     expect(referenceTarget("#12.3", "sardines")).toEqual({
       kind: "internal",
-      to: "/hypotheses/12/attempts/3",
+      to: "/units/12/attempts/3",
     });
     expect(referenceTarget("https://arxiv.org/abs/2401.1", "sardines")).toEqual({
       kind: "external",
@@ -270,11 +265,11 @@ describe("verification comparisons", () => {
   it("link a project-qualified ref only within the current project", () => {
     expect(referenceTarget("sardines#42", "sardines")).toEqual({
       kind: "internal",
-      to: "/hypotheses/42",
+      to: "/units/42",
     });
     expect(referenceTarget("sardines#12.3", "sardines")).toEqual({
       kind: "internal",
-      to: "/hypotheses/12/attempts/3",
+      to: "/units/12/attempts/3",
     });
     expect(referenceTarget("anchovies#42", "sardines")).toBeNull();
     expect(referenceTarget("anchovies#12.3", "sardines")).toBeNull();
@@ -310,9 +305,9 @@ describe("the outcome sentence after a failure was tried again", () => {
     requeued: false,
   };
 
-  it("says a queued hypothesis waits to be tried again, and why", () => {
+  it("says a queued unit waits to be tried again, and why", () => {
     const summary = summarizeOutcome(
-      hypothesis({ state: "queued", reviews: [retried] }),
+      unit({ state: "queued", reviews: [retried] }),
       attempt({ state: "failed", failures: [failure] }),
       null,
     );
@@ -324,9 +319,9 @@ describe("the outcome sentence after a failure was tried again", () => {
     expect(summary.why).toBe("The runner was flaky");
   });
 
-  it("says an active hypothesis is being tried again after the failed attempt", () => {
+  it("says an active unit is being tried again after the failed attempt", () => {
     const summary = summarizeOutcome(
-      hypothesis({ state: "active", reviews: [retried] }),
+      unit({ state: "active", reviews: [retried] }),
       attempt({ sequence: 2, state: "running" }),
       null,
       attempt({ sequence: 1, state: "failed" }),
@@ -338,7 +333,7 @@ describe("the outcome sentence after a failure was tried again", () => {
 
   it("names the failure when the verification is run again on the same attempt", () => {
     const summary = summarizeOutcome(
-      hypothesis({ state: "active", reviews: [retried] }),
+      unit({ state: "active", reviews: [retried] }),
       attempt({
         state: "verifying",
         failures: [{ ...failure, stage: "verify", reason: "Timeout" }],
@@ -362,7 +357,7 @@ describe("plain text from Markdown", () => {
 
   it("is what the outcome shows as what was tried", () => {
     const summary = summarizeOutcome(
-      hypothesis({ state: "promoted" }),
+      unit({ state: "promoted" }),
       attempt(),
       report({ report: nativeReport({ what_was_tried: "Cut the *system* prompt to **half**" }) }),
     );

@@ -21,7 +21,7 @@ pub struct EvaluatorArgs {
     /// The scorer's evidence: provenance and verified measurements.
     #[arg(long)]
     pub evidence: PathBuf,
-    /// The control the hypothesis names; the policy's default control otherwise.
+    /// The control the unit names; the policy's default control otherwise.
     #[arg(long, requires = "control_revision")]
     pub control_id: Option<String>,
     #[arg(long, requires = "control_id")]

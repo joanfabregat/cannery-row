@@ -22,17 +22,17 @@
         "metric": {"$ref": "common.schema.json#/$defs/name"},
         "split": {"$ref": "common.schema.json#/$defs/slug"},
         "x": {
-          "description": "Record field on the x axis, e.g. attempt.finished_at or hypothesis.number.",
+          "description": "Record field on the x axis, e.g. attempt.finished_at or unit.number.",
           "type": "string",
-          "pattern": "^(attempt|hypothesis|track)\\.[a-z][a-z0-9_]{0,63}$"
+          "pattern": "^(attempt|unit|track)\\.[a-z][a-z0-9_]{0,63}$"
         },
         "group_by": {
-          "description": "Registered dimensions, track, or hypothesis.<facet> for project-declared facets.",
+          "description": "Registered dimensions, track, or unit.<facet> for project-declared facets.",
           "type": "array",
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "pattern": "^(hypothesis\\.)?[a-z][a-z0-9_]{0,63}$"
+            "pattern": "^(unit\\.)?[a-z][a-z0-9_]{0,63}$"
           }
         },
         "baseline": {

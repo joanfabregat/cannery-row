@@ -34,7 +34,7 @@ identifiers!(
     SessionId,
     TokenId,
     TrackId,
-    HypothesisId,
+    UnitId,
     AttemptId,
     JobId,
     ReportId,

@@ -3,9 +3,9 @@ coalesce(array_agg(DISTINCT a.science_revision ORDER BY a.science_revision),'{}'
 coalesce(jsonb_agg(DISTINCT hr.content->'control')FILTER(WHERE hr.content?'control'),'[]')::text AS "controls!"
 FROM measurements m
 JOIN attempts a ON a.id=m.attempt_id
-JOIN hypotheses h ON h.id=a.hypothesis_id
+JOIN units h ON h.id=a.unit_id
 JOIN tracks t ON t.id=a.track_id
-JOIN hypothesis_revisions hr ON hr.hypothesis_id=h.id AND hr.revision=a.hypothesis_revision
+JOIN unit_revisions hr ON hr.unit_id=h.id AND hr.revision=a.unit_revision
 WHERE m.project_id=$1 AND m.metric=$2
 AND m.authority=ANY($3::text[])
 AND m.evidence_id=(SELECT e.id FROM phase_outputs e WHERE e.attempt_id=m.attempt_id AND e.stage=$4 ORDER BY e.revision DESC LIMIT 1)

@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT h.number AS \"unit_number!\", h.title AS \"unit_title!\", h.state AS \"unit_state!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", f.stage AS \"stage!\", f.code AS \"code!\", f.reason AS \"reason!\", f.created_at AS \"created_at!: _\", a.origin AS \"origin!\" FROM attempt_failures f\n            JOIN attempts a ON a.id = f.attempt_id\n            JOIN units h ON h.id = a.unit_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE a.project_id = $1\n            ORDER BY f.created_at DESC, f.id DESC\n            LIMIT $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unit_number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "unit_title!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "track_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "attempt_sequence!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "stage!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "code!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "reason!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at!: _",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "origin!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6b707f5dfe2b86f1670d36d86abf270ef27c1994799d7c6f05563b59bb42d7d5"
+}

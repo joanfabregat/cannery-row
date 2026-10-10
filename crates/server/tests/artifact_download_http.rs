@@ -179,8 +179,8 @@ async fn storage(pool: &PgPool) -> Result<Value> {
     let mut value = json!({});
     for (table, order) in [
         ("tracks", "id"),
-        ("hypotheses", "id"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "id"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("artifacts", "id"),
         ("attempt_failures", "id"),

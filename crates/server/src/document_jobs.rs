@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Document jobs: one per hypothesis, queued on its last attempt when that
-//! attempt is verified or a researcher stops the hypothesis after a failure.
+//! Document jobs: one per unit, queued on its last attempt when that
+//! attempt is verified or a researcher stops the unit after a failure.
 //! An agent service account or a researcher writes it up; a researcher may
-//! skip it with a reason. Either moves the hypothesis from `documenting` to
+//! skip it with a reason. Either moves the unit from `documenting` to
 //! `deciding` and opens its decision case. A failed or expired document job
 //! is queued again: nothing skips it automatically.
 #![allow(
@@ -28,8 +28,8 @@ use cannery_core::{
     ids::{JobId, ReviewCaseId},
     principal::Principal,
 };
-use cannery_hypotheses::repo::{self as hypotheses, HypothesisState};
 use cannery_jobs::repo::{self as jobs, Job, Performer, Phase};
+use cannery_units::repo::{self as units, UnitState};
 use num_bigint::BigInt;
 use serde_json::{Value, json};
 use sqlx::PgConnection;
@@ -44,8 +44,8 @@ pub(crate) fn output_prefix(a: &Attempt, id: JobId) -> String {
     )
 }
 
-/// Queue a document job on the hypothesis's last attempt. The caller holds
-/// the attempt lock and has moved the hypothesis to `documenting`.
+/// Queue a document job on the unit's last attempt. The caller holds
+/// the attempt lock and has moved the unit to `documenting`.
 pub(crate) async fn create(
     c: &mut PgConnection,
     actor: Attribution<'_>,
@@ -63,7 +63,7 @@ pub(crate) async fn create(
         .unwrap_or(3600);
     let id = JobId(uuid::Uuid::new_v4());
     let spec = flow::document(
-        &json!({"performer":"agent","track":a.track_slug,"hypothesis":a.hypothesis_number,
+        &json!({"performer":"agent","track":a.track_slug,"unit":a.unit_number,
             "output_prefix":output_prefix(a, id)}),
         s,
         r,
@@ -99,9 +99,9 @@ pub(crate) struct Cited {
     pub revision: i32,
 }
 
-/// What a hypothesis's write-up covers and cites: the sequence numbers of
+/// What a unit's write-up covers and cites: the sequence numbers of
 /// every attempt, and the last attempt's verification report, absent when
-/// the hypothesis was stopped after a failure.
+/// the unit was stopped after a failure.
 pub(crate) struct Inputs {
     pub attempts: Vec<i64>,
     pub verification: Option<Cited>,
@@ -117,15 +117,15 @@ impl Inputs {
     }
 }
 
-/// The inputs of the document job on attempt `a`, the hypothesis's last.
+/// The inputs of the document job on attempt `a`, the unit's last.
 pub(crate) async fn inputs(
     c: &mut PgConnection,
     a: &Attempt,
     r: &RequestContext,
 ) -> Result<Inputs, Failure> {
     let attempts = sqlx::query_scalar!(
-        "SELECT sequence FROM attempts WHERE hypothesis_id=$1 ORDER BY sequence",
-        a.hypothesis_id.0 as _
+        "SELECT sequence FROM attempts WHERE unit_id=$1 ORDER BY sequence",
+        a.unit_id.0 as _
     )
     .fetch_all(&mut *c)
     .await
@@ -189,7 +189,7 @@ pub(crate) fn document_error(error: &PhaseDocumentError, path: &str, what: &str)
 
 /// Check a write-up against `writeup.schema.json` and the job's inputs: it
 /// covers every attempt, cites the verification report (null for a stopped
-/// hypothesis) and has a body.
+/// unit) and has a body.
 pub(crate) fn check(
     text: &str,
     inputs: &Inputs,
@@ -223,7 +223,7 @@ pub(crate) fn check(
         return Err(invalid(
             path,
             format!(
-                "front matter /attempts: the write-up covers every attempt of the hypothesis: [{expected}]"
+                "front matter /attempts: the write-up covers every attempt of the unit: [{expected}]"
             ),
         ));
     }
@@ -236,7 +236,7 @@ pub(crate) fn check(
                     cited.id, cited.sha256
                 ),
                 None => String::from(
-                    "front matter /verification: null; the hypothesis was stopped after a failure",
+                    "front matter /verification: null; the unit was stopped after a failure",
                 ),
             },
         ));
@@ -257,32 +257,32 @@ pub(crate) fn check(
     })
 }
 
-/// The hypothesis of attempt `a`, locked, must wait for its write-up.
+/// The unit of attempt `a`, locked, must wait for its write-up.
 async fn require_documenting(
     c: &mut PgConnection,
     a: &Attempt,
     r: &RequestContext,
 ) -> Result<(), Failure> {
     let state = sqlx::query_scalar!(
-        "SELECT state FROM hypotheses WHERE id=$1 FOR UPDATE",
-        a.hypothesis_id.0 as _
+        "SELECT state FROM units WHERE id=$1 FOR UPDATE",
+        a.unit_id.0 as _
     )
     .fetch_one(&mut *c)
     .await
-    .map_err(|_| internal(r, "document hypothesis lock"))?;
+    .map_err(|_| internal(r, "document unit lock"))?;
     if state != "documenting" {
         return Err(domain(
             ErrorCode::Conflict,
             format!(
-                "hypothesis #{} is {state}; it no longer waits for a write-up",
-                a.hypothesis_number
+                "unit #{} is {state}; it no longer waits for a write-up",
+                a.unit_number
             ),
         ));
     }
     Ok(())
 }
 
-/// Move the hypothesis to `deciding` and open its decision case.
+/// Move the unit to `deciding` and open its decision case.
 async fn deciding(
     c: &mut PgConnection,
     actor: Attribution<'_>,
@@ -295,14 +295,14 @@ async fn deciding(
     s: &flow::Context,
     r: &RequestContext,
 ) -> Result<ReviewCaseId, Failure> {
-    hypotheses::set_state(c, a.hypothesis_id, HypothesisState::Deciding, None)
+    units::set_state(c, a.unit_id, UnitState::Deciding, None)
         .await
-        .map_err(|_| internal(r, "deciding hypothesis transition"))?;
+        .map_err(|_| internal(r, "deciding unit transition"))?;
     let case = cannery_reviews::repo::open_decision_case(
         c,
         cannery_reviews::repo::OpenDecisionCase {
             project_id: a.project_id,
-            hypothesis_id: a.hypothesis_id,
+            unit_id: a.unit_id,
             attempt_id: a.id,
             evidence_id: inputs
                 .verification
@@ -323,9 +323,9 @@ async fn deciding(
         c,
         actor,
         Record {
-            action: "hypothesis.deciding",
-            subject_type: "hypothesis",
-            subject_id: &a.hypothesis_id.to_string(),
+            action: "unit.deciding",
+            subject_type: "unit",
+            subject_id: &a.unit_id.to_string(),
             project_id: Some(a.project_id),
             prior_state: Some(&json!({"state":"documenting"})),
             new_state: Some(
@@ -337,13 +337,13 @@ async fn deciding(
         },
     )
     .await
-    .map_err(|_| internal(r, "deciding hypothesis audit"))?;
+    .map_err(|_| internal(r, "deciding unit audit"))?;
     // A registered decider step decides it; otherwise a researcher does.
     crate::decide_jobs::create(c, actor, a, case, jobs::Origin::Submission, None, s, r).await?;
     Ok(case)
 }
 
-/// Publish the write-up of claimed document job `j`: the hypothesis then
+/// Publish the write-up of claimed document job `j`: the unit then
 /// awaits its decision. The caller holds the job's lease and the attempt lock.
 pub(crate) async fn publish(
     c: &mut PgConnection,
@@ -408,7 +408,7 @@ pub(crate) async fn publish(
 }
 
 /// A researcher skips document job `j`, pending or claimed, with a reason:
-/// the hypothesis then awaits its decision without a write-up.
+/// the unit then awaits its decision without a write-up.
 pub(crate) async fn skip(
     c: &mut PgConnection,
     p: &Principal,
@@ -501,7 +501,7 @@ pub(crate) async fn requeue(
     Ok((failed, next))
 }
 
-/// A stopped hypothesis is written up too: the researcher's `stop` moves it
+/// A stopped unit is written up too: the researcher's `stop` moves it
 /// to `documenting` and queues its document job on the failed attempt.
 pub(crate) async fn stop(
     c: &mut PgConnection,
@@ -510,12 +510,12 @@ pub(crate) async fn stop(
     s: &flow::Context,
     r: &RequestContext,
 ) -> Result<Job, Failure> {
-    hypotheses::set_state(c, a.hypothesis_id, HypothesisState::Documenting, None)
+    units::set_state(c, a.unit_id, UnitState::Documenting, None)
         .await
-        .map_err(|_| internal(r, "stopped hypothesis transition"))?;
+        .map_err(|_| internal(r, "stopped unit transition"))?;
     let previous = jobs::latest_job(c, a.id, Phase::Document, s.jobs)
         .await
-        .map_err(|_| internal(r, "stopped hypothesis document job"))?;
+        .map_err(|_| internal(r, "stopped unit document job"))?;
     create(
         c,
         Attribution::Principal(p),

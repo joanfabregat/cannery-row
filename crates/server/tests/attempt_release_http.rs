@@ -62,8 +62,8 @@ async fn storage(pool: &PgPool, project: bool) -> Result<Value> {
     let mut result = json!({});
     for (table, order) in [
         ("tracks", "id"),
-        ("hypotheses", "id"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "id"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("artifacts", "id"),
         ("attempt_failures", "id"),
@@ -82,7 +82,7 @@ async fn storage(pool: &PgPool, project: bool) -> Result<Value> {
         if project {
             let fields: &[&str] = match table {
                 "attempts" => &["finished_at"],
-                "hypotheses" | "search_documents" => &["updated_at"],
+                "units" | "search_documents" => &["updated_at"],
                 _ => &[],
             };
             for field in fields {
@@ -227,7 +227,7 @@ async fn race(app: &Router, pool: &PgPool, recipe: &Value) -> Result<()> {
         replies.push(task.await??);
     }
     let after = clock(pool).await?;
-    let (stored_finished, updated): (Timestamp, Timestamp) = sqlx::query_as("SELECT a.finished_at,h.updated_at FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id=$1::text::uuid")
+    let (stored_finished, updated): (Timestamp, Timestamp) = sqlx::query_as("SELECT a.finished_at,h.updated_at FROM attempts a JOIN units h ON h.id=a.unit_id WHERE a.id=$1::text::uuid")
         .bind(ATTEMPT).fetch_one(pool).await?;
     assert!(before.0 <= stored_finished.0 && stored_finished.0 <= after.0);
     assert_eq!(stored_finished.0, updated.0);
@@ -463,7 +463,7 @@ async fn attempt_release_matches_production() -> Result<()> {
             recipe["name"]
         );
         assert_eq!(json!(allow), recipe["allow"], "allow {}", recipe["name"]);
-        let (stored_state,finished,updated):(String,Option<Timestamp>,Timestamp)=sqlx::query_as("SELECT a.state,a.finished_at,h.updated_at FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id=$1::text::uuid").bind(ATTEMPT).fetch_one(&state.pool).await?;
+        let (stored_state,finished,updated):(String,Option<Timestamp>,Timestamp)=sqlx::query_as("SELECT a.state,a.finished_at,h.updated_at FROM attempts a JOIN units h ON h.id=a.unit_id WHERE a.id=$1::text::uuid").bind(ATTEMPT).fetch_one(&state.pool).await?;
         let committed = stored_state == "failed"
             && finished.is_some_and(|value| before.0 <= value.0 && value.0 <= after.0);
         assert_eq!(json!(committed), recipe["committed"]);

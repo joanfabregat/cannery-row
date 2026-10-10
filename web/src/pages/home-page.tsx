@@ -12,7 +12,7 @@ import { navItems } from "@/components/shell/nav-items";
 import { StatusChip } from "@/components/status-chip";
 import { excerpt, formatDateTime, formatWaited } from "@/lib/format";
 import { label } from "@/lib/labels";
-import { attemptPath, hypothesisPath, reviewPath, writeupPath } from "@/lib/paths";
+import { attemptPath, unitPath, reviewPath, writeupPath } from "@/lib/paths";
 import type { Project } from "@/projects/project-context";
 import { usePermissions } from "@/projects/use-permissions";
 
@@ -82,7 +82,7 @@ function ConcernQueue({ project }: { project: string }) {
   return (
     <Section
       title="Concerns about plans"
-      description="While a concern is open, no new hypothesis of its track starts. Revise the track's plan to answer it, or dismiss it with a reason, on the track page."
+      description="While a concern is open, no new unit of its track starts. Revise the track's plan to answer it, or dismiss it with a reason, on the track page."
     >
       <QueryView query={concerns}>
         {(page) =>
@@ -131,8 +131,8 @@ function ReviewQueue({ data }: { data: Attention }) {
                 ) : null}
                 <ImportedBadge origin={r.origin} />
               </div>
-              <Link to={reviewPath(r.hypothesis)} className="font-medium hover:underline">
-                {r.hypothesis_ref} {r.title}
+              <Link to={reviewPath(r.unit)} className="font-medium hover:underline">
+                {r.unit_ref} {r.title}
               </Link>
               <p className="text-sm text-muted-foreground">
                 {r.kind === "decision"
@@ -156,7 +156,7 @@ function ReviewQueue({ data }: { data: Attention }) {
   );
 }
 
-/** The hypotheses waiting for their write-up, before their decision. */
+/** The units waiting for their write-up, before their decision. */
 function WriteupQueue({ data }: { data: Attention }) {
   const total = data.pending_writeup_count;
   return (
@@ -165,7 +165,7 @@ function WriteupQueue({ data }: { data: Attention }) {
       description={
         total === 0
           ? undefined
-          : `${String(total)} ${total === 1 ? "hypothesis waits" : "hypotheses wait"} for a write-up before the decision, oldest first. An agent or a researcher writes each one up; a researcher may skip one with a reason.`
+          : `${String(total)} ${total === 1 ? "unit waits" : "units wait"} for a write-up before the decision, oldest first. An agent or a researcher writes each one up; a researcher may skip one with a reason.`
       }
     >
       {data.pending_writeups.length === 0 ? (
@@ -175,8 +175,8 @@ function WriteupQueue({ data }: { data: Attention }) {
           {data.pending_writeups.map((w) => (
             <li key={w.job_id} className="flex flex-col gap-1 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Link to={writeupPath(w.hypothesis)} className="font-medium hover:underline">
-                  {w.hypothesis_ref} {w.title}
+                <Link to={writeupPath(w.unit)} className="font-medium hover:underline">
+                  {w.unit_ref} {w.title}
                 </Link>
                 <StatusChip domain="writeup" value={w.job_state} />
               </div>
@@ -201,10 +201,10 @@ function RecentOutcomes({ data }: { data: Attention }) {
       ) : (
         <ul className="flex flex-col divide-y">
           {data.recent_outcomes.map((o) => (
-            <li key={`${o.hypothesis}-${o.decided_at}`} className="flex flex-col gap-1 py-3">
+            <li key={`${o.unit}-${o.decided_at}`} className="flex flex-col gap-1 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Link to={hypothesisPath(o.hypothesis)} className="font-medium hover:underline">
-                  {o.hypothesis_ref} {o.title}
+                <Link to={unitPath(o.unit)} className="font-medium hover:underline">
+                  {o.unit_ref} {o.title}
                 </Link>
                 <span className="flex items-center gap-2">
                   <ImportedBadge origin={o.origin} />
@@ -242,7 +242,7 @@ function RunningWork({ data }: { data: Attention }) {
               className="flex flex-wrap items-center justify-between gap-2 py-3"
             >
               <Link
-                to={attemptPath(r.hypothesis, r.attempt_ref.split(".").at(-1) ?? "1")}
+                to={attemptPath(r.unit, r.attempt_ref.split(".").at(-1) ?? "1")}
                 className="font-medium hover:underline"
               >
                 {r.attempt_ref} {r.title}
@@ -273,14 +273,14 @@ function RecentFailures({ data }: { data: Attention }) {
             <li key={`${f.attempt_ref}-${f.created_at}`} className="flex flex-col gap-1 py-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Link
-                  to={attemptPath(f.hypothesis, f.attempt_ref.split(".").at(-1) ?? "1")}
+                  to={attemptPath(f.unit, f.attempt_ref.split(".").at(-1) ?? "1")}
                   className="font-medium hover:underline"
                 >
                   {f.attempt_ref} {f.title}
                 </Link>
                 <span className="flex items-center gap-2">
                   <ImportedBadge origin={f.origin} />
-                  <StatusChip domain="hypothesis" value={f.hypothesis_state} />
+                  <StatusChip domain="unit" value={f.unit_state} />
                 </span>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -319,13 +319,13 @@ function StalledVerifications({ data }: { data: Attention }) {
         {data.stalled_verifications.map((s) => (
           <li key={s.attempt_ref} className="flex flex-col gap-1 py-3">
             <Link
-              to={attemptPath(s.hypothesis, s.attempt_ref.split(".").at(-1) ?? "1")}
+              to={attemptPath(s.unit, s.attempt_ref.split(".").at(-1) ?? "1")}
               className="font-medium hover:underline"
             >
               {s.attempt_ref} {s.title}
             </Link>
             <p className="text-sm text-muted-foreground">
-              {s.hypothesis_ref} has been waiting{" "}
+              {s.unit_ref} has been waiting{" "}
               <time dateTime={s.waiting_since} title={formatDateTime(s.waiting_since)}>
                 {formatWaited(s.waiting_since)}
               </time>{" "}

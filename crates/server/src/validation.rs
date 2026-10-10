@@ -1395,11 +1395,11 @@ pub fn validate_track_update(input: BodyInput<'_>) -> Checked<TrackUpdate> {
     }
 }
 
-/// Ordered hypothesis path/query validation; cursors alone have INT4 bounds.
-pub struct HypothesisParameters {
+/// Ordered unit path/query validation; cursors alone have INT4 bounds.
+pub struct UnitParameters {
     pub number: Option<BigInt>,
     pub revision: Option<BigInt>,
-    pub states: Option<Vec<cannery_hypotheses::repo::HypothesisState>>,
+    pub states: Option<Vec<cannery_units::repo::UnitState>>,
     pub archived: Option<bool>,
     pub track: Option<String>,
     pub before: Option<BigInt>,
@@ -1411,13 +1411,13 @@ pub struct HypothesisParameters {
     clippy::too_many_lines,
     reason = "Preserve path and signature-ordered query error groups"
 )]
-pub fn hypothesis_parameters(
+pub fn unit_parameters(
     number: Option<&str>,
     revision: Option<&str>,
     pairs: &[(String, String)],
     list: bool,
     revisions: bool,
-) -> Checked<HypothesisParameters> {
+) -> Checked<UnitParameters> {
     let mut errors = Vec::new();
     let mut parsed_integer = |raw: Option<&str>,
                               location: &str,
@@ -1465,9 +1465,10 @@ pub fn hypothesis_parameters(
         if !raw.is_empty() {
             let mut result = Vec::new();
             for (index, v) in raw.iter().enumerate() {
-                match v.as_utf8().and_then(|v| {
-                    cannery_hypotheses::repo::HypothesisState::try_from(v.as_str()).ok()
-                }) {
+                match v
+                    .as_utf8()
+                    .and_then(|v| cannery_units::repo::UnitState::try_from(v.as_str()).ok())
+                {
                     Some(v) => result.push(v),
                     None => errors.push(Problem {
                         loc: vec![
@@ -1476,7 +1477,7 @@ pub fn hypothesis_parameters(
                             Location::Index(index),
                         ],
                         kind: "literal_error",
-                        message: "Invalid hypothesis state",
+                        message: "Invalid unit state",
                     }),
                 }
             }
@@ -1535,7 +1536,7 @@ pub fn hypothesis_parameters(
         }
     }
     if errors.is_empty() {
-        Ok(HypothesisParameters {
+        Ok(UnitParameters {
             number,
             revision,
             states,
@@ -1732,7 +1733,7 @@ pub(crate) fn validate_claim_request(
 ) -> Checked<crate::claim_request::ClaimRequest> {
     let mut fields = Fields::from_input(input)?;
     let document = fields.document;
-    let hypothesis = fields.field("hypothesis", Some(None), |node| {
+    let unit = fields.field("unit", Some(None), |node| {
         if matches!(node, Node::Null) {
             return Ok(None);
         }
@@ -1740,14 +1741,14 @@ pub(crate) fn validate_claim_request(
     });
     let track = fields.field("track", Some(None), optional_text);
     let mode = fields.field("mode", Some(None), optional_track_mode);
-    fields.extras(&["hypothesis", "track", "mode"]);
-    match (hypothesis, track, mode) {
-        (Some(hypothesis), Some(track), Some(mode)) if fields.problems.is_empty() => {
+    fields.extras(&["unit", "track", "mode"]);
+    match (unit, track, mode) {
+        (Some(unit), Some(track), Some(mode)) if fields.problems.is_empty() => {
             Ok(crate::claim_request::ClaimRequest {
-                hypothesis,
+                unit,
                 track,
                 mode,
-                fields_set: ["hypothesis", "track", "mode"]
+                fields_set: ["unit", "track", "mode"]
                     .iter()
                     .filter(|name| document.field(document.root(), name).is_some())
                     .map(|name| (*name).to_owned())
@@ -1940,7 +1941,7 @@ mod native_integer_tests {
             Some(BigInt::from(3))
         );
         assert!(bounded_query_integer("20", "limit", 1, Some(200)).is_ok());
-        assert!(hypothesis_parameters(Some("1"), Some("2"), &[], false, false).is_ok());
+        assert!(unit_parameters(Some("1"), Some("2"), &[], false, false).is_ok());
         for raw in ["1_0", "١", "1.0", "9223372036854775808"] {
             assert!(attempt_path_integer("number", raw).is_err());
             assert!(attempt_header_integer("revision", raw).is_err());

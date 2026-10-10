@@ -5,7 +5,7 @@ use crate::{
 };
 use cannery_core::{
     audit::{self, Attribution, Record},
-    ids::{AttemptId, HypothesisId, ProjectId, ReviewCaseId, TrackId, UserId},
+    ids::{AttemptId, ProjectId, ReviewCaseId, TrackId, UnitId, UserId},
     principal::{Channel, Via},
 };
 use chrono::{DateTime, NaiveDate, Utc};
@@ -130,10 +130,10 @@ impl Writer<'_> {
         )
         .await
     }
-    pub async fn hypothesis(
+    pub async fn unit(
         &mut self,
         entry: &Entry,
-        ids: &mut BTreeMap<String, HypothesisId>,
+        ids: &mut BTreeMap<String, UnitId>,
         numbers: &mut BTreeMap<String, i32>,
     ) -> Result<()> {
         let value = &entry.content;
@@ -157,11 +157,11 @@ impl Writer<'_> {
             &["id", "kind", "claim", "control", "sources", "notes"],
         );
         let number=sqlx::query_scalar!(
-            "UPDATE projects SET next_hypothesis_number=next_hypothesis_number+1 WHERE id=$1 RETURNING next_hypothesis_number-1 AS \"number!\"",
+            "UPDATE projects SET next_unit_number=next_unit_number+1 WHERE id=$1 RETURNING next_unit_number-1 AS \"number!\"",
             self.project.0 as _,
         ).fetch_one(&mut *self.connection).await?;
-        let id=HypothesisId(sqlx::query_scalar!(
-            "INSERT INTO hypotheses(project_id,number,track_id,state,revision,approved_revision,title,created_by_user,created_at,updated_at,approved_at,origin,source_ref,external_id,imported) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,'imported',$11,$12,$13) RETURNING id AS \"id: uuid::Uuid\"",
+        let id=UnitId(sqlx::query_scalar!(
+            "INSERT INTO units(project_id,number,track_id,state,revision,approved_revision,title,created_by_user,created_at,updated_at,approved_at,origin,source_ref,external_id,imported) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,'imported',$11,$12,$13) RETURNING id AS \"id: uuid::Uuid\"",
             self.project.0 as _,
             number,
             track.0 as _,
@@ -184,7 +184,7 @@ impl Writer<'_> {
     pub async fn history(
         &mut self,
         entry: &Entry,
-        ids: &BTreeMap<String, HypothesisId>,
+        ids: &BTreeMap<String, UnitId>,
         numbers: &BTreeMap<String, i32>,
     ) -> Result<()> {
         let value = &entry.content;
@@ -192,7 +192,7 @@ impl Writer<'_> {
         let content = semantic::imported_document(value, numbers);
         let created = time::moment(text(value, "created_at")?)?;
         sqlx::query!(
-            "INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel,via_client,created_at,origin,source_ref) VALUES($1,1,$2,$3,$4,'cli','cannery import',$5,'imported',$6)",
+            "INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel,via_client,created_at,origin,source_ref) VALUES($1,1,$2,$3,$4,'cli','cannery import',$5,'imported',$6)",
             id.0 as _,
             Json(&content) as _,
             self.revision,
@@ -203,7 +203,7 @@ impl Writer<'_> {
         for relation in items(value, "relations") {
             let target = ids.get(text(relation, "to")?).ok_or(Error::CorruptData)?;
             sqlx::query!(
-                "INSERT INTO hypothesis_relations(hypothesis_id,kind,target_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+                "INSERT INTO unit_relations(unit_id,kind,target_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
                 id.0 as _,
                 text(relation,"type")?,
                 target.0 as _,
@@ -242,7 +242,7 @@ impl Writer<'_> {
                 .map_err(|_| Error::problem(&entry.path, "/attempts", "too many attempts"))?;
             let previous_id = previous.map(|id| id.0);
             let attempt_id=AttemptId(sqlx::query_scalar!(
-                "INSERT INTO attempts(project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,via_client,predecessor_id,lease_generation,claimed_at,started_at,finished_at,origin,source_ref,imported) VALUES($1,$2,$3,$4,1,$5,$6,$7,'cli','cannery import',$8,0,$9,$9,$10,'imported',$11,$12) RETURNING id AS \"id: uuid::Uuid\"",
+                "INSERT INTO attempts(project_id,unit_id,sequence,state,unit_revision,science_revision,track_id,claimed_by_user,via_channel,via_client,predecessor_id,lease_generation,claimed_at,started_at,finished_at,origin,source_ref,imported) VALUES($1,$2,$3,$4,1,$5,$6,$7,'cli','cannery import',$8,0,$9,$9,$10,'imported',$11,$12) RETURNING id AS \"id: uuid::Uuid\"",
                 self.project.0 as _,
                 id.0 as _,
                 sequence,
@@ -271,7 +271,7 @@ impl Writer<'_> {
             )
             .await?;
         }
-        self.plan.hypotheses += 1;
+        self.plan.units += 1;
         *self
             .plan
             .by_track
@@ -279,8 +279,8 @@ impl Writer<'_> {
             .or_default() += 1;
         *self.plan.by_state.entry(state.into()).or_default() += 1;
         self.audit(
-            "import.hypothesis",
-            "hypothesis",
+            "import.unit",
+            "unit",
             &id.to_string(),
             json!({"number":numbers.get(&entry.key),"external_id":entry.key,"state":state}),
         )
@@ -315,11 +315,11 @@ impl Writer<'_> {
         self.plan.reports += 1;
         Ok(EvidenceId(id))
     }
-    /// A pending document job for a hypothesis imported while it awaited a
+    /// A pending document job for a unit imported while it awaited a
     /// decision without a write-up: it waits in `documenting` like any other.
     async fn document_job(&mut self, attempt: AttemptId) -> Result<()> {
         let row = sqlx::query!(
-            "SELECT h.number, t.slug FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id JOIN tracks t ON t.id=a.track_id WHERE a.id=$1",
+            "SELECT h.number, t.slug FROM attempts a JOIN units h ON h.id=a.unit_id JOIN tracks t ON t.id=a.track_id WHERE a.id=$1",
             attempt.0 as _,
         )
         .fetch_one(&mut *self.connection)
@@ -327,7 +327,7 @@ impl Writer<'_> {
         let id: Uuid = sqlx::query_scalar!("SELECT gen_random_uuid() AS \"id!: uuid::Uuid\"")
             .fetch_one(&mut *self.connection)
             .await?;
-        let spec = json!({"performer":"agent","track":row.slug,"hypothesis":row.number,"steps":[],
+        let spec = json!({"performer":"agent","track":row.slug,"unit":row.number,"steps":[],
             "parameters":{},"output_prefix":format!("projects/{}/attempts/{}/document-runs/{id}/",
             self.project.0, attempt.0)});
         let allowance = self.science["limits"]["max_deadline_seconds"]
@@ -372,7 +372,7 @@ impl Writer<'_> {
         &mut self,
         entry: &Entry,
         index: usize,
-        hypothesis: HypothesisId,
+        unit: UnitId,
         attempt: AttemptId,
         value: &Value,
         times: &time::AttemptTimes,
@@ -503,7 +503,7 @@ impl Writer<'_> {
             self.document_job(attempt).await?;
         } else if pending {
             self.case(Case {
-                hypothesis,
+                unit,
                 attempt: Some(attempt),
                 kind: "decision",
                 opened: times.evaluated,
@@ -518,7 +518,7 @@ impl Writer<'_> {
         } else if let Some(decision) = decision {
             let failed = decision["action"] == "close_failed";
             self.case(Case {
-                hypothesis,
+                unit,
                 attempt: Some(attempt),
                 kind: if failed { "failure" } else { "decision" },
                 opened: if failed {
@@ -551,9 +551,9 @@ impl Writer<'_> {
             "pending"
         };
         let id=ReviewCaseId(sqlx::query_scalar!(
-            "INSERT INTO review_cases(project_id,hypothesis_id,attempt_id,kind,subject_revision,state,opened_at,resolved_at,evidence_id,failure_id,writeup_id,origin,source_ref) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,'imported',$11) RETURNING id AS \"id: uuid::Uuid\"",
+            "INSERT INTO review_cases(project_id,unit_id,attempt_id,kind,subject_revision,state,opened_at,resolved_at,evidence_id,failure_id,writeup_id,origin,source_ref) VALUES($1,$2,$3,$4,1,$5,$6,$7,$8,$9,$10,'imported',$11) RETURNING id AS \"id: uuid::Uuid\"",
             self.project.0 as _,
-            case.hypothesis.0 as _,
+            case.unit.0 as _,
             attempt as _,
             case.kind,
             state,
@@ -584,7 +584,7 @@ impl Writer<'_> {
     }
 }
 struct Case<'a> {
-    hypothesis: HypothesisId,
+    unit: UnitId,
     attempt: Option<AttemptId>,
     kind: &'a str,
     opened: DateTime<Utc>,
@@ -596,15 +596,15 @@ struct Case<'a> {
     source: &'a str,
 }
 
-/// The state a bundle hypothesis is stored in. One awaiting a decision is
+/// The state a bundle unit is stored in. One awaiting a decision is
 /// written up first: it waits in `documenting`, or in `deciding` when its
 /// last attempt brings its report, which becomes the write-up.
-fn stored_state(hypothesis: &Value) -> Result<&str> {
-    let state = text(hypothesis, "state")?;
+fn stored_state(unit: &Value) -> Result<&str> {
+    let state = text(unit, "state")?;
     if state != "awaiting_human_review" {
         return Ok(state);
     }
-    let reported = items(hypothesis, "attempts")
+    let reported = items(unit, "attempts")
         .last()
         .is_some_and(|attempt| attempt.get("report").is_some());
     Ok(if reported { "deciding" } else { "documenting" })

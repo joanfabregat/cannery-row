@@ -178,7 +178,7 @@
             "label": {"$ref": "common.schema.json#/$defs/text"},
             "kind": {"enum": ["paper", "benchmark", "promoted_attempt", "baseline", "manual", "other"]},
             "ref": {
-              "description": "What the reference points at: a hypothesis or attempt reference (`#12`, `#12.3`, `project#12.3`), a baseline id, a URL or a DOI.",
+              "description": "What the reference points at: a unit or attempt reference (`#12`, `#12.3`, `project#12.3`), a baseline id, a URL or a DOI.",
               "type": "string",
               "minLength": 1,
               "maxLength": 2048,

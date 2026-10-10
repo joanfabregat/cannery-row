@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT count(*) AS \"count!\" FROM attempt_failures f JOIN attempts a ON a.id = f.attempt_id\n            WHERE a.unit_id = $1 AND f.requeued\n              AND f.created_at > coalesce((\n                  SELECT max(f2.created_at) FROM attempt_failures f2\n                  JOIN attempts a2 ON a2.id = f2.attempt_id\n                  WHERE a2.unit_id = $1 AND NOT f2.requeued), '-infinity')\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0116589a38d67d98cc0a1412c73921645e676bf8084a2e1ccf34f4892957704f"
+}

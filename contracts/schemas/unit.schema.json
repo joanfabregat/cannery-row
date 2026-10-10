@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/unit.schema.json",
+  "title": "Unit (plan unit entry)",
+  "description": "One unit of a track plan, as add_unit takes it. Approving the plan creates the unit or revises it; the server assigns its number, state, revision, actor, via and timestamps, which are rejected here. The brief and the number of context items are also capped by the project's limits.",
+  "type": "object",
+  "properties": {
+    "key": {
+      "description": "The unit's key in the plan, unique in the track.",
+      "$ref": "common.schema.json#/$defs/slug"
+    },
+    "title": {"$ref": "common.schema.json#/$defs/text"},
+    "question": {"$ref": "common.schema.json#/$defs/text"},
+    "intervention": {"$ref": "common.schema.json#/$defs/text"},
+    "control": {
+      "description": "Optional label of what the unit compares against. Cannery Row stores and shows it, and pins it on the verify job; the verifier's policy decides what it means.",
+      "type": "object",
+      "properties": {
+        "kind": {"enum": ["baseline"]},
+        "id": {"$ref": "common.schema.json#/$defs/slug"},
+        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+      },
+      "required": ["kind", "id", "revision"],
+      "additionalProperties": false
+    },
+    "acceptance": {
+      "description": "How the result is judged: splits, primary metric, required slices, criteria, regression gates and compute budget, checked against the project's metric registry.",
+      "type": "object",
+      "properties": {
+        "selection_splits": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/slug"}
+        },
+        "confirmation_splits": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/slug"}
+        },
+        "primary_metric": {"$ref": "common.schema.json#/$defs/name"},
+        "required_slices": {
+          "description": "Dimension names that must be reported per slice.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "common.schema.json#/$defs/name"}
+        },
+        "success_criteria": {"$ref": "common.schema.json#/$defs/text"},
+        "falsification_criteria": {"$ref": "common.schema.json#/$defs/text"},
+        "regression_gates": {
+          "description": "Dimension names or policy gate ids guarded against regression; free text for humans and the verifier.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"}
+        },
+        "compute_budget": {
+          "description": "Upper bounds, each named <resource>_max.",
+          "type": "object",
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]{0,59}_max$": {"type": "number", "minimum": 0}
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "selection_splits",
+        "confirmation_splits",
+        "primary_metric",
+        "required_slices",
+        "success_criteria",
+        "falsification_criteria",
+        "regression_gates",
+        "compute_budget"
+      ],
+      "additionalProperties": false
+    },
+    "parameters": {
+      "description": "The project's own unit fields, checked against the science revision's unit_fields schema.",
+      "$ref": "common.schema.json#/$defs/open_object"
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "description": "A typed relation to a unit of the project, of another project, or to another unit of the same plan.",
+        "type": "object",
+        "properties": {
+          "kind": {"enum": ["derived_from", "supersedes", "related_to"]},
+          "unit": {
+            "oneOf": [
+              {
+                "description": "Number of a unit in the same project.",
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "description": "A unit in another project the caller can read.",
+                "type": "object",
+                "properties": {
+                  "project": {"$ref": "common.schema.json#/$defs/slug"},
+                  "number": {"type": "integer", "minimum": 1}
+                },
+                "required": ["project", "number"],
+                "additionalProperties": false
+              },
+              {
+                "description": "The key of another unit of the same plan.",
+                "$ref": "common.schema.json#/$defs/slug"
+              }
+            ]
+          }
+        },
+        "required": ["kind", "unit"],
+        "additionalProperties": false
+      }
+    },
+    "context": {
+      "description": "What the unit's performer should read.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {"enum": ["unit", "writeup", "artifact"]},
+          "unit": {
+            "description": "A unit number, or the key of a unit of the same plan.",
+            "oneOf": [
+              {"type": "integer", "minimum": 1},
+              {"$ref": "common.schema.json#/$defs/slug"}
+            ]
+          },
+          "attempt": {"type": "integer", "minimum": 1},
+          "artifact": {"type": "string", "format": "uuid"},
+          "note": {"type": "string"}
+        },
+        "required": ["kind"],
+        "additionalProperties": false
+      }
+    },
+    "brief": {
+      "description": "The unit's own text for whoever runs it, Markdown.",
+      "type": "string"
+    }
+  },
+  "required": ["key", "title", "question", "intervention", "acceptance"],
+  "additionalProperties": false
+}

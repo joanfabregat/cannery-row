@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO review_cases (project_id, unit_id, attempt_id, kind,\n                                      subject_revision, failure_id)\n            SELECT $1, $2, $3, 'failure', count(*), $4\n            FROM attempt_failures WHERE attempt_id = $5\n            RETURNING id AS \"id!: ReviewCaseId\"\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: ReviewCaseId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a70894cc2f4821980f605b10d4dcd143a8f68fc2f7d8575502706f7aa50b1069"
+}

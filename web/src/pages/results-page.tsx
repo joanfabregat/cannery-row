@@ -419,7 +419,7 @@ function ClaimedValues({
               {page.items.map((point) => (
                 <TableRow key={point.id}>
                   <TableCell>
-                    {point.attempt_ref} {point.hypothesis_title}
+                    {point.attempt_ref} {point.unit_title}
                   </TableCell>
                   <TableCell>{point.track}</TableCell>
                   <TableCell>
@@ -482,7 +482,7 @@ function ImportedValues({
           {points.map((point) => (
             <TableRow key={point.id}>
               <TableCell>
-                {point.attempt_ref} {point.hypothesis_title}
+                {point.attempt_ref} {point.unit_title}
               </TableCell>
               <TableCell>{point.track}</TableCell>
               <TableCell>

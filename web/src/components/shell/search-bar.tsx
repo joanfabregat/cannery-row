@@ -62,7 +62,7 @@ export function SearchBar({ className }: { className?: string }) {
   const submit = (event: SyntheticEvent) => {
     event.preventDefault();
     const q = query.trim();
-    // "#12", "slug#12" or "#12.3" opens that hypothesis or attempt directly.
+    // "#12", "slug#12" or "#12.3" opens that unit or attempt directly.
     const target = refTarget(q);
     if (target !== null) {
       setQuery("");

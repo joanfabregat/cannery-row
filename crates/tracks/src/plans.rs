@@ -2,18 +2,18 @@
 //!
 //! A plan is a chain of revisions per track. A revision is a draft until it
 //! is submitted; its entries (one per unit) and its alignment entries change
-//! only while it is a draft. Approval writes the hypotheses it lists.
+//! only while it is a draft. Approval writes the units it lists.
 use crate::repo::TrackError;
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, PlanRevisionId, ProjectId, ReviewCaseId, TrackId, UserId},
+    ids::{AttemptId, PlanRevisionId, ProjectId, ReviewCaseId, TrackId, UnitId, UserId},
     timestamps::Timestamp,
 };
 use sqlx::PgConnection;
 use uuid::Uuid;
 
-/// Hypothesis states of a unit that is running or waiting for its decision.
+/// Unit states of a unit that is running or waiting for its decision.
 pub const IN_FLIGHT: [&str; 3] = ["active", "documenting", "deciding"];
-/// Hypothesis states of a decided unit.
+/// Unit states of a decided unit.
 pub const DONE: [&str; 4] = ["promoted", "rejected", "inconclusive", "failed"];
 
 /// One plan revision, with the names of the people who wrote and reviewed it.
@@ -47,22 +47,22 @@ pub struct PlanRevision {
 pub struct PlanUnit {
     pub key: String,
     pub position: i32,
-    pub hypothesis_id: Option<HypothesisId>,
+    pub unit_id: Option<UnitId>,
     pub number: Option<i32>,
     pub state: Option<String>,
-    pub redo_of: Option<HypothesisId>,
+    pub redo_of: Option<UnitId>,
     pub redo_of_number: Option<i32>,
     /// The structured fields as JSON text.
     pub fields: String,
     pub brief: String,
     pub science_revision: i32,
-    pub hypothesis_revision: Option<i32>,
+    pub unit_revision: Option<i32>,
 }
 
 /// One alignment entry, with the unit it concerns.
 #[derive(Clone, Debug)]
 pub struct Alignment {
-    pub hypothesis_id: HypothesisId,
+    pub unit_id: UnitId,
     pub number: i32,
     pub title: String,
     pub state: String,
@@ -70,10 +70,10 @@ pub struct Alignment {
     pub reason: String,
 }
 
-/// A hypothesis of a track, as plans and context index see it.
+/// A unit of a track, as plans and context index see it.
 #[derive(Clone, Debug)]
 pub struct TrackUnit {
-    pub hypothesis_id: HypothesisId,
+    pub unit_id: UnitId,
     pub number: i32,
     pub title: String,
     pub state: String,
@@ -83,11 +83,11 @@ pub struct TrackUnit {
     pub approved_revision: Option<i32>,
 }
 
-/// A hypothesis revision as plans and context bundles read it.
+/// A unit revision as plans and context bundles read it.
 #[derive(Clone, Debug)]
 pub struct UnitRevision {
     pub revision: i32,
-    /// The hypothesis document as JSON text.
+    /// The unit document as JSON text.
     pub content: String,
     pub brief: Option<String>,
     pub science_revision: i32,
@@ -110,8 +110,8 @@ pub struct NewPlan<'a> {
 /// What an entry stores.
 pub struct UnitEntry<'a> {
     pub key: &'a str,
-    pub hypothesis_id: Option<HypothesisId>,
-    pub redo_of: Option<HypothesisId>,
+    pub unit_id: Option<UnitId>,
+    pub redo_of: Option<UnitId>,
     /// The structured fields as JSON text.
     pub fields: &'a str,
     pub brief: &'a str,
@@ -286,12 +286,12 @@ pub async fn copy_units(
     to: PlanRevisionId,
 ) -> Result<u64, TrackError> {
     Ok(sqlx::query!(
-        r#"INSERT INTO plan_units (plan_revision_id, key, position, hypothesis_id, redo_of,
+        r#"INSERT INTO plan_units (plan_revision_id, key, position, unit_id, redo_of,
         fields, brief, science_revision)
-        SELECT $2, u.key, u.position, u.hypothesis_id,
-        CASE WHEN u.hypothesis_id IS NULL THEN u.redo_of END, u.fields, u.brief, u.science_revision
-        FROM plan_units u LEFT JOIN hypotheses h ON h.id = u.hypothesis_id
-        WHERE u.plan_revision_id = $1 AND (u.hypothesis_id IS NULL OR h.state = 'queued')"#,
+        SELECT $2, u.key, u.position, u.unit_id,
+        CASE WHEN u.unit_id IS NULL THEN u.redo_of END, u.fields, u.brief, u.science_revision
+        FROM plan_units u LEFT JOIN units h ON h.id = u.unit_id
+        WHERE u.plan_revision_id = $1 AND (u.unit_id IS NULL OR h.state = 'queued')"#,
         from as PlanRevisionId,
         to as PlanRevisionId
     )
@@ -340,11 +340,11 @@ pub async fn units(
 ) -> Result<Vec<PlanUnit>, TrackError> {
     Ok(sqlx::query_as!(
         PlanUnit,
-        r#"SELECT u.key, u.position, u.hypothesis_id AS "hypothesis_id?: _", h.number AS "number?",
+        r#"SELECT u.key, u.position, u.unit_id AS "unit_id?: _", h.number AS "number?",
         h.state AS "state?", u.redo_of AS "redo_of?: _", r.number AS "redo_of_number?",
-        u.fields::text AS "fields!", u.brief, u.science_revision, u.hypothesis_revision
-        FROM plan_units u LEFT JOIN hypotheses h ON h.id = u.hypothesis_id
-        LEFT JOIN hypotheses r ON r.id = u.redo_of
+        u.fields::text AS "fields!", u.brief, u.science_revision, u.unit_revision
+        FROM plan_units u LEFT JOIN units h ON h.id = u.unit_id
+        LEFT JOIN units r ON r.id = u.redo_of
         WHERE u.plan_revision_id = $1 ORDER BY u.position, u.key"#,
         plan as PlanRevisionId
     )
@@ -362,11 +362,11 @@ pub async fn unit(
 ) -> Result<Option<PlanUnit>, TrackError> {
     Ok(sqlx::query_as!(
         PlanUnit,
-        r#"SELECT u.key, u.position, u.hypothesis_id AS "hypothesis_id?: _", h.number AS "number?",
+        r#"SELECT u.key, u.position, u.unit_id AS "unit_id?: _", h.number AS "number?",
         h.state AS "state?", u.redo_of AS "redo_of?: _", r.number AS "redo_of_number?",
-        u.fields::text AS "fields!", u.brief, u.science_revision, u.hypothesis_revision
-        FROM plan_units u LEFT JOIN hypotheses h ON h.id = u.hypothesis_id
-        LEFT JOIN hypotheses r ON r.id = u.redo_of
+        u.fields::text AS "fields!", u.brief, u.science_revision, u.unit_revision
+        FROM plan_units u LEFT JOIN units h ON h.id = u.unit_id
+        LEFT JOIN units r ON r.id = u.redo_of
         WHERE u.plan_revision_id = $1 AND u.key = $2"#,
         plan as PlanRevisionId,
         key
@@ -384,14 +384,14 @@ pub async fn insert_unit(
     entry: UnitEntry<'_>,
 ) -> Result<(), TrackError> {
     sqlx::query!(
-        r#"INSERT INTO plan_units (plan_revision_id, key, position, hypothesis_id, redo_of, fields,
+        r#"INSERT INTO plan_units (plan_revision_id, key, position, unit_id, redo_of, fields,
         brief, science_revision)
         SELECT $1, $2, coalesce(max(position), 0) + 1, $3, $4, $5::text::jsonb, $6, $7
         FROM plan_units WHERE plan_revision_id = $1"#,
         plan as PlanRevisionId,
         entry.key,
-        entry.hypothesis_id as Option<HypothesisId>,
-        entry.redo_of as Option<HypothesisId>,
+        entry.unit_id as Option<UnitId>,
+        entry.redo_of as Option<UnitId>,
         entry.fields,
         entry.brief,
         entry.science_revision
@@ -449,12 +449,12 @@ pub async fn delete_unit(
 pub async fn delete_redo_units(
     conn: &mut PgConnection,
     plan: PlanRevisionId,
-    redo_of: HypothesisId,
+    redo_of: UnitId,
 ) -> Result<u64, TrackError> {
     Ok(sqlx::query!(
         "DELETE FROM plan_units WHERE plan_revision_id = $1 AND redo_of = $2",
         plan as PlanRevisionId,
-        redo_of as HypothesisId
+        redo_of as UnitId
     )
     .execute(conn)
     .await?
@@ -462,7 +462,7 @@ pub async fn delete_redo_units(
 }
 
 /// The key of every unit an approved plan of the track wrote, with the
-/// hypothesis number it names; a key reused later names its latest unit.
+/// unit number it names; a key reused later names its latest unit.
 /// Later revisions keep only queued units as entries, so their entries name
 /// the others by these keys.
 /// # Errors
@@ -470,18 +470,18 @@ pub async fn delete_redo_units(
 pub async fn known_keys(
     conn: &mut PgConnection,
     track: TrackId,
-) -> Result<Vec<(String, HypothesisId, i32)>, TrackError> {
+) -> Result<Vec<(String, UnitId, i32)>, TrackError> {
     Ok(sqlx::query!(
-        r#"SELECT DISTINCT ON (u.key) u.key, h.id AS "hypothesis_id!: HypothesisId", h.number
+        r#"SELECT DISTINCT ON (u.key) u.key, h.id AS "unit_id!: UnitId", h.number
         FROM plan_units u JOIN plan_revisions p ON p.id = u.plan_revision_id
-        JOIN hypotheses h ON h.id = u.hypothesis_id
+        JOIN units h ON h.id = u.unit_id
         WHERE p.track_id = $1 AND p.state = 'approved' ORDER BY u.key, p.revision DESC"#,
         track as TrackId
     )
     .fetch_all(conn)
     .await?
     .into_iter()
-    .map(|row| (row.key, row.hypothesis_id, row.number))
+    .map(|row| (row.key, row.unit_id, row.number))
     .collect())
 }
 
@@ -494,8 +494,8 @@ pub async fn alignments(
 ) -> Result<Vec<Alignment>, TrackError> {
     Ok(sqlx::query_as!(
         Alignment,
-        r#"SELECT a.hypothesis_id AS "hypothesis_id!: _", h.number, h.title, h.state, a.decision,
-        a.reason FROM plan_alignments a JOIN hypotheses h ON h.id = a.hypothesis_id
+        r#"SELECT a.unit_id AS "unit_id!: _", h.number, h.title, h.state, a.decision,
+        a.reason FROM plan_alignments a JOIN units h ON h.id = a.unit_id
         WHERE a.plan_revision_id = $1 ORDER BY h.number"#,
         plan as PlanRevisionId
     )
@@ -509,17 +509,17 @@ pub async fn alignments(
 pub async fn set_alignment(
     conn: &mut PgConnection,
     plan: PlanRevisionId,
-    hypothesis: HypothesisId,
+    unit: UnitId,
     decision: &str,
     reason: &str,
 ) -> Result<(), TrackError> {
     sqlx::query!(
-        r#"INSERT INTO plan_alignments (plan_revision_id, hypothesis_id, decision, reason)
+        r#"INSERT INTO plan_alignments (plan_revision_id, unit_id, decision, reason)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (plan_revision_id, hypothesis_id)
+        ON CONFLICT (plan_revision_id, unit_id)
         DO UPDATE SET decision = EXCLUDED.decision, reason = EXCLUDED.reason"#,
         plan as PlanRevisionId,
-        hypothesis as HypothesisId,
+        unit as UnitId,
         decision,
         reason
     )
@@ -532,15 +532,15 @@ macro_rules! track_units {
     ($conn:expr, $track:expr, $states:expr, $before:expr, $limit:expr) => {
         sqlx::query_as!(
             TrackUnit,
-            r#"SELECT h.id AS "hypothesis_id!: _", h.number, h.title, h.state,
+            r#"SELECT h.id AS "unit_id!: _", h.number, h.title, h.state,
             (SELECT u.key FROM plan_units u JOIN plan_revisions p ON p.id = u.plan_revision_id
-             WHERE u.hypothesis_id = h.id AND p.state = 'approved'
+             WHERE u.unit_id = h.id AND p.state = 'approved'
              ORDER BY p.revision DESC LIMIT 1) AS "key?",
             EXISTS (SELECT 1 FROM plan_alignments a JOIN plan_revisions p ON p.id = a.plan_revision_id
-                    WHERE a.hypothesis_id = h.id AND p.state = 'approved'
+                    WHERE a.unit_id = h.id AND p.state = 'approved'
                       AND a.decision IN ('obsolete', 'redo')) AS "obsolete!",
             h.revision, h.approved_revision
-            FROM hypotheses h
+            FROM units h
             WHERE h.track_id = $1 AND ($2::text[] IS NULL OR h.state = ANY($2))
               AND ($3::integer IS NULL OR h.number < $3)
             ORDER BY h.number DESC LIMIT $4"#,
@@ -553,7 +553,7 @@ macro_rules! track_units {
     };
 }
 
-/// The track's hypotheses, newest first, with their plan key and obsolete mark.
+/// The track's units, newest first, with their plan key and obsolete mark.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn track_units(
@@ -566,7 +566,7 @@ pub async fn track_units(
     Ok(track_units!(conn, track, states, before, limit).await?)
 }
 
-/// The track's hypotheses that are done or in flight and not yet obsolete:
+/// The track's units that are done or in flight and not yet obsolete:
 /// each needs an alignment entry in every new revision.
 /// # Errors
 /// Returns a sanitized database error.
@@ -586,7 +586,7 @@ pub async fn needing_alignment(
     Ok(units)
 }
 
-/// One hypothesis of the project as a unit, by number.
+/// One unit of the project as a unit, by number.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn project_unit(
@@ -595,16 +595,16 @@ pub async fn project_unit(
     number: i32,
 ) -> Result<Option<(TrackId, TrackUnit)>, TrackError> {
     let row = sqlx::query!(
-        r#"SELECT h.track_id AS "track_id!: TrackId", h.id AS "hypothesis_id!: HypothesisId",
+        r#"SELECT h.track_id AS "track_id!: TrackId", h.id AS "unit_id!: UnitId",
         h.number, h.title, h.state,
         (SELECT u.key FROM plan_units u JOIN plan_revisions p ON p.id = u.plan_revision_id
-         WHERE u.hypothesis_id = h.id AND p.state = 'approved'
+         WHERE u.unit_id = h.id AND p.state = 'approved'
          ORDER BY p.revision DESC LIMIT 1) AS "key?",
         EXISTS (SELECT 1 FROM plan_alignments a JOIN plan_revisions p ON p.id = a.plan_revision_id
-                WHERE a.hypothesis_id = h.id AND p.state = 'approved'
+                WHERE a.unit_id = h.id AND p.state = 'approved'
                   AND a.decision IN ('obsolete', 'redo')) AS "obsolete!",
         h.revision, h.approved_revision
-        FROM hypotheses h WHERE h.project_id = $1 AND h.number = $2"#,
+        FROM units h WHERE h.project_id = $1 AND h.number = $2"#,
         project as ProjectId,
         number
     )
@@ -614,7 +614,7 @@ pub async fn project_unit(
         (
             row.track_id,
             TrackUnit {
-                hypothesis_id: row.hypothesis_id,
+                unit_id: row.unit_id,
                 number: row.number,
                 title: row.title,
                 state: row.state,
@@ -627,34 +627,34 @@ pub async fn project_unit(
     }))
 }
 
-/// Every revision of a hypothesis, oldest first, with the plan revision that
+/// Every revision of a unit, oldest first, with the plan revision that
 /// wrote each one.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn unit_revisions(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
 ) -> Result<Vec<UnitRevision>, TrackError> {
     Ok(sqlx::query_as!(
         UnitRevision,
         r#"SELECT r.revision, r.content::text AS "content!", r.brief, r.science_revision,
         r.created_at AS "created_at!: _",
         (SELECT p.revision FROM plan_units u JOIN plan_revisions p ON p.id = u.plan_revision_id
-         WHERE u.hypothesis_id = r.hypothesis_id AND u.hypothesis_revision = r.revision
+         WHERE u.unit_id = r.unit_id AND u.unit_revision = r.revision
            AND p.state = 'approved' LIMIT 1) AS "plan_revision?"
-        FROM hypothesis_revisions r WHERE r.hypothesis_id = $1 ORDER BY r.revision"#,
-        hypothesis as HypothesisId
+        FROM unit_revisions r WHERE r.unit_id = $1 ORDER BY r.revision"#,
+        unit as UnitId
     )
     .fetch_all(conn)
     .await?)
 }
 
-/// One hypothesis revision.
+/// One unit revision.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn unit_revision(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
     revision: i32,
 ) -> Result<Option<UnitRevision>, TrackError> {
     Ok(sqlx::query_as!(
@@ -662,28 +662,28 @@ pub async fn unit_revision(
         r#"SELECT r.revision, r.content::text AS "content!", r.brief, r.science_revision,
         r.created_at AS "created_at!: _",
         (SELECT p.revision FROM plan_units u JOIN plan_revisions p ON p.id = u.plan_revision_id
-         WHERE u.hypothesis_id = r.hypothesis_id AND u.hypothesis_revision = r.revision
+         WHERE u.unit_id = r.unit_id AND u.unit_revision = r.revision
            AND p.state = 'approved' LIMIT 1) AS "plan_revision?"
-        FROM hypothesis_revisions r WHERE r.hypothesis_id = $1 AND r.revision = $2"#,
-        hypothesis as HypothesisId,
+        FROM unit_revisions r WHERE r.unit_id = $1 AND r.revision = $2"#,
+        unit as UnitId,
         revision
     )
     .fetch_optional(conn)
     .await?)
 }
 
-/// Every alignment entry about a hypothesis in an approved revision, oldest first.
+/// Every alignment entry about a unit in an approved revision, oldest first.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn unit_alignments(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
 ) -> Result<Vec<(i32, String, String)>, TrackError> {
     Ok(sqlx::query!(
         r#"SELECT p.revision, a.decision, a.reason FROM plan_alignments a
         JOIN plan_revisions p ON p.id = a.plan_revision_id
-        WHERE a.hypothesis_id = $1 AND p.state = 'approved' ORDER BY p.revision"#,
-        hypothesis as HypothesisId
+        WHERE a.unit_id = $1 AND p.state = 'approved' ORDER BY p.revision"#,
+        unit as UnitId
     )
     .fetch_all(conn)
     .await?
@@ -703,7 +703,7 @@ pub async fn submit(
     by: UserId,
 ) -> Result<ReviewCaseId, TrackError> {
     let case = sqlx::query_scalar!(
-        r#"INSERT INTO review_cases (project_id, hypothesis_id, kind, subject_revision)
+        r#"INSERT INTO review_cases (project_id, unit_id, kind, subject_revision)
         VALUES ($1, NULL, 'plan', $2) RETURNING id AS "id!: ReviewCaseId""#,
         project as ProjectId,
         revision
@@ -776,7 +776,7 @@ pub async fn review(conn: &mut PgConnection, review: Review<'_>) -> Result<(), T
     Ok(())
 }
 
-/// A queued hypothesis created by an approved plan, at revision 1.
+/// A queued unit created by an approved plan, at revision 1.
 pub struct NewUnit<'a> {
     pub project_id: ProjectId,
     pub number: i32,
@@ -785,17 +785,14 @@ pub struct NewUnit<'a> {
     pub created_by: UserId,
 }
 
-/// Create the hypothesis of a new unit, queued at its approved revision 1.
+/// Create the unit of a new unit, queued at its approved revision 1.
 /// # Errors
 /// Returns a sanitized database error.
-pub async fn create_unit(
-    conn: &mut PgConnection,
-    unit: NewUnit<'_>,
-) -> Result<HypothesisId, TrackError> {
+pub async fn create_unit(conn: &mut PgConnection, unit: NewUnit<'_>) -> Result<UnitId, TrackError> {
     Ok(sqlx::query_scalar!(
-        r#"INSERT INTO hypotheses (project_id, number, track_id, state, revision, approved_revision,
+        r#"INSERT INTO units (project_id, number, track_id, state, revision, approved_revision,
         title, created_by_user, approved_at) VALUES ($1, $2, $3, 'queued', 1, 1, $4, $5, now())
-        RETURNING id AS "id!: HypothesisId""#,
+        RETURNING id AS "id!: UnitId""#,
         unit.project_id as ProjectId,
         unit.number,
         unit.track_id as TrackId,
@@ -806,30 +803,30 @@ pub async fn create_unit(
     .await?)
 }
 
-/// Move a queued hypothesis to its next revision, approved at once.
+/// Move a queued unit to its next revision, approved at once.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn revise_unit(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
     title: &str,
 ) -> Result<Option<i32>, TrackError> {
     Ok(sqlx::query_scalar!(
-        r#"UPDATE hypotheses SET revision = revision + 1, approved_revision = revision + 1,
+        r#"UPDATE units SET revision = revision + 1, approved_revision = revision + 1,
         title = $2, approved_at = now(), updated_at = now()
         WHERE id = $1 AND state = 'queued' RETURNING revision"#,
-        hypothesis as HypothesisId,
+        unit as UnitId,
         title
     )
     .fetch_optional(conn)
     .await?)
 }
 
-/// A hypothesis revision written by a plan.
+/// A unit revision written by a plan.
 pub struct NewUnitRevision<'a> {
-    pub hypothesis_id: HypothesisId,
+    pub unit_id: UnitId,
     pub revision: i32,
-    /// The hypothesis document as JSON text.
+    /// The unit document as JSON text.
     pub content: &'a str,
     pub brief: &'a str,
     pub science_revision: i32,
@@ -838,7 +835,7 @@ pub struct NewUnitRevision<'a> {
     pub via_client: Option<&'a str>,
 }
 
-/// Store a hypothesis revision written by a plan.
+/// Store a unit revision written by a plan.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn add_unit_revision(
@@ -846,10 +843,10 @@ pub async fn add_unit_revision(
     revision: NewUnitRevision<'_>,
 ) -> Result<(), TrackError> {
     sqlx::query!(
-        r#"INSERT INTO hypothesis_revisions (hypothesis_id, revision, content, science_revision,
+        r#"INSERT INTO unit_revisions (unit_id, revision, content, science_revision,
         author_user, via_channel, via_client, brief)
         VALUES ($1, $2, $3::text::jsonb, $4, $5, $6, $7, $8)"#,
-        revision.hypothesis_id as HypothesisId,
+        revision.unit_id as UnitId,
         revision.revision,
         revision.content,
         revision.science_revision,
@@ -863,21 +860,21 @@ pub async fn add_unit_revision(
     Ok(())
 }
 
-/// Record on an approved entry the hypothesis it names and the revision it wrote.
+/// Record on an approved entry the unit it names and the revision it wrote.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn applied(
     conn: &mut PgConnection,
     plan: PlanRevisionId,
     key: &str,
-    hypothesis: HypothesisId,
+    unit: UnitId,
     revision: Option<i32>,
 ) -> Result<(), TrackError> {
     sqlx::query!(
-        "UPDATE plan_units SET hypothesis_id = $3, hypothesis_revision = $4 WHERE plan_revision_id = $1 AND key = $2",
+        "UPDATE plan_units SET unit_id = $3, unit_revision = $4 WHERE plan_revision_id = $1 AND key = $2",
         plan as PlanRevisionId,
         key,
-        hypothesis as HypothesisId,
+        unit as UnitId,
         revision
     )
     .execute(conn)
@@ -885,16 +882,13 @@ pub async fn applied(
     Ok(())
 }
 
-/// Cancel a queued hypothesis the plan dropped.
+/// Cancel a queued unit the plan dropped.
 /// # Errors
 /// Returns a sanitized database error.
-pub async fn cancel_queued(
-    conn: &mut PgConnection,
-    hypothesis: HypothesisId,
-) -> Result<bool, TrackError> {
+pub async fn cancel_queued(conn: &mut PgConnection, unit: UnitId) -> Result<bool, TrackError> {
     Ok(sqlx::query!(
-        "UPDATE hypotheses SET state = 'cancelled', updated_at = now() WHERE id = $1 AND state = 'queued'",
-        hypothesis as HypothesisId
+        "UPDATE units SET state = 'cancelled', updated_at = now() WHERE id = $1 AND state = 'queued'",
+        unit as UnitId
     )
     .execute(conn)
     .await?
@@ -902,7 +896,7 @@ pub async fn cancel_queued(
         == 1)
 }
 
-/// What cancelling an in-flight hypothesis did.
+/// What cancelling an in-flight unit did.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Cancelled {
     pub attempts: Vec<AttemptId>,
@@ -910,49 +904,49 @@ pub struct Cancelled {
     pub cases: u64,
 }
 
-/// Cancel an in-flight hypothesis and its open attempt, which is kept: its
+/// Cancel an in-flight unit and its open attempt, which is kept: its
 /// lease ends, its claimed jobs and claimed document job fail as
 /// `attempt_cancelled`, its pending review cases are resolved. Pending jobs
-/// of a cancelled attempt, and a pending document job of a hypothesis no
+/// of a cancelled attempt, and a pending document job of a unit no
 /// longer documenting, are never claimed.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn cancel_in_flight(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
 ) -> Result<Cancelled, TrackError> {
     let attempts = sqlx::query_scalar!(
         r#"UPDATE attempts SET state = 'cancelled', lease_token_hash = NULL, lease_expires_at = NULL,
         finished_at = coalesce(finished_at, now())
-        WHERE hypothesis_id = $1 AND state IN ('claimed', 'running', 'verifying')
+        WHERE unit_id = $1 AND state IN ('claimed', 'running', 'verifying')
         RETURNING id AS "id!: AttemptId""#,
-        hypothesis as HypothesisId
+        unit as UnitId
     )
     .fetch_all(&mut *conn)
     .await?;
     let jobs = sqlx::query!(
         r#"UPDATE jobs SET state = 'failed', lease_token_hash = NULL, lease_expires_at = NULL,
         finished_at = now(), error_code = 'attempt_cancelled',
-        error_reason = 'the plan made this hypothesis obsolete'
+        error_reason = 'the plan made this unit obsolete'
         WHERE state = 'claimed' AND (attempt_id = ANY($1) OR (phase = 'document' AND attempt_id IN (
-            SELECT id FROM attempts WHERE hypothesis_id = $2)))"#,
+            SELECT id FROM attempts WHERE unit_id = $2)))"#,
         &attempts as &[AttemptId],
-        hypothesis as HypothesisId
+        unit as UnitId
     )
     .execute(&mut *conn)
     .await?
     .rows_affected();
     let cases = sqlx::query!(
         r#"UPDATE review_cases SET state = 'resolved', resolved_at = now()
-        WHERE hypothesis_id = $1 AND state = 'pending'"#,
-        hypothesis as HypothesisId
+        WHERE unit_id = $1 AND state = 'pending'"#,
+        unit as UnitId
     )
     .execute(&mut *conn)
     .await?
     .rows_affected();
     sqlx::query!(
-        "UPDATE hypotheses SET state = 'cancelled', updated_at = now() WHERE id = $1",
-        hypothesis as HypothesisId
+        "UPDATE units SET state = 'cancelled', updated_at = now() WHERE id = $1",
+        unit as UnitId
     )
     .execute(conn)
     .await?;
@@ -1057,18 +1051,18 @@ pub async fn set_limits(
 pub struct AttemptPins {
     pub attempt_id: AttemptId,
     pub sequence: i32,
-    pub hypothesis_id: HypothesisId,
+    pub unit_id: UnitId,
     pub number: i32,
     pub title: String,
     pub track_id: TrackId,
     pub track_slug: String,
     pub track_title: String,
-    pub hypothesis_revision: i32,
+    pub unit_revision: i32,
     pub brief_revision: Option<i32>,
     pub plan_revision: Option<i32>,
 }
 
-/// An attempt's pins, by hypothesis number and attempt sequence.
+/// An attempt's pins, by unit number and attempt sequence.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn attempt_pins(
@@ -1079,10 +1073,10 @@ pub async fn attempt_pins(
 ) -> Result<Option<AttemptPins>, TrackError> {
     Ok(sqlx::query_as!(
         AttemptPins,
-        r#"SELECT a.id AS "attempt_id!: _", a.sequence, h.id AS "hypothesis_id!: _", h.number,
+        r#"SELECT a.id AS "attempt_id!: _", a.sequence, h.id AS "unit_id!: _", h.number,
         h.title, t.id AS "track_id!: _", t.slug AS track_slug, t.title AS track_title,
-        a.hypothesis_revision, a.brief_revision, a.plan_revision
-        FROM attempts a JOIN hypotheses h ON h.id = a.hypothesis_id
+        a.unit_revision, a.brief_revision, a.plan_revision
+        FROM attempts a JOIN units h ON h.id = a.unit_id
         JOIN tracks t ON t.id = a.track_id
         WHERE h.project_id = $1 AND h.number = $2 AND a.sequence = $3"#,
         project as ProjectId,
@@ -1102,10 +1096,10 @@ pub async fn attempt_pins_by_id(
 ) -> Result<Option<AttemptPins>, TrackError> {
     Ok(sqlx::query_as!(
         AttemptPins,
-        r#"SELECT a.id AS "attempt_id!: _", a.sequence, h.id AS "hypothesis_id!: _", h.number,
+        r#"SELECT a.id AS "attempt_id!: _", a.sequence, h.id AS "unit_id!: _", h.number,
         h.title, t.id AS "track_id!: _", t.slug AS track_slug, t.title AS track_title,
-        a.hypothesis_revision, a.brief_revision, a.plan_revision
-        FROM attempts a JOIN hypotheses h ON h.id = a.hypothesis_id
+        a.unit_revision, a.brief_revision, a.plan_revision
+        FROM attempts a JOIN units h ON h.id = a.unit_id
         JOIN tracks t ON t.id = a.track_id
         WHERE a.id = $1"#,
         attempt as AttemptId
@@ -1114,48 +1108,48 @@ pub async fn attempt_pins_by_id(
     .await?)
 }
 
-/// The entry naming a hypothesis in one revision.
+/// The entry naming a unit in one revision.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn entry_for(
     conn: &mut PgConnection,
     plan: PlanRevisionId,
-    hypothesis: HypothesisId,
+    unit: UnitId,
 ) -> Result<Option<PlanUnit>, TrackError> {
     Ok(sqlx::query_as!(
         PlanUnit,
-        r#"SELECT u.key, u.position, u.hypothesis_id AS "hypothesis_id?: _", h.number AS "number?",
+        r#"SELECT u.key, u.position, u.unit_id AS "unit_id?: _", h.number AS "number?",
         h.state AS "state?", u.redo_of AS "redo_of?: _", r.number AS "redo_of_number?",
-        u.fields::text AS "fields!", u.brief, u.science_revision, u.hypothesis_revision
-        FROM plan_units u LEFT JOIN hypotheses h ON h.id = u.hypothesis_id
-        LEFT JOIN hypotheses r ON r.id = u.redo_of
-        WHERE u.plan_revision_id = $1 AND u.hypothesis_id = $2"#,
+        u.fields::text AS "fields!", u.brief, u.science_revision, u.unit_revision
+        FROM plan_units u LEFT JOIN units h ON h.id = u.unit_id
+        LEFT JOIN units r ON r.id = u.redo_of
+        WHERE u.plan_revision_id = $1 AND u.unit_id = $2"#,
         plan as PlanRevisionId,
-        hypothesis as HypothesisId
+        unit as UnitId
     )
     .fetch_optional(conn)
     .await?)
 }
 
-/// The entry naming a hypothesis in the newest approved revision listing it.
+/// The entry naming a unit in the newest approved revision listing it.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn latest_entry(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
 ) -> Result<Option<(i32, PlanUnit)>, TrackError> {
     let plan = sqlx::query!(
         r#"SELECT p.id AS "id!: PlanRevisionId", p.revision FROM plan_units u
         JOIN plan_revisions p ON p.id = u.plan_revision_id
-        WHERE u.hypothesis_id = $1 AND p.state = 'approved' ORDER BY p.revision DESC LIMIT 1"#,
-        hypothesis as HypothesisId
+        WHERE u.unit_id = $1 AND p.state = 'approved' ORDER BY p.revision DESC LIMIT 1"#,
+        unit as UnitId
     )
     .fetch_optional(&mut *conn)
     .await?;
     let Some(plan) = plan else {
         return Ok(None);
     };
-    Ok(entry_for(conn, plan.id, hypothesis)
+    Ok(entry_for(conn, plan.id, unit)
         .await?
         .map(|entry| (plan.revision, entry)))
 }
@@ -1181,21 +1175,21 @@ pub async fn attempt_report(
     .flatten())
 }
 
-/// The newest attempt of a hypothesis that left an output: its sequence,
+/// The newest attempt of a unit that left an output: its sequence,
 /// state and that output's text.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn latest_output(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
 ) -> Result<Option<(i32, String, Option<String>)>, TrackError> {
     let row = sqlx::query!(
         r#"SELECT a.id AS "id!: AttemptId", a.sequence, a.state FROM attempts a
-        WHERE a.hypothesis_id = $1
+        WHERE a.unit_id = $1
           AND EXISTS (SELECT 1 FROM phase_outputs o WHERE o.attempt_id = a.id
                       AND o.stage IN ('writeup', 'agent'))
         ORDER BY a.sequence DESC LIMIT 1"#,
-        hypothesis as HypothesisId
+        unit as UnitId
     )
     .fetch_optional(&mut *conn)
     .await?;
@@ -1206,7 +1200,7 @@ pub async fn latest_output(
     Ok(Some((row.sequence, row.state, text)))
 }
 
-/// An attempt of the project, by hypothesis number and sequence.
+/// An attempt of the project, by unit number and sequence.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn attempt_id(
@@ -1217,7 +1211,7 @@ pub async fn attempt_id(
 ) -> Result<Option<AttemptId>, TrackError> {
     Ok(sqlx::query_scalar!(
         r#"SELECT a.id AS "id!: AttemptId" FROM attempts a
-        JOIN hypotheses h ON h.id = a.hypothesis_id
+        JOIN units h ON h.id = a.unit_id
         WHERE h.project_id = $1 AND h.number = $2 AND a.sequence = $3"#,
         project as ProjectId,
         number,
@@ -1249,7 +1243,7 @@ pub async fn artifact(
         ArtifactLine,
         r#"SELECT f.role, f.media_type, f.size_bytes, h.number, a.sequence
         FROM artifacts f JOIN attempts a ON a.id = f.attempt_id
-        JOIN hypotheses h ON h.id = a.hypothesis_id
+        JOIN units h ON h.id = a.unit_id
         WHERE f.project_id = $1 AND f.id = $2"#,
         project as ProjectId,
         artifact as _
@@ -1258,17 +1252,17 @@ pub async fn artifact(
     .await?)
 }
 
-/// The brief of the hypothesis revision a plan wrote, if any.
+/// The brief of the unit revision a plan wrote, if any.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn current_unit_brief(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
 ) -> Result<Option<String>, TrackError> {
     Ok(sqlx::query_scalar!(
-        r#"SELECT r.brief FROM hypothesis_revisions r JOIN hypotheses h ON h.id = r.hypothesis_id
-        WHERE r.hypothesis_id = $1 AND r.revision = coalesce(h.approved_revision, h.revision)"#,
-        hypothesis as HypothesisId
+        r#"SELECT r.brief FROM unit_revisions r JOIN units h ON h.id = r.unit_id
+        WHERE r.unit_id = $1 AND r.revision = coalesce(h.approved_revision, h.revision)"#,
+        unit as UnitId
     )
     .fetch_optional(conn)
     .await?

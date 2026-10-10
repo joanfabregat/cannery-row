@@ -27,7 +27,7 @@ env:
   NODE_BUILD_IMAGE: docker.io/library/node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c
   CARGO_AUDIT_VERSION: 0.22.2
   DOMAIN_TEST_FEATURES: cannery-core/conformance-testing,cannery-server/conformance-testing,cannery-identity/conformance-testing,cannery-projects/conformance-testing
-  DOMAIN_TEST_CRATES: -p cannery-core -p cannery-identity -p cannery-projects -p cannery-server -p cannery-research -p cannery-tracks -p cannery-metrics -p cannery-jobs -p cannery-hypotheses -p cannery-search -p cannery-reviews -p cannery-attention -p cannery-comments-reports -p cannery-attempts -p cannery-imports
+  DOMAIN_TEST_CRATES: -p cannery-core -p cannery-identity -p cannery-projects -p cannery-server -p cannery-research -p cannery-tracks -p cannery-metrics -p cannery-jobs -p cannery-units -p cannery-search -p cannery-reviews -p cannery-attention -p cannery-comments-reports -p cannery-attempts -p cannery-imports
   # Database test targets run at once by ci/database-tests.sh, each against
   # its own database.
   DATABASE_TEST_JOBS: "3"

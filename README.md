@@ -10,9 +10,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0%20%2F%20Apache--2.0-022b3b" alt="License: AGPL-3.0-only, contracts Apache-2.0"></a>
 </p>
 
-Cannery Row is a research workbench for experiment-driven work, such as AI and NLP research. Researchers and agents plan research tracks; a researcher approves each plan, and its units become the hypotheses that run. An outside agent, or a registered workflow run by the Cannery Row runner, performs the experiment and submits its artifacts and a run document: its claims and provenance as front matter, its run notes as the body. A verifier who did not run it, a runner or another agent or researcher, checks the submission, applies the project's policy and writes a verification report with a verdict, and a researcher records the final decision with a reason. Cannery Row keeps the whole history (hypotheses, attempts, evidence, verdicts, decisions, comments) and serves it through its own web app (dashboard, review, comments and search), a REST API and an MCP server. One installation hosts several projects; the core knows nothing about any one project's metrics, datasets or code.
+Cannery Row is a research workbench for experiment-driven work, such as AI and NLP research. Researchers and agents plan research tracks; a researcher approves each plan, and the units of work it lists are queued to run. An outside agent, or a registered workflow run by the Cannery Row runner, performs the experiment and submits its artifacts and a run document: its claims and provenance as front matter, its run notes as the body. A verifier who did not run it, a runner or another agent or researcher, checks the submission, applies the project's policy and writes a verification report with a verdict, and a researcher records the final decision with a reason. Cannery Row keeps the whole history (units, attempts, evidence, verdicts, decisions, comments) and serves it through its own web app (dashboard, review, comments and search), a REST API and an MCP server. One installation hosts several projects; the core knows nothing about any one project's metrics, datasets or code.
 
-Cannery Row does not invent hypotheses or run an autonomous research planner, and the API process never executes project or candidate code: verifiers pull their work, and the runner runs it in containers.
+Cannery Row does not invent units or run an autonomous research planner, and the API process never executes project or candidate code: verifiers pull their work, and the runner runs it in containers.
 
 ## Status
 
@@ -50,10 +50,10 @@ Sign-in to the web app uses any standard OIDC provider (`[auth]` in `settings.to
 
 | Document | Holds |
 | --- | --- |
-| [docs/guide.md](docs/guide.md) | Integrating a research project, from an empty installation to the first decided hypothesis. |
+| [docs/guide.md](docs/guide.md) | Integrating a research project, from an empty installation to the first decided unit. |
 | [docs/agents.md](docs/agents.md) | Working as an agent: planning a track, and reading an attempt's context. |
 | [docs/spec.md](docs/spec.md) | The system: roles, lifecycle, failure classes, trust rules. |
-| [docs/contracts.md](docs/contracts.md) | Every document: tracks, track plans, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock policy and policy steps. The JSON Schemas are in [`contracts/schemas/`](contracts/schemas). |
+| [docs/contracts.md](docs/contracts.md) | Every document: tracks, track plans, units, uploads, evidence, jobs, step manifests, workflow tracks, the stock policy and policy steps. The JSON Schemas are in [`contracts/schemas/`](contracts/schemas). |
 | [docs/deploy.md](docs/deploy.md) | The image, settings, object storage, the managed database, the runner, its launchers and the stock policy. |
 | [docs/import.md](docs/import.md) | Importing a research history kept elsewhere. |
 | [deploy/runner-k8s/](deploy/runner-k8s/README.md) | The runner's Kubernetes manifests. |

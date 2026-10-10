@@ -1,7 +1,7 @@
 """Fixture experiment step for the ``scripted`` workflow track.
 
-It reads the hypothesis's ``parameters`` from ``job.json`` (``top_k``, checked
-by the fixture science revision's ``hypothesis_fields``), writes the candidate
+It reads the unit's ``parameters`` from ``job.json`` (``top_k``, checked
+by the fixture science revision's ``unit_fields``), writes the candidate
 the track's producer will test, and the run document the runner submits:
 ``run.md``, whose front matter holds the claims and whose body holds the run
 notes. When the attempt has a predecessor whose ``candidate`` was uploaded,
@@ -44,7 +44,7 @@ def main() -> None:
     }
     lines = [f"{key}: {json.dumps(value, sort_keys=True)}" for key, value in front_matter.items()]
     notes = (
-        f"# Top {top_k}\n\nKept the top {top_k} documents per query, from the hypothesis "
+        f"# Top {top_k}\n\nKept the top {top_k} documents per query, from the unit "
         f"parameters. {start} The relevant document should stay first on every query.\n"
     )
     run = root() / "outputs" / "run" / "run.md"

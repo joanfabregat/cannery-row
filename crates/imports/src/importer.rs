@@ -4,7 +4,7 @@ use crate::{
 };
 use cannery_core::{
     contracts::{ContractKind, ContractValidator},
-    ids::{HypothesisId, ProjectId, TrackId, UserId},
+    ids::{ProjectId, TrackId, UnitId, UserId},
     principal::Role,
 };
 use cannery_research::{
@@ -49,7 +49,7 @@ pub struct Plan {
     pub unchanged: usize,
     pub policies: usize,
     pub tracks: usize,
-    pub hypotheses: usize,
+    pub units: usize,
     pub attempts: usize,
     pub decisions: usize,
     pub reports: usize,
@@ -64,7 +64,7 @@ impl Plan {
     pub fn nothing_new(&self) -> bool {
         !self.project_created
             && !self.science_registered
-            && self.policies + self.tracks + self.hypotheses == 0
+            && self.policies + self.tracks + self.units == 0
     }
     #[must_use]
     pub fn describe(&self, dry_run: bool) -> Vec<String> {
@@ -90,10 +90,10 @@ impl Plan {
                     self.science_revision
                 ));
             }
-            lines.push(format!("  {} policies, {} tracks, {} hypotheses, {} attempts, {} decisions, {} reports ({} entries unchanged)",self.policies,self.tracks,self.hypotheses,self.attempts,self.decisions,self.reports,self.unchanged));
+            lines.push(format!("  {} policies, {} tracks, {} units, {} attempts, {} decisions, {} reports ({} entries unchanged)",self.policies,self.tracks,self.units,self.attempts,self.decisions,self.reports,self.unchanged));
             for (title, counts) in [
-                ("hypotheses per track", &self.by_track),
-                ("hypotheses per state", &self.by_state),
+                ("units per track", &self.by_track),
+                ("units per state", &self.by_state),
                 ("measurements per authority", &self.by_authority),
                 ("gaps", &self.gaps),
             ] {
@@ -124,7 +124,7 @@ fn kind(value: &str) -> Result<EntryKind> {
         "project" => Ok(EntryKind::Project),
         "track" => Ok(EntryKind::Track),
         "policy" => Ok(EntryKind::Policy),
-        "hypothesis" => Ok(EntryKind::Hypothesis),
+        "unit" => Ok(EntryKind::Unit),
         _ => Err(Error::CorruptData),
     }
 }
@@ -462,9 +462,9 @@ async fn import_transaction(
     }
     let mut known = BTreeMap::new();
     for row in sqlx::query!(
-        "SELECT external_id AS \"external_id!\",id AS \"id: uuid::Uuid\",number FROM hypotheses WHERE project_id=$1 AND external_id IS NOT NULL",
+        "SELECT external_id AS \"external_id!\",id AS \"id: uuid::Uuid\",number FROM units WHERE project_id=$1 AND external_id IS NOT NULL",
         project_id.0 as _,
-    ).fetch_all(&mut *connection).await? {known.insert(row.external_id,(HypothesisId(row.id),row.number));}
+    ).fetch_all(&mut *connection).await? {known.insert(row.external_id,(UnitId(row.id),row.number));}
     let mut policies = BTreeMap::new();
     for row in sqlx::query!(
         "SELECT id,content::text AS \"content!\" FROM historical_policies WHERE project_id=$1 ORDER BY id,created_at,revision",
@@ -486,14 +486,14 @@ async fn import_transaction(
             _ => {}
         }
     }
-    let hypothesis_keys = known
+    let unit_keys = known
         .keys()
         .cloned()
         .chain(
             bundle
                 .entries
                 .iter()
-                .filter(|entry| entry.kind == EntryKind::Hypothesis)
+                .filter(|entry| entry.kind == EntryKind::Unit)
                 .map(|entry| entry.key.clone()),
         )
         .collect();
@@ -506,7 +506,7 @@ async fn import_transaction(
         .collect();
     let knowledge = semantic::Knowledge {
         tracks: &track_content,
-        hypotheses: &hypothesis_keys,
+        units: &unit_keys,
         policies: &policies,
         artifact_uris: &artifact_uris,
         users: &users,
@@ -540,13 +540,12 @@ async fn import_transaction(
                     problems.push(entry.problem("/gates", "duplicate gate ids"));
                 }
             }
-            EntryKind::Hypothesis => {
+            EntryKind::Unit => {
                 if known.contains_key(&entry.key) {
-                    problems.push(
-                        entry.problem("/id", "the project already has this imported hypothesis"),
-                    );
+                    problems
+                        .push(entry.problem("/id", "the project already has this imported unit"));
                 }
-                problems.extend(semantic::check_hypothesis(entry, &knowledge)?);
+                problems.extend(semantic::check_unit(entry, &knowledge)?);
             }
             EntryKind::Project => {}
         }
@@ -616,10 +615,10 @@ async fn import_transaction(
             _ => {}
         }
     }
-    let mut hypotheses = new
+    let mut units = new
         .iter()
         .copied()
-        .filter(|entry| entry.kind == EntryKind::Hypothesis)
+        .filter(|entry| entry.kind == EntryKind::Unit)
         .map(|entry| {
             Ok((
                 time::moment(semantic::text(&entry.content, "created_at")?)?,
@@ -627,7 +626,7 @@ async fn import_transaction(
             ))
         })
         .collect::<Result<Vec<_>>>()?;
-    hypotheses.sort_by(|(left_time, left), (right_time, right)| {
+    units.sort_by(|(left_time, left), (right_time, right)| {
         left_time.cmp(right_time).then(left.key.cmp(&right.key))
     });
     let mut ids = known
@@ -638,16 +637,16 @@ async fn import_transaction(
         .iter()
         .map(|(key, (_, number))| (key.clone(), *number))
         .collect();
-    for (_, entry) in &hypotheses {
-        writer.hypothesis(entry, &mut ids, &mut numbers).await?;
+    for (_, entry) in &units {
+        writer.unit(entry, &mut ids, &mut numbers).await?;
     }
-    for (_, entry) in &hypotheses {
+    for (_, entry) in &units {
         writer.history(entry, &ids, &numbers).await?;
     }
     for entry in new {
         writer.entry(entry).await?;
     }
-    writer.audit("import.completed","project",&project_id.to_string(),serde_json::json!({"policies":writer.plan.policies,"tracks":writer.plan.tracks,"hypotheses":writer.plan.hypotheses,"attempts":writer.plan.attempts,"decisions":writer.plan.decisions,"reports":writer.plan.reports})).await?;
+    writer.audit("import.completed","project",&project_id.to_string(),serde_json::json!({"policies":writer.plan.policies,"tracks":writer.plan.tracks,"units":writer.plan.units,"attempts":writer.plan.attempts,"decisions":writer.plan.decisions,"reports":writer.plan.reports})).await?;
     Ok(plan)
 }
 

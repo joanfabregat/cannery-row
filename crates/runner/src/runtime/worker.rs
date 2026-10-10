@@ -817,7 +817,7 @@ impl Session<'_> {
         }
         self.finish(evidence).await
     }
-    /// The track, hypothesis number and attempt sequence of the session's attempt.
+    /// The track, unit number and attempt sequence of the session's attempt.
     fn concern_origin(&self) -> Option<(String, u64, u64)> {
         let track = self.job["track"].as_str()?.to_owned();
         if self.mode == SessionMode::Experiment {
@@ -836,7 +836,7 @@ impl Session<'_> {
         Some((track, number.parse().ok()?, sequence.parse().ok()?))
     }
     /// Submit the concern about the track's plan a step wrote to
-    /// `/cr/outputs/concern/concern.md`, naming the session's hypothesis and
+    /// `/cr/outputs/concern/concern.md`, naming the session's unit and
     /// attempt when it names none. A concern is advice to the researchers, so
     /// it never changes the step's result: one that cannot be read or is
     /// refused is dropped.
@@ -861,8 +861,8 @@ impl Session<'_> {
         let document = match front_matter::parse(&text, front_matter::Limits::default()) {
             Ok(parsed) => {
                 let mut fields = parsed.front_matter;
-                if !fields.contains_key("hypothesis") {
-                    fields.insert("hypothesis".into(), json!(number));
+                if !fields.contains_key("unit") {
+                    fields.insert("unit".into(), json!(number));
                     fields.entry("attempt").or_insert_with(|| json!(sequence));
                 }
                 format!("---\n{}\n---\n{}", Value::Object(fields), parsed.body)

@@ -18,14 +18,14 @@ CREATE TABLE IF NOT EXISTS fixture_release_fault(phase text);
 TRUNCATE fixture_release_fault;
 INSERT INTO fixture_release_fault VALUES(NULL);
 CREATE OR REPLACE FUNCTION fixture_release_audit() RETURNS trigger LANGUAGE plpgsql AS $$BEGIN
-IF NEW.action IN ('attempt.failed','hypothesis.requeued') THEN
- IF (SELECT phase='audit' OR (phase='requeue_audit' AND NEW.action='hypothesis.requeued') FROM fixture_release_fault) THEN RAISE EXCEPTION 'isolated release audit fault'; END IF;
+IF NEW.action IN ('attempt.failed','unit.requeued') THEN
+ IF (SELECT phase='audit' OR (phase='requeue_audit' AND NEW.action='unit.requeued') FROM fixture_release_fault) THEN RAISE EXCEPTION 'isolated release audit fault'; END IF;
  NEW.occurred_at='2001-01-01Z';
 END IF; RETURN NEW; END$$;
 DROP TRIGGER IF EXISTS fixture_release_audit ON audit_events;
 CREATE TRIGGER fixture_release_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fixture_release_audit();
 UPDATE attempts SET state='claimed',claimed_by_user='00000000-0000-0000-0000-000000000002',claimed_by_service=NULL,lease_token_hash=sha256(convert_to('cr_lease_fixture','UTF8')),lease_expires_at='2099-01-01Z',lease_generation=1,started_at=NULL,deadline=NULL,origin='live',source_ref=NULL,imported=NULL,workflow=NULL WHERE id='00000000-0000-0000-0000-000000002001';
-UPDATE hypotheses SET state='active',approved_revision=1,approved_at='2001-01-01Z' WHERE id='00000000-0000-0000-0000-000000001001';
+UPDATE units SET state='active',approved_revision=1,approved_at='2001-01-01Z' WHERE id='00000000-0000-0000-0000-000000001001';
 INSERT INTO config_revisions(project_id,kind,revision,content,created_by,created_at) VALUES('00000000-0000-0000-0000-000000000010','science',3,'{}','00000000-0000-0000-0000-000000000001','2001-01-01Z');
 INSERT INTO artifacts(id,project_id,attempt_id,role,backend,bucket,key,size_bytes,sha256,media_type,verified_at) VALUES('00000000-0000-0000-0000-000000008001','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002001','logs','local','fixture','logs/é😀',5,repeat('a',64),'text/plain','2001-01-01Z');
 UPDATE search_documents SET updated_at='2001-01-01Z';

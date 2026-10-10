@@ -5,7 +5,7 @@
   "attempt_id": "attempt-id",
   "performer": "agent",
   "track": "compact-sparse",
-  "hypothesis": 12,
+  "unit": 12,
   "science_revision": "3",
   "inputs": {
     "attempts": [1, 2],

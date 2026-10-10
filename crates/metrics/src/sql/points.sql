@@ -1,5 +1,5 @@
-SELECT m.id, m.attempt_id AS "attempt_id!: _", h.number AS hypothesis_number,
-h.title AS hypothesis_title,h.state AS hypothesis_state,a.sequence AS attempt_sequence,a.state AS attempt_state,
+SELECT m.id, m.attempt_id AS "attempt_id!: _", h.number AS unit_number,
+h.title AS unit_title,h.state AS unit_state,a.sequence AS attempt_sequence,a.state AS attempt_state,
 a.science_revision,a.claimed_at AS "claimed_at!: _",a.submitted_at AS "submitted_at: _",a.finished_at AS "finished_at: _",
 t.slug AS track_slug,t.title AS track_title,m.metric,m.split,m.dimensions::text AS "dimensions!",m.value,m.missing_reason,m.unit,m.direction,m.sample_count AS "sample_count: _",
 m.control_value,m.uncertainty_method,m.uncertainty_lower,m.uncertainty_upper,m.authority,m.source_ref,m.recorded_at AS "recorded_at!: _",
@@ -7,9 +7,9 @@ m.control_value,m.uncertainty_method,m.uncertainty_lower,m.uncertainty_upper,m.a
 ref.reference_value AS "reference_value?",ref.reference_label AS "reference_label?",ref.reference_kind AS "reference_kind?",ref.reference_ref AS "reference_ref?"
 FROM measurements m
 JOIN attempts a ON a.id=m.attempt_id
-JOIN hypotheses h ON h.id=a.hypothesis_id
+JOIN units h ON h.id=a.unit_id
 JOIN tracks t ON t.id=a.track_id
-JOIN hypothesis_revisions hr ON hr.hypothesis_id=h.id AND hr.revision=a.hypothesis_revision
+JOIN unit_revisions hr ON hr.unit_id=h.id AND hr.revision=a.unit_revision
 LEFT JOIN LATERAL(
  SELECT c.reference_value,c.reference_label,c.reference_kind,c.reference_ref FROM comparisons c
  WHERE c.evidence_id=(SELECT e.id FROM phase_outputs e WHERE e.attempt_id=m.attempt_id AND e.stage='verification' AND e.status='completed' ORDER BY e.revision DESC LIMIT 1)
