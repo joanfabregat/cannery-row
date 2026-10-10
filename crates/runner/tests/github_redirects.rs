@@ -15,6 +15,7 @@ use tokio::{
 
 async fn run(location: &str, expected_requests: usize, succeeds: bool) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
     let api = format!("http://{}", listener.local_addr().unwrap());
     let seen = Arc::new(Mutex::new(Vec::new()));
     let observed = seen.clone();
@@ -55,14 +56,9 @@ async fn run(location: &str, expected_requests: usize, succeeds: bool) {
             stream.write_all(reply.as_bytes()).await.unwrap();
         }
     });
-    let root = std::env::temp_dir().join(format!(
-        "github-redirect-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    ));
+    // Tests in this binary run concurrently and the clock can repeat, so the
+    // listener's port, held for the whole test, keeps the name unique.
+    let root = std::env::temp_dir().join(format!("github-redirect-{}-{port}", std::process::id()));
     std::fs::create_dir(&root).unwrap();
     let token = root.join("token");
     std::fs::write(&token, "fixture-only").unwrap();
