@@ -25,8 +25,12 @@ export function ProjectSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="w-full justify-between" aria-label="Switch project">
-          <span className="flex min-w-0 flex-col items-start">
+        <Button
+          variant="outline"
+          className="h-auto w-full justify-between px-3 py-2"
+          aria-label="Switch project"
+        >
+          <span className="flex min-w-0 flex-col items-start gap-0.5 leading-tight">
             <span className="text-xs font-normal text-muted-foreground">Project</span>
             <span className="max-w-full truncate">{current.title}</span>
           </span>
