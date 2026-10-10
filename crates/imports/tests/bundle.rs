@@ -33,7 +33,7 @@ fn reviewed_yaml_json_reports_and_digest() -> Result {
             expected["sha256"].as_str().ok_or("entry digest")?
         );
     }
-    assert_eq!(original.entries().count(), 11);
+    assert_eq!(original.entries().count(), 9);
     assert_eq!(original.reports().len(), 1);
     let directory = Directory::new()?;
     for entry in original.entries() {

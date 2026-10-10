@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT count(*) AS \"count!\" FROM hypotheses WHERE track_id=$1 AND state=ANY(ARRAY['draft','queued','active','awaiting_human_review']::text[])",
+  "query": "SELECT count(*) AS \"count!\" FROM hypotheses WHERE track_id=$1 AND state=ANY(ARRAY['queued','active','awaiting_human_review']::text[])",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       null
     ]
   },
-  "hash": "8168f51c6bc8909c5c2d9ad363e8e9c15afae9c5b06799b0cc5c0b2721c47b98"
+  "hash": "c6a1594084ea32121454e2fd463981110b54e57cc54b71f081cf8ae97917cd8f"
 }

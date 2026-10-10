@@ -1,6 +1,8 @@
-//! A claimant submission freezes evidence and queues testing in one transaction.
+//! A claimant submits its run document: the attempt freezes and testing is
+//! queued in one transaction.
 use crate::{
     AppState,
+    api_models::RunSubmission,
     attempt_lease_routes::{self, Failure, domain, failure, internal},
     authentication::authenticate,
     body::{self, DecodedBody},
@@ -8,6 +10,7 @@ use crate::{
     manifest_routes::{canonical_bytes, canonical_sha256},
     request_context::first_header,
     requests::RequestContext,
+    validation::{BodyInput, validate_run_submission},
 };
 use axum::{
     Router,
@@ -22,8 +25,9 @@ use cannery_attempts::{
 };
 use cannery_core::{
     audit::{self, Attribution, Record},
-    contracts::{ContractKind, ContractValidator},
+    contracts::phases::{Phase, PhaseSchemas},
     errors::{DomainError, ErrorCode},
+    front_matter::{self, FrontMatterError, Limits},
     ids::AttemptId,
     json::{Document, DocumentBuilder, Node, NodeId},
     principal::Principal,
@@ -38,7 +42,7 @@ use std::{
 
 pub struct SubmissionContext {
     pub lifecycle: Arc<Context>,
-    pub contracts: ContractValidator,
+    pub phases: PhaseSchemas,
     pub nesting_budget: usize,
     pub response: crate::attempt_read_wire::ResponseContext,
 }
@@ -70,18 +74,6 @@ fn text(document: &Document, root: NodeId, key: &str) -> Option<String> {
                 None
             }
         })
-}
-fn subtree(document: &Document, key: &str, request: &RequestContext) -> Result<Document, Failure> {
-    let root = document
-        .field(document.root(), key)
-        .ok_or_else(|| internal(request, "submission field"))?;
-    let mut builder = DocumentBuilder::new();
-    let root = builder
-        .import(document, root)
-        .map_err(|_| internal(request, "submission subtree"))?;
-    builder
-        .finish(root)
-        .map_err(|_| internal(request, "submission subtree"))
 }
 fn actor(principal: &Principal) -> String {
     match principal {
@@ -130,61 +122,55 @@ async fn remember(
         .execute(c).await.map_err(|_| internal(request, "submission replay storage"))?;
     Ok(())
 }
-#[allow(
-    clippy::too_many_arguments,
-    reason = "Validation uses the caller's attempt lock, stored manifest and pinned science"
-)]
+/// A checked run document: its front matter, its run notes and the verified
+/// manifest it links.
+struct Run {
+    front_matter: Document,
+    body: String,
+    manifest: Manifest,
+}
 #[allow(
     clippy::too_many_lines,
-    reason = "Schema, pinned provenance, manifest roles and report bounds preserve their validation order"
+    reason = "Schema, pinned provenance, manifest roles and the notes bound keep their validation order"
 )]
-async fn check_sheet(
+async fn check_run(
     c: &mut PgConnection,
     attempt: &Attempt,
-    sheet: &Document,
+    parsed: Result<front_matter::Document, FrontMatterError>,
     profile: &SubmissionContext,
     request: &RequestContext,
-) -> Result<Result<Manifest, DomainError>, Failure> {
-    let violations = profile
-        .contracts
-        .violations(ContractKind::EvidenceEnvelope, sheet)
-        .map_err(|_| internal(request, "submission contract"))?;
+) -> Result<Result<Run, DomainError>, Failure> {
+    let parsed = match parsed {
+        Ok(parsed) => parsed,
+        Err(error) => return Ok(Err(invalid("body/document", &error.to_string()))),
+    };
+    let front_matter = Value::Object(parsed.front_matter);
+    let violations = profile.phases.violations(Phase::Run, &front_matter);
     if !violations.is_empty() {
         let details: Vec<_> = violations
             .into_iter()
-            .map(|value| json!({"path":value.path.as_utf8(),"message":value.message}))
+            .map(|value| json!({"path":value.path,"message":value.message}))
             .collect();
         return Ok(Err(DomainError::new(
             ErrorCode::ValidationFailed,
-            "invalid evidence envelope",
+            "invalid run document front matter",
         )
         .with_details(json!(details))));
     }
-    if text(sheet, sheet.root(), "stage").as_deref() != Some("agent") {
-        return Ok(Err(invalid(
-            "/stage",
-            "an attempt submits agent-stage evidence",
-        )));
-    }
-    if text(sheet, sheet.root(), "attempt_id") != Some(attempt.id.0.to_string()) {
-        return Ok(Err(invalid(
-            "/attempt_id",
-            "sheet belongs to a different attempt",
-        )));
-    }
+    let sheet = job_lifecycle::document(&front_matter, &profile.lifecycle, request)?;
     let provenance = sheet
         .field(sheet.root(), "provenance")
         .ok_or_else(|| internal(request, "submission provenance"))?;
-    if text(sheet, provenance, "science_revision") != Some(attempt.science_revision.to_string()) {
+    if text(&sheet, provenance, "science_revision") != Some(attempt.science_revision.to_string()) {
         return Ok(Err(invalid(
             "/provenance/science_revision",
-            "sheet must use the pinned science revision",
+            "the run must use the pinned science revision",
         )));
     }
     let reference = sheet
         .field(sheet.root(), "manifest")
         .ok_or_else(|| internal(request, "submission manifest reference"))?;
-    let id = text(sheet, reference, "ref").and_then(|value| uuid::Uuid::parse_str(&value).ok());
+    let id = text(&sheet, reference, "ref").and_then(|value| uuid::Uuid::parse_str(&value).ok());
     let manifest = if let Some(id) = id {
         Repository::new(c, profile.lifecycle.attempts)
             .get_manifest(attempt.id, ManifestId(id))
@@ -195,7 +181,7 @@ async fn check_sheet(
     };
     let Some(manifest) = manifest.filter(|value| {
         value.stage == Stage::Agent
-            && Some(value.sha256.clone()) == text(sheet, reference, "sha256")
+            && Some(value.sha256.clone()) == text(&sheet, reference, "sha256")
     }) else {
         return Ok(Err(invalid(
             "/manifest",
@@ -237,66 +223,59 @@ async fn check_sheet(
     }
     let raw = job_lifecycle::science(c, attempt, &profile.lifecycle, request).await?;
     let registration = job_lifecycle::value(&raw.content, &profile.lifecycle, request)?;
-    if text(sheet, sheet.root(), "status").as_deref() == Some("completed") {
-        let required = registration["required_artifact_roles"]["attempt"]
-            .as_array()
-            .ok_or_else(|| internal(request, "submission required roles"))?;
-        if required
-            .iter()
-            .any(|role| role.as_str().is_none_or(|role| !roles.contains(role)))
-        {
-            return Ok(Err(invalid(
-                "/manifest",
-                "the manifest lacks required artifact roles",
-            )));
-        }
+    let required = registration["required_artifact_roles"]["attempt"]
+        .as_array()
+        .ok_or_else(|| internal(request, "submission required roles"))?;
+    if required
+        .iter()
+        .any(|role| role.as_str().is_none_or(|role| !roles.contains(role)))
+    {
+        return Ok(Err(invalid(
+            "/manifest",
+            "the manifest lacks required artifact roles",
+        )));
     }
-    let report = sheet
-        .field(sheet.root(), "report")
-        .ok_or_else(|| internal(request, "submission report"))?;
-    let markdown = text(sheet, report, "body_markdown")
-        .ok_or_else(|| internal(request, "submission report body"))?;
     let limit = registration["limits"]["report_max_bytes"]
         .as_u64()
         .ok_or_else(|| internal(request, "submission report limit"))?;
-    if u64::try_from(markdown.len()).map_or(true, |bytes| bytes > limit) {
+    if u64::try_from(parsed.body.len()).map_or(true, |bytes| bytes > limit) {
         return Ok(Err(invalid(
-            "/report/body_markdown",
-            "the report exceeds the configured byte limit",
+            "body/document",
+            "the run notes exceed the configured byte limit",
         )));
     }
-    Ok(Ok(manifest))
+    Ok(Ok(Run {
+        front_matter: sheet,
+        body: parsed.body,
+        manifest,
+    }))
 }
-#[allow(
-    clippy::too_many_arguments,
-    reason = "Failure and its audit share the caller's lease transaction"
-)]
 async fn failed(
     c: &mut PgConnection,
     principal: &Principal,
     attempt: &Attempt,
-    code: &str,
-    reason: &str,
-    details: &Value,
-    key: Option<&str>,
-    manifest: Option<&str>,
+    error: &DomainError,
     profile: &SubmissionContext,
     request: &RequestContext,
 ) -> Result<(), Failure> {
-    let details = job_lifecycle::document(details, &profile.lifecycle, request)?;
+    let details = job_lifecycle::document(
+        &json!({"errors":error.details}),
+        &profile.lifecycle,
+        request,
+    )?;
     crate::attempt_failure::agent(
         c,
         profile.lifecycle.attempts,
         principal,
         attempt,
         &crate::attempt_failure::Report {
-            code,
-            reason,
+            code: "invalid_submission",
+            reason: &format!("invalid submission: {}", error.message),
             details: &details,
             log_refs: None,
             step: None,
-            idempotency_key: key,
-            manifest_sha256: manifest,
+            idempotency_key: None,
+            manifest_sha256: None,
         },
         request,
     )
@@ -304,21 +283,21 @@ async fn failed(
 }
 #[allow(
     clippy::too_many_lines,
-    reason = "The lease, evidence, testing queue and audit commit as one submission"
+    reason = "The lease, the run document, the testing queue and the audit commit as one submission"
 )]
 #[utoipa::path(
     post,
     path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/submission",
     operation_id = "submit_api_projects__slug__hypotheses__number__attempts__sequence__submission_post",
     summary = "Submit",
-    description = "Submit the claimed result sheet; the attempt is frozen on acceptance.\n\nA sheet with ``status: failed`` records the agent's own failure report and\nfails the attempt for human review. So does an invalid sheet, once the\ncaller has shown it holds the lease.",
+    description = "Submit the run document of a completed run; the attempt is frozen on acceptance.\n\nThe document is Markdown with YAML front matter, checked against\n`GET /api/schemas/run`: the claims, provenance, artifact roles and verified\nmanifest, and optional run notes as the body. A run that failed releases\nthe attempt instead; front matter with a `status` is refused and leaves the\nattempt as it was. Any other invalid document fails the attempt for human\nreview, once the caller has shown it holds the lease.",
     params(("slug" = String, Path),
         ("number" = i64, Path),
         ("sequence" = i64, Path),
         ("X-Lease-Token" = Option<String>, Header),
         ("X-Lease-Generation" = Option<i64>, Header),
         ("idempotency-key" = Option<String>, Header)),
-    request_body(content = crate::api_models::EvidenceEnvelopeRequest, content_type = "application/json"),
+    request_body(content = crate::api_models::RunSubmission, content_type = "application/json"),
     responses((status = 201, description = "Successful Response", body = crate::api_models::AttemptOut, content_type = "application/json"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 400, description = "Invalid request", body = crate::api_models::BadRequestResponse, content_type = "application/json"),
@@ -358,16 +337,29 @@ pub(crate) async fn submit(
         &request_context,
     )
     .await?;
-    let DecodedBody::Json(sheet) = body else {
-        return Err(failure(crate::errors::ApiError::from(invalid(
-            "body",
-            "submission must be a JSON object",
-        ))));
+    let body = crate::api_contract::typed_body::<RunSubmission>(body).map_err(failure)?;
+    let input = match &body {
+        DecodedBody::Missing => BodyInput::Missing,
+        DecodedBody::RawBytes => BodyInput::RawBytes,
+        DecodedBody::Json(document) => BodyInput::Json(document),
     };
-    if !matches!(sheet.node(sheet.root()), Some(Node::Object(_))) {
+    let document = validate_run_submission(input).map_err(|error| {
+        error.domain_error().map_or_else(
+            |_| internal(&request_context, "submission request error encoding"),
+            |error| failure(crate::errors::ApiError::from(error)),
+        )
+    })?;
+    let DecodedBody::Json(submission) = body else {
+        return Err(internal(&request_context, "submission body"));
+    };
+    let parsed = front_matter::parse(&document, Limits::default());
+    if parsed
+        .as_ref()
+        .is_ok_and(|parsed| parsed.front_matter.contains_key("status"))
+    {
         return Err(failure(crate::errors::ApiError::from(invalid(
-            "body",
-            "submission must be a JSON object",
+            "body/document",
+            "a run document has no status: release the attempt with a failure report when the run failed",
         ))));
     }
     let key = first_header(&parts.headers, "idempotency-key");
@@ -381,9 +373,9 @@ pub(crate) async fn submit(
         ))));
     }
     let mut envelope = DocumentBuilder::new();
-    let sheet_root = envelope
-        .import(&sheet, sheet.root())
-        .map_err(|_| internal(&request_context, "submission hash sheet"))?;
+    let submission_root = envelope
+        .import(&submission, submission.root())
+        .map_err(|_| internal(&request_context, "submission hash document"))?;
     let project_slug = envelope
         .push(Node::String(String::from(&project.slug)))
         .map_err(|_| internal(&request_context, "submission hash project"))?;
@@ -395,19 +387,15 @@ pub(crate) async fn submit(
         .push(Node::Object(vec![
             (String::from("project"), project_slug),
             (String::from("attempt"), attempt_ref),
-            (String::from("sheet"), sheet_root),
+            (String::from("submission"), submission_root),
         ]))
         .map_err(|_| internal(&request_context, "submission hash envelope"))?;
     let envelope = envelope
         .finish(root)
         .map_err(|_| internal(&request_context, "submission hash envelope"))?;
     let hash = Sha256::digest(
-        canonical_bytes(&envelope, state.profile.nesting_budget).map_err(|_| {
-            failure(crate::errors::ApiError::from(invalid(
-                "body",
-                "submission must contain finite JSON values within the nesting limit",
-            )))
-        })?,
+        canonical_bytes(&envelope, state.profile.nesting_budget)
+            .map_err(|_| internal(&request_context, "submission hash"))?,
     )
     .to_vec();
     let mut tx = auth
@@ -441,45 +429,37 @@ pub(crate) async fn submit(
         &request_context,
     )
     .await?;
-    let manifest =
-        match check_sheet(&mut tx, &attempt, &sheet, &state.profile, &request_context).await? {
-            Ok(manifest) => manifest,
-            Err(error) => {
-                failed(
-                    &mut tx,
-                    &auth.principal,
-                    &attempt,
-                    "invalid_submission",
-                    &format!("invalid submission: {}", error.message),
-                    &json!({"errors":error.details}),
-                    None,
-                    None,
-                    &state.profile,
-                    &request_context,
+    let run = match check_run(&mut tx, &attempt, parsed, &state.profile, &request_context).await? {
+        Ok(run) => run,
+        Err(error) => {
+            failed(
+                &mut tx,
+                &auth.principal,
+                &attempt,
+                &error,
+                &state.profile,
+                &request_context,
+            )
+            .await?;
+            tx.commit()
+                .await
+                .map_err(|_| internal(&request_context, "invalid submission commit"))?;
+            return Err(failure(crate::errors::ApiError::from(
+                DomainError::new(
+                    ErrorCode::ValidationFailed,
+                    format!("{}; the attempt failed and awaits review", error.message),
                 )
-                .await?;
-                tx.commit()
-                    .await
-                    .map_err(|_| internal(&request_context, "invalid submission commit"))?;
-                return Err(failure(crate::errors::ApiError::from(
-                    DomainError::new(
-                        ErrorCode::ValidationFailed,
-                        format!("{}; the attempt failed and awaits review", error.message),
-                    )
-                    .with_details(error.details),
-                )));
-            }
-        };
-    let sheet =
-        crate::api_models::request_document::<crate::api_models::EvidenceEnvelopeRequest>(&sheet)
-            .map_err(failure)?;
-    record_sheet(
+                .with_details(error.details),
+            )));
+        }
+    };
+    record_run(
         &mut tx,
         &auth.principal,
         &project,
         &attempt,
-        &sheet,
-        &manifest,
+        &run,
+        &format!("{:x}", Sha256::digest(document.as_bytes())),
         key.as_deref(),
         &state,
         &request_context,
@@ -523,47 +503,52 @@ fn response(
 }
 #[allow(
     clippy::too_many_arguments,
-    reason = "One transaction binds evidence, report mentions, queue and submission audit"
+    reason = "One transaction binds the run, its mentions, the queue and the submission audit"
 )]
 #[allow(
     clippy::too_many_lines,
-    reason = "Evidence, mentions, freeze, testing queue and audit share one caller transaction"
+    reason = "The run, mentions, freeze, testing queue and audit share one caller transaction"
 )]
-async fn record_sheet(
+async fn record_run(
     c: &mut PgConnection,
     principal: &Principal,
     project: &cannery_projects::repo::Project,
     attempt: &Attempt,
-    sheet: &Document,
-    manifest: &Manifest,
+    run: &Run,
+    document_sha: &str,
     key: Option<&str>,
     state: &RouteState,
     request: &RequestContext,
 ) -> Result<(), Failure> {
     let profile = &state.profile;
-    let sha = canonical_sha256(sheet, profile.nesting_budget)
-        .map_err(|_| internal(request, "submission evidence hash"))?;
-    let status = text(sheet, sheet.root(), "status")
-        .ok_or_else(|| internal(request, "submission status"))?;
+    let manifest = &run.manifest;
+    // The tester reads the front matter alone; its job pins that digest.
+    let claimed_sha = canonical_sha256(&run.front_matter, profile.nesting_budget)
+        .map_err(|_| internal(request, "submission claims hash"))?;
     let evidence = Repository::new(c, profile.lifecycle.attempts)
         .add_evidence(AddEvidence {
             project_id: project.id,
             attempt_id: attempt.id,
             stage: "agent",
-            status: &status,
-            content: sheet,
-            sha256: &sha,
+            status: "completed",
+            content: &run.front_matter,
+            body: &run.body,
+            sha256: document_sha,
             manifest_id: Some(manifest.id),
             principal,
         })
         .await
-        .map_err(|_| internal(request, "submission evidence insert"))?;
-    let report = subtree(sheet, "report", request)?;
+        .map_err(|_| internal(request, "submission run insert"))?;
+    let notes = job_lifecycle::document(
+        &json!({"body_markdown": run.body}),
+        &profile.lifecycle,
+        request,
+    )?;
     let mentions = crate::hypothesis_mutations::resolve_mentions(
         c,
         principal,
         project,
-        &report,
+        &notes,
         Some(attempt.hypothesis_id),
         profile.nesting_budget,
         request,
@@ -579,22 +564,6 @@ async fn record_sheet(
     )
     .await
     .map_err(|_| internal(request, "submission mentions"))?;
-    if status != "completed" {
-        let typed = job_lifecycle::value(sheet, &profile.lifecycle, request)?;
-        return failed(
-            c,
-            principal,
-            attempt,
-            "agent_reported_failure",
-            "the agent reported that the attempt failed",
-            &json!({"observations":typed.get("observations")}),
-            key,
-            Some(&manifest.sha256),
-            profile,
-            request,
-        )
-        .await;
-    }
     Repository::new(c, profile.lifecycle.attempts)
         .end_lease(attempt.id, "submitted")
         .await
@@ -606,7 +575,7 @@ async fn record_sheet(
             c,
             attempt,
             evidence.0,
-            &sha,
+            &claimed_sha,
             manifest,
             state.app.settings.leases.job_overhead_seconds.as_bigint(),
             &profile.lifecycle,
@@ -622,7 +591,7 @@ async fn record_sheet(
         None
     };
     let prior = json!({"state":attempt.state.as_str()});
-    let new = json!({"state":if job.is_some() { "testing" } else { "submitted" },"manifest_sha256":manifest.sha256,"claimed_sheet_sha256":sha,"job_id":job.as_ref().map(|job|job.id.0.to_string())});
+    let new = json!({"state":if job.is_some() { "testing" } else { "submitted" },"manifest_sha256":manifest.sha256,"run_sha256":document_sha,"job_id":job.as_ref().map(|job|job.id.0.to_string())});
     audit::record(
         c,
         Attribution::Principal(principal),

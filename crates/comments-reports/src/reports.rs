@@ -1,4 +1,4 @@
-//! Latest claimed reports, per-stage evidence, result review IDs and imported history.
+//! Latest run reports, per-stage evidence, result review IDs and imported history.
 use crate::date::SourceDate;
 use crate::{RepositoryError, integer::Integer, redacted, source, text};
 use cannery_core::{
@@ -92,6 +92,8 @@ pub struct EvidenceRow {
     pub status: Status,
     pub revision: i32,
     pub content: Document,
+    /// The output document's Markdown body: a run's notes; empty for evidence.
+    pub body: String,
     pub producer_user: Option<UserId>,
     pub producer_service: Option<ServiceAccountId>,
     pub created_at: Timestamp,
@@ -104,6 +106,7 @@ struct RawEvidence {
     status: String,
     revision: i32,
     content: String,
+    body: String,
     producer_user: Option<UserId>,
     producer_service: Option<ServiceAccountId>,
     created_at: Timestamp,
@@ -118,6 +121,7 @@ impl RawEvidence {
             status: Status::parse(&self.status)?,
             revision: self.revision,
             content: document(&self.content, c)?,
+            body: self.body,
             producer_user: self.producer_user,
             producer_service: self.producer_service,
             created_at: self.created_at,
@@ -143,7 +147,7 @@ struct RawImported {
     source_ref: String,
 }
 redacted!(ReportRow, EvidenceRow, ImportedReportRow);
-/// Each attempt's latest agent sheet only when that latest sheet has a report.
+/// Each attempt's latest run document, or its latest claimed result sheet when that sheet has a report.
 /// # Errors
 /// Returns sanitized database, argument encoding, domain or JSON decoding failures.
 #[allow(clippy::too_many_arguments)]

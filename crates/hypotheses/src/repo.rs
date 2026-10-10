@@ -2,7 +2,7 @@
 use cannery_core::{
     ids::{AttemptId, HypothesisId, ProjectId, ReviewCaseId, ServiceAccountId, TrackId, UserId},
     json::{self, DecodeError, Document, EncodeError},
-    principal::{Channel, Principal, UserPrincipal},
+    principal::{Channel, UserPrincipal},
     timestamps::Timestamp,
 };
 use num_bigint::BigInt;
@@ -55,14 +55,12 @@ pub struct CommentId(pub Uuid);
 pub struct EvidenceId(pub Uuid);
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum HypothesisState {
-    Draft,
     Queued,
     Active,
     AwaitingHumanReview,
     Promoted,
     Rejected,
     Inconclusive,
-    Declined,
     Failed,
     Cancelled,
 }
@@ -70,14 +68,12 @@ impl HypothesisState {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Draft => "draft",
             Self::Queued => "queued",
             Self::Active => "active",
             Self::AwaitingHumanReview => "awaiting_human_review",
             Self::Promoted => "promoted",
             Self::Rejected => "rejected",
             Self::Inconclusive => "inconclusive",
-            Self::Declined => "declined",
             Self::Failed => "failed",
             Self::Cancelled => "cancelled",
         }
@@ -87,14 +83,12 @@ impl TryFrom<&str> for HypothesisState {
     type Error = HypothesisError;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
-            "draft" => Ok(Self::Draft),
             "queued" => Ok(Self::Queued),
             "active" => Ok(Self::Active),
             "awaiting_human_review" => Ok(Self::AwaitingHumanReview),
             "promoted" => Ok(Self::Promoted),
             "rejected" => Ok(Self::Rejected),
             "inconclusive" => Ok(Self::Inconclusive),
-            "declined" => Ok(Self::Declined),
             "failed" => Ok(Self::Failed),
             "cancelled" => Ok(Self::Cancelled),
             _ => Err(HypothesisError::CorruptData),
@@ -178,7 +172,6 @@ impl TryFrom<&str> for RelationKind {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum CaseKind {
-    Draft,
     Result,
     Failure,
 }
@@ -186,7 +179,6 @@ impl CaseKind {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Draft => "draft",
             Self::Result => "result",
             Self::Failure => "failure",
         }
@@ -196,7 +188,6 @@ impl TryFrom<&str> for CaseKind {
     type Error = HypothesisError;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
-            "draft" => Ok(Self::Draft),
             "result" => Ok(Self::Result),
             "failure" => Ok(Self::Failure),
             _ => Err(HypothesisError::CorruptData),
@@ -229,9 +220,6 @@ impl TryFrom<&str> for CaseState {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum DecisionAction {
-    Approve,
-    RequestRevision,
-    Decline,
     Promote,
     Reject,
     Inconclusive,
@@ -242,9 +230,6 @@ impl DecisionAction {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Approve => "approve",
-            Self::RequestRevision => "request_revision",
-            Self::Decline => "decline",
             Self::Promote => "promote",
             Self::Reject => "reject",
             Self::Inconclusive => "inconclusive",
@@ -257,9 +242,6 @@ impl TryFrom<&str> for DecisionAction {
     type Error = HypothesisError;
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match s {
-            "approve" => Ok(Self::Approve),
-            "request_revision" => Ok(Self::RequestRevision),
-            "decline" => Ok(Self::Decline),
             "promote" => Ok(Self::Promote),
             "reject" => Ok(Self::Reject),
             "inconclusive" => Ok(Self::Inconclusive),
@@ -631,12 +613,6 @@ fn text(v: &String) -> Result<String, HypothesisError> {
 fn client(v: Option<&str>) -> Result<Option<String>, HypothesisError> {
     v.map(|v| text(&String::from(v))).transpose()
 }
-fn author(p: &Principal) -> (Option<UserId>, Option<ServiceAccountId>) {
-    match p {
-        Principal::User(u) => (Some(u.user_id), None),
-        Principal::Service(s) => (None, Some(s.service_account_id)),
-    }
-}
 fn channel(c: Channel) -> &'static str {
     match c {
         Channel::Ui => "ui",
@@ -661,43 +637,7 @@ type Integer = i64;
 fn integer(value: &BigInt) -> Result<Integer, HypothesisError> {
     i64::try_from(value).map_err(|_| HypothesisError::IntegerBinding)
 }
-struct JsonbText(String);
-impl sqlx::Type<sqlx::Postgres> for JsonbText {
-    fn type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("jsonb")
-    }
-}
-impl sqlx::Encode<'_, sqlx::Postgres> for JsonbText {
-    fn encode_by_ref(
-        &self,
-        b: &mut sqlx::postgres::PgArgumentBuffer,
-    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
-        b.push(1);
-        b.extend_from_slice(self.0.as_bytes());
-        Ok(sqlx::encode::IsNull::No)
-    }
-}
-fn json_parameter(d: &Document, c: JsonContext) -> Result<JsonbText, HypothesisError> {
-    Ok(JsonbText(json::encode_ascii_pretty(
-        d,
-        c.encode_nesting_budget,
-    )?))
-}
 /// All transaction boundaries remain owned by the caller.
-pub struct CreateHypothesis<'a> {
-    pub project_id: ProjectId,
-    pub number: &'a BigInt,
-    pub track_id: TrackId,
-    pub title: &'a String,
-    pub principal: &'a Principal,
-}
-pub struct AddRevision<'a> {
-    pub hypothesis_id: HypothesisId,
-    pub revision: &'a BigInt,
-    pub content: &'a Document,
-    pub science_revision: &'a BigInt,
-    pub principal: &'a Principal,
-}
 pub struct RecordDecision<'a> {
     pub case_id: ReviewCaseId,
     pub action: DecisionAction,
@@ -731,34 +671,6 @@ pub(crate) fn next_number_query(
         "UPDATE projects SET next_hypothesis_number=next_hypothesis_number+1 WHERE id=$1 RETURNING next_hypothesis_number-1",
         project as Option<ProjectId>
     )
-}
-/// Source-compatible persistence on the caller connection.
-/// # Errors
-/// Returns sanitized driver, server, JSON or invariant failures.
-pub async fn create_hypothesis(
-    connection: &mut PgConnection,
-    input: CreateHypothesis<'_>,
-) -> Result<HypothesisId, HypothesisError> {
-    let number = integer(input.number)?;
-    let title = text(input.title)?;
-    let (user, service) = author(input.principal);
-    checked_query!(scalar Scalar, r#"INSERT INTO hypotheses(project_id,number,track_id,title,created_by_user,created_by_service) VALUES($1,$2,$3,$4,$5,$6) RETURNING id AS "id!: _""#, (input.project_id as ProjectId,number as _,input.track_id as TrackId,title,user as Option<UserId>,service as Option<ServiceAccountId>), fetch_optional, connection)?.ok_or(HypothesisError::Invariant)
-}
-/// Source-compatible persistence on the caller connection.
-/// # Errors
-/// Returns sanitized driver, server, JSON or invariant failures.
-pub async fn add_revision(
-    connection: &mut PgConnection,
-    input: AddRevision<'_>,
-    context: JsonContext,
-) -> Result<(), HypothesisError> {
-    let revision = integer(input.revision)?;
-    let jsonb = json_parameter(input.content, context)?;
-    let science = integer(input.science_revision)?;
-    let (user, service) = author(input.principal);
-    let client = client(input.principal.via().client.as_deref())?;
-    checked_query!(exec Execute, "INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,author_service,via_channel,via_client) VALUES($1,$2,$3,$4,$5,$6,$7,$8)", (input.hypothesis_id as HypothesisId,revision as _,jsonb as _,science as _,user as Option<UserId>,service as Option<ServiceAccountId>,channel(input.principal.via().channel),client), execute, connection)?;
-    Ok(())
 }
 /// Source-compatible persistence on the caller connection.
 /// # Errors
@@ -815,18 +727,6 @@ pub async fn list_hypotheses(
     rows.into_iter()
         .map(|r| decode_hypothesis(&r, context))
         .collect()
-}
-/// Source-compatible persistence on the caller connection.
-/// # Errors
-/// Returns sanitized driver, server, JSON or invariant failures.
-pub async fn update_draft(
-    connection: &mut PgConnection,
-    id: HypothesisId,
-    track: TrackId,
-    title: &String,
-) -> Result<i32, HypothesisError> {
-    let title = text(title)?;
-    checked_query!(scalar Scalar, "UPDATE hypotheses SET revision=revision+1,track_id=$1,title=$2,updated_at=now() WHERE id=$3 RETURNING revision", (track as TrackId,title,id as HypothesisId), fetch_optional, connection)?.ok_or(HypothesisError::Invariant)
 }
 /// Source-compatible persistence on the caller connection.
 /// # Errors
@@ -965,25 +865,6 @@ pub async fn pending_case(
 /// Source-compatible persistence on the caller connection.
 /// # Errors
 /// Returns sanitized driver, server, JSON or invariant failures.
-pub async fn open_draft_case(
-    connection: &mut PgConnection,
-    project: ProjectId,
-    id: HypothesisId,
-    revision: &BigInt,
-    context: JsonContext,
-) -> Result<ReviewCase, HypothesisError> {
-    let existing = pending_case(connection, id, CaseKind::Draft, context).await?;
-    let revision = integer(revision)?;
-    let row = if let Some(existing) = existing {
-        checked_query!(as RawReviewCase, r#"UPDATE review_cases SET subject_revision=$1 WHERE id=$2 RETURNING id AS "id!: _", kind AS "kind", subject_revision AS "subject_revision", state AS "state", opened_at AS "opened_at!: _", resolved_at AS "resolved_at: _", origin AS "origin", source_ref AS "source_ref""#, (revision as _,existing.id as ReviewCaseId), fetch_optional, &mut *connection)?
-    } else {
-        checked_query!(as RawReviewCase, r#"INSERT INTO review_cases(project_id,hypothesis_id,kind,subject_revision) VALUES($1,$2,'draft',$3) RETURNING id AS "id!: _", kind AS "kind", subject_revision AS "subject_revision", state AS "state", opened_at AS "opened_at!: _", resolved_at AS "resolved_at: _", origin AS "origin", source_ref AS "source_ref""#, (project as ProjectId,id as HypothesisId,revision as _), fetch_optional, &mut *connection)?
-    };
-    decode_reviewcase(&row.ok_or(HypothesisError::Invariant)?, context)
-}
-/// Source-compatible persistence on the caller connection.
-/// # Errors
-/// Returns sanitized driver, server, JSON or invariant failures.
 pub async fn record_decision(
     connection: &mut PgConnection,
     input: RecordDecision<'_>,
@@ -996,18 +877,6 @@ pub async fn record_decision(
     let decision = decode_decision(&row.ok_or(HypothesisError::Invariant)?, context)?;
     checked_query!(exec Execute, "UPDATE review_cases SET state='resolved',resolved_at=now() WHERE id=$1 AND state='pending'", (input.case_id as ReviewCaseId), execute, connection)?;
     Ok(decision)
-}
-/// Source-compatible persistence on the caller connection.
-/// # Errors
-/// Returns sanitized driver, server, JSON or invariant failures.
-pub async fn revision_requested(
-    connection: &mut PgConnection,
-    id: HypothesisId,
-    revision: &BigInt,
-) -> Result<bool, HypothesisError> {
-    let revision = integer(revision)?;
-    let action = checked_query!(scalar Scalar, "SELECT d.action FROM decisions d JOIN review_cases c ON c.id=d.review_case_id WHERE c.hypothesis_id=$1 AND c.kind='draft' AND d.subject_revision=$2 ORDER BY d.decided_at DESC LIMIT 1", (id as HypothesisId,revision as _), fetch_optional, connection)?;
-    Ok(action.as_deref() == Some("request_revision"))
 }
 /// Source-compatible persistence on the caller connection.
 /// # Errors

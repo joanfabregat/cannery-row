@@ -43,8 +43,8 @@ macro_rules! domain {
 }
 domain!(Kind {Track=>"track",Hypothesis=>"hypothesis",Attempt=>"attempt",Report=>"report",TesterObservation=>"tester_observation",EvaluatorReason=>"evaluator_reason",DecisionReason=>"decision_reason",Comment=>"comment"});
 domain!(Origin {Live=>"live",Imported=>"imported"});
-domain!(Decision {Approve=>"approve",RequestRevision=>"request_revision",Decline=>"decline",Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Retry=>"retry",CloseFailed=>"close_failed"});
-domain!(HypothesisState {Draft=>"draft",Queued=>"queued",Active=>"active",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Declined=>"declined",Failed=>"failed",Cancelled=>"cancelled"});
+domain!(Decision {Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Retry=>"retry",CloseFailed=>"close_failed"});
+domain!(HypothesisState {Queued=>"queued",Active=>"active",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
 domain!(AttemptState {Claimed=>"claimed",Running=>"running",Submitted=>"submitted",Testing=>"testing",Evaluating=>"evaluating",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 
 #[derive(Clone, Copy)]

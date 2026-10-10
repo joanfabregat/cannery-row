@@ -984,12 +984,6 @@ pub(crate) async fn decide(
                 )
                 .await?
             }
-            CaseKind::Draft => {
-                return Err(domain(
-                    ErrorCode::Conflict,
-                    "draft cases are decided through the hypothesis's draft-review",
-                ));
-            }
         };
         if let Some(key) = &key {
             crate::review_decision_idempotency::remember(

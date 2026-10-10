@@ -37,7 +37,7 @@ impl OutputValidator for NativeOutputValidator {
             let Some(reference) = reference else {
                 return Ok(());
             };
-            if reference == "cr-evidence/v0.2" {
+            if reference == "cr-evidence/v0.2" || reference == super::worker::RUN_INTERFACE {
                 return Ok(());
             }
             let bytes = serde_json::to_vec(content)?;

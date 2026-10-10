@@ -263,11 +263,7 @@ pub async fn pending_counts(
     )
     .fetch_all(&mut *c)
     .await?;
-    let mut counts = BTreeMap::from([
-        (CaseKind::Draft, 0),
-        (CaseKind::Result, 0),
-        (CaseKind::Failure, 0),
-    ]);
+    let mut counts = BTreeMap::from([(CaseKind::Result, 0), (CaseKind::Failure, 0)]);
     for row in rows {
         counts.insert(CaseKind::try_from(row.kind.as_str())?, row.count);
     }

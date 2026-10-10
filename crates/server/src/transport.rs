@@ -271,7 +271,7 @@ pub(crate) fn installed_routes() -> Vec<Route> {
         ("/api/projects/{slug}/metrics/query", "GET"),
         ("/api/projects/{slug}/dashboard", "GET"),
         ("/api/projects/{slug}/dashboard/views/{view_id}", "GET"),
-        ("/api/projects/{slug}/hypotheses", "POST"),
+        ("/api/projects/{slug}/hypotheses", "GET"),
         ("/api/projects/{slug}/review-cases", "GET"),
         ("/api/projects/{slug}/reports", "GET"),
         (
@@ -317,10 +317,6 @@ pub(crate) fn installed_routes() -> Vec<Route> {
         (
             "/api/projects/{slug}/hypotheses/{number}/revisions/{revision}",
             "GET",
-        ),
-        (
-            "/api/projects/{slug}/hypotheses/{number}/draft-review",
-            "POST",
         ),
         ("/api/projects/{slug}/tracks", "POST"),
         ("/api/projects/{slug}/tracks/{track_slug}", "GET"),

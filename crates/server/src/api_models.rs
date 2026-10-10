@@ -70,7 +70,7 @@ pub struct AttemptDetail {
     pub artifacts: Vec<ArtifactOut>,
     pub failures: Vec<cannery_row__attempts__routes__FailureOut>,
     #[schema(required = true)]
-    pub claimed_sheet: Option<ReadEvidenceEnvelope>,
+    pub claimed_sheet: Option<ClaimedResult>,
     /// The brief revision the attempt ran under, pinned at its claim; absent
     /// when the project had no brief then.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -406,11 +406,11 @@ pub struct UnitCreate {
     pub acceptance: BTreeMap<String, serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parameters: Option<BTreeMap<String, serde_json::Value>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relations: Vec<UnitRelation>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub context: Vec<ContextItem>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub brief: String,
 }
 
@@ -698,8 +698,6 @@ pub struct ProjectLimits {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum CaseKind {
-    #[serde(rename = "draft")]
-    Draft,
     #[serde(rename = "result")]
     Result,
     #[serde(rename = "failure")]
@@ -925,13 +923,6 @@ pub struct DisableRequest {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct DraftUpdate {
-    pub expected_revision: i64,
-    pub document: HypothesisCreateRequest,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
 pub struct EvaluatorReport {
     pub status: String,
     #[schema(required = true)]
@@ -1024,8 +1015,6 @@ pub struct HypothesisPage {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum HypothesisState {
-    #[serde(rename = "draft")]
-    Draft,
     #[serde(rename = "queued")]
     Queued,
     #[serde(rename = "active")]
@@ -1038,8 +1027,6 @@ pub enum HypothesisState {
     Rejected,
     #[serde(rename = "inconclusive")]
     Inconclusive,
-    #[serde(rename = "declined")]
-    Declined,
     #[serde(rename = "failed")]
     Failed,
     #[serde(rename = "cancelled")]
@@ -2235,25 +2222,6 @@ where
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct DraftReviewRequest {
-    #[schema(value_type = i64)]
-    pub draft_revision: serde_json::Number,
-    pub action: DraftReviewRequestAction,
-    pub reason: String,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum DraftReviewRequestAction {
-    #[serde(rename = "approve")]
-    Approve,
-    #[serde(rename = "request_revision")]
-    RequestRevision,
-    #[serde(rename = "decline")]
-    Decline,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
 pub struct HumanDecisionRequest {
     pub review_case_id: String,
     pub evidence_revision: i64,
@@ -2270,12 +2238,6 @@ pub struct HumanDecisionRequest {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub enum HumanDecisionRequestAction {
-    #[serde(rename = "approve")]
-    Approve,
-    #[serde(rename = "request_revision")]
-    RequestRevision,
-    #[serde(rename = "decline")]
-    Decline,
     #[serde(rename = "promote")]
     Promote,
     #[serde(rename = "reject")]
@@ -2790,7 +2752,7 @@ pub struct JobFailureRequestLogsItem {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisCreateRequest {
+pub struct NativeHypothesisDocument {
     pub schema_version: RequestCommonSchemaVersion,
     pub track: String,
     pub title: String,
@@ -2803,15 +2765,15 @@ pub struct HypothesisCreateRequest {
         deserialize_with = "optional_non_null"
     )]
     #[schema(nullable = false)]
-    pub control: Option<HypothesisCreateRequestControl>,
-    pub plan: HypothesisCreateRequestPlan,
+    pub control: Option<HypothesisDocumentControl>,
+    pub plan: HypothesisDocumentPlan,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "optional_non_null"
     )]
     #[schema(nullable = false)]
-    pub relations: Option<Vec<HypothesisCreateRequestRelationsItem>>,
+    pub relations: Option<Vec<HypothesisDocumentRelation>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -2825,7 +2787,7 @@ pub struct HypothesisCreateRequest {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(untagged)]
 pub enum HypothesisDocument {
-    Native(Box<HypothesisCreateRequest>),
+    Native(Box<NativeHypothesisDocument>),
     Legacy(LegacyHypothesisDocument),
 }
 
@@ -2842,7 +2804,7 @@ pub struct LegacyHypothesisDocument {
         deserialize_with = "optional_non_null"
     )]
     #[schema(nullable = false)]
-    pub relations: Option<Vec<HypothesisCreateRequestRelationsItem>>,
+    pub relations: Option<Vec<HypothesisDocumentRelation>>,
 }
 
 /// Evidence reads include provenance that historical import records preserve.
@@ -2916,21 +2878,21 @@ pub enum ReadMeasurementAuthority {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisCreateRequestControl {
-    pub kind: HypothesisCreateRequestControlKind,
+pub struct HypothesisDocumentControl {
+    pub kind: HypothesisDocumentControlKind,
     pub id: String,
     pub revision: String,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum HypothesisCreateRequestControlKind {
+pub enum HypothesisDocumentControlKind {
     #[serde(rename = "baseline")]
     Baseline,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisCreateRequestPlan {
+pub struct HypothesisDocumentPlan {
     pub selection_splits: Vec<String>,
     pub confirmation_splits: Vec<String>,
     pub primary_metric: String,
@@ -2944,13 +2906,13 @@ pub struct HypothesisCreateRequestPlan {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisCreateRequestRelationsItem {
-    pub kind: HypothesisCreateRequestRelationsItemKind,
-    pub hypothesis: HypothesisCreateRequestRelationsItemHypothesis,
+pub struct HypothesisDocumentRelation {
+    pub kind: HypothesisDocumentRelationKind,
+    pub hypothesis: HypothesisDocumentRelationTarget,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum HypothesisCreateRequestRelationsItemKind {
+pub enum HypothesisDocumentRelationKind {
     #[serde(rename = "derived_from")]
     DerivedFrom,
     #[serde(rename = "supersedes")]
@@ -2961,14 +2923,14 @@ pub enum HypothesisCreateRequestRelationsItemKind {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(untagged)]
-pub enum HypothesisCreateRequestRelationsItemHypothesis {
+pub enum HypothesisDocumentRelationTarget {
     Variant0(i64),
-    Variant1(HypothesisCreateRequestRelationsItemHypothesisVariant1),
+    Variant1(HypothesisDocumentRelationProject),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct HypothesisCreateRequestRelationsItemHypothesisVariant1 {
+pub struct HypothesisDocumentRelationProject {
     pub project: String,
     #[schema(value_type = i64)]
     pub number: serde_json::Number,
@@ -3446,6 +3408,82 @@ pub enum GateOperator {
     Less,
     #[serde(rename = "<=")]
     LessOrEqual,
+}
+
+/// A run document: Markdown with YAML front matter, checked against
+/// `GET /api/schemas/run`. The body holds optional run notes.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunSubmission {
+    #[schema(min_length = 1, max_length = 1_048_576)]
+    pub document: String,
+}
+
+/// The front matter of a run document: what the run claims and what it ran.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunFrontMatter {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub claims: Option<Vec<RequestEvidenceEnvelopeMeasurement>>,
+    pub provenance: RunProvenance,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub artifact_roles: Option<Vec<String>>,
+    pub manifest: RequestCommonContentRef,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub extensions: Option<BTreeMap<String, serde_json::Value>>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunProvenance {
+    pub source_revision: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub dataset_revision: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub control_revision: Option<String>,
+    pub science_revision: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    #[schema(value_type = Option<i64>)]
+    pub seed: Option<serde_json::Number>,
+}
+
+/// What an attempt claimed: a run document's front matter, or a claimed result
+/// sheet submitted before run documents.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(untagged)]
+pub enum ClaimedResult {
+    Run(Box<RunFrontMatter>),
+    Sheet(Box<ReadEvidenceEnvelope>),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -4043,13 +4081,21 @@ pub struct ClaimedJobLease {
     #[schema(format = "date-time")]
     pub expires_at: String,
 }
-/// Native agent report or a separately represented legacy imported report.
+/// A run's notes, the structured report of a claimed result sheet submitted
+/// before run documents, or a separately represented legacy imported report.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(untagged)]
 pub enum ReportDocument {
     Native(RequestEvidenceEnvelopeReport),
     Imported(ImportedReportDocument),
+    Run(RunNotesDocument),
     Absent(EmptyReportDocument),
+}
+/// The Markdown body of a run document; empty when the run wrote no notes.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunNotesDocument {
+    pub body_markdown: String,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -4115,6 +4161,32 @@ mod nested_contract_tests {
     use super::*;
     use serde_json::{Value, json};
 
+    /// A stored hypothesis document, as plan approval writes it.
+    const NATIVE_DOCUMENT: &[u8] = br#"{
+        "schema_version": "0.2",
+        "track": "compact-sparse",
+        "title": "Test a compact sparse candidate",
+        "question": "Can the candidate exceed the pinned base camp without material language regressions?",
+        "rationale": "Planned in the compact-sparse track plan; see its approach and this unit's brief.",
+        "intervention": "Train the specified candidate from the pinned initialization.",
+        "control": {"kind": "baseline", "id": "base-camp", "revision": "immutable-revision"},
+        "plan": {
+            "selection_splits": ["dev"],
+            "confirmation_splits": ["fresh-held-out"],
+            "primary_metric": "ndcg_at_10",
+            "required_slices": ["language", "task"],
+            "success_criteria": "Use project policy revision; no material slice regression",
+            "falsification_criteria": "Fails the primary metric or a required regression gate",
+            "regression_gates": ["language", "no-language-regression"],
+            "compute_budget": {"gpu_hours_max": 12, "wall_clock_hours_max": 24.5}
+        },
+        "relations": [
+            {"kind": "derived_from", "hypothesis": 42},
+            {"kind": "related_to", "hypothesis": {"project": "other-project", "number": 7}}
+        ],
+        "project_fields": {"architecture": "sparse", "notes": {"free": ["form"]}}
+    }"#;
+
     fn round_trip<T: serde::Serialize + serde::de::DeserializeOwned>(
         bytes: &[u8],
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -4133,7 +4205,6 @@ mod nested_contract_tests {
             include_str!("../../../examples/import/hypotheses/H-002.yaml"),
             include_str!("../../../examples/import/hypotheses/H-003.yaml"),
             include_str!("../../../examples/import/hypotheses/H-004.yaml"),
-            include_str!("../../../examples/import/hypotheses/H-005.yaml"),
             include_str!("../../../examples/import/hypotheses/H-006.yaml"),
         ] {
             let header = |field: &str| {
@@ -4147,7 +4218,7 @@ mod nested_contract_tests {
             let typed: HypothesisDocument = serde_json::from_value(document.clone())?;
             assert!(matches!(typed, HypothesisDocument::Legacy(_)));
             assert_eq!(serde_json::to_value(typed)?, document);
-            assert!(serde_json::from_value::<HypothesisCreateRequest>(document.clone()).is_err());
+            assert!(serde_json::from_value::<NativeHypothesisDocument>(document.clone()).is_err());
             let revision = json!({"revision":1,"science_revision":1,
                 "author":{"kind":"user","id":"00000000-0000-0000-0000-000000000001"},
                 "via_channel":"cli","via_client":"cannery import",
@@ -4157,7 +4228,7 @@ mod nested_contract_tests {
             malformed["plan"] = json!("invalid native plan");
             assert!(serde_json::from_value::<HypothesisDocument>(malformed).is_err());
         }
-        let full = include_bytes!("../../../tests/fixtures/contracts/hypothesis/valid/full.json");
+        let full = NATIVE_DOCUMENT;
         let native: HypothesisDocument = serde_json::from_slice(full)?;
         assert!(matches!(native, HypothesisDocument::Native(_)));
         round_trip::<HypothesisDocument>(full)?;
@@ -4276,9 +4347,7 @@ mod nested_contract_tests {
     #[test]
     fn nested_publication_and_report_contracts_preserve_valid_documents()
     -> Result<(), Box<dyn std::error::Error>> {
-        round_trip::<HypothesisCreateRequest>(include_bytes!(
-            "../../../tests/fixtures/contracts/hypothesis/valid/full.json"
-        ))?;
+        round_trip::<NativeHypothesisDocument>(NATIVE_DOCUMENT)?;
         round_trip::<EvidenceEnvelopeRequest>(include_bytes!(
             "../../../tests/fixtures/contracts/evidence_envelope/valid/agent.json"
         ))?;
@@ -4309,20 +4378,12 @@ mod nested_contract_tests {
         let patch: TrackUpdate =
             serde_json::from_value(json!({"expected_revision":1,"producer":null}))?;
         assert!(patch.producer.is_none());
-        assert!(
-            serde_json::from_value::<DraftUpdate>(json!({"expected_revision":1,"document":{}}))
-                .is_err()
-        );
-        let mut hypothesis: Value = serde_json::from_slice(include_bytes!(
+        let mut unit: Value = serde_json::from_slice(include_bytes!(
             "../../../tests/fixtures/contracts/hypothesis/valid/full.json"
         ))?;
-        hypothesis["plan"]["unknown"] = json!(1);
-        assert!(
-            serde_json::from_value::<DraftUpdate>(
-                json!({"expected_revision":1,"document":hypothesis})
-            )
-            .is_err()
-        );
+        serde_json::from_value::<UnitCreate>(unit.clone())?;
+        unit["relations"][0]["unknown"] = json!(1);
+        assert!(serde_json::from_value::<UnitCreate>(unit).is_err());
         Ok(())
     }
 }

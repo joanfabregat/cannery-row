@@ -2,7 +2,8 @@
 use crate::{
     api_contract::{convert, decode, encode},
     api_models::{
-        EvaluatorReport, Page_ReportSummary_UUID_, Producer, ReportOut, ReportSummary, TesterReport,
+        EvaluatorReport, Page_ReportSummary_UUID_, Producer, ReportDocument, ReportOut,
+        ReportSummary, RunNotesDocument, TesterReport,
     },
 };
 use cannery_comments_reports::reports::{EvidenceRow, ImportedReportRow, ReportRow};
@@ -82,6 +83,15 @@ fn optional_text(d: &Document, id: Option<NodeId>) -> Result<Option<String>> {
         Some(Node::String(v)) => v.as_utf8().map(Some).ok_or(ModelEncodeError::Encoding),
         _ => Err(ModelEncodeError::InvalidNode),
     }
+}
+/// A run document's front matter: a manifest, and no evidence stage.
+fn is_run(d: &Document) -> bool {
+    d.field(d.root(), "manifest").is_some() && d.field(d.root(), "stage").is_none()
+}
+/// Whether an agent output has a report: a run document, whose notes may be
+/// empty, or a claimed result sheet with its structured report.
+pub(crate) fn is_report(d: &Document) -> bool {
+    d.field(d.root(), "report").is_some() || is_run(d)
 }
 pub(crate) fn assessment(e: Option<&EvidenceRow>) -> Result<Option<NodeId>> {
     e.map(|e| field(&e.content, "assessment"))
@@ -210,16 +220,24 @@ pub(crate) struct Detail<'a> {
 pub(crate) fn detail(detail: &Detail<'_>, p: ResponseContext) -> Result<Vec<u8>> {
     let a = detail.attempt;
     let report = match detail.sheet {
-        Some(sheet) => mapping(
-            &sheet.content,
-            field(&sheet.content, "report")?.ok_or(ModelEncodeError::InvalidNode)?,
-            p,
-        )?,
+        Some(sheet) => match field(&sheet.content, "report")? {
+            Some(id) => mapping(&sheet.content, id, p)?,
+            None => ReportDocument::Run(RunNotesDocument {
+                body_markdown: sheet.body.clone(),
+            }),
+        },
         None => decode(&imported(detail.imported)?)?,
     };
     let claimed_measurements = detail
         .sheet
-        .map(|sheet| lists(&sheet.content, "measurements", p))
+        .map(|sheet| {
+            let key = if is_run(&sheet.content) {
+                "claims"
+            } else {
+                "measurements"
+            };
+            lists(&sheet.content, key, p)
+        })
         .transpose()?
         .unwrap_or_default();
     encode(&ReportOut {

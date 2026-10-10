@@ -23,9 +23,9 @@
         "kind": "diagnostic",
         "claim": "Doubling title weight shows whether titles carry the signal.",
         "created_at": "2025-02-17",
-        "state": "declined",
+        "state": "inconclusive",
         "decision": {
-          "action": "decline",
+          "action": "inconclusive",
           "decided_at": "2025-02-18",
           "decided_by": "ana@example.org",
           "reason": "Covered by another sweep.",

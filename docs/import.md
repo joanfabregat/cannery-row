@@ -1,6 +1,6 @@
 # Importing a research history
 
-`cannery import` loads a research history that was kept somewhere else (lab notebooks, reports, run artifacts in a bucket) into a Cannery Row project, after a human has reviewed it as a bundle of files. The imported hypotheses, attempts, measurements, verdicts and decisions keep their historical dates and are marked as imported everywhere: they can be read, searched, charted and compared with live work, but they never pass for work done through Cannery Row. A draft or a result still awaiting review in the history continues in the live workflow after the import.
+`cannery import` loads a research history that was kept somewhere else (lab notebooks, reports, run artifacts in a bucket) into a Cannery Row project, after a human has reviewed it as a bundle of files. The imported hypotheses, attempts, measurements, verdicts and decisions keep their historical dates and are marked as imported everywhere: they can be read, searched, charted and compared with live work, but they never pass for work done through Cannery Row. A result still awaiting review in the history continues in the live workflow after the import.
 
 This page is the whole contract for writing a bundle. The bundle's JSON Schema is `contracts/schemas/import_bundle.schema.json`, and `examples/import/` is a complete small bundle (imported by the test suite) that shows every state.
 
@@ -56,7 +56,7 @@ Each file outside `reports/` is YAML (`.yaml` or `.yml`) or JSON (`.json`), and 
 
 Dates are either a calendar date (`2025-01-08`) or an RFC 3339 instant with an offset (`2025-01-09T14:00:00Z`). Give only what the source states: a date when only the day is known.
 
-The order of events is checked: a hypothesis is not created before its track, an attempt does not start before its hypothesis or finish before it starts, a verdict is not reached before its attempt finished, and a decision is not taken before the verdict it decides on (`close_failed`: before the attempt finished; `decline`: before the hypothesis was created). A review case is opened when its verdict was reached (a failure case when the attempt finished; a draft case when the hypothesis was created) and resolved when it was decided, so it is never resolved before it was opened. Two instants compare as instants. A date compared with an instant compares by its UTC day, so a decision dated `2025-01-09` may follow a verdict reached at `2025-01-09T14:00:00Z`, but not one reached on the 10th. A date is stored at midnight UTC, or, when it follows an instant of the same day, at that instant: the decision above is stored at `2025-01-09T14:00:00Z`.
+The order of events is checked: a hypothesis is not created before its track, an attempt does not start before its hypothesis or finish before it starts, a verdict is not reached before its attempt finished, and a decision is not taken before the verdict it decides on (`close_failed`: before the attempt finished). A review case is opened when its verdict was reached (a failure case when the attempt finished) and resolved when it was decided, so it is never resolved before it was opened. Two instants compare as instants. A date compared with an instant compares by its UTC day, so a decision dated `2025-01-09` may follow a verdict reached at `2025-01-09T14:00:00Z`, but not one reached on the 10th. A date is stored at midnight UTC, or, when it follows an instant of the same day, at that instant: the decision above is stored at `2025-01-09T14:00:00Z`.
 
 A `source` is one token without spaces: a document location `<path>:<line>[-<line>]@<commit>`, an artifact URI with a JSON Pointer (`gs://bucket/run/metrics.json#/mrr/en`), or, where the schema allows any source, a plain path or URL.
 
@@ -90,7 +90,7 @@ The evaluator policies the historical verdicts were reached under. They are reco
 | `slug` | yes | Equal to the file name. A track that already exists in the project, and was not created by an earlier import of the same entry, is refused. |
 | `title` | yes | |
 | `description` | no | |
-| `state` | yes | `active`, `paused` or `archived`. An archived track holds no draft and nothing awaiting review. |
+| `state` | yes | `active`, `paused` or `archived`. An archived track holds nothing awaiting review. |
 | `created_at` | yes | |
 | `archived_at` | no | Only with `state: archived`. |
 
@@ -107,7 +107,7 @@ The evaluator policies the historical verdicts were reached under. They are reco
 | `relations` | no | `[{type, to}]`, with `type` one of `derived_from`, `supersedes`, `related_to`, and `to` a hypothesis of the bundle (or one imported earlier). |
 | `created_at` | yes | |
 | `state` | yes | One of the states below. |
-| `document` | for a draft | The full hypothesis document a live draft has: `question`, `rationale`, `intervention`, `plan`, and optionally `control` (`{kind: baseline, id, revision}`, a registered baseline) and `project_fields`. It is checked against the science revision exactly like a live draft. Other states may give it; it is then checked against the schema only. |
+| `document` | no | The full hypothesis document, when the history has one: `question`, `rationale`, `intervention`, `plan`, and optionally `control` (`{kind: baseline, id, revision}`, a registered baseline) and `project_fields`. It is checked against the schema only and kept as revision 1. |
 | `attempts` | no | The runs, in the order they happened (below). |
 | `decision` | per state | The human decision (below). |
 | `sources` | yes | At least one document the hypothesis comes from. |
@@ -159,7 +159,7 @@ report:
 - A report is UTF-8 text, at most 256 KiB, not empty.
 - Each file of `reports/` is the report of exactly one attempt: a path two attempts reference, a path with no file, and a file no attempt references are refused.
 - The report's content is part of its hypothesis entry, by its SHA-256: a re-run with the same file is a no-op, and a changed file is refused like any changed entry (see [Idempotency](#idempotency-and-updates)), with the attempt's `report` as the JSON Pointer.
-- It is stored on the imported attempt as history, as an imported write-up (a phase output whose front matter holds `kind`, `author` and the date, and whose body is the Markdown; see [phase documents](contracts.md#phase-documents)), with `origin: imported` and its path as `source_ref`. It is never a claimed result sheet, an agent report or evidence: it holds no measurement, it is not listed among the project's reports, and nothing is evaluated from it.
+- It is stored on the imported attempt as history, as an imported write-up (a phase output whose front matter holds `kind`, `author` and the date, and whose body is the Markdown; see [phase documents](contracts.md#phase-documents)), with `origin: imported` and its path as `source_ref`. It is never a run document, an agent report or evidence: it holds no measurement, it is not listed among the project's reports, and nothing is evaluated from it.
 
 ### Measurements and their authority
 
@@ -192,11 +192,11 @@ Prefer `imported_artifact` whenever the artifact exists. Both authorities are sh
 
 ### Decisions
 
-A hypothesis has at most one decision, and it is about its last attempt (or, for `decline`, about the draft).
+A hypothesis has at most one decision, and it is about its last attempt.
 
 | Field | Required | Meaning |
 | --- | --- | --- |
-| `action` | yes | `promote`, `reject`, `inconclusive`, `close_failed` or `decline`. |
+| `action` | yes | `promote`, `reject`, `inconclusive` or `close_failed`. |
 | `decided_at` | yes | Not before the verdict it decides on (see the dates above). |
 | `decided_by` | yes | Email of the user who decided; a researcher of the project (see membership above). |
 | `reason` | yes | Quoted or closely summarized from the source, never invented. |
@@ -210,8 +210,6 @@ The state must be consistent with the attempts and the decision:
 
 | State | Attempts | Decision | What the import creates |
 | --- | --- | --- | --- |
-| `draft` | none | none | Revision 1 from `document`, and a pending draft review case: a researcher approves, revises or declines it live. |
-| `declined` | none | `decline` | A draft review case resolved by the decision. |
 | `awaiting_human_review` | the last one completed, with a verdict | none | A pending result case on that verdict: a researcher decides it live, and promotion needs a `pass`, as for any result. |
 | `promoted`, `rejected`, `inconclusive` | the last one completed, with a verdict (`pass` for `promote`) | `promote`, `reject`, `inconclusive` | A result case on the last attempt, resolved by the decision. |
 | `failed` | the last one failed | `close_failed` | A failure case on the last attempt, resolved by the decision. |
@@ -220,8 +218,8 @@ The decided attempt takes the outcome as its state. Any other attempt ends `fail
 
 ## What the live schema needs and the history does not have
 
-- An imported hypothesis that left draft is recorded as approved at revision 1 on its `created_at`; no approval decision is created, since the history does not record one.
-- Revision 1 of a hypothesis without a `document` holds only what the history states: the title, the claim as the question and the relations by number. It is never offered as a live draft. The history's own fields are on the hypothesis's `imported`, never in a revision.
+- An imported hypothesis is recorded as approved at revision 1 on its `created_at`; no approval decision is created, since the history does not record one.
+- Revision 1 of a hypothesis without a `document` holds only what the history states: the title, the claim as the question and the relations by number. The history's own fields are on the hypothesis's `imported`, never in a revision.
 - Imported attempts and revisions pin the science revision current at import.
 - The project's `created_by` user is recorded as the author of imported hypotheses and the claimant of imported attempts; `via` is the `cli` channel with client `cannery import`.
 - Measurements and verdicts are stored as tester and evaluator records with no producer (shown as produced by `import`). An imported record whose measurement names any other authority is refused by the database.
@@ -231,7 +229,7 @@ The decided attempt takes the outcome as its state. Any other attempt ends `fail
 ## Reading imported records
 
 - Hypotheses, attempts, review cases, decisions, artifacts and reports carry `origin` and `source_ref`; hypotheses carry `external_id`; hypotheses and attempts carry `imported` (the history's own fields, above). Comparisons, search hits and the attention summary's pending reviews, recent outcomes and recent failures carry `origin`.
-- The reports list (`GET /api/projects/{slug}/reports`) lists claimed result sheets. An imported attempt has none, so it is not listed there, even with a retrospective report; read it through the attempts of its hypothesis, its report, search or the results views.
+- The reports list (`GET /api/projects/{slug}/reports`) lists run documents. An imported attempt has none, so it is not listed there, even with a retrospective report; read it through the attempts of its hypothesis, its report, search or the results views.
 - The report of an imported attempt (`GET …/attempts/{sequence}/report`) has no claimed measurements, the imported measurements as the tester section (each with its `source`), the verdict as the evaluation, and `author.kind: import`. Its `report` is the history's report when the bundle gives one: `kind`, `author`, `written_at` (a date or an instant, as the bundle gave it), `body_markdown`, `origin: imported` and `source_ref` (its path in the bundle); otherwise it is empty.
 - `GET /api/projects/{slug}/metrics/query` returns tester-verified values by default; `authority=imported` returns both imported authorities (or name one), each row with its `authority` and `source_ref`. A dashboard view takes `authority=imported` the same way. Failed attempts are counted per origin.
 - `GET /api/projects/{slug}/comparisons` (and the `query_comparisons` MCP tool) returns live comparisons by default, like the metrics; `origin=imported` returns the imported verdicts' comparisons at their historical dates, and `origin=all` both.
@@ -251,9 +249,9 @@ The bundle's SHA-256 is the digest of its canonical JSON, so the same content in
 
 ## What cannot be imported
 
-- Live-only records: claimed result sheets, agent reports (a run's report is imported as history, see [Reports](#reports)), manifests, test or evaluation jobs, leases, uploads, comments.
-- Decisions other than the five outcomes above: `approve`, `request_revision` and `retry`, and corrections that supersede a decision.
-- Hypotheses `queued`, `active` or `cancelled`, and attempts in progress.
+- Live-only records: run documents, agent reports (a run's report is imported as history, see [Reports](#reports)), manifests, test or evaluation jobs, leases, uploads, comments.
+- Decisions other than the four outcomes above: `retry`, and corrections that supersede a decision.
+- Hypotheses `queued`, `active` or `cancelled` (live hypotheses come from track plans), and attempts in progress.
 - Measurements with a live authority, or of a metric, split or slice the science revision does not register.
 - Artifact bytes: an artifact is a reference with its SHA-256.
 - Anything with a user who is not already a Cannery Row user with a verified email.
@@ -266,7 +264,7 @@ The bundle's SHA-256 is the digest of its canonical JSON, so the same content in
 cannery import --bundle examples/import --project retrieval-history --science examples/fixture/science.json --dry-run
 ```
 
-It has one policy, two tracks (one archived) and a hypothesis in each state: `H-001` promoted on artifact values with a comparison and a retrospective report (`reports/H-001/seed-1.md`), `H-002` rejected after a failed run, on transcribed values, `H-003` inconclusive with a missing value, `H-004` failed, `H-005` declined, `H-006` awaiting review (derived from `H-001`), and `H-007` a draft with its full document. `hypotheses/H-006.yaml`, with one of its three measurements:
+It has one policy, two tracks (one archived) and a hypothesis in each state: `H-001` promoted on artifact values with a comparison and a retrospective report (`reports/H-001/seed-1.md`), `H-002` rejected after a failed run, on transcribed values, `H-003` inconclusive with a missing value, `H-004` failed and `H-006` awaiting review (derived from `H-001`). `hypotheses/H-006.yaml`, with one of its three measurements:
 
 ```yaml
 id: H-006

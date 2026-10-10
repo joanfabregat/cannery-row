@@ -140,7 +140,7 @@ pub(crate) struct AttentionDetail {
     reason = "Preserve all six source models in declared field order"
 )]
 pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
-    let counts = ["draft", "result", "failure"]
+    let counts = ["result", "failure"]
         .into_iter()
         .map(|kind| (kind.to_owned(), d.counts.get(kind).copied().unwrap_or(0)))
         .collect::<BTreeMap<_, _>>();

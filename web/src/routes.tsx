@@ -4,7 +4,6 @@ import { RequireAuth } from "@/auth/require-auth";
 import { Loading } from "@/components/query-state";
 import { AttemptPage } from "@/pages/attempt-page";
 import { BriefPage } from "@/pages/brief-page";
-import { DraftEditPage } from "@/pages/draft-edit-page";
 import { HomePage } from "@/pages/home-page";
 import { HypothesesPage } from "@/pages/hypotheses-page";
 import { HypothesisPage } from "@/pages/hypothesis-page";
@@ -30,7 +29,6 @@ export const routes: RouteObject[] = [
       { path: "hypotheses", element: <HypothesesPage /> },
       { path: "hypotheses/:number", element: <HypothesisPage /> },
       { path: "hypotheses/:number/review", element: <ReviewPage /> },
-      { path: "hypotheses/:number/edit", element: <DraftEditPage /> },
       { path: "hypotheses/:number/attempts/:sequence", element: <AttemptPage /> },
       {
         path: "results",

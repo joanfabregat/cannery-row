@@ -250,16 +250,16 @@ const TRANSITIONS: Record<string, { label: string; effect: string }> = {
   paused: {
     label: "Pause",
     effect:
-      "Agents stop starting its queued hypotheses. Drafts can still be written and reviewed, and attempts in progress finish normally.",
+      "Agents stop starting its queued hypotheses. Its plan can still be revised and reviewed, and attempts in progress finish normally.",
   },
   active: {
     label: "Resume",
-    effect: "Agents can start its queued hypotheses again, and it accepts new drafts.",
+    effect: "Agents can start its queued hypotheses again.",
   },
   archived: {
     label: "Archive",
     effect:
-      "The track becomes read-only and accepts no new draft. It needs no draft, queued or active hypothesis. A researcher can reactivate it later.",
+      "The track becomes read-only and takes no new plan. It needs no queued, active or awaiting-review hypothesis. A researcher can reactivate it later.",
   },
 };
 

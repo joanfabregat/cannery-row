@@ -24,4 +24,4 @@ INSERT INTO decisions(id,review_case_id,action,subject_revision,reason,actor_use
 UPDATE hypotheses SET state='inconclusive',updated_at='2001-01-04Z' WHERE number=24;
 UPDATE attempts SET state='inconclusive',finished_at='2001-01-04Z' WHERE id='00000000-0000-0000-0000-000000002024';
 UPDATE review_cases SET state='resolved',resolved_at='2001-01-04Z',origin='imported',source_ref='fixture:legacy' WHERE id='00000000-0000-0000-0000-000000000324';
-INSERT INTO decisions(id,review_case_id,action,subject_revision,reason,actor_user_id,via_channel,decided_at,origin,source_ref) VALUES('00000000-0000-0000-0000-000000006024','00000000-0000-0000-0000-000000000324','request_revision',1,'Reason é😀','00000000-0000-0000-0000-000000000002','historical','2001-01-04Z','imported','fixture:legacy');
+INSERT INTO decisions(id,review_case_id,action,subject_revision,reason,actor_user_id,via_channel,decided_at,origin,source_ref) VALUES('00000000-0000-0000-0000-000000006024','00000000-0000-0000-0000-000000000324','retry',1,'Reason é😀','00000000-0000-0000-0000-000000000002','historical','2001-01-04Z','imported','fixture:legacy');

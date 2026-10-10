@@ -63,7 +63,7 @@ async fn head() -> impl IntoResponse {
     path = "/api/projects/{slug}/reports",
     operation_id = "list_reports_api_projects__slug__reports_get",
     summary = "List Reports",
-    description = "Reports of the project, newest first: claimed result sheets, so never an\nimported attempt, which has none.",
+    description = "Reports of the project, newest first: run documents, and claimed result\nsheets submitted before them, so never an imported attempt, which has none.",
     params(("slug" = String, Path),
         ("hypothesis" = Option<i64>, Query, minimum = 1, maximum = 2_147_483_647),
         ("track" = Option<String>, Query),
@@ -202,10 +202,7 @@ async fn read(
             let has_report = match sheet {
                 None => false,
                 Some(sheet) => match sheet.content.node(sheet.content.root()) {
-                    Some(Node::Object(_)) => sheet
-                        .content
-                        .field(sheet.content.root(), "report")
-                        .is_some(),
+                    Some(Node::Object(_)) => report_wire::is_report(&sheet.content),
                     Some(Node::Array(values)) => values.iter().any(|id| {
                         matches!(
                             sheet.content.node(*id),
@@ -253,9 +250,10 @@ async fn read(
             None
         };
         if let Some(sheet) = sheet {
-            report_wire::field(&sheet.content, "report")
-                .map_err(|_| internal(&context))?
-                .ok_or_else(|| internal(&context))?;
+            report_wire::field(&sheet.content, "report").map_err(|_| internal(&context))?;
+            if !report_wire::is_report(&sheet.content) {
+                return Err(internal(&context));
+            }
         }
         let tester =
             report_wire::tester(tester, profile.response).map_err(|_| internal(&context))?;

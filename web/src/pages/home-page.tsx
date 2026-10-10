@@ -75,14 +75,14 @@ function BriefCard({ project }: { project: string }) {
 
 function ReviewQueue({ data }: { data: Attention }) {
   const counts = data.pending_counts;
-  const total = (counts.draft ?? 0) + (counts.result ?? 0) + (counts.failure ?? 0);
+  const total = (counts.result ?? 0) + (counts.failure ?? 0);
   return (
     <Section
       title="Waiting for your review"
       description={
         total === 0
           ? undefined
-          : `${counts.draft ?? 0} ${counts.draft === 1 ? "draft" : "drafts"}, ${counts.result ?? 0} ${counts.result === 1 ? "result" : "results"} and ${counts.failure ?? 0} ${counts.failure === 1 ? "failure" : "failures"}, oldest first.`
+          : `${counts.result ?? 0} ${counts.result === 1 ? "result" : "results"} and ${counts.failure ?? 0} ${counts.failure === 1 ? "failure" : "failures"}, oldest first.`
       }
     >
       {data.pending_reviews.length === 0 ? (
@@ -104,11 +104,9 @@ function ReviewQueue({ data }: { data: Attention }) {
                 {r.hypothesis_ref} {r.title}
               </Link>
               <p className="text-sm text-muted-foreground">
-                {r.kind === "draft"
-                  ? "A new draft to approve, send back or decline."
-                  : r.kind === "result"
-                    ? `Attempt ${r.attempt_ref ?? ""}: the evaluation ${VERDICT_WORDS[r.verdict ?? ""] ?? "finished"}.`
-                    : `Attempt ${r.attempt_ref ?? ""} failed${r.failure_reason ? `: ${excerpt(r.failure_reason, 120)}` : "."}`}{" "}
+                {r.kind === "result"
+                  ? `Attempt ${r.attempt_ref ?? ""}: the evaluation ${VERDICT_WORDS[r.verdict ?? ""] ?? "finished"}.`
+                  : `Attempt ${r.attempt_ref ?? ""} failed${r.failure_reason ? `: ${excerpt(r.failure_reason, 120)}` : "."}`}{" "}
                 Waiting since {formatDateTime(r.opened_at)}.
               </p>
             </li>

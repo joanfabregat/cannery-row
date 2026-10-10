@@ -21,22 +21,22 @@ describe("Home", () => {
         "GET /api/projects/sardines/attention": () =>
           json(
             attention({
-              pending_counts: { draft: 1, result: 1, failure: 0 },
+              pending_counts: { result: 1, failure: 1 },
               pending_reviews: [
                 {
                   case_id: "00000000-0000-4000-8000-0000000000c1",
-                  kind: "draft",
+                  kind: "failure",
                   subject_revision: 1,
                   opened_at: "2026-03-01T10:00:00Z",
                   hypothesis: 4,
                   hypothesis_ref: "#4",
                   title: "Fewer layers",
                   track: "tokenizer",
-                  attempt_ref: null,
+                  attempt_ref: "#4.1",
                   verdict: null,
-                  failure_stage: null,
-                  failure_code: null,
-                  failure_reason: null,
+                  failure_stage: "agent",
+                  failure_code: "released",
+                  failure_reason: "Out of memory",
                   origin: "live",
                 },
                 {
@@ -79,7 +79,7 @@ describe("Home", () => {
       "/hypotheses/4/review",
       "/hypotheses/12/review",
     ]);
-    expect(within(queue).getByText(/1 draft, 1 result and 0 failures/)).toBeInTheDocument();
+    expect(within(queue).getByText(/1 result and 1 failure/)).toBeInTheDocument();
     const running = screen.getByRole("region", { name: "Running now" });
     expect(within(running).getByRole("link", { name: "#9.2 Warm cache" })).toHaveAttribute(
       "href",
@@ -322,67 +322,6 @@ describe("track management", () => {
     expect(await screen.findByRole("button", { name: "Reactivate" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pause" })).not.toBeInTheDocument();
-  });
-});
-
-describe("editing a draft", () => {
-  it("keeps unsaved edits when a newer revision arrives, and says saving will fail", async () => {
-    let current = hypothesis({ state: "draft", revision: 1 });
-
-    signedIn(
-      {},
-      {
-        ...hypothesisApi(current),
-        "GET /api/projects/sardines/hypotheses/12": () => json(current),
-      },
-    );
-    const { user, queryClient } = renderApp("/hypotheses/12/edit");
-    const title = await screen.findByRole("textbox", { name: "Title" });
-    expect(title).toHaveValue("Shorter prompts");
-    await user.clear(title);
-    await user.type(title, "My better wording");
-
-    current = hypothesis({
-      state: "draft",
-      revision: 2,
-      document: { ...current.document, title: "Someone else's wording" },
-    });
-    await queryClient.invalidateQueries();
-    expect(
-      await screen.findByText(
-        "This draft changed since you started editing; saving will fail until you reload.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue("My better wording");
-
-    await user.click(screen.getByRole("button", { name: "Discard my edits and load revision 2" }));
-    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue("Someone else's wording");
-    expect(
-      screen.queryByText(/This draft changed since you started editing/),
-    ).not.toBeInTheDocument();
-  });
-
-  it("moves to a newer revision silently when nothing was edited", async () => {
-    let current = hypothesis({ state: "draft", revision: 1 });
-    signedIn(
-      {},
-      {
-        ...hypothesisApi(current),
-        "GET /api/projects/sardines/hypotheses/12": () => json(current),
-      },
-    );
-    const { queryClient } = renderApp("/hypotheses/12/edit");
-    await screen.findByRole("textbox", { name: "Title" });
-    current = hypothesis({
-      state: "draft",
-      revision: 2,
-      document: { ...current.document, title: "Newer wording" },
-    });
-    await queryClient.invalidateQueries();
-    await waitFor(() => {
-      expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue("Newer wording");
-    });
-    expect(screen.queryByText(/This draft changed/)).not.toBeInTheDocument();
   });
 });
 

@@ -379,4 +379,18 @@ const PACKAGED: &[(&str, &str)] = &[
             "/migrations/0019_track_plans.sql"
         )),
     ),
+    (
+        "0020_units_from_plans.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/migrations/0020_units_from_plans.sql"
+        )),
+    ),
+    (
+        "0021_run_documents.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/migrations/0021_run_documents.sql"
+        )),
+    ),
 ];

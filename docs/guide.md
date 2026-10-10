@@ -23,18 +23,18 @@ project
 ├── producers and experiment steps (registered step manifests, each revision immutable)
 └── track (agent or workflow mode; planning → active once its first plan is approved)
     ├── plan (revisioned): approach + units, each a hypothesis with its brief and context
-    └── hypothesis  #12          draft → (human approval) → queued → active → … → decided
+    └── hypothesis  #12          (plan approval) → queued → active → … → decided
         └── attempt  #12.1       claimed under a lease, then three stages:
-            1. experiment  → candidate artifacts + claimed result sheet   (agent, or runner's experiment kind)
+            1. experiment  → candidate artifacts + run document           (agent, or runner's experiment kind)
             2. test        → evidence: tester-verified measurements        (runner's test kind)
             3. eval        → verdict: pass | fail | inconclusive            (runner's eval kind)
             then a human decision: promote | reject | inconclusive
 ```
 
 - The **brief** is the project's context, written once by a researcher: what the project is for, the domain, the constraints, the resources and the conventions. Every claim names the revision it runs under, and the attempt keeps it.
-- A **hypothesis** is written outside CR (by a researcher with an agent) and submitted as a `draft`. Nothing runs until a researcher approves it with a reason; it is then `queued`. CR never invents or recycles hypotheses.
+- A **hypothesis** is a unit of an approved track plan. A researcher writes the plan (often with an agent) and approves it with a reason; each unit becomes a `queued` hypothesis. Nothing runs before that, and CR never invents or recycles hypotheses.
 - An **attempt** is one execution of a hypothesis. It is created by a **claim**, which returns a lease token; every write on the attempt needs the current token and generation. One attempt at a time per hypothesis.
-- The three stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **claimed result sheet** (its measurements are `agent_claim`, never trusted). The **test** re-runs and grades the frozen submission with trusted code and publishes `tester_verified` evidence. The **eval** applies the project's policy to that evidence and gives a verdict with a reason. A **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
+- The three stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **run document**: front matter with the claims (`agent_claim`, never trusted) and Markdown run notes. The **test** re-runs and grades the frozen submission with trusted code and publishes `tester_verified` evidence. The **eval** applies the project's policy to that evidence and gives a verdict with a reason. A **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
 - A track's **mode** says only who runs the experiment stage: an outside agent (`agent`, the default) or a CR runner (`workflow`). From the submission on, both modes are identical.
 
 Who holds which token, and what it may do:
@@ -42,11 +42,11 @@ Who holds which token, and what it may do:
 | Identity | Token | May | May not |
 | --- | --- | --- | --- |
 | User, `viewer` | Personal token, or the web session | Read the project, reports, metrics, verdicts, decisions; search. | Download artifacts other than `report_asset`. |
-| User, `member` | same | Viewer rights, plus comment and download artifacts. | Draft or decide. |
-| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, create and revise drafts, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, and record every human decision. | Claim in `workflow` mode. |
+| User, `member` | same | Viewer rights, plus comment and download artifacts. | Plan or decide. |
+| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, and record every human decision. | Claim in `workflow` mode. |
 | User, installation admin | same | Create projects, grant memberships, register science and dashboard revisions, producers and experiment steps, create service accounts and their tokens. Admin is not a project role: an admin also needs a membership to act as a researcher. | |
-| Service account `agent` | Service token | Create and revise drafts, claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; read the project. | Claim in `workflow` mode, comment, decide. |
-| Service account `experimenter` | Service token, held by a runner only | Claim in `workflow` mode only, heartbeat, upload, submit, read the predecessor attempt's artifacts, release with a failure `code`, `step` and `logs` (trusted). | Draft, comment, decide, claim in `agent` mode. |
+| Service account `agent` | Service token | Claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; read the project. | Claim in `workflow` mode, comment, decide. |
+| Service account `experimenter` | Service token, held by a runner only | Claim in `workflow` mode only, heartbeat, upload, submit, read the predecessor attempt's artifacts, release with a failure `code`, `step` and `logs` (trusted). | Plan, comment, decide, claim in `agent` mode. |
 | Service account `tester` | Service token, named like the science revision's `tester.id` | Claim test jobs, read their inputs, upload outputs, complete or fail them. | Anything on attempts or decisions. |
 | Service account `evaluator` | Service token, named like the science revision's `evaluator.id` | Claim evaluation jobs of its policy revision, complete or fail them; read the project. | Decide. |
 
@@ -56,9 +56,9 @@ A claimed job also returns a **job lease token**, which can only read that job's
 
 | Interface | Use it for |
 | --- | --- |
-| Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; edit and review drafts; decide results and failures; read everything; comment; search. |
-| REST (`/api/…`) | Everything, and the only way to register science and dashboard revisions (`POST /api/projects/{slug}/config/science`), producers (`…/producers`) and experiment steps (`…/experiment-steps`), and to create drafts besides MCP. Authenticate with `Authorization: Bearer <token>`. `GET /api/me` shows who a token is. |
-| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `create_draft`, `revise_draft`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `check_plan`, `submit_plan`, `review_plan`), `review_draft`, `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
+| Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; write and review plans; decide results and failures; read everything; comment; search. |
+| REST (`/api/…`) | Everything, and the only way to register science and dashboard revisions (`POST /api/projects/{slug}/config/science`), producers (`…/producers`) and experiment steps (`…/experiment-steps`). Authenticate with `Authorization: Bearer <token>`. `GET /api/me` shows who a token is. |
+| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `check_plan`, `submit_plan`, `review_plan`), `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
 | CLI (`cannery`) | `migrate`, `serve`, `db` (dump, restore, upgrade), `runner`, `evaluator` (the stock evaluator alone), `import`, `openapi`. |
 
 Every error answer has the shape `{"error": {"code", "message", "details"}}`; `details` holds JSON Pointers into the request. See [Troubleshooting](#troubleshooting).
@@ -109,7 +109,7 @@ The science revision is the project's rules, as one immutable JSON document (`sc
 | --- | --- |
 | `schema_version` | `"0.2"`. |
 | `tester` | `{"id", "revision"?}`: the tester service account's name. The runner's `test` kind claims only jobs registered to its account's name. |
-| `hypothesis_fields` | A JSON Schema for a hypothesis's `project_fields`. In a `workflow` track these are the experiment's **parameters** (learning rate, seed, model size); drafts are validated against it. |
+| `hypothesis_fields` | A JSON Schema for a hypothesis's `project_fields`. In a `workflow` track these are the experiment's **parameters** (learning rate, seed, model size); plan units are validated against it. |
 | `metrics` | The metric registry: each `{key, unit, direction, aggregation, dimensions, splits, required_slices}`. Only registered metrics, splits and dimension values can be reported, charted or compared. |
 | `datasets` | Each `{id, revision, held_out_labels, description?}`. Mark evaluation labels `held_out_labels: true` (see [the held-out labels rule](#the-held-out-labels-rule)). CR stores no dataset bytes: the runner reads them from its data root, `datasets/<id>/<revision>/`. |
 | `baselines` | Controls, each `{id, revision, description?}`: immutable references a step can take as input (`from: baseline`, from `baselines/<id>/<revision>/`) and a hypothesis can name as its `control`. Their values live in the evaluator's configuration, not here. |
@@ -166,7 +166,7 @@ curl -sf -X POST "$TRACK/plans/1/review" -H "Authorization: Bearer $RESEARCHER" 
   -H 'Content-Type: application/json' -d '{"action": "approve", "reason": "Ready to run."}'
 ```
 
-Approval creates a queued hypothesis per new unit and activates a `planning` track. A later revision starts from the approved one; every unit already done or in flight needs an alignment (`keep`, `obsolete` or `redo`, with a reason) before it can be submitted. Per-hypothesis drafts still work beside plans. The project's size limits (`GET $API/limits`) apply at each write.
+Approval creates a queued hypothesis per new unit and activates a `planning` track. A later revision starts from the approved one; every unit already done or in flight needs an alignment (`keep`, `obsolete` or `redo`, with a reason) before it can be submitted. The project's size limits (`GET $API/limits`) apply at each write.
 
 ### Service accounts and tokens
 
@@ -273,7 +273,7 @@ spec:
   outputs:
     artifacts:
       - {name: checkpoint, interface: checkpoint/v1, path: /cr/outputs/checkpoint}
-      - {name: claimed_sheet, interface: cr-evidence/v0.2, path: /cr/outputs/claimed_sheet}
+      - {name: run, interface: cr-run/v0.2, path: /cr/outputs/run}
 ```
 
 ```python
@@ -290,22 +290,14 @@ params = job["parameters"]  # the hypothesis's project_fields
 resume = root / "inputs" / "checkpoint"  # empty on a first attempt
 model = train(root / "inputs" / "train", lr=params["learning_rate"], resume=resume)
 model.save(root / "outputs" / "checkpoint" / "model.safetensors")
-(root / "outputs" / "claimed_sheet" / "claimed_sheet.json").write_text(
-    json.dumps(
-        {
-            "report": {
-                "what_was_tried": f"Fine-tune with lr={params['learning_rate']}.",
-                "configuration": "Base checkpoint, train split train-r3, 3 epochs.",
-                "observations": "Loss plateaued after epoch 2.",
-                "findings": "Dev loss improved; the test stage will measure retrieval quality.",
-                "limitations": "One seed.",
-                "next_question": "Does a lower learning rate keep the gain?",
-                "elapsed_seconds": 5400,
-                "body_markdown": "# Fine-tune\n\nFull report…",
-            },
-            "artifact_roles": ["checkpoint"],
-        }
-    )
+# The run document: YAML front matter (JSON values are YAML), then the run notes.
+(root / "outputs" / "run" / "run.md").write_text(
+    "---\n"
+    + f"artifact_roles: {json.dumps(['checkpoint'])}\n"
+    + "---\n"
+    + f"# Fine-tune with lr={params['learning_rate']}\n\n"
+    + "Base checkpoint, train split train-r3, 3 epochs. Loss plateaued after epoch 2; "
+    + "the test stage will measure retrieval quality. One seed.\n"
 )
 ```
 
@@ -372,21 +364,21 @@ The image digest is that of `node:22-slim` when this guide was written; pin the 
 
 An outside agent (a Codex or Claude Code session) runs the experiment itself, through REST or MCP, with an `agent` service token or a researcher's personal token.
 
-1. **Draft.** `POST /api/projects/{slug}/hypotheses` (MCP `create_draft`) with a hypothesis document (`examples/fixture/hypothesis.json`), optionally with an `Idempotency-Key` header. Search first (`GET /api/search`, MCP `search`) for prior related work. A researcher approves it (`POST …/hypotheses/{number}/draft-review` with `{"draft_revision", "action": "approve", "reason"}`, or the web app).
+1. **Plan.** A researcher adds the hypothesis as a unit of the track's plan (`examples/fixture/hypothesis.json` is a unit entry) and approves the plan ([Planning a track](#planning-a-track)); the unit becomes a queued hypothesis. Search first (`GET /api/search`, MCP `search`) for prior related work.
 2. **Claim.** `POST /api/projects/{slug}/claims` with `{}` or `{"hypothesis": 12}` or `{"track": "lexical"}` (MCP `claim_hypothesis`). The answer holds the `attempt`, `lease_token` and `lease_generation` (send them as `X-Lease-Token` and `X-Lease-Generation` on every attempt call), `heartbeat_seconds`, and `brief`, the brief revision to read (`GET` its `ref`, or MCP `get_brief` with that `revision`). In a planned track it also names `plan`, the plan revision the attempt pinned, and `context`, the attempt's [context bundle](contracts.md#the-context-bundle) (`ref` and `bytes`): read it first.
 3. **Heartbeat** `POST …/hypotheses/{number}/attempts/{sequence}/heartbeat` at least every `heartbeat_seconds` (a third of the lease TTL, `leases.ttl_seconds`, 900 seconds by default).
 4. **Upload** each file: `POST …/attempts/{sequence}/uploads` with `{role, name, size_bytes, sha256, media_type}`, then send the bytes as the grant says (a `PUT upload_url`, or the `direct` presigned requests and `POST finish_url`; [the protocol](contracts.md#uploads-and-downloads)). The role is what the track's producer reads (`from: attempt`), plus every role in `required_artifact_roles.attempt`.
 5. **Post the manifest** of the verified uploads (`POST …/manifest`, MCP `post_manifest`), which answers `{ref, sha256}`.
-6. **Submit** the claimed result sheet (`POST …/submission` with an `Idempotency-Key`, MCP `submit_attempt`): an evidence envelope with `stage: "agent"`, the `report` and the manifest reference ([the sheet](contracts.md#evidence-envelope)). The attempt is frozen and the test job is queued.
+6. **Submit** the run document (`POST …/submission` with `{"document": "…"}` and an `Idempotency-Key`, MCP `submit_attempt`): Markdown with YAML front matter holding the `claims` (`agent_claim`), `provenance` and the manifest reference, and the run notes as the body ([run documents](contracts.md#run-documents)). The attempt is frozen and the test job is queued.
 
-A sheet the API rejects fails the attempt at once (`invalid_submission`) and opens a failure review: validate it against `evidence_envelope.schema.json` before submitting (`GET /api/schemas/run` serves it as one self-contained schema, no token needed). To give up, `POST …/release` with a `reason` (MCP `release_attempt`): the attempt fails with `released` and a failure review case opens. An agent has no attempt deadline, only the lease.
+A document the API rejects fails the attempt at once (`invalid_submission`) and opens a failure review: validate the front matter against `run.schema.json` before submitting (`GET /api/schemas/run` serves it as one self-contained schema, no token needed). A run that failed is not submitted: front matter with a `status` is refused (422) and the attempt is left as it was. To give up, or to report a failed run, `POST …/release` with a `reason` (MCP `release_attempt`): the attempt fails with `released` and a failure review case opens. An agent has no attempt deadline, only the lease.
 
 ### Workflow mode
 
 A runner's `experiment` kind runs the experiment with an experimenter token. Setting it up takes four things ([workflow tracks](contracts.md#workflow-tracks)): `hypothesis_fields` in the science revision describing the parameters, registered experiment steps, a `workflow` track naming them, and a runner with an `experiment` kind.
 
-- The workflow's last step, and only it, outputs `claimed_sheet` (`cr-evidence/v0.2`): one JSON object with `report` and optionally `measurements` (`agent_claim`), `observations`, `artifact_roles`, `extensions`, `provenance`. The runner fills in the rest. Every other output becomes attempt artifacts whose role is the output's name (flat files only), and together they must cover `required_artifact_roles.attempt` and every `from: attempt` input of the track's producer.
-- The hypothesis supplies the parameters: the `project_fields` of its approved revision arrive as `parameters` in the claim's `workflow` object and in each step's `/cr/job.json` ([job.json](contracts.md#jobjson-of-an-experiment-step)). Hypotheses are drafted with them (`examples/fixture/workflow-hypothesis.json`, `"project_fields": {"top_k": 2}`) and approved as in any track.
+- The workflow's last step, and only it, outputs `run` (`cr-run/v0.2`): one Markdown file, `run.md`, whose front matter may hold `claims` (`agent_claim`), `artifact_roles`, `extensions` and `provenance`, and whose body holds the run notes. The runner adds the science revision and the manifest. Every other output becomes attempt artifacts whose role is the output's name (flat files only), and together they must cover `required_artifact_roles.attempt` and every `from: attempt` input of the track's producer.
+- The hypothesis supplies the parameters: the `project_fields` of its approved revision arrive as `parameters` in the claim's `workflow` object and in each step's `/cr/job.json` ([job.json](contracts.md#jobjson-of-an-experiment-step)). A plan unit sets them as `parameters` (`examples/fixture/workflow-hypothesis.json`, `"parameters": {"top_k": 2}`), and the plan is approved as in any track.
 - A `from: attempt` input of an experiment step reads the **predecessor** attempt's verified artifacts of that role (an empty directory on a first attempt), so a step can resume from a failed attempt's checkpoint. The step decides whether a partial predecessor output is usable.
 - The runner claims with `{"mode": "workflow"}`, heartbeats, runs the steps in order through its launcher, checks each output against its interface and validator, uploads every output and log, posts the manifest and submits. The attempt's deadline is pinned at claim: the sum of the steps' deadlines (setups and validators included) plus `leases.job_overhead_seconds` (300 by default).
 - A claim skips a track whose workflow or producer no longer fits the current science revision. When only such tracks have queued hypotheses the claim answers `409 workflow_unavailable` naming them; the runner logs it and keeps polling until a researcher fixes the track or the science revision.
@@ -399,7 +391,7 @@ A runner's `experiment` kind runs the experiment with an experimenter token. Set
 | The attempt passes its deadline | No deadline. | The API refuses the lease (`stale_lease`) and the sweep fails it with `deadline_exceeded`, then as above. |
 | A late call after the lease was lost | `409 stale_lease`: stop working on the attempt. | The runner stops the step and reports nothing. |
 | The worker gives up | `release`: fails with `released`, review case. | The runner releases with a `code` (`step_failed`, `setup_failed`, `invalid_step_output`… [the list](contracts.md#failures-release-codes-and-automatic-retries)), the failing `step` and its `logs`; requeued automatically as above. |
-| An upload the API refused or could not verify, or a sheet it rejected | `upload_verification_failed` or `invalid_submission`: the candidate's failure, review case at once. | The same: these are blamed on the candidate in both modes. |
+| An upload the API refused or could not verify, or a run document it rejected | `upload_verification_failed` or `invalid_submission`: the candidate's failure, review case at once. | The same: these are blamed on the candidate in both modes. |
 | The runner gets `SIGTERM` | | It cancels the run, removes its containers, reports nothing and exits 143; the lease expires and the sweep requeues the hypothesis. |
 
 ## Test stage
@@ -408,11 +400,11 @@ Submission queues a test job. The runner's `test` kind claims it with the tester
 
 1. the track's **producer** (candidate code, the only step of the test that executes the candidate): it reads the submission's artifacts (`from: attempt`) and datasets that are not held-out labels, and writes an intermediate output naming an interface, for example ranked results or predictions per example;
 2. any **validator** that output's interface names;
-3. the project's **scorer** (trusted): it reads the producer's output (`from: step`, the same interface), the held-out labels (`from: dataset`) and the frozen `claimed_sheet` (`from: attempt`), and writes `evidence`, the tester evidence envelope (`cr-evidence/v0.2`), plus outputs such as `per_query_results`.
+3. the project's **scorer** (trusted): it reads the producer's output (`from: step`, the same interface), the held-out labels (`from: dataset`) and the frozen `claimed_sheet` (`from: attempt`, the run document's front matter, staged as `claimed.json`), and writes `evidence`, the tester evidence envelope (`cr-evidence/v0.2`), plus outputs such as `per_query_results`.
 
 Register producers with `POST /api/projects/{slug}/producers`; each registration of a name is its next immutable revision, so a new producer for a new track never mints a science revision. The scorer lives in the science revision so every track is scored the same way. A self-hosted tester can implement the job API instead of the runner ([test and evaluation jobs](contracts.md#test-and-evaluation-jobs)).
 
-The **evidence envelope** ([contracts](contracts.md#evidence-envelope)) has `stage: "tester"`, `provenance` (`source_revision`, `tester_revision`, `dataset_revision`, `control_revision` when the hypothesis names a control, `science_revision`), `measurements` (each `authority: "tester_verified"`, finite values, registered metric, split and dimensions, a `missing_reason` instead of a value when it could not be measured), `discrepancies` with the claimed sheet, and `artifact_roles`. A required slice `{dimension: value}` is covered only by a measurement whose `dimensions` are exactly that pair. CR validates the envelope and the output manifest, then queues the evaluation job.
+The **evidence envelope** ([contracts](contracts.md#evidence-envelope)) has `stage: "tester"`, `provenance` (`source_revision`, `tester_revision`, `dataset_revision`, `control_revision` when the hypothesis names a control, `science_revision`), `measurements` (each `authority: "tester_verified"`, finite values, registered metric, split and dimensions, a `missing_reason` instead of a value when it could not be measured), `discrepancies` with the claims, and `artifact_roles`. A required slice `{dimension: value}` is covered only by a measurement whose `dimensions` are exactly that pair. CR validates the envelope and the output manifest, then queues the evaluation job.
 
 The job's deadline is the sum of its steps' deadlines (setups and validators included) plus `leases.job_overhead_seconds`. A failure of the test (a step exits non-zero, a deadline, a validator rejection, an invalid scorer output) is an infrastructure failure of the stage: it reruns on the same frozen submission while `max_auto_retries` allows, then opens a failure review. The exception is a producer output the API itself refused against its interface (`invalid_step_output`): that is the candidate's failure, reviewed at once, without a rerun.
 
@@ -508,7 +500,7 @@ The cache root (`cache_root`, `<work_root>/cache` by default) holds code trees b
 
 If the project has results from before CR (notebooks, reports, run artifacts in a bucket), import them once, before or beside live work, so new hypotheses can be compared with them. `cannery import --bundle DIR --project SLUG [--science FILE] [--dry-run] [--allow-missing]` loads a human-reviewed bundle of YAML or JSON files in one transaction ([import.md](import.md); `examples/import/` is a complete bundle for the fixture science revision). Always start with `--dry-run`: an imported file can never be edited afterwards.
 
-Imported records carry `origin: imported` and a `source_ref`; their measurements have the authorities `imported_artifact` (read from an artifact) or `imported_transcribed` (copied from a document), never `tester_verified`, so they never pass for work CR tested. A finished imported attempt with no decision of its own is `unreviewed`, a state only imports use. An imported draft or a result awaiting review continues in the live workflow. Imported artifacts are references (backend `external`, URI, size, SHA-256): CR never had the bytes. Metrics queries and comparisons return imported values only on request (`authority=imported`, `origin=imported`).
+Imported records carry `origin: imported` and a `source_ref`; their measurements have the authorities `imported_artifact` (read from an artifact) or `imported_transcribed` (copied from a document), never `tester_verified`, so they never pass for work CR tested. A finished imported attempt with no decision of its own is `unreviewed`, a state only imports use. An imported result awaiting review continues in the live workflow. Imported artifacts are references (backend `external`, URI, size, SHA-256): CR never had the bytes. Metrics queries and comparisons return imported values only on request (`authority=imported`, `origin=imported`).
 
 An attempt may carry its retrospective report, a Markdown file under the bundle's `reports/`: it is shown on the attempt as imported history ("Retrospective report", with its author and date), never as an agent's report or as evidence.
 
@@ -526,7 +518,7 @@ From an empty CR to the first decided hypothesis:
 8. Put the datasets and baselines in the runner's data root at `datasets/<id>/<revision>/` and `baselines/<id>/<revision>/`. [deploy.md](deploy.md#runner)
 9. Write `runner.toml`, choose the launcher, give it the GitHub credential, start `cannery runner --config runner.toml` and check it with `--once`. [Running the runner](#running-the-runner)
 10. Optionally import the history. [Importing history](#importing-history)
-11. Plan each track and approve the plan, or draft a hypothesis and approve it. [Planning a track](#planning-a-track), [Agent mode](#agent-mode)
+11. Plan each track and approve the plan. [Planning a track](#planning-a-track), [Agent mode](#agent-mode)
 12. Run the experiment: an agent claims and submits, or the experiment kind does. [Experiment stage](#experiment-stage)
 13. Watch the test and evaluation jobs (`GET …/attempts/{sequence}/jobs`, the web app's attempt page).
 14. A researcher reviews the result case (`GET /api/projects/{slug}/review-cases`, then `POST …/review-cases/{case_id}/decisions` with `review_case_id`, `evidence_revision`, `action` and `reason`, or the web app) and records `promote`, `reject` or `inconclusive`.
@@ -535,12 +527,12 @@ From an empty CR to the first decided hypothesis:
 
 | Code | Where | Means | Do |
 | --- | --- | --- | --- |
-| `nothing_to_claim` (409) | Hypothesis claim | No queued hypothesis in an active track of the caller's mode. | Check a draft was approved, the track is `active`, and the identity matches the mode (agents claim `agent` tracks, experimenters `workflow` tracks). The runner just keeps polling. |
+| `nothing_to_claim` (409) | Hypothesis claim | No queued hypothesis in an active track of the caller's mode. | Check a plan was approved, the track is `active`, and the identity matches the mode (agents claim `agent` tracks, experimenters `workflow` tracks). The runner just keeps polling. |
 | `workflow_unavailable` (409) | Hypothesis claim, `workflow` mode | Queued hypotheses wait only in workflow tracks that no longer fit the current science revision; `details` names each track and why. | Fix the track (`PATCH` its workflow or producer) or register a science revision it fits. |
 | `forbidden` (403) | Any | The identity cannot do this: an agent claiming `workflow`, an experimenter claiming `agent`, a token created without a browser session, a missing role, a missing `write` scope. | Use the identity the [token table](#the-model-in-one-screen) gives. |
 | `conflict` (409) | Job claim, track, claim | No job waits for this tester or evaluator name (or policy revision), or a genuine conflict (track paused or switched during a claim, a control a step cannot stage). | For jobs: the service account's name must equal the science revision's `tester.id` or `evaluator.id`, and the policy file's revision its `evaluator.revision`. |
 | `stale_lease` (409) | Attempt or job calls | The lease token or generation is not current, it expired, or a runner-driven attempt passed its deadline. | Stop working on it. In agent mode the attempt fails for review; in workflow mode it is requeued. |
-| `stale_revision` (409) | Track or draft changes | `expected_revision` is not the current one. | Read the record again and retry. |
+| `stale_revision` (409) | Track or plan changes | `expected_revision` is not the current one. | Read the record again and retry. |
 | `validation_failed` (422) | Any document | A field breaks a schema or a rule; `details` gives JSON Pointers. A producer or experiment manifest declaring a held-out labels dataset is refused here. | Fix the document. |
 | `held_out_labels_to_producer`, `held_out_labels_to_experiment` | Runner failure | A pinned producer or experiment step declares a held-out labels dataset. | Register a manifest that does not, and a science revision that marks the dataset correctly. |
 | `invalid_step_output` | Runner failure | An output does not match its interface or its validator rejected it. Blamed on the candidate only for a producer output the API itself refused. | Read the reason (step, output, file, JSON Pointer) and the `validator_log`. |
@@ -551,7 +543,7 @@ From an empty CR to the first decided hypothesis:
 | `runner_error` | Runner failure | The runner could not run the step: GitHub has no such commit or the credential cannot see it, an image cannot be pulled, a Pod stayed Pending, too many GPUs asked, a second runner on the same cache root. | Read the reason; fix the commit, image, credential or capacity. A bad commit fails every rerun: register a new manifest revision. |
 | `invalid_code`, `code_not_allowed` | Runner failure | An unsafe archive or a missing `code.path` or key file; a repository outside `--github-allowed-repos`. | Fix the manifest or the runner's allowlist. |
 | `evaluator_error`, `policy_mismatch` | Evaluation failure | See [Eval stage](#eval-stage). | Read the reason and the policy step's `step_log`. |
-| `invalid_submission` | Submission | The claimed sheet was rejected; the attempt failed and awaits review. | Validate the sheet before submitting; a researcher `retry` requeues. |
+| `invalid_submission` | Submission | The run document was rejected; the attempt failed and awaits review. | Validate the front matter before submitting; a researcher `retry` requeues. |
 | `upload_expired` (409) | Upload | The upload grant expired before its bytes were finished. | Request a new grant. |
 | `invalid_content` (422) | Job upload | A job output named against an interface does not match it. | The tester reports `invalid_step_output` for the step. |
 | `store_unavailable` (503) | Upload, download | The object store failed; nothing changed. | Retry after a pause, a bounded number of times (the runner tries 4 times). |

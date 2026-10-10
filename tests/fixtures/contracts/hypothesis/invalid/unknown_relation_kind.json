@@ -1,18 +1,16 @@
 {
   "reason": "/relations/0/kind",
   "document": {
-    "schema_version": "0.2",
-    "track": "compact-sparse",
+    "key": "fusion-weight",
     "title": "Test a compact sparse candidate",
     "question": "Can the candidate exceed the pinned base camp without material language regressions?",
-    "rationale": "A predeclared architectural change may improve the quality/cost frontier.",
     "intervention": "Train the specified candidate from the pinned initialization.",
     "control": {
       "kind": "baseline",
       "id": "base-camp",
       "revision": "immutable-revision"
     },
-    "plan": {
+    "acceptance": {
       "selection_splits": [
         "dev"
       ],
@@ -48,7 +46,7 @@
         }
       }
     ],
-    "project_fields": {
+    "parameters": {
       "architecture": "sparse",
       "notes": {
         "free": [

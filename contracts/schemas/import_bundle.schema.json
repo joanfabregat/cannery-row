@@ -149,24 +149,22 @@
         "created_at": {"$ref": "#/$defs/when"},
         "state": {
           "enum": [
-            "draft",
             "awaiting_human_review",
             "promoted",
             "rejected",
             "inconclusive",
-            "declined",
             "failed"
           ]
         },
         "document": {
-          "description": "The full hypothesis draft (question, rationale, intervention, plan, optional control and project fields), required for a draft: a researcher reviews it and an agent runs it.",
+          "description": "The full hypothesis document as it was stated (question, rationale, intervention, plan, optional control and project fields), when the history has one; it is kept as the imported revision.",
           "type": "object",
           "properties": {
             "question": {"$ref": "hypothesis.schema.json#/properties/question"},
-            "rationale": {"$ref": "hypothesis.schema.json#/properties/rationale"},
+            "rationale": {"$ref": "common.schema.json#/$defs/text"},
             "intervention": {"$ref": "hypothesis.schema.json#/properties/intervention"},
             "control": {"$ref": "hypothesis.schema.json#/properties/control"},
-            "plan": {"$ref": "hypothesis.schema.json#/properties/plan"},
+            "plan": {"$ref": "hypothesis.schema.json#/properties/acceptance"},
             "project_fields": {"$ref": "common.schema.json#/$defs/open_object"}
           },
           "required": ["question", "rationale", "intervention", "plan"],
@@ -332,10 +330,10 @@
       }
     },
     "decision": {
-      "description": "The human decision recorded in the history, by a named user, about the last attempt (or the draft, for decline). Never invented.",
+      "description": "The human decision recorded in the history, by a named user, about the last attempt. Never invented.",
       "type": "object",
       "properties": {
-        "action": {"enum": ["promote", "reject", "inconclusive", "close_failed", "decline"]},
+        "action": {"enum": ["promote", "reject", "inconclusive", "close_failed"]},
         "decided_at": {"$ref": "#/$defs/when"},
         "decided_by": {"$ref": "#/$defs/email"},
         "reason": {

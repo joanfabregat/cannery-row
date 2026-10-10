@@ -1,8 +1,8 @@
 """Fixture scorer shared by every track: mean reciprocal rank per language.
 
 It reads the producer's ranked run, the held-out relevance labels and the
-frozen claimed result sheet, and writes the tester evidence envelope plus
-per-query results. It never runs candidate code. ``FIXTURE_EXTENSIONS``, a
+front matter of the frozen run document (``claimed.json``), and writes the
+tester evidence envelope plus per-query results. It never runs candidate code. ``FIXTURE_EXTENSIONS``, a
 JSON object in its environment, becomes the evidence's ``extensions``.
 """
 
@@ -70,7 +70,8 @@ def main() -> None:
     details = job()
     run = read_json(base / "inputs" / "run" / "run.json")["queries"]
     qrels = read_json(base / "inputs" / "qrels" / "qrels.json")["queries"]
-    sheet = read_json(base / "inputs" / "claimed_sheet" / "claimed_sheet.json")
+    # The front matter of the run document the agent submitted.
+    claimed = read_json(base / "inputs" / "claimed_sheet" / "claimed.json")
 
     rows = []
     for query_id, labels in sorted(qrels.items()):
@@ -108,7 +109,7 @@ def main() -> None:
         slice_name = measurement.get("dimensions", {}).get("language", "all")
         if slice_name in control:
             measurement["control_value"] = control[slice_name]
-    claimed = [m for m in sheet.get("measurements", []) if m.get("authority") == "agent_claim"]
+    claims = [m for m in claimed.get("claims", []) if m.get("authority") == "agent_claim"]
     # By the input's name: the registered id it reads may differ.
     qrels_revision = next(
         d["revision"] for d in details["inputs"]["datasets"] if d["name"] == "qrels"
@@ -122,7 +123,7 @@ def main() -> None:
         "started_at": started,
         "finished_at": now(),
         "provenance": {
-            "source_revision": sheet["provenance"]["source_revision"],
+            "source_revision": claimed["provenance"]["source_revision"],
             "tester_revision": details["tester"]["revision"],
             "dataset_revision": qrels_revision,
             "science_revision": details["science_revision"],
@@ -130,7 +131,7 @@ def main() -> None:
         },
         "observations": f"Scored {len(rows)} queries from the {details['producer']['name']} run.",
         "measurements": measurements,
-        "discrepancies": discrepancies(claimed, measurements),
+        "discrepancies": discrepancies(claims, measurements),
         "artifact_roles": ["per_query_results"],
     }
     if pinned:

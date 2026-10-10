@@ -41,9 +41,7 @@ mod documentation;
 pub mod errors;
 pub mod health;
 mod hypothesis_idempotency;
-mod hypothesis_mutation_idempotency;
 pub mod hypothesis_mutations;
-mod hypothesis_request;
 pub mod hypothesis_routes;
 pub mod hypothesis_wire;
 mod identity_routes;
@@ -153,13 +151,10 @@ pub use documentation::OPENAPI;
         track_routes::update,
         track_routes::transition,
         track_routes::history,
-        hypothesis_mutations::create,
         hypothesis_routes::list,
         hypothesis_routes::read,
-        hypothesis_mutations::revise,
         hypothesis_routes::revisions,
         hypothesis_routes::revision,
-        hypothesis_routes::review,
         plan_routes::list,
         plan_routes::start,
         plan_routes::read,

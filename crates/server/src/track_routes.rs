@@ -783,9 +783,7 @@ pub(crate) async fn transition(
         if count > 0 {
             return Err(domain(
                 ErrorCode::Conflict,
-                format!(
-                    "the track still has {count} draft, queued, active or awaiting-review hypotheses"
-                ),
+                format!("the track still has {count} queued, active or awaiting-review hypotheses"),
             ));
         }
     }

@@ -1175,6 +1175,28 @@ pub fn find_users_query(pairs: &[(String, String)]) -> Checked<FindUsersQuery> {
     }
 }
 
+/// Validate a run submission request: one run document. The document itself
+/// is parsed and checked against the run schema by the route.
+/// # Errors
+/// Returns ordered field errors followed by extras in insertion order.
+pub fn validate_run_submission(input: BodyInput<'_>) -> Checked<String> {
+    let mut fields = Fields::from_input(input)?;
+    let document = fields.field("document", None, |node| {
+        let value = utf8_text(node, TextRule::Plain)?;
+        if value.is_empty() {
+            return Err(issue(
+                "string_too_short",
+                "String should have at least 1 character",
+            ));
+        }
+        Ok(value)
+    });
+    fields.extras(&["document"]);
+    match document {
+        Some(document) if fields.problems.is_empty() => Ok(document),
+        _ => Err(fields.failure()),
+    }
+}
 /// A brief revision: the whole document and the revision it replaces.
 pub struct BriefRevise {
     pub document: String,
@@ -1571,7 +1593,7 @@ pub fn review_attention_parameters(
     let mut state = None;
     if list {
         for (name, labels, result) in [
-            ("kind", &["draft", "result", "failure"][..], &mut kind),
+            ("kind", &["result", "failure"][..], &mut kind),
             ("state", &["pending", "resolved"][..], &mut state),
         ] {
             if let Some(v) = find(name) {

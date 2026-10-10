@@ -124,7 +124,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
             dry.decisions,
             dry.reports
         ),
-        (1, 2, 7, 6, 5, 1)
+        (1, 2, 5, 6, 4, 1)
     );
     assert_eq!(snapshot(&pool).await?, before);
     let (first, second) = tokio::join!(
@@ -151,10 +151,10 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     for (table, expected) in [
         ("projects", 1),
         ("memberships", 2),
-        ("import_entries", 11),
-        ("hypotheses", 7),
+        ("import_entries", 9),
+        ("hypotheses", 5),
         ("attempts", 6),
-        ("decisions", 5),
+        ("decisions", 4),
         ("measurements", 10),
         ("jobs", 0),
         ("uploads", 0),
@@ -167,10 +167,10 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         )
         .fetch_one(&pool)
         .await?,
-        15
+        13
     );
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM phase_outputs WHERE stage='writeup' AND origin='imported' AND body<>'' AND front_matter->>'kind'='retrospective'").fetch_one(&pool).await?,1);
-    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM hypotheses WHERE origin='imported' AND source_ref IS NOT NULL AND external_id IS NOT NULL").fetch_one(&pool).await?,7);
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM hypotheses WHERE origin='imported' AND source_ref IS NOT NULL AND external_id IS NOT NULL").fetch_one(&pool).await?,5);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM measurements WHERE authority IN ('imported_artifact','imported_transcribed')").fetch_one(&pool).await?,10);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM artifacts WHERE backend='external' AND bucket='' AND origin='imported' AND job_id IS NULL").fetch_one(&pool).await?,3);
     assert_eq!(
@@ -179,7 +179,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         )
         .fetch_one(&pool)
         .await?,
-        7
+        5
     );
     let stored = snapshot(&pool).await?;
     let mut equivalent_science = science.clone();
@@ -198,7 +198,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     assert_eq!(snapshot(&pool).await?, stored);
     let replay = run_import(&pool, &bundle, options(None, false, false), &context).await?;
     assert!(replay.nothing_new());
-    assert_eq!(replay.unchanged, 11);
+    assert_eq!(replay.unchanged, 9);
     assert_eq!(snapshot(&pool).await?, stored);
     let scientific = Directory::new()?;
     support::copy(&directory.0, &scientific.0)?;
@@ -264,7 +264,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     let extra = directory.0.join("hypotheses/added.json");
     std::fs::write(
         &extra,
-        r#"{"id":"added","track":"lexical","title":"New historical question","kind":"experiment","claim":"Useful claim","sources":["notebook.md:1@abc"],"created_at":"2025-03-01","state":"declined","decision":{"action":"decline","reason":"Declined in notebook","decided_by":"ben@example.org","decided_at":"2025-03-02","source":"notebook.md:1@abc"}}"#,
+        r#"{"id":"added","track":"lexical","title":"New historical question","kind":"experiment","claim":"Useful claim","sources":["notebook.md:1@abc"],"created_at":"2025-03-01","state":"failed","attempts":[{"label":"run-1","started_at":"2025-03-01","finished_at":"2025-03-01","status":"failed","failure":{"code":"out_of_memory","reason":"The run ran out of memory."}}],"decision":{"action":"close_failed","reason":"Closed in notebook","decided_by":"ben@example.org","decided_at":"2025-03-02","source":"notebook.md:1@abc"}}"#,
     )?;
     let added = fixture(&directory, &context)?;
     assert!(matches!(
@@ -320,7 +320,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         .await?;
     let appended = run_import(&pool, &added, options(None, false, false), &context).await?;
     assert_eq!((appended.hypotheses, appended.decisions), (1, 1));
-    assert_eq!(count(&pool, "hypotheses").await?, 8);
+    assert_eq!(count(&pool, "hypotheses").await?, 6);
     // Imported records remain append-only under the real migration triggers.
     let refused = sqlx::query("UPDATE import_entries SET sha256='changed'")
         .execute(&pool)

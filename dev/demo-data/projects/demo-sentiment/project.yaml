@@ -72,7 +72,6 @@ brief:
 
 hypotheses:
   - key: bigrams
-    by: agent
     doc:
       track: linear-baselines
       title: Add word bigrams to the TF-IDF features
@@ -90,8 +89,6 @@ hypotheses:
         regression_gates: [domain]
         compute_budget: {cpu_hours_max: 2}
       project_fields: {seed: 13, max_features: 200000}
-    review:
-      - {by: ada, action: approve, reason: "Cheap and well-motivated; this should become the new linear reference if it holds."}
     attempts:
       - by: agent
         stop: evaluated
@@ -145,7 +142,6 @@ hypotheses:
       - {by: ada, on: 1, body: "Promoted. @ben can you register this as a baseline in the next science revision so the encoder track compares against it?", edit: "Promoted. Ben, can you register this as a baseline in the next science revision so the small-encoders track compares against it?"}
 
   - key: char-ngrams
-    by: agent
     doc:
       track: linear-baselines
       title: Character 3-5 grams instead of word n-grams
@@ -164,8 +160,6 @@ hypotheses:
         compute_budget: {cpu_hours_max: 4}
       relations:
         - {kind: related_to, hypothesis: bigrams}
-    review:
-      - {by: ben, action: approve, reason: "Worth knowing whether the misspellings matter; same budget as #1."}
     attempts:
       - by: agent
         stop: evaluated
@@ -210,7 +204,6 @@ hypotheses:
       - {by: ben, on: 1, body: "Yes, added to the agent notes. Good catch."}
 
   - key: negation-lexicon
-    by: ada
     doc:
       track: lexicon-rules
       title: Polarity lexicon with negation scope
@@ -227,8 +220,6 @@ hypotheses:
         falsification_criteria: Dev macro-F1 more than 0.03 below the control.
         regression_gates: []
         compute_budget: {cpu_hours_max: 1}
-    review:
-      - {by: ben, action: approve, reason: "Fine as a reference point; keep it to one attempt."}
     attempts:
       - by: ben
         stop: evaluated
@@ -260,7 +251,6 @@ hypotheses:
         decision: {by: ada, action: reject, reason: "As expected the rules are 0.10 behind. Keeping the error analysis, archiving the track."}
 
   - key: distilbert-base
-    by: agent
     doc:
       track: small-encoders
       title: Fine-tune a distilled encoder for three epochs
@@ -273,26 +263,13 @@ hypotheses:
         confirmation_splits: [test]
         primary_metric: macro_f1
         required_slices: [domain]
-        success_criteria: Dev macro-F1 at least 0.02 above the bigram model (0.846), no domain regression, p95 latency under 20 ms.
-        falsification_criteria: Dev macro-F1 below 0.846.
+        success_criteria: Dev macro-F1 at least 0.02 above the bigram model (0.846), no domain regression, and p95 CPU latency under 20 ms per review.
+        falsification_criteria: Dev macro-F1 below 0.846, or p95 latency above 20 ms.
         regression_gates: [domain, latency-budget]
         compute_budget: {gpu_hours_max: 2}
       project_fields: {seed: 7}
       relations:
         - {kind: derived_from, hypothesis: bigrams}
-    review:
-      - {by: ada, action: request_revision, reason: "Please state the latency budget explicitly in the success criteria; an encoder that is 30 ms at p95 is not usable for us."}
-      - revise:
-          plan:
-            selection_splits: [dev]
-            confirmation_splits: [test]
-            primary_metric: macro_f1
-            required_slices: [domain]
-            success_criteria: Dev macro-F1 at least 0.02 above the bigram model (0.846), no domain regression, and p95 CPU latency under 20 ms per review.
-            falsification_criteria: Dev macro-F1 below 0.846, or p95 latency above 20 ms.
-            regression_gates: [domain, latency-budget]
-            compute_budget: {gpu_hours_max: 2}
-      - {by: ada, action: approve, reason: "Latency budget is explicit now. Approved."}
     attempts:
       - by: agent
         stop: released
@@ -346,7 +323,6 @@ hypotheses:
       - {by: chloe, on: 2, body: "The 15 ms p95 is on the tester's CPU. Our serving boxes are a bit faster, so there is some headroom."}
 
   - key: encoder-longer
-    by: agent
     doc:
       track: small-encoders
       title: Train the distilled encoder for five epochs with early stopping
@@ -366,8 +342,6 @@ hypotheses:
       project_fields: {seed: 7}
       relations:
         - {kind: derived_from, hypothesis: distilbert-base}
-    review:
-      - {by: ada, action: approve, reason: "Cheap follow-up; approve."}
     attempts:
       - by: agent
         stop: tested
@@ -392,7 +366,6 @@ hypotheses:
         tester_notes: Reproduced within 0.001.
 
   - key: encoder-seeds
-    by: ben
     doc:
       track: small-encoders
       title: Three-seed check of the distilled encoder
@@ -411,8 +384,6 @@ hypotheses:
         compute_budget: {gpu_hours_max: 4}
       relations:
         - {kind: related_to, hypothesis: distilbert-base}
-    review:
-      - {by: ada, action: approve, reason: "Exactly what is needed before deciding #4."}
     attempts:
       - by: agent
         stop: submitted
@@ -441,7 +412,6 @@ hypotheses:
           - {metric: macro_f1, split: dev, dims: {domain: products}, claimed: 0.887, n: 600}
 
   - key: quantized-encoder
-    by: agent
     doc:
       track: small-encoders
       title: 8-bit dynamic quantization of the encoder
@@ -460,15 +430,12 @@ hypotheses:
         compute_budget: {cpu_hours_max: 1}
       relations:
         - {kind: derived_from, hypothesis: distilbert-base}
-    review:
-      - {by: ben, action: approve, reason: "Approved; quick and useful for serving."}
     attempts:
       - by: agent
         stop: running
         candidate: {}
 
   - key: tfidf-svm
-    by: agent
     doc:
       track: linear-baselines
       title: Linear SVM on the bigram features
@@ -487,11 +454,8 @@ hypotheses:
         compute_budget: {cpu_hours_max: 1}
       relations:
         - {kind: related_to, hypothesis: bigrams}
-    review:
-      - {by: ada, action: approve, reason: "Fine, low priority; queue it."}
 
   - key: backtranslation
-    by: agent
     doc:
       track: augmentation
       title: Back-translation through French and German
@@ -508,11 +472,8 @@ hypotheses:
         falsification_criteria: No gain over the original-data encoder.
         regression_gates: [domain]
         compute_budget: {gpu_hours_max: 6}
-    review:
-      - {by: ben, action: approve, reason: "Approved, but the track is about to be paused; it will wait in the queue."}
 
   - key: synonym-swap
-    by: agent
     doc:
       track: augmentation
       title: Synonym replacement for rare adjectives
@@ -528,11 +489,9 @@ hypotheses:
         falsification_criteria: Not above the bigram model.
         regression_gates: []
         compute_budget: {cpu_hours_max: 1}
-    review:
-      - {by: ada, action: decline, reason: "Synonym swaps flip sentiment too often (\"decent\" for \"great\"); the paraphrase approach in back-translation covers this better."}
+    later: {review: decline, by: ada, reason: "Synonym swaps flip sentiment too often (\"decent\" for \"great\"); the paraphrase approach in back-translation covers this better."}
 
   - key: label-noise
-    by: agent
     doc:
       track: linear-baselines
       title: Estimate label noise with confident learning
@@ -548,11 +507,9 @@ hypotheses:
         falsification_criteria: Fewer than half of the checked flags are real label errors.
         regression_gates: []
         compute_budget: {cpu_hours_max: 1}
-    review:
-      - {by: ada, action: request_revision, reason: "Who checks the 100 flagged reviews, and against which guideline? Please add that to the plan."}
+    later: {review: pending}
 
   - key: emoji-features
-    by: agent
     doc:
       track: linear-baselines
       title: Keep emoji and emoticons as tokens
@@ -570,9 +527,9 @@ hypotheses:
         compute_budget: {cpu_hours_max: 1}
       relations:
         - {kind: derived_from, hypothesis: bigrams}
+    later: {review: pending}
 
   - key: stale-vocab
-    by: ben
     doc:
       track: linear-baselines
       title: Rebuild the vocabulary on train plus unlabeled reviews
@@ -588,8 +545,6 @@ hypotheses:
         falsification_criteria: No gain.
         regression_gates: []
         compute_budget: {cpu_hours_max: 1}
-    review:
-      - {by: ada, action: approve, reason: "OK."}
     attempts:
       - by: ben
         stop: released

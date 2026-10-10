@@ -122,14 +122,60 @@ fn service() -> Principal {
 fn python(s: &str) -> String {
     String::from(s)
 }
-fn parse(s: &str) -> Result<Document> {
-    Ok(json::decode_str(s, CONTEXT.decode_nesting_budget)?)
-}
 fn many<T>(rows: &[T], projection: impl Fn(&T) -> Result<Value>) -> Result<Value> {
     rows.iter()
         .map(projection)
         .collect::<Result<Vec<_>>>()
         .map(Value::Array)
+}
+// Hypotheses come from plan approval, outside this crate; the fixture writes
+// the rows an approved plan would.
+async fn insert_hypothesis(
+    c: &mut PgConnection,
+    number: i32,
+    title: &str,
+    principal: &Principal,
+) -> Result<HypothesisId> {
+    let (user, service) = match principal {
+        Principal::User(u) => (Some(u.user_id), None),
+        Principal::Service(s) => (None, Some(s.service_account_id)),
+    };
+    Ok(sqlx::query_scalar("INSERT INTO hypotheses(project_id,number,track_id,state,revision,approved_revision,title,created_by_user,created_by_service,approved_at) VALUES($1,$2,$3,'queued',1,1,$4,$5,$6,now()) RETURNING id")
+        .bind(PROJECT).bind(number).bind(TRACK).bind(title).bind(user).bind(service)
+        .fetch_one(&mut *c).await?)
+}
+async fn insert_revision(
+    c: &mut PgConnection,
+    hypothesis: HypothesisId,
+    revision: i32,
+    content: &str,
+    science_revision: i32,
+    principal: &Principal,
+) -> Result<()> {
+    let (user, service) = match principal {
+        Principal::User(u) => (Some(u.user_id), None),
+        Principal::Service(s) => (None, Some(s.service_account_id)),
+    };
+    let via = match principal {
+        Principal::User(_) => "api",
+        Principal::Service(_) => "cli",
+    };
+    sqlx::query("INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,author_service,via_channel,via_client) VALUES($1,$2,$3::jsonb,$4,$5,$6,$7,$8)")
+        .bind(hypothesis).bind(revision).bind(content).bind(science_revision).bind(user).bind(service).bind(via)
+        .bind(matches!(principal, Principal::User(_)).then_some("fixture"))
+        .execute(&mut *c).await?;
+    Ok(())
+}
+// A result case on an attempt of `hypothesis`, as evaluation opens it.
+async fn insert_result_case(
+    c: &mut PgConnection,
+    hypothesis: HypothesisId,
+) -> Result<ReviewCaseId> {
+    let attempt = Uuid::from_u128(11);
+    let evidence = Uuid::from_u128(12);
+    sqlx::query("INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,lease_generation) VALUES($1,$2,$3,1,'awaiting_human_review',1,1,$4,$5,'api',0)").bind(attempt).bind(PROJECT).bind(hypothesis).bind(TRACK).bind(USER).execute(&mut *c).await?;
+    sqlx::query("INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_user,via_channel) VALUES($1,$2,$3,'evaluator','completed','{}','fixture',$4,'api')").bind(evidence).bind(PROJECT).bind(attempt).bind(USER).execute(&mut *c).await?;
+    Ok(ReviewCaseId(sqlx::query_scalar("INSERT INTO review_cases(project_id,hypothesis_id,attempt_id,kind,subject_revision,evidence_id) VALUES($1,$2,$3,'result',1,$4) RETURNING id").bind(PROJECT).bind(hypothesis).bind(attempt).bind(evidence).fetch_one(&mut *c).await?))
 }
 async fn seed(c: &mut PgConnection) -> Result<()> {
     sqlx::query("SET plan_cache_mode=force_generic_plan")
@@ -232,30 +278,10 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     let agent = service();
     let mut out = serde_json::Map::new();
     let n = next_number(c, PROJECT).await?;
-    let first = create_hypothesis(
-        c,
-        CreateHypothesis {
-            project_id: PROJECT,
-            number: &BigInt::from(n),
-            track_id: TRACK,
-            title: &python("First é😀"),
-            principal: &human,
-        },
-    )
-    .await?;
+    let first = insert_hypothesis(c, n, "First é😀", &human).await?;
     p.aliases.insert(first.0, "first".into());
     let second_number = next_number(c, PROJECT).await?;
-    let second = create_hypothesis(
-        c,
-        CreateHypothesis {
-            project_id: PROJECT,
-            number: &BigInt::from(second_number),
-            track_id: TRACK,
-            title: &python("Second"),
-            principal: &agent,
-        },
-    )
-    .await?;
+    let second = insert_hypothesis(c, second_number, "Second", &agent).await?;
     p.aliases.insert(second.0, "second".into());
     out.insert(
         "numbers".into(),
@@ -296,40 +322,29 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
                 .await?
                 .is_some()
                 .then_some(true),
-            pending_case(c, first, CaseKind::Draft, CONTEXT)
+            pending_case(c, first, CaseKind::Result, CONTEXT)
                 .await?
                 .is_some()
                 .then_some(true)
         ]),
     );
-    add_revision(
+    insert_revision(
         c,
-        AddRevision {
-            hypothesis_id: first,
-            revision: &1.into(),
-            content: &parse(r#"{"title":"First é😀","negative":-0.0,"float":1.0,"tiny":1e-7}"#)?,
-            science_revision: &1.into(),
-            principal: &human,
-        },
-        CONTEXT,
+        first,
+        1,
+        r#"{"title":"First é😀","negative":-0.0,"float":1.0,"tiny":1e-7}"#,
+        1,
+        &human,
     )
     .await?;
-    out.insert(
-        "bumped".into(),
-        json!(update_draft(c, first, TRACK, &python("Changed")).await?),
-    );
-    add_revision(
-        c,
-        AddRevision {
-            hypothesis_id: first,
-            revision: &2.into(),
-            content: &parse(r#"{"title":"Changed"}"#)?,
-            science_revision: &5.into(),
-            principal: &agent,
-        },
-        CONTEXT,
+    let bumped: i32 = sqlx::query_scalar(
+        "UPDATE hypotheses SET revision=revision+1,title='Changed',updated_at=now() WHERE id=$1 RETURNING revision",
     )
+    .bind(first)
+    .fetch_one(&mut *c)
     .await?;
+    out.insert("bumped".into(), json!(bumped));
+    insert_revision(c, first, 2, r#"{"title":"Changed"}"#, 5, &agent).await?;
     out.insert(
         "revision".into(),
         revision(
@@ -467,27 +482,28 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     );
     out.insert("refs-empty".into(), json!({}));
     assert!(resolve_refs(c, Vec::new()).await?.is_empty());
-    let opened = open_draft_case(c, PROJECT, first, &1.into(), CONTEXT).await?;
-    p.aliases.insert(opened.id.0, "case".into());
-    out.insert("opened".into(), reviewcase(&p, &opened)?);
-    let reopened = open_draft_case(c, PROJECT, first, &2.into(), CONTEXT).await?;
-    out.insert("reopened".into(), reviewcase(&p, &reopened)?);
-    out.insert(
-        "pending".into(),
-        reviewcase(
-            &p,
-            &pending_case(c, first, CaseKind::Draft, CONTEXT)
-                .await?
-                .ok_or("missing pending")?,
-        )?,
-    );
+    let opened = pending_case(c, first, CaseKind::Result, CONTEXT)
+        .await?
+        .is_some()
+        .then_some(true);
+    out.insert("opened-before".into(), json!(opened));
+    let case = insert_result_case(c, first).await?;
+    p.aliases.insert(case.0, "case".into());
+    p.aliases
+        .insert(Uuid::from_u128(11), "first-attempt".into());
+    p.aliases
+        .insert(Uuid::from_u128(12), "first-evaluation".into());
+    let opened = pending_case(c, first, CaseKind::Result, CONTEXT)
+        .await?
+        .ok_or("missing pending")?;
+    out.insert("pending".into(), reviewcase(&p, &opened)?);
     let decided = record_decision(
         c,
         RecordDecision {
             case_id: opened.id,
-            action: DecisionAction::RequestRevision,
-            subject_revision: &2.into(),
-            reason: &python("Please revise"),
+            action: DecisionAction::Inconclusive,
+            subject_revision: &1.into(),
+            reason: &python("Not enough data"),
             principal: &user(),
             supersedes: None,
         },
@@ -496,17 +512,13 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     .await?;
     p.aliases.insert(decided.id.0, "decision".into());
     out.insert("decision".into(), decision(&p, &decided)?);
-    out.insert(
-        "requested".into(),
-        json!(revision_requested(c, first, &2.into()).await?),
-    );
     let before_case = list_cases(c, first, CONTEXT).await?.remove(0);
     let corrected = record_decision(
         c,
         RecordDecision {
             case_id: opened.id,
-            action: DecisionAction::Approve,
-            subject_revision: &2.into(),
+            action: DecisionAction::Reject,
+            subject_revision: &1.into(),
             reason: &python("Correction"),
             principal: &user(),
             supersedes: Some(decided.id),
@@ -516,14 +528,6 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     .await?;
     p.aliases.insert(corrected.id.0, "correction".into());
     out.insert("correction".into(), decision(&p, &corrected)?);
-    out.insert(
-        "requested-after-correction".into(),
-        json!(revision_requested(c, first, &2.into()).await?),
-    );
-    out.insert(
-        "requested-other".into(),
-        json!(revision_requested(c, first, &1.into()).await?),
-    );
     let cases = list_cases(c, first, CONTEXT).await?;
     out.insert(
         "resolved-preserved".into(),
@@ -533,7 +537,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     out.insert(
         "pending-resolved".into(),
         json!(
-            pending_case(c, first, CaseKind::Draft, CONTEXT)
+            pending_case(c, first, CaseKind::Result, CONTEXT)
                 .await?
                 .is_some()
                 .then_some(true)
@@ -583,7 +587,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
         let ident = HypothesisId(Uuid::from_u128(100 + u128::try_from(i)?));
         p.aliases.insert(ident.0, format!("imported-{i}"));
         let index = i32::try_from(i)?;
-        sqlx::query("INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,origin,source_ref,external_id,imported,created_at,updated_at) VALUES($1,$2,$3,$4,'Imported',$5,'imported','fixture','historical-'||$6::text,$7::jsonb,'2001-02-03T04:05:06.123456Z','2001-02-03T04:05:06.123456Z')").bind(ident).bind(PROJECT).bind(100+index).bind(TRACK).bind(USER).bind(index.to_string()).bind(shape).execute(&mut *c).await?;
+        sqlx::query("INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,origin,source_ref,external_id,imported,created_at,updated_at,state,approved_revision,approved_at) VALUES($1,$2,$3,$4,'Imported',$5,'imported','fixture','historical-'||$6::text,$7::jsonb,'2001-02-03T04:05:06.123456Z','2001-02-03T04:05:06.123456Z','queued',1,'2001-02-03T04:05:06.123456Z')").bind(ident).bind(PROJECT).bind(100+index).bind(TRACK).bind(USER).bind(index.to_string()).bind(shape).execute(&mut *c).await?;
         let row = get_hypothesis_by_id(c, ident, CONTEXT)
             .await?
             .ok_or("missing imported")?;
@@ -653,7 +657,6 @@ async fn observe_recipe(
     cid: ReviewCaseId,
     p: &Projection,
 ) -> std::result::Result<Value, HypothesisError> {
-    let zero = BigInt::from(0);
     let action = r["action"].as_str().ok_or(HypothesisError::CorruptData)?;
     let mut n = if let Some(power) = r["power"].as_u64() {
         BigInt::from(10).pow(u32::try_from(power).map_err(|_| HypothesisError::CorruptData)?)
@@ -667,7 +670,6 @@ async fn observe_recipe(
     if r["negative"].as_bool() == Some(true) {
         n = -n;
     }
-    let human = Principal::User(user());
     let projection_error = |_: Box<dyn Error>| HypothesisError::CorruptData;
     match action {
         "get" | "get-lock" => opt(
@@ -681,7 +683,6 @@ async fn observe_recipe(
             revision(p, row)
         })
         .map_err(projection_error),
-        "requested" => Ok(json!(revision_requested(c, hid, &n).await?)),
         "list-before" => many(
             &list_hypotheses(
                 c,
@@ -710,80 +711,6 @@ async fn observe_recipe(
                 .map(|((project, no), h)| json!([project.to_string(), no, h.to_string()]))
                 .collect::<Vec<_>>()
         )),
-        "create-number" | "create-zero" | "create-fk" => Ok(p.id(create_hypothesis(
-            c,
-            CreateHypothesis {
-                project_id: if action == "create-fk" {
-                    ProjectId(Uuid::nil())
-                } else {
-                    PROJECT
-                },
-                number: if action == "create-zero" { &zero } else { &n },
-                track_id: TRACK,
-                title: &python("Fixture"),
-                principal: &human,
-            },
-        )
-        .await?
-        .0)),
-        "add-revision" | "content" | "revision-zero" | "revision-missing" => {
-            let no = if action == "revision-zero" {
-                0.into()
-            } else if action == "add-revision" {
-                n
-            } else {
-                3.into()
-            };
-            let document = if let Some(power) = r["content_power"].as_u64() {
-                let mut builder = json::DocumentBuilder::new();
-                let value = builder
-                    .push(json::Node::Integer(BigInt::from(10).pow(
-                        u32::try_from(power).map_err(|_| HypothesisError::Invariant)?,
-                    )))
-                    .map_err(|_| HypothesisError::Invariant)?;
-                let root = builder
-                    .push(json::Node::Object(vec![(String::from("integer"), value)]))
-                    .map_err(|_| HypothesisError::Invariant)?;
-                builder
-                    .finish(root)
-                    .map_err(|_| HypothesisError::Invariant)?
-            } else {
-                json::decode_str(
-                    r["content"].as_str().unwrap_or(r#"{"title":"Fixture"}"#),
-                    CONTEXT.decode_nesting_budget,
-                )?
-            };
-            let science = r["science_power"].as_u64().map_or_else(
-                || BigInt::from(1),
-                |power| BigInt::from(10).pow(u32::try_from(power).unwrap_or(0)),
-            );
-            add_revision(
-                c,
-                AddRevision {
-                    hypothesis_id: if action == "revision-missing" {
-                        MISSING
-                    } else {
-                        hid
-                    },
-                    revision: &no,
-                    content: &document,
-                    science_revision: &science,
-                    principal: &human,
-                },
-                CONTEXT,
-            )
-            .await?;
-            let row = get_revision(c, hid, &no, CONTEXT).await?;
-            match row {
-                None => Ok(Value::Null),
-                Some(row) => {
-                    let stored:String=sqlx::query_scalar("SELECT content::text FROM hypothesis_revisions WHERE hypothesis_id=$1 AND revision=$2").bind(hid).bind(row.revision).fetch_one(c).await?;
-                    Ok(
-                        json!({"record":revision(p,&row).map_err(projection_error)?,"stored":stored}),
-                    )
-                }
-            }
-        }
         "approve" | "state-missing" => {
             set_state(
                 c,
@@ -792,14 +719,12 @@ async fn observe_recipe(
                 } else {
                     hid
                 },
-                HypothesisState::Draft,
+                HypothesisState::Queued,
                 if action == "approve" { Some(&n) } else { None },
             )
             .await?;
             Ok(Value::Null)
         }
-        "open" => reviewcase(p, &open_draft_case(c, PROJECT, hid, &n, CONTEXT).await?)
-            .map_err(projection_error),
         "decision" | "decision-fk" | "decision-blank" => decision(
             p,
             &record_decision(
@@ -810,7 +735,7 @@ async fn observe_recipe(
                     } else {
                         cid
                     },
-                    action: DecisionAction::Approve,
+                    action: DecisionAction::Promote,
                     subject_revision: &n,
                     reason: &python(if action == "decision-blank" {
                         " "
@@ -826,24 +751,12 @@ async fn observe_recipe(
         )
         .map_err(projection_error),
         "next-missing" => Ok(json!(next_number(c, ProjectId(Uuid::nil())).await?)),
-        "update-missing" => Ok(json!(
-            update_draft(c, MISSING, TRACK, &python("Fixture")).await?
-        )),
         "next-overflow" => {
             sqlx::query("UPDATE projects SET next_hypothesis_number=2147483647 WHERE id=$1")
                 .bind(PROJECT)
                 .execute(&mut *c)
                 .await?;
             Ok(json!(next_number(c, PROJECT).await?))
-        }
-        "update-overflow" => {
-            sqlx::query("UPDATE hypotheses SET revision=2147483647 WHERE id=$1")
-                .bind(hid)
-                .execute(&mut *c)
-                .await?;
-            Ok(json!(
-                update_draft(c, hid, TRACK, &python("Fixture")).await?
-            ))
         }
         "relations-self" | "relations-fk" => {
             replace_relations(
@@ -1014,7 +927,6 @@ async fn warmup(url: &str) -> Result<Value> {
                 "before-missing",
                 "after-missing",
                 "approve-missing",
-                "insert-fk",
                 "refs-missing",
             ] {
                 let mut connection = PgConnection::connect(url).await?;
@@ -1055,23 +967,11 @@ async fn warmup(url: &str) -> Result<Value> {
                             set_state(
                                 &mut connection,
                                 MISSING,
-                                HypothesisState::Draft,
+                                HypothesisState::Queued,
                                 Some(&number),
                             )
                             .await
                         }
-                        "insert-fk" => create_hypothesis(
-                            &mut connection,
-                            CreateHypothesis {
-                                project_id: ProjectId(Uuid::nil()),
-                                number: &number,
-                                track_id: TRACK,
-                                title: &python("Fixture"),
-                                principal: &Principal::User(user()),
-                            },
-                        )
-                        .await
-                        .map(|_| ()),
                         "refs-missing" => {
                             resolve_refs(&mut connection, [(ProjectId(Uuid::nil()), number)])
                                 .await

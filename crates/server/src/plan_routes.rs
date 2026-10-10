@@ -14,7 +14,7 @@ use crate::{
     authentication::{Authenticated, authenticate},
     body::DecodedBody,
     errors::ApiError,
-    hypothesis_mutations::check_unit,
+    hypothesis_mutations::{check_unit, unit_contract},
     hypothesis_routes::{Failure, RouteState, domain, internal},
     plan_units::{self, UnitFields},
     requests::RequestContext,
@@ -575,6 +575,13 @@ async fn check_entry(
         )
         .await?;
     }
+    let mut entry =
+        serde_json::to_value(fields).map_err(|_| internal(context, "unit entry encoding"))?;
+    entry["key"] = Value::from(key);
+    entry["brief"] = Value::from(brief);
+    let entry =
+        plan_units::document(&entry).ok_or_else(|| invalid("body", "the unit is too deep"))?;
+    unit_contract(&entry, state, context)?;
     let value = plan_units::hypothesis_value(
         &track.slug,
         fields,
@@ -1184,15 +1191,13 @@ pub(crate) async fn list_units(
     let (before, limit) = page(&parts)?;
     let states = query_value(&parts, "state")
         .map(|state| {
-            const STATES: [&str; 10] = [
-                "draft",
+            const STATES: [&str; 8] = [
                 "queued",
                 "active",
                 "awaiting_human_review",
                 "promoted",
                 "rejected",
                 "inconclusive",
-                "declined",
                 "failed",
                 "cancelled",
             ];
@@ -2451,7 +2456,7 @@ pub(crate) async fn review(
     Ok(json_response(StatusCode::OK, &out))
 }
 
-/// Mentions of a written hypothesis revision, as drafts index them.
+/// The relations and mentions of a written hypothesis revision.
 pub(crate) async fn replace_links(
     conn: &mut PgConnection,
     hypothesis: HypothesisId,

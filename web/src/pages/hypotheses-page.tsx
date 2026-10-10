@@ -169,7 +169,7 @@ function HypothesisList({ project }: { project: Project }) {
             }}
           />
           <label htmlFor={archivedId} className="text-sm">
-            Show archived (declined, rejected, inconclusive, failed, cancelled)
+            Show archived (rejected, inconclusive, failed, cancelled)
           </label>
         </div>
       </form>
@@ -182,7 +182,7 @@ function HypothesisList({ project }: { project: Project }) {
         <EmptyState>
           {track || state || !showArchived
             ? "No hypothesis matches these filters."
-            : "No hypothesis yet. Hypotheses appear here once an agent or a researcher drafts one."}
+            : "No hypothesis yet. Hypotheses appear here once a researcher approves a plan."}
           {!showArchived && state === undefined ? (
             <> Archived hypotheses are hidden; tick “Show archived” to see them.</>
           ) : null}

@@ -85,43 +85,16 @@ describe("the outcome sentence", () => {
     );
   });
 
-  it("describes drafts, the queue and work in progress", () => {
-    expect(summarizeOutcome(hypothesis({ state: "draft" }), null, null).sentence).toBe(
-      "“Shorter prompts” is a draft waiting for a researcher's review; nothing has been tried yet.",
+  it("describes the queue and work in progress", () => {
+    const queued = summarizeOutcome(hypothesis({ state: "queued" }), null, null);
+    expect(queued.sentence).toBe(
+      "“Shorter prompts” is planned and waiting for an agent to try it.",
     );
-    const declined = hypothesis({
-      state: "declined",
-      reviews: [
-        review({
-          kind: "draft",
-          decisions: [decision({ action: "decline", reason: "Out of scope" })],
-        }),
-      ],
-    });
-    expect(summarizeOutcome(declined, null, null).sentence).toBe(
-      "“Shorter prompts” was not tried: a researcher declined the draft because “Out of scope.”",
-    );
+    expect(queued.decision).toBeNull();
     expect(
       summarizeOutcome(hypothesis({ state: "active" }), attempt({ state: "running" }), null)
         .sentence,
     ).toMatch(/^“Shorter prompts” is being tried now \(attempt #12\.1: /);
-  });
-
-  it("keeps a request for changes only for the revision it was about", () => {
-    const asked = review({
-      kind: "draft",
-      decisions: [
-        decision({ action: "request_revision", reason: "Name the split", subject_revision: 1 }),
-      ],
-    });
-    expect(
-      summarizeOutcome(hypothesis({ state: "draft", revision: 1, reviews: [asked] }), null, null)
-        .decision,
-    ).not.toBeNull();
-    expect(
-      summarizeOutcome(hypothesis({ state: "draft", revision: 2, reviews: [asked] }), null, null)
-        .decision,
-    ).toBeNull();
   });
 
   it("quotes a reason with its own punctuation", () => {
@@ -182,7 +155,7 @@ describe("hypotheses without a control", () => {
   });
 
   it("never mention a missing control in the outcome", () => {
-    for (const state of ["draft", "queued", "awaiting_human_review", "promoted"]) {
+    for (const state of ["queued", "awaiting_human_review", "promoted"]) {
       const summary = summarizeOutcome(hypothesis({ state }), attempt(), report());
       expect(summary.sentence).not.toMatch(/undefined|null|control/i);
       expect(summary.tried).not.toMatch(/undefined|null/);
@@ -328,12 +301,6 @@ describe("waiting times", () => {
 });
 
 describe("the outcome sentence after a failure was tried again", () => {
-  const approved = review({
-    kind: "draft",
-    decisions: [
-      decision({ action: "approve", reason: "Worth a try", decided_at: "2026-03-01T10:00:00Z" }),
-    ],
-  });
   const retried = review({
     kind: "failure",
     decisions: [
@@ -355,7 +322,7 @@ describe("the outcome sentence after a failure was tried again", () => {
 
   it("says a queued hypothesis waits to be tried again, and why", () => {
     const summary = summarizeOutcome(
-      hypothesis({ state: "queued", reviews: [approved, retried] }),
+      hypothesis({ state: "queued", reviews: [retried] }),
       attempt({ state: "failed", failures: [failure] }),
       null,
     );
@@ -369,7 +336,7 @@ describe("the outcome sentence after a failure was tried again", () => {
 
   it("says an active hypothesis is being tried again after the failed attempt", () => {
     const summary = summarizeOutcome(
-      hypothesis({ state: "active", reviews: [approved, retried] }),
+      hypothesis({ state: "active", reviews: [retried] }),
       attempt({ sequence: 2, state: "running" }),
       null,
       attempt({ sequence: 1, state: "failed" }),
@@ -381,23 +348,12 @@ describe("the outcome sentence after a failure was tried again", () => {
 
   it("names the failure when a stage is run again on the same attempt", () => {
     const summary = summarizeOutcome(
-      hypothesis({ state: "active", reviews: [approved, retried] }),
+      hypothesis({ state: "active", reviews: [retried] }),
       attempt({ state: "testing", failures: [{ ...failure, stage: "tester", reason: "Timeout" }] }),
       null,
     );
     expect(summary.sentence).toMatch(
       /^“Shorter prompts” is being tried again now \(attempt #12\.1: .+\): attempt #12\.1 failed \(Timeout\), and a researcher decided to try again because/,
-    );
-  });
-
-  it("keeps the approval when there was no retry", () => {
-    const summary = summarizeOutcome(
-      hypothesis({ state: "queued", reviews: [approved] }),
-      null,
-      null,
-    );
-    expect(summary.sentence).toBe(
-      "“Shorter prompts” is approved and waiting for an agent to try it: a researcher approved it because “Worth a try.”",
     );
   });
 });

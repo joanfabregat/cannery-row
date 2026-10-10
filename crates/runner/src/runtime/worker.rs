@@ -9,6 +9,7 @@ use crate::{
     launcher::{self, Manifest, Network, StepSpec},
 };
 use cannery_core::{
+    front_matter,
     json::{self},
     principal::Secret,
 };
@@ -21,6 +22,11 @@ use std::{
     time::{Duration, SystemTime},
 };
 use tokio::io::AsyncReadExt;
+
+/// The experiment output the last step writes: the run document `run.md`.
+const RUN_OUTPUT: &str = "run";
+/// The built-in interface of the run document.
+pub(crate) const RUN_INTERFACE: &str = "cr-run/v0.2";
 
 pub trait OutputValidator: Send + Sync {
     /// Validation runs before uploading any output of this step. A checker must
@@ -563,9 +569,10 @@ impl Session<'_> {
         science: &Value,
         local: &Path,
     ) -> Result<(), RuntimeError> {
-        // The built-in evidence envelope is checked during completion, rather
-        // than resolved as a project-registered content interface.
-        if interface == "cr-evidence/v0.2" {
+        // The built-in evidence envelope and run document are checked by the
+        // API on completion or submission, rather than resolved as
+        // project-registered content interfaces.
+        if interface == "cr-evidence/v0.2" || interface == RUN_INTERFACE {
             return Ok(());
         }
         let (name, version) = interface.rsplit_once("/v").ok_or(RuntimeError::Contract)?;
@@ -842,7 +849,7 @@ impl Session<'_> {
                 let output_name = string(output, "name")?;
                 let mut digests = BTreeMap::new();
                 for (path, relative) in files {
-                    if self.mode.is_experiment() && output_name == "claimed_sheet" {
+                    if self.mode.is_experiment() && output_name == RUN_OUTPUT {
                         digests.insert(relative, http::digest(&path).await?);
                         continue;
                     }
@@ -865,7 +872,7 @@ impl Session<'_> {
                     );
                 }
                 if (role == "scorer" && output_name == "evidence")
-                    || (self.mode.is_experiment() && output_name == "claimed_sheet")
+                    || (self.mode.is_experiment() && output_name == RUN_OUTPUT)
                     || (self.mode.is_evaluator() && output_name == "verdict")
                 {
                     evidence = Some(local.clone());
@@ -897,11 +904,13 @@ impl Session<'_> {
             });
         }
         if self.mode.owns_transfers() {
-            if !files[0]
-                .0
-                .extension()
-                .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
-            {
+            if !files[0].0.extension().is_some_and(|extension| {
+                extension.eq_ignore_ascii_case(if self.mode.is_experiment() {
+                    "md"
+                } else {
+                    "json"
+                })
+            }) {
                 return Err(RuntimeError::InvalidStepOutput);
             }
             let produced = self
@@ -909,7 +918,7 @@ impl Session<'_> {
                 .get(if self.mode.is_evaluator() {
                     "verdict"
                 } else {
-                    "claimed_sheet"
+                    RUN_OUTPUT
                 })
                 .ok_or(RuntimeError::Contract)?;
             for (path, relative) in &files {
@@ -920,20 +929,30 @@ impl Session<'_> {
         }
         let file = tokio::fs::File::open(&files[0].0).await?;
         let mut bytes = Vec::new();
-        let limit = if self.mode.is_evaluator() {
+        let limit = if self.mode.is_evaluator() || self.mode.is_experiment() {
             1024 * 1024
         } else {
             16 * 1024 * 1024
         };
         file.take(limit + 1).read_to_end(&mut bytes).await?;
         if u64::try_from(bytes.len()).map_err(|_| RuntimeError::InvalidOutput)? > limit {
-            return Err(RuntimeError::InvalidOutput);
+            return Err(if self.mode.is_experiment() {
+                RuntimeError::InvalidStepOutput
+            } else {
+                RuntimeError::InvalidOutput
+            });
         }
-        let invalid = if self.mode.is_experiment() {
-            RuntimeError::InvalidStepOutput
-        } else {
-            RuntimeError::InvalidOutput
-        };
+        if self.mode.is_experiment() {
+            // The run document: front matter and notes, submitted by the session.
+            let text = String::from_utf8(bytes).map_err(|_| RuntimeError::InvalidStepOutput)?;
+            let document = front_matter::parse(&text, front_matter::Limits::default())
+                .map_err(|_| RuntimeError::InvalidStepOutput)?;
+            return Ok(json!({
+                "front_matter": Value::Object(document.front_matter),
+                "body": document.body,
+            }));
+        }
+        let invalid = RuntimeError::InvalidOutput;
         json::decode(&bytes, 128).map_err(|_| invalid)?;
         let evidence: Value = serde_json::from_slice(&bytes).map_err(|_| invalid)?;
         if !evidence.is_object() {
@@ -1058,7 +1077,7 @@ impl Session<'_> {
                         return Err(RuntimeError::Integrity);
                     }
                     tokio::fs::write(
-                        target.join("claimed_sheet.json"),
+                        target.join("claimed.json"),
                         serde_json::to_vec_pretty(&sheet)?,
                     )
                     .await?;

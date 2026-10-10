@@ -146,9 +146,8 @@ impl Writer<'_> {
             .map(|time| time.evaluated)
             .chain(decision)
             .fold(created, std::cmp::max);
-        let approved = !["draft", "declined"].contains(&state);
-        let approved_revision = approved.then_some(1i32);
-        let approved_at = approved.then_some(created);
+        let approved_revision = Some(1i32);
+        let approved_at = Some(created);
         let track = self
             .tracks
             .get(text(value, "track")?)
@@ -212,40 +211,13 @@ impl Writer<'_> {
         }
         let state = text(value, "state")?;
         let decision = value.get("decision");
-        if state == "draft" {
-            self.case(Case {
-                hypothesis: id,
-                attempt: None,
-                kind: "draft",
-                opened: created,
-                resolved: None,
-                decision: None,
-                evidence: None,
-                failure: None,
-                source: &entry.path,
-            })
-            .await?;
-        } else if state == "declined" {
-            self.case(Case {
-                hypothesis: id,
-                attempt: None,
-                kind: "draft",
-                opened: created,
-                resolved: time::decided(value, &[])?,
-                decision,
-                evidence: None,
-                failure: None,
-                source: text(decision.ok_or(Error::CorruptData)?, "source")?,
-            })
-            .await?;
-        }
         let attempts = items(value, "attempts");
         let times = time::attempts(value)?;
         let decided = time::decided(value, &times)?;
         let mut previous: Option<AttemptId> = None;
         for (index, (attempt, times)) in attempts.iter().zip(&times).enumerate() {
             let last = index + 1 == attempts.len();
-            let has_decision = last && decision.is_some() && state != "declined";
+            let has_decision = last && decision.is_some();
             let attempt_state = if last && state == "awaiting_human_review" || has_decision {
                 state
             } else if attempt["status"] == "failed" {

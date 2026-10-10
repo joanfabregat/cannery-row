@@ -68,7 +68,7 @@ async fn operation(c: &mut PgConnection, r: &Value, clock: Timestamp) -> Result<
             get_case(
                 c,
                 project,
-                ReviewCaseId(id(r, "target", 300)),
+                ReviewCaseId(id(r, "target", 301)),
                 r["action"] == "get-locked",
             )
             .await?
@@ -262,7 +262,7 @@ async fn concurrency(url: &str) -> Result<Value> {
         .await?;
     let mut held = first.begin().await?;
     sqlx::query("SELECT id FROM review_cases WHERE id=$1 FOR UPDATE")
-        .bind(identity(300))
+        .bind(identity(301))
         .persistent(false)
         .fetch_one(&mut *held)
         .await?;
@@ -270,7 +270,7 @@ async fn concurrency(url: &str) -> Result<Value> {
         let row = get_case(
             &mut second,
             ProjectId(identity(2)),
-            ReviewCaseId(identity(300)),
+            ReviewCaseId(identity(301)),
             true,
         )
         .await?;
@@ -278,7 +278,7 @@ async fn concurrency(url: &str) -> Result<Value> {
     });
     let waited = blocked(&mut held, pid).await?;
     sqlx::query("UPDATE hypotheses SET number=90 WHERE id=$1")
-        .bind(identity(31))
+        .bind(identity(37))
         .persistent(false)
         .execute(&mut *held)
         .await?;

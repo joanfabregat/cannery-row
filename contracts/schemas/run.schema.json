@@ -3,10 +3,41 @@
   "$id": "https://cannery-row.invalid/schemas/0.2/run.schema.json",
   "$comment": "SPDX-License-Identifier: Apache-2.0",
   "title": "Run document front matter",
-  "description": "The front matter of a run's output document: the claimed result sheet, an evidence envelope of the agent stage. Its Markdown body is empty for now.",
-  "$ref": "evidence_envelope.schema.json",
+  "description": "The front matter of a run document: what a completed run claims and what it ran. The Markdown body holds optional run notes. A run that failed submits no document: it releases the attempt with a failure report.",
+  "type": "object",
   "properties": {
-    "stage": {"const": "agent"}
+    "claims": {
+      "description": "The metric values the run claims. They stay unverified until the tester measures them again.",
+      "type": "array",
+      "items": {
+        "$ref": "evidence_envelope.schema.json#/$defs/measurement",
+        "properties": {"authority": {"const": "agent_claim"}}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "source_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "dataset_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "control_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "science_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "seed": {"type": "integer", "minimum": 0}
+      },
+      "required": ["source_revision", "science_revision"],
+      "additionalProperties": false
+    },
+    "artifact_roles": {
+      "description": "Roles of the manifest's objects the run notes refer to.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "common.schema.json#/$defs/name"}
+    },
+    "manifest": {
+      "description": "The verified artifact manifest of the run.",
+      "$ref": "common.schema.json#/$defs/content_ref"
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/open_object"}
   },
-  "required": ["stage"]
+  "required": ["provenance", "manifest"],
+  "additionalProperties": false
 }

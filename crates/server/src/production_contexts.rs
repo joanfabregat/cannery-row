@@ -213,7 +213,8 @@ pub(super) fn contexts(
         })),
         submissions: Some(Arc::new(crate::submission_routes::SubmissionContext {
             lifecycle,
-            contracts: validator()?,
+            phases: cannery_core::contracts::phases::PhaseSchemas::new()
+                .map_err(|_| ServerError::Contracts)?,
             nesting_budget: DEPTH,
             response: crate::attempt_read_wire::ResponseContext {
                 inferred_nesting_budget: DEPTH,
