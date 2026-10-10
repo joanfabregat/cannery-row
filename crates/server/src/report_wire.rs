@@ -2,8 +2,8 @@
 use crate::{
     api_contract::{convert, decode, encode},
     api_models::{
-        EvaluatorReport, Page_ReportSummary_UUID_, Producer, ReportDocument, ReportOut,
-        ReportSummary, RunNotesDocument, TesterReport,
+        Page_ReportSummary_UUID_, Producer, ReportDocument, ReportOut, ReportSummary,
+        RunNotesDocument, VerificationReport,
     },
 };
 use cannery_comments_reports::reports::{EvidenceRow, ImportedReportRow, ReportRow};
@@ -93,11 +93,6 @@ fn is_run(d: &Document) -> bool {
 pub(crate) fn is_report(d: &Document) -> bool {
     d.field(d.root(), "report").is_some() || is_run(d)
 }
-pub(crate) fn assessment(e: Option<&EvidenceRow>) -> Result<Option<NodeId>> {
-    e.map(|e| field(&e.content, "assessment"))
-        .transpose()
-        .map(Option::flatten)
-}
 fn summary(row: &ReportRow, p: ResponseContext) -> Result<ReportSummary> {
     let d = row.report.as_ref().ok_or(ModelEncodeError::InvalidNode)?;
     object(d, d.root())?;
@@ -135,40 +130,24 @@ pub(crate) fn page(rows: &[ReportRow], limit: usize, p: ResponseContext) -> Resu
         next_before: (rows.len() > limit).then(|| rows[limit - 1].id.0.to_string()),
     })
 }
-pub(crate) fn tester(row: Option<&EvidenceRow>, p: ResponseContext) -> Result<Vec<u8>> {
-    let value = row
-        .map(|row| {
-            Ok(TesterReport {
-                status: row.status.as_str().to_owned(),
-                observations: optional_text(&row.content, field(&row.content, "observations")?)?,
-                discrepancies: lists(&row.content, "discrepancies", p)?,
-                measurements: lists(&row.content, "measurements", p)?,
-                published_at: timestamp(row.created_at),
-                source_ref: convert(&row.source_ref)?,
-            })
-        })
-        .transpose()?;
-    encode(&value)
-}
-pub(crate) fn evaluator(
-    row: Option<&EvidenceRow>,
-    assessment: Option<NodeId>,
-    p: ResponseContext,
-) -> Result<Vec<u8>> {
+/// The attempt's verification report: the verdict and gates of the policy that judged the run,
+/// what the verifier measured and compared, and its prose body. A record without a verdict is a
+/// verification that never reached its policy.
+pub(crate) fn verification(row: Option<&EvidenceRow>, p: ResponseContext) -> Result<Vec<u8>> {
     let value = row
         .map(|row| {
             let d = &row.content;
-            if let Some(id) = assessment {
-                object(d, id)?;
-            }
-            let text = |key| optional_text(d, assessment.and_then(|id| d.field(id, key)));
-            Ok(EvaluatorReport {
+            let text = |key| optional_text(d, field(d, key)?);
+            Ok(VerificationReport {
                 status: row.status.as_str().to_owned(),
                 verdict: text("verdict")?,
                 reason: text("reason")?,
                 policy_revision: text("policy_revision")?,
-                gates: assessment_lists(d, assessment, "gates", p)?,
-                comparisons: assessment_lists(d, assessment, "comparisons", p)?,
+                gates: lists(d, "gates", p)?,
+                comparisons: lists(d, "comparisons", p)?,
+                measurements: lists(d, "measurements", p)?,
+                discrepancies: lists(d, "discrepancies", p)?,
+                body_markdown: (!row.body.is_empty()).then(|| row.body.clone()),
                 producer: producer(
                     row.producer_user,
                     row.producer_service,
@@ -211,8 +190,7 @@ pub(crate) struct Detail<'a> {
     pub title: &'a str,
     pub sheet: Option<&'a EvidenceRow>,
     pub imported: Option<&'a ImportedReportRow>,
-    pub tester: Vec<u8>,
-    pub evaluator: Vec<u8>,
+    pub verification: Vec<u8>,
     pub decisions: &'a [cannery_hypotheses::repo::Decision],
     pub assets: &'a [cannery_attempts::model::Artifact],
 }
@@ -271,8 +249,7 @@ pub(crate) fn detail(detail: &Detail<'_>, p: ResponseContext) -> Result<Vec<u8>>
             || producer(None, None, a.origin.as_str() == "imported"),
             |sheet| producer(sheet.producer_user, sheet.producer_service, false),
         ),
-        tester: decode(&detail.tester)?,
-        evaluation: decode(&detail.evaluator)?,
+        verification: decode(&detail.verification)?,
         decisions: detail
             .decisions
             .iter()
@@ -288,18 +265,3 @@ pub(crate) fn detail(detail: &Detail<'_>, p: ResponseContext) -> Result<Vec<u8>>
 
 #[allow(unused_imports)]
 use cannery_core::text::TextExt as _;
-
-fn assessment_lists<T: serde::de::DeserializeOwned>(
-    d: &Document,
-    assessment: Option<NodeId>,
-    key: &str,
-    p: ResponseContext,
-) -> Result<Vec<T>> {
-    match assessment
-        .and_then(|id| d.field(id, key))
-        .and_then(|id| d.node(id))
-    {
-        Some(Node::Array(ids)) => ids.iter().map(|id| mapping(d, *id, p)).collect(),
-        _ => Ok(Vec::new()),
-    }
-}

@@ -1,6 +1,6 @@
 # Offline runner configuration preflight
 
-`cannery runner --config runner.toml --check-config` loads the production configuration, reads private worker token files and evaluator policies, and validates the selected local factory inputs. Kubernetes configurations also require `--k8s-namespace-policy-acknowledged`, exactly as runtime startup does. Exit status is 0 on success and 2 for invalid configuration. `--once` conflicts with `--check-config`.
+`cannery runner --config runner.toml --check-config` loads the production configuration, reads private worker token files and the verify kinds' policies (a policy step must also be a valid step manifest), and validates the selected local factory inputs. Kubernetes configurations also require `--k8s-namespace-policy-acknowledged`, exactly as runtime startup does. Exit status is 0 on success and 2 for invalid configuration. `--once` conflicts with `--check-config`.
 
 The check validates API URL safety, policy manifests, required roots, Docker/Kubernetes resource options and namespace identity, private Kubernetes tokens, configured GitHub token/App key files and provider completeness, and cache capacity conversion. It creates no clients, tasks, work directories, cache locks or claims and sends no network requests. It never prints credential contents.
 
@@ -14,4 +14,4 @@ CANNERY_NATIVE_CLI="$PWD/target/debug/cannery" \
   installed_runner_check_config_is_offline -- --ignored --exact
 ```
 
-The test supplies distinct private tester/evaluator/cluster files and a real stock policy, binds an actual local TCP listener, verifies no connections arrive and no configured state roots are created, and checks missing namespace acknowledgement, invalid resources/policy, unsafe token permissions and the conflicting execution flag.
+The test supplies distinct private verifier, experimenter and cluster token files and a real stock policy for the verify kind, binds an actual local TCP listener, verifies no connections arrive and no configured state roots are created, and checks missing namespace acknowledgement, invalid resources/policy, unsafe token permissions and the conflicting execution flag.

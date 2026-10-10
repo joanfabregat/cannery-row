@@ -1049,7 +1049,7 @@
     "/api/projects/{slug}/attention": {
       "get": {
         "summary": "Attention",
-        "description": "Pending reviews, running work, recent outcomes and failures of the project,\nand evaluation jobs no evaluator has claimed for too long.",
+        "description": "Pending reviews, running work, recent outcomes and failures of the project,\nand verify jobs nobody has claimed for too long.",
         "operationId": "attention_api_projects__slug__attention_get",
         "parameters": [
           {
@@ -4792,7 +4792,7 @@
     "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/jobs": {
       "get": {
         "summary": "List Attempt Jobs",
-        "description": "The attempt's test and evaluation runs, by stage and run number.",
+        "description": "The attempt's verify jobs, by run number.",
         "operationId": "list_attempt_jobs_api_projects__slug__hypotheses__number__attempts__sequence__jobs_get",
         "parameters": [
           {
@@ -6252,7 +6252,7 @@
     "/api/projects/{slug}/jobs/claims": {
       "post": {
         "summary": "Claim Job",
-        "description": "Claim the oldest waiting job of the caller's stage registered to its name.\n\nA tester claims test jobs and an evaluator evaluation jobs, each only the\njobs its project's science revision registers under its account name. An\nevaluator names the policy revision it applies and receives only jobs\npinned to it, so evaluators of two revisions can run side by side.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
+        "description": "Claim the oldest waiting verify job the caller may verify.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
         "operationId": "claim_job_api_projects__slug__jobs_claims_post",
         "parameters": [
           {
@@ -6499,7 +6499,7 @@
     "/api/projects/{slug}/jobs/{job_id}/completion": {
       "post": {
         "summary": "Complete Job",
-        "description": "Publish the job's evidence envelope with the manifest of its outputs.\n\nA test job completes with tester evidence and a manifest; the attempt\nmoves on to ``evaluating`` and waits for its evaluation job\n(:mod:`cannery_row.evaluation.flow`). An evaluation job completes with the\nevaluator's record (the\nmanifest is optional); the attempt then awaits human review in a\n``result`` case. Repeating a completion returns the completed job\nwithout publishing again. An invalid completion from the lease holder is\nan infrastructure failure of the job's stage: it reruns or fails the\nattempt for human review.",
+        "description": "Publish the verification report with the manifest of the job's outputs.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt then awaits human review in a ``result``\ncase. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.",
         "operationId": "complete_job_api_projects__slug__jobs__job_id__completion_post",
         "parameters": [
           {
@@ -6661,7 +6661,7 @@
     "/api/projects/{slug}/jobs/{job_id}/failure": {
       "post": {
         "summary": "Fail Job",
-        "description": "Report that the job failed: never with metrics, always with a reason.\n\nThe stage runs again automatically while reruns remain; then the attempt\nfails with a failure of the job's stage and a review case opens. An\nevaluator crash is such a failure, never a `fail` or `inconclusive` verdict.\nAn `invalid_step_output` naming a producer step is the agent's failure\n(the attempt fails at once for review, with no rerun) only when the API\nitself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the tester's failure.",
+        "description": "Report that the job failed: never with metrics, always with a reason.\n\nThe job runs again automatically, from the failed step, while reruns\nremain; then the attempt fails with a ``verify`` failure and a review case\nopens. A policy crash is such a failure, never a `fail` or `inconclusive`\nverdict. An `invalid_step_output` naming a producer step is the agent's\nfailure (the attempt fails at once for review, with no rerun) only when\nthe API itself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the verifier's failure.",
         "operationId": "fail_job_api_projects__slug__jobs__job_id__failure_post",
         "parameters": [
           {
@@ -6949,295 +6949,10 @@
         }
       }
     },
-    "/api/projects/{slug}/jobs/{job_id}/inputs/claimed-sheet": {
-      "get": {
-        "summary": "Claimed Sheet",
-        "description": "The front matter of the frozen run document the job tests: the claims, provenance and manifest (test jobs only).",
-        "operationId": "claimed_sheet_api_projects__slug__jobs__job_id__inputs_claimed_sheet_get",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "X-Lease-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "X-Lease-Generation",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ClaimedResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Permission denied or invalid CSRF token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Resource conflict or stale lease",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{slug}/jobs/{job_id}/inputs/evidence": {
-      "get": {
-        "summary": "Input Evidence",
-        "description": "The tester-verified evidence records an evaluation job assesses, in its input order.",
-        "operationId": "input_evidence_api_projects__slug__jobs__job_id__inputs_evidence_get",
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "job_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "X-Lease-Token",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "X-Lease-Generation",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/EvidenceEnvelopeRequest"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BadRequestResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Permission denied or invalid CSRF token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Resource conflict or stale lease",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/projects/{slug}/jobs/{job_id}/inputs/manifest": {
       "get": {
         "summary": "Input Manifest",
-        "description": "The verified artifact manifest the job reads: the submission's for a test job,\nthe tested outputs' for an evaluation job.",
+        "description": "The verified artifact manifest of the run the job verifies.",
         "operationId": "input_manifest_api_projects__slug__jobs__job_id__inputs_manifest_get",
         "parameters": [
           {
@@ -7378,7 +7093,7 @@
     "/api/projects/{slug}/jobs/{job_id}/inputs/object": {
       "get": {
         "summary": "Input Object",
-        "description": "Stream one object listed in the job's input manifest; nothing else is readable.\n\nWith an object store that presigns, the answer is a redirect (302) to a\nshort-lived presigned GET instead: follow it without this request's\nheaders (the URL is the credential), and check the bytes against the\nmanifest's size and SHA-256 as always. Either way the stored object is\nchecked first (a HEAD): one that is gone, or no longer the verified\nartifact (another size or generation), is ``not_found``.",
+        "description": "Stream one object listed in the job's input manifest, or one output of an earlier\nrun the job resumes from (``resume.outputs``); nothing else is readable.\n\nWith an object store that presigns, the answer is a redirect (302) to a\nshort-lived presigned GET instead: follow it without this request's\nheaders (the URL is the credential), and check the bytes against the\nmanifest's size and SHA-256 as always. Either way the stored object is\nchecked first (a HEAD): one that is gone, or no longer the verified\nartifact (another size or generation), is ``not_found``.",
         "operationId": "input_object_api_projects__slug__jobs__job_id__inputs_object_get",
         "parameters": [
           {
@@ -7449,6 +7164,147 @@
           },
           "302": {
             "description": "Short-lived presigned download URL"
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{slug}/jobs/{job_id}/inputs/run": {
+      "get": {
+        "summary": "Input Run",
+        "description": "The front matter of the frozen run document the job verifies: the run's claims, provenance and manifest. The run notes are not an input.",
+        "operationId": "input_run_api_projects__slug__jobs__job_id__inputs_run_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Lease-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "X-Lease-Generation",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimedResult"
+                }
+              }
+            }
           },
           "400": {
             "description": "Invalid request",
@@ -14093,9 +13949,7 @@
         "enum": [
           "claimed",
           "running",
-          "submitted",
-          "testing",
-          "evaluating",
+          "verifying",
           "awaiting_human_review",
           "promoted",
           "rejected",
@@ -14168,8 +14022,8 @@
           "running",
           "recent_outcomes",
           "recent_failures",
-          "stalled_evaluation_count",
-          "stalled_evaluations"
+          "stalled_verification_count",
+          "stalled_verifications"
         ],
         "properties": {
           "pending_counts": {
@@ -14210,14 +14064,14 @@
             "type": "integer",
             "format": "int64"
           },
-          "stalled_evaluation_count": {
+          "stalled_verification_count": {
             "type": "integer",
             "format": "int64"
           },
-          "stalled_evaluations": {
+          "stalled_verifications": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AttentionStalledEvaluation"
+              "$ref": "#/components/schemas/AttentionStalledVerification"
             }
           }
         },
@@ -14397,7 +14251,7 @@
         },
         "additionalProperties": false
       },
-      "AttentionStalledEvaluation": {
+      "AttentionStalledVerification": {
         "type": "object",
         "required": [
           "hypothesis",
@@ -14405,16 +14259,14 @@
           "title",
           "track",
           "attempt_ref",
-          "evaluator",
+          "performer",
+          "verifier",
           "revision",
           "waiting_since",
           "message"
         ],
         "properties": {
           "attempt_ref": {
-            "type": "string"
-          },
-          "evaluator": {
             "type": "string"
           },
           "hypothesis": {
@@ -14427,14 +14279,26 @@
           "message": {
             "type": "string"
           },
-          "revision": {
+          "performer": {
             "type": "string"
+          },
+          "revision": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "title": {
             "type": "string"
           },
           "track": {
             "type": "string"
+          },
+          "verifier": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "waiting_since": {
             "type": "string",
@@ -14839,9 +14703,12 @@
         "required": [
           "schema_version",
           "job_id",
-          "stage",
+          "phase",
           "attempt_id",
+          "performer",
           "track",
+          "parameters",
+          "steps",
           "science_revision",
           "inputs",
           "output_prefix",
@@ -14867,16 +14734,6 @@
             "type": "string",
             "format": "date-time"
           },
-          "evaluator": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ClaimedJobService"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "inputs": {
             "$ref": "#/components/schemas/ClaimedJobInputs"
           },
@@ -14895,36 +14752,48 @@
           "parameters": {
             "description": "Frozen project fields can contain scalar legacy values."
           },
-          "schema_version": {
-            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
+          "performer": {
+            "$ref": "#/components/schemas/ClaimedJobPerformer"
           },
-          "science_revision": {
-            "type": "string"
+          "phase": {
+            "$ref": "#/components/schemas/ClaimedJobPhase"
           },
-          "stage": {
-            "$ref": "#/components/schemas/CompletionEvidenceStage"
-          },
-          "steps": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/ClaimedJobStep"
-            }
-          },
-          "tester": {
+          "resume": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/ClaimedJobService"
+                "$ref": "#/components/schemas/ClaimedJobResume",
+                "description": "Present on an automatic rerun that starts from a failed step."
               },
               {
                 "type": "null"
               }
             ]
           },
+          "schema_version": {
+            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
+          },
+          "science_revision": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimedJobStep"
+            }
+          },
           "track": {
             "type": "string"
+          },
+          "verifier": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ClaimedJobService",
+                "description": "The registered verifier and policy revision; runner jobs only."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -14932,6 +14801,8 @@
       "ClaimedJobInputs": {
         "type": "object",
         "required": [
+          "run",
+          "manifest",
           "baselines",
           "datasets"
         ],
@@ -14942,40 +14813,19 @@
               "$ref": "#/components/schemas/ClaimedJobPinnedRef"
             }
           },
-          "claimed_sheet": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/RequestCommonContentRef"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "datasets": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ClaimedJobPinnedRef"
             }
           },
-          "evidence": {
-            "type": [
-              "array",
-              "null"
-            ],
-            "items": {
-              "$ref": "#/components/schemas/RequestCommonContentRef"
-            }
-          },
           "manifest": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/RequestCommonContentRef"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/RequestCommonContentRef",
+            "description": "The run's artifact manifest, read at `inputs/manifest`."
+          },
+          "run": {
+            "$ref": "#/components/schemas/RequestCommonContentRef",
+            "description": "The run front matter, read at `inputs/run`."
           }
         },
         "additionalProperties": false
@@ -15015,6 +14865,19 @@
         },
         "additionalProperties": false
       },
+      "ClaimedJobPerformer": {
+        "type": "string",
+        "enum": [
+          "runner",
+          "agent"
+        ]
+      },
+      "ClaimedJobPhase": {
+        "type": "string",
+        "enum": [
+          "verify"
+        ]
+      },
       "ClaimedJobPinnedRef": {
         "type": "object",
         "required": [
@@ -15026,6 +14889,65 @@
             "type": "string"
           },
           "revision": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimedJobResume": {
+        "type": "object",
+        "description": "Where an automatic rerun starts, and the earlier steps' outputs it reuses.",
+        "required": [
+          "from_step",
+          "outputs"
+        ],
+        "properties": {
+          "from_step": {
+            "type": "string"
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimedJobResumeOutput"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClaimedJobResumeOutput": {
+        "type": "object",
+        "required": [
+          "step",
+          "name",
+          "key",
+          "size_bytes",
+          "sha256",
+          "media_type"
+        ],
+        "properties": {
+          "interface": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "step": {
             "type": "string"
           }
         },
@@ -15075,7 +14997,7 @@
             "$ref": "#/components/schemas/RunFrontMatter"
           },
           {
-            "$ref": "#/components/schemas/ReadEvidenceEnvelope"
+            "$ref": "#/components/schemas/EvidenceEnvelopeRequest"
           }
         ],
         "description": "What an attempt claimed: a run document's front matter, or a claimed result\nsheet submitted before run documents."
@@ -15457,99 +15379,10 @@
         },
         "additionalProperties": false
       },
-      "CompletionEvidenceEnvelopeRequest": {
-        "type": "object",
-        "required": [
-          "schema_version",
-          "attempt_id",
-          "stage",
-          "status",
-          "producer",
-          "started_at",
-          "finished_at",
-          "provenance"
-        ],
-        "properties": {
-          "artifact_roles": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "assessment": {
-            "$ref": "#/components/schemas/RequestEvidenceEnvelopeAssessment"
-          },
-          "attempt_id": {
-            "type": "string"
-          },
-          "discrepancies": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestEvidenceEnvelopeDiscrepancy"
-            }
-          },
-          "extensions": {
-            "type": "object",
-            "additionalProperties": {},
-            "propertyNames": {
-              "type": "string"
-            }
-          },
-          "finished_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "manifest": {
-            "$ref": "#/components/schemas/RequestCommonContentRef"
-          },
-          "measurements": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestEvidenceEnvelopeMeasurement"
-            }
-          },
-          "observations": {
-            "type": "string"
-          },
-          "producer": {
-            "$ref": "#/components/schemas/EvidenceEnvelopeRequestProducer"
-          },
-          "provenance": {
-            "$ref": "#/components/schemas/EvidenceEnvelopeRequestProvenance"
-          },
-          "report": {
-            "$ref": "#/components/schemas/RequestEvidenceEnvelopeReport"
-          },
-          "schema_version": {
-            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
-          },
-          "stage": {
-            "$ref": "#/components/schemas/CompletionEvidenceStage"
-          },
-          "started_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "status": {
-            "$ref": "#/components/schemas/EvidenceEnvelopeRequestStatus"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CompletionEvidenceStage": {
-        "type": "string",
-        "enum": [
-          "tester",
-          "evaluator"
-        ]
-      },
       "ConfigDocument": {
         "oneOf": [
           {
             "$ref": "#/components/schemas/ConfigRevisionRequest"
-          },
-          {
-            "$ref": "#/components/schemas/LegacyScienceRevision"
           }
         ]
       },
@@ -15940,68 +15773,6 @@
         },
         "additionalProperties": false
       },
-      "EvaluatorReport": {
-        "type": "object",
-        "required": [
-          "status",
-          "verdict",
-          "reason",
-          "policy_revision",
-          "gates",
-          "comparisons",
-          "producer",
-          "published_at"
-        ],
-        "properties": {
-          "comparisons": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestEvidenceEnvelopeComparison"
-            }
-          },
-          "gates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestEvidenceEnvelopeAssessmentGatesItem"
-            }
-          },
-          "policy_revision": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "producer": {
-            "$ref": "#/components/schemas/Producer"
-          },
-          "published_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source_ref": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "type": "string"
-          },
-          "verdict": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "additionalProperties": false
-      },
       "EvidenceEnvelopeRequest": {
         "type": "object",
         "required": [
@@ -16012,7 +15783,9 @@
           "producer",
           "started_at",
           "finished_at",
-          "provenance"
+          "provenance",
+          "report",
+          "manifest"
         ],
         "properties": {
           "artifact_roles": {
@@ -16020,9 +15793,6 @@
             "items": {
               "type": "string"
             }
-          },
-          "assessment": {
-            "$ref": "#/components/schemas/RequestEvidenceEnvelopeAssessment"
           },
           "attempt_id": {
             "type": "string"
@@ -16100,9 +15870,7 @@
       "EvidenceEnvelopeRequestProducerKind": {
         "type": "string",
         "enum": [
-          "agent",
-          "service",
-          "builtin"
+          "agent"
         ]
       },
       "EvidenceEnvelopeRequestProvenance": {
@@ -16127,9 +15895,6 @@
           },
           "source_revision": {
             "type": "string"
-          },
-          "tester_revision": {
-            "type": "string"
           }
         },
         "additionalProperties": false
@@ -16137,9 +15902,7 @@
       "EvidenceEnvelopeRequestStage": {
         "type": "string",
         "enum": [
-          "agent",
-          "tester",
-          "evaluator"
+          "agent"
         ]
       },
       "EvidenceEnvelopeRequestStatus": {
@@ -16147,29 +15910,6 @@
         "enum": [
           "completed",
           "failed"
-        ]
-      },
-      "GateComparison": {
-        "type": "string",
-        "enum": [
-          "control"
-        ]
-      },
-      "GateOperator": {
-        "type": "string",
-        "enum": [
-          ">",
-          ">=",
-          "<",
-          "<="
-        ]
-      },
-      "GateStatistic": {
-        "type": "string",
-        "enum": [
-          "value",
-          "uncertainty.lower",
-          "uncertainty.upper"
         ]
       },
       "HTTPValidationError": {
@@ -16739,103 +16479,6 @@
         },
         "additionalProperties": false
       },
-      "ImportedEvidenceEnvelope": {
-        "type": "object",
-        "required": [
-          "schema_version",
-          "attempt_id",
-          "stage",
-          "status",
-          "producer",
-          "started_at",
-          "finished_at",
-          "provenance"
-        ],
-        "properties": {
-          "assessment": {
-            "$ref": "#/components/schemas/RequestEvidenceEnvelopeAssessment"
-          },
-          "attempt_id": {
-            "type": "string"
-          },
-          "finished_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "measurements": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReadMeasurement"
-            }
-          },
-          "observations": {
-            "type": "string"
-          },
-          "producer": {
-            "$ref": "#/components/schemas/ImportedEvidenceProducer"
-          },
-          "provenance": {
-            "$ref": "#/components/schemas/ImportedEvidenceProvenance"
-          },
-          "schema_version": {
-            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
-          },
-          "stage": {
-            "$ref": "#/components/schemas/EvidenceEnvelopeRequestStage"
-          },
-          "started_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "status": {
-            "$ref": "#/components/schemas/EvidenceEnvelopeRequestStatus"
-          }
-        },
-        "additionalProperties": false
-      },
-      "ImportedEvidenceProducer": {
-        "type": "object",
-        "required": [
-          "kind",
-          "id"
-        ],
-        "properties": {
-          "id": {
-            "$ref": "#/components/schemas/ImportedEvidenceProducerId"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/ImportedEvidenceProducerKind"
-          }
-        },
-        "additionalProperties": false
-      },
-      "ImportedEvidenceProducerId": {
-        "type": "string",
-        "enum": [
-          "cannery-import"
-        ]
-      },
-      "ImportedEvidenceProducerKind": {
-        "type": "string",
-        "enum": [
-          "import"
-        ]
-      },
-      "ImportedEvidenceProvenance": {
-        "type": "object",
-        "required": [
-          "science_revision"
-        ],
-        "properties": {
-          "science_revision": {
-            "type": "string"
-          },
-          "source_revision": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
       "ImportedReportDocument": {
         "type": "object",
         "required": [
@@ -16986,6 +16629,13 @@
       "JobClaimRequest": {
         "type": "object",
         "properties": {
+          "phase": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The phase to claim a job of; only `verify` today."
+          },
           "revision": {
             "type": [
               "string",
@@ -16993,12 +16643,6 @@
             ],
             "maxLength": 128,
             "minLength": 1
-          },
-          "stage": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         },
         "additionalProperties": false
@@ -17008,11 +16652,14 @@
         "required": [
           "schema_version",
           "job_id",
-          "evidence"
+          "document"
         ],
         "properties": {
-          "evidence": {
-            "$ref": "#/components/schemas/CompletionEvidenceEnvelopeRequest"
+          "document": {
+            "type": "string",
+            "description": "The verification report: Markdown with YAML front matter.",
+            "maxLength": 1048576,
+            "minLength": 1
           },
           "job_id": {
             "type": "string"
@@ -17109,13 +16756,14 @@
         "required": [
           "id",
           "attempt_id",
-          "stage",
+          "phase",
+          "performer",
           "run_number",
           "origin",
           "previous_run_id",
           "state",
           "science_revision",
-          "tester",
+          "verifier",
           "track",
           "steps",
           "parameters",
@@ -17123,6 +16771,7 @@
           "created_at",
           "claimed_at",
           "claimed_by",
+          "claimed_by_user",
           "via_client",
           "deadline",
           "finished_at",
@@ -17132,7 +16781,7 @@
           "error_code",
           "error_reason",
           "logs",
-          "evidence",
+          "verification",
           "outputs"
         ],
         "properties": {
@@ -17152,7 +16801,16 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "The service account that claimed the job."
+          },
+          "claimed_by_user": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The researcher who claimed the job."
           },
           "created_at": {
             "type": "string",
@@ -17181,16 +16839,6 @@
             "type": [
               "string",
               "null"
-            ]
-          },
-          "evidence": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ReadEvidenceEnvelope"
-              },
-              {
-                "type": "null"
-              }
             ]
           },
           "finished_at": {
@@ -17234,14 +16882,18 @@
             }
           },
           "parameters": {
-            "type": [
-              "object",
-              "null"
-            ],
+            "type": "object",
             "additionalProperties": {},
             "propertyNames": {
               "type": "string"
             }
+          },
+          "performer": {
+            "type": "string",
+            "description": "`runner` (a verifier service account runs it) or `agent` (an agent\nservice account or a researcher who did not run the attempt)."
+          },
+          "phase": {
+            "type": "string"
           },
           "previous_run_id": {
             "type": [
@@ -17258,9 +16910,6 @@
             "type": "integer",
             "format": "int64"
           },
-          "stage": {
-            "type": "string"
-          },
           "state": {
             "type": "string"
           },
@@ -17270,11 +16919,26 @@
               "$ref": "#/components/schemas/StepRef"
             }
           },
-          "tester": {
-            "type": "string"
-          },
           "track": {
             "type": "string"
+          },
+          "verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VerificationDocument",
+                "description": "The verification report the job published."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verifier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The verifier service account registered to run a runner job."
           },
           "via_client": {
             "type": [
@@ -17372,105 +17036,6 @@
           },
           "track": {
             "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "LegacyScienceRevision": {
-        "type": "object",
-        "required": [
-          "schema_version",
-          "tester",
-          "metrics",
-          "datasets",
-          "baselines",
-          "interfaces",
-          "scorer",
-          "default_producer",
-          "required_artifact_roles",
-          "limits"
-        ],
-        "properties": {
-          "baselines": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ScienceRevisionRequestBaselinesItem"
-            }
-          },
-          "code_repositories": {
-            "$ref": "#/components/schemas/ScienceRevisionRequestCodeRepositories"
-          },
-          "datasets": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ScienceRevisionRequestDatasetsItem"
-            }
-          },
-          "default_producer": {
-            "$ref": "#/components/schemas/RequestCommonProducerRef"
-          },
-          "gates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestCommonGate"
-            }
-          },
-          "hypothesis_fields": {
-            "type": "object",
-            "additionalProperties": {},
-            "propertyNames": {
-              "type": "string"
-            }
-          },
-          "interfaces": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/InterfaceRequest"
-            }
-          },
-          "limits": {
-            "$ref": "#/components/schemas/ScienceRevisionRequestLimits"
-          },
-          "max_auto_retries": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "metrics": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestScienceRevisionMetric"
-            }
-          },
-          "required_artifact_roles": {
-            "$ref": "#/components/schemas/ScienceRevisionRequestRequiredArtifactRoles"
-          },
-          "result_extensions": {
-            "type": "object",
-            "additionalProperties": {},
-            "propertyNames": {
-              "type": "string"
-            }
-          },
-          "retention": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ScienceRevisionRequestRetentionItem"
-            }
-          },
-          "schema_version": {
-            "$ref": "#/components/schemas/RequestCommonSchemaVersion"
-          },
-          "scorer": {
-            "$ref": "#/components/schemas/StepManifestRequest"
-          },
-          "tester": {
-            "$ref": "#/components/schemas/ScienceRevisionRequestTester"
-          },
-          "validators": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/StepManifestRequest"
-            }
           }
         },
         "additionalProperties": false
@@ -19131,16 +18696,6 @@
         },
         "additionalProperties": false
       },
-      "ReadEvidenceEnvelope": {
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/EvidenceEnvelopeRequest"
-          },
-          {
-            "$ref": "#/components/schemas/ImportedEvidenceEnvelope"
-          }
-        ]
-      },
       "ReadMeasurement": {
         "type": "object",
         "description": "Evidence reads include provenance that historical import records preserve.",
@@ -19310,8 +18865,7 @@
           "origin",
           "submitted_at",
           "author",
-          "tester",
-          "evaluation",
+          "verification",
           "decisions",
           "assets"
         ],
@@ -19342,16 +18896,6 @@
             "items": {
               "$ref": "#/components/schemas/DecisionOut"
             }
-          },
-          "evaluation": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/EvaluatorReport"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "hypothesis": {
             "type": "integer",
@@ -19387,18 +18931,19 @@
             "type": "string",
             "format": "date-time"
           },
-          "tester": {
+          "track": {
+            "type": "string"
+          },
+          "verification": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/TesterReport"
+                "$ref": "#/components/schemas/VerificationReport",
+                "description": "The attempt's latest verification report."
               },
               {
                 "type": "null"
               }
             ]
-          },
-          "track": {
-            "type": "string"
           }
         },
         "additionalProperties": false
@@ -19538,46 +19083,6 @@
         },
         "additionalProperties": false
       },
-      "RequestCommonGate": {
-        "type": "object",
-        "required": [
-          "id",
-          "metric",
-          "split",
-          "statistic",
-          "compare",
-          "op",
-          "min_delta"
-        ],
-        "properties": {
-          "compare": {
-            "$ref": "#/components/schemas/GateComparison"
-          },
-          "id": {
-            "type": "string"
-          },
-          "metric": {
-            "type": "string"
-          },
-          "min_delta": {
-            "type": "number",
-            "format": "double"
-          },
-          "op": {
-            "$ref": "#/components/schemas/GateOperator"
-          },
-          "per_dimension": {
-            "type": "string"
-          },
-          "split": {
-            "type": "string"
-          },
-          "statistic": {
-            "$ref": "#/components/schemas/GateStatistic"
-          }
-        },
-        "additionalProperties": false
-      },
       "RequestCommonProducerRef": {
         "type": "object",
         "required": [
@@ -19660,81 +19165,6 @@
           "scatter",
           "bar",
           "table"
-        ]
-      },
-      "RequestEvidenceEnvelopeAssessment": {
-        "type": "object",
-        "required": [
-          "policy_revision",
-          "gates",
-          "evidence",
-          "verdict",
-          "reason"
-        ],
-        "properties": {
-          "comparisons": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestEvidenceEnvelopeComparison"
-            }
-          },
-          "evidence": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestCommonContentRef"
-            }
-          },
-          "gates": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestEvidenceEnvelopeAssessmentGatesItem"
-            }
-          },
-          "policy_revision": {
-            "type": "string"
-          },
-          "reason": {
-            "type": "string"
-          },
-          "verdict": {
-            "$ref": "#/components/schemas/RequestEvidenceEnvelopeAssessmentVerdict"
-          }
-        },
-        "additionalProperties": false
-      },
-      "RequestEvidenceEnvelopeAssessmentGatesItem": {
-        "type": "object",
-        "required": [
-          "id",
-          "result"
-        ],
-        "properties": {
-          "detail": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "result": {
-            "$ref": "#/components/schemas/RequestEvidenceEnvelopeAssessmentGatesItemResult"
-          }
-        },
-        "additionalProperties": false
-      },
-      "RequestEvidenceEnvelopeAssessmentGatesItemResult": {
-        "type": "string",
-        "enum": [
-          "pass",
-          "fail",
-          "unknown"
-        ]
-      },
-      "RequestEvidenceEnvelopeAssessmentVerdict": {
-        "type": "string",
-        "enum": [
-          "pass",
-          "fail",
-          "inconclusive"
         ]
       },
       "RequestEvidenceEnvelopeComparison": {
@@ -20313,14 +19743,13 @@
         "type": "object",
         "required": [
           "schema_version",
-          "tester",
           "metrics",
           "datasets",
           "baselines",
           "interfaces",
           "scorer",
           "default_producer",
-          "evaluator",
+          "verify",
           "required_artifact_roles",
           "limits"
         ],
@@ -20342,9 +19771,6 @@
           },
           "default_producer": {
             "$ref": "#/components/schemas/RequestCommonProducerRef"
-          },
-          "evaluator": {
-            "$ref": "#/components/schemas/ScienceRevisionRequestEvaluator"
           },
           "hypothesis_fields": {
             "type": "object",
@@ -20394,14 +19820,14 @@
           "scorer": {
             "$ref": "#/components/schemas/StepManifestRequest"
           },
-          "tester": {
-            "$ref": "#/components/schemas/ScienceRevisionRequestTester"
-          },
           "validators": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/StepManifestRequest"
             }
+          },
+          "verify": {
+            "$ref": "#/components/schemas/ScienceRevisionRequestVerify"
           }
         },
         "additionalProperties": false
@@ -20466,22 +19892,6 @@
         },
         "additionalProperties": false
       },
-      "ScienceRevisionRequestEvaluator": {
-        "type": "object",
-        "required": [
-          "id",
-          "revision"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "revision": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
       "ScienceRevisionRequestLimits": {
         "type": "object",
         "required": [
@@ -20518,7 +19928,7 @@
         "type": "object",
         "required": [
           "attempt",
-          "tester"
+          "verify"
         ],
         "properties": {
           "attempt": {
@@ -20527,7 +19937,7 @@
               "type": "string"
             }
           },
-          "tester": {
+          "verify": {
             "type": "array",
             "items": {
               "type": "string"
@@ -20553,10 +19963,12 @@
         },
         "additionalProperties": false
       },
-      "ScienceRevisionRequestTester": {
+      "ScienceRevisionRequestVerifier": {
         "type": "object",
+        "description": "The verifier service account and the policy revision it applies.",
         "required": [
-          "id"
+          "id",
+          "revision"
         ],
         "properties": {
           "id": {
@@ -20567,6 +19979,29 @@
           }
         },
         "additionalProperties": false
+      },
+      "ScienceRevisionRequestVerify": {
+        "type": "object",
+        "description": "How a science revision's attempts are verified: by a registered verifier\nservice account running `cannery runner`, or by an agent or a researcher\nwho did not run the attempt.",
+        "required": [
+          "performer"
+        ],
+        "properties": {
+          "performer": {
+            "$ref": "#/components/schemas/ScienceRevisionRequestVerifyPerformer"
+          },
+          "verifier": {
+            "$ref": "#/components/schemas/ScienceRevisionRequestVerifier"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ScienceRevisionRequestVerifyPerformer": {
+        "type": "string",
+        "enum": [
+          "runner",
+          "agent"
+        ]
       },
       "ScopeName": {
         "type": "string",
@@ -20899,8 +20334,7 @@
         "enum": [
           "agent",
           "experimenter",
-          "tester",
-          "evaluator"
+          "verifier"
         ]
       },
       "StepManifestRequest": {
@@ -21182,7 +20616,7 @@
           "scorer",
           "validator",
           "experiment",
-          "evaluator"
+          "policy"
         ]
       },
       "StepManifestRequestSpecSetup": {
@@ -21271,50 +20705,6 @@
             "type": "string"
           },
           "key": {
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "TesterReport": {
-        "type": "object",
-        "required": [
-          "status",
-          "observations",
-          "discrepancies",
-          "measurements",
-          "published_at"
-        ],
-        "properties": {
-          "discrepancies": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RequestEvidenceEnvelopeDiscrepancy"
-            }
-          },
-          "measurements": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ReadMeasurement"
-            }
-          },
-          "observations": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "published_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "source_ref": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
             "type": "string"
           }
         },
@@ -22272,6 +21662,139 @@
           "inconclusive"
         ]
       },
+      "VerificationDocument": {
+        "type": "object",
+        "description": "A published verification report: its front matter and its Markdown body.",
+        "required": [
+          "front_matter",
+          "body_markdown"
+        ],
+        "properties": {
+          "body_markdown": {
+            "type": "string"
+          },
+          "front_matter": {
+            "type": "object",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "VerificationGate": {
+        "type": "object",
+        "description": "One gate of a verification report.",
+        "required": [
+          "id",
+          "result"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/VerificationGateResult"
+          }
+        },
+        "additionalProperties": false
+      },
+      "VerificationGateResult": {
+        "type": "string",
+        "enum": [
+          "pass",
+          "fail",
+          "unknown"
+        ]
+      },
+      "VerificationReport": {
+        "type": "object",
+        "required": [
+          "status",
+          "verdict",
+          "reason",
+          "policy_revision",
+          "gates",
+          "comparisons",
+          "measurements",
+          "discrepancies",
+          "body_markdown",
+          "producer",
+          "published_at"
+        ],
+        "properties": {
+          "body_markdown": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The report's Markdown body; null when it has none."
+          },
+          "comparisons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestEvidenceEnvelopeComparison"
+            }
+          },
+          "discrepancies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RequestEvidenceEnvelopeDiscrepancy"
+            }
+          },
+          "gates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerificationGate"
+            }
+          },
+          "measurements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadMeasurement"
+            }
+          },
+          "policy_revision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "producer": {
+            "$ref": "#/components/schemas/Producer"
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "verdict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "ViewMetric": {
         "oneOf": [
           {
@@ -22504,7 +22027,7 @@
           "origin",
           "source_ref",
           "failure",
-          "evaluation",
+          "verification",
           "decisions"
         ],
         "properties": {
@@ -22525,16 +22048,6 @@
             "items": {
               "$ref": "#/components/schemas/DecisionOut"
             }
-          },
-          "evaluation": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/ReadEvidenceEnvelope"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "failure": {
             "oneOf": [
@@ -22589,6 +22102,17 @@
           "subject_revision": {
             "type": "integer",
             "format": "int64"
+          },
+          "verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/VerificationDocument",
+                "description": "The verification report a result case is about."
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -22600,8 +22124,7 @@
           "hypothesis",
           "attempt",
           "report",
-          "tester_observation",
-          "evaluator_reason",
+          "verification",
           "decision_reason",
           "comment"
         ]

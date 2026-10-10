@@ -2,11 +2,79 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/verification.schema.json",
   "$comment": "SPDX-License-Identifier: Apache-2.0",
-  "title": "Verification document front matter",
-  "description": "The front matter of a verification output document: the tester's verified evidence or the evaluator's assessment, an evidence envelope of the tester or evaluator stage. Its Markdown body is empty for now.",
-  "$ref": "evidence_envelope.schema.json",
+  "title": "Verification report front matter",
+  "description": "The front matter of a verification report: the verdict of the policy that judged a run, the gates it applied, the measurements the verifier made again, the discrepancies it found against the run's claims, what it compared and the provenance it verified. The Markdown body is optional prose: what the verifier observed.",
+  "type": "object",
   "properties": {
-    "stage": {"enum": ["tester", "evaluator"]}
+    "verdict": {
+      "description": "The policy's verdict; a gate for human review, not the decision.",
+      "enum": ["pass", "fail", "inconclusive"]
+    },
+    "reason": {"$ref": "common.schema.json#/$defs/text"},
+    "policy_revision": {
+      "description": "The revision of the policy that produced the verdict. A runner's report names the revision the science revision registers.",
+      "$ref": "common.schema.json#/$defs/identifier"
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"$ref": "common.schema.json#/$defs/slug"},
+          "result": {"enum": ["pass", "fail", "unknown"]},
+          "detail": {
+            "description": "Values used and, per dimension, each result.",
+            "$ref": "common.schema.json#/$defs/text"
+          }
+        },
+        "required": ["id", "result"],
+        "additionalProperties": false
+      }
+    },
+    "measurements": {
+      "description": "The metric values the verifier measured itself.",
+      "type": "array",
+      "items": {
+        "$ref": "evidence_envelope.schema.json#/$defs/measurement",
+        "properties": {"authority": {"const": "tester_verified"}}
+      }
+    },
+    "discrepancies": {
+      "description": "Where the run's claims disagree with the verified measurements.",
+      "type": "array",
+      "items": {"$ref": "evidence_envelope.schema.json#/$defs/discrepancy"}
+    },
+    "comparisons": {
+      "description": "What the policy compared, one entry per metric, split and slice at most: the value and the reference it was compared against. A `source: tester` value cites one of this report's own measurements.",
+      "type": "array",
+      "items": {"$ref": "evidence_envelope.schema.json#/$defs/comparison"}
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "source_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "dataset_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "control_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "science_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "seed": {"type": "integer", "minimum": 0}
+      },
+      "required": ["source_revision", "science_revision"],
+      "additionalProperties": false
+    },
+    "artifact_roles": {
+      "description": "Roles of the verify job's output manifest the report refers to.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"$ref": "common.schema.json#/$defs/name"}
+    },
+    "extensions": {"$ref": "common.schema.json#/$defs/open_object"}
   },
-  "required": ["stage"]
+  "required": ["verdict", "reason", "policy_revision", "gates", "measurements", "provenance"],
+  "additionalProperties": false,
+  "if": {"properties": {"verdict": {"const": "pass"}}, "required": ["verdict"]},
+  "then": {
+    "description": "A pass verdict requires every gate to pass; unknown never passes.",
+    "properties": {"gates": {"items": {"properties": {"result": {"const": "pass"}}}}}
+  }
 }

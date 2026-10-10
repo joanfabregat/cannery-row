@@ -96,7 +96,7 @@ fn omission_is_preserved_and_nonnullable_optional_values_reject_null() -> Result
     assert!(serde_json::to_value(request)?.get("supersedes").is_none());
     assert!(serde_json::from_value::<HumanDecisionRequest>(json!({"review_case_id":"case","evidence_revision":2,"action":"promote","reason":"ready","supersedes":null})).is_err());
     let mut request: Value = serde_json::from_slice(include_bytes!(
-        "../../../tests/fixtures/contracts/job_completion/valid/tester.json"
+        "../../../tests/fixtures/contracts/job_completion/valid/verification.json"
     ))?;
     request["manifest"] = Value::Null;
     assert!(serde_json::from_value::<JobCompletionRequest>(request).is_err());

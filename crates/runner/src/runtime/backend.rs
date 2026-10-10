@@ -24,23 +24,6 @@ pub trait PreparedStep: Send + Sync {
     fn cleanup(&self) -> FutureResult<'_, ()>;
 }
 
-/// Stock evaluators share lifecycle settlement without launching step processes.
-pub struct NoSteps;
-impl Backend for NoSteps {
-    fn start(&self) -> FutureResult<'_, ()> {
-        Box::pin(async { Ok(()) })
-    }
-    fn prepare(&self, _spec: StepSpec, _root: PathBuf) -> FutureResult<'_, Arc<dyn PreparedStep>> {
-        Box::pin(async { Err(RuntimeError::Configuration) })
-    }
-    fn release_job<'a>(&'a self, _job: &'a str) -> FutureResult<'a, ()> {
-        Box::pin(async { Ok(()) })
-    }
-    fn close(&self) -> FutureResult<'_, ()> {
-        Box::pin(async { Ok(()) })
-    }
-}
-
 /// Filesystem preparation runs on an owned blocking task and settles before
 /// returning. This is the documented native runtime policy, not thread killing.
 struct LocalPreparationExecutor;

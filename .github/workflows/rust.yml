@@ -158,7 +158,7 @@ jobs:
           cargo build --locked --offline -p cannery --bin cannery
           cargo build --locked --offline -p cannery-test-launcher
           cargo test --locked --offline -p cannery-runner \
-            --test config_check --test policy_evaluator_http --test policy_evaluator_cli \
+            --test config_check --test verify_http \
             --no-run --message-format=json > "$RUNNER_TEMP/runner-tests.json"
           executable() {
             jq -ser --arg name "$1" '[.[] | select(.reason == "compiler-artifact" and .profile.test == true
@@ -170,15 +170,15 @@ jobs:
           export CANNERY_NATIVE_CLI="$PWD/target/debug/cannery"
           launch=target/debug/cannery-test-launcher
           "$launch" selected -- "$(executable config_check)" --ignored --exact installed_runner_check_config_is_offline --nocapture
-          "$launch" selected -- "$(executable policy_evaluator_http)" --ignored --exact policy_evaluator_http_and_owned_process_lifecycle --nocapture --test-threads=1
-          "$launch" selected -- "$(executable policy_evaluator_cli)" --ignored --exact installed_runner_policy_success_failure_and_retry --nocapture --test-threads=1
+          "$launch" selected -- "$(executable verify_http)" --ignored --exact verify_http_and_owned_process_lifecycle --nocapture --test-threads=1
+          "$launch" selected -- "$(executable verify_http)" --ignored --exact installed_runner_verify_kind_completes_fails_and_retries --nocapture --test-threads=1
           cargo test --locked --offline -p cannery-runner --test experiment_http -- --ignored
           CANNERY_RUNNER_BINARY="$PWD/target/debug/cannery" cargo test --locked --offline \
             -p cannery-runner --test container_backends -- --ignored --exact \
             installed_container_factories_start_clients_and_claim_with_separate_credentials
           CANNERY_EVALUATOR_BINARY="$PWD/target/debug/cannery" cargo test --locked --offline \
-            -p cannery-runner --test evaluator_http -- --ignored --exact \
-            stock_commands_use_http_without_installation_or_launcher_settings
+            -p cannery-runner --test evaluator_cli -- --ignored --exact \
+            stock_evaluator_applies_policy_gates_offline
 
   managed-postgres:
     name: managed PostgreSQL ${{ matrix.bundle }}

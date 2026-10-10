@@ -21,7 +21,7 @@ fn policy_callers_share_a_bounded_native_limit() -> Result<(), Box<dyn Error>> {
     assert_eq!(cli_depth::JSON_CONTAINERS, 128);
     for caller in [
         PolicyEntryPoint::Evaluator,
-        PolicyEntryPoint::RunnerEvalKind,
+        PolicyEntryPoint::RunnerVerifyKind,
     ] {
         assert_eq!(caller.validation_edges(), 128);
         for objects in [false, true] {

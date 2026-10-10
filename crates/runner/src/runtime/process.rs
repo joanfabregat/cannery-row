@@ -88,9 +88,9 @@ impl worker_process::Worker for WorkerAdapter {
         &self,
     ) -> Result<Box<dyn worker_process::Operation<Option<worker_process::JobResult>>>, ProcessError>
     {
-        let tester = self.0.clone();
+        let worker = self.0.clone();
         Ok(operation(move |cancel| async move {
-            tester.run_once(cancel).await.map(|result| {
+            worker.run_once(cancel).await.map(|result| {
                 result.map(|result| worker_process::JobResult {
                     job_id: String::from(&result.job_id),
                     state: String::from(&result.state),
@@ -111,11 +111,11 @@ impl worker_process::WorkerFactory for Factory {
         _entry: &worker_process::Entry,
         _prefix: &str,
     ) -> Result<Arc<dyn worker_process::Worker>, ProcessError> {
-        let tester = self
+        let worker = self
             .0
             .get(index)
             .ok_or_else(|| process_error(RuntimeError::Configuration))?;
-        Ok(Arc::new(WorkerAdapter(tester.clone())))
+        Ok(Arc::new(WorkerAdapter(worker.clone())))
     }
 }
 struct Lifecycle(Arc<dyn Backend>, Arc<dyn Provisioner>);
@@ -164,17 +164,17 @@ impl worker_process::LogSink for Output {
             .map_err(|_| process_error(RuntimeError::Filesystem))
     }
 }
-/// Start the concrete testers under the proven shared scheduler.
+/// Start the concrete workers under the proven shared scheduler.
 /// # Errors
 /// Rejects entry/factory mismatches; startup and cleanup failures stay explicit.
 pub async fn run(
     entries: Vec<worker_process::Entry>,
-    testers: Vec<Arc<dyn RuntimeWorker>>,
+    workers: Vec<Arc<dyn RuntimeWorker>>,
     backend: Arc<dyn Backend>,
     provisioner: Arc<dyn Provisioner>,
     once: bool,
 ) -> Result<i32, RuntimeError> {
-    if entries.len() != testers.len() || entries.is_empty() {
+    if entries.len() != workers.len() || entries.is_empty() {
         return Err(RuntimeError::Configuration);
     }
     let mut terminated = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
@@ -187,7 +187,7 @@ pub async fn run(
         once,
         has_launcher: true,
         external_client: false,
-        factory: Arc::new(Factory(testers)),
+        factory: Arc::new(Factory(workers)),
         lifecycle: Arc::new(Lifecycle(backend, provisioner)),
         wait: Arc::new(Wait),
         output: Arc::new(Output),

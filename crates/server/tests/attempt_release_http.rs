@@ -127,8 +127,8 @@ async fn call(app: &Router, recipe: &Value) -> Result<(u16, Option<String>, Valu
             "agent",
             "foreign-agent",
             "experimenter",
-            "tester",
-            "evaluator",
+            "verifier",
+            "second-verifier",
         ]
         .contains(&role)
         {
@@ -350,8 +350,8 @@ async fn attempt_release_matches_production() -> Result<()> {
             "agent",
             "foreign-agent",
             "experimenter",
-            "tester",
-            "evaluator",
+            "verifier",
+            "second-verifier",
         ]
         .map(|role| format!("auth-before-validation-{role}")),
     );

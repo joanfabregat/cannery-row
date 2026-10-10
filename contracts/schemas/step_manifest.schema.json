@@ -55,8 +55,8 @@
       "type": "object",
       "properties": {
         "role": {
-          "description": "An experiment step runs in a workflow track's experiments and is registered with the experiment-steps endpoint; an evaluator step is an evaluation policy run as a step by the runner's eval kind, never registered. Producers, scorers and validators are bound to tracks and science revisions.",
-          "enum": ["producer", "scorer", "validator", "experiment", "evaluator"]
+          "description": "An experiment step runs in a workflow track's experiments and is registered with the experiment-steps endpoint; a policy step is a verifier's policy run as a step by the runner's verify kind, never registered. Producers, scorers and validators are bound to tracks and science revisions.",
+          "enum": ["producer", "scorer", "validator", "experiment", "policy"]
         },
         "code": {
           "description": "The step runs a script from this repository at this commit instead of code baked into its image. The repository must be in the science revision's code_repositories for the step's trust class. The runner fetches the tree with its own read-only GitHub credential, checks the commit is on a branch of repo itself (not only of a fork), and mounts the tree (only path, when given) read-only at /cr/code, the step's working directory.",
@@ -258,7 +258,7 @@
         {
           "if": {"properties": {"role": {"const": "scorer"}}, "required": ["role"]},
           "then": {
-            "description": "A scorer must output the tester envelope as evidence.",
+            "description": "A scorer must output its measurements as evidence.",
             "properties": {
               "outputs": {
                 "properties": {
@@ -318,11 +318,18 @@
           }
         },
         {
-          "if": {"properties": {"role": {"const": "evaluator"}}, "required": ["role"]},
+          "if": {"properties": {"role": {"const": "policy"}}, "required": ["role"]},
           "then": {
-            "description": "An evaluator step (#47) has no network and outputs exactly its verdict.",
+            "description": "A policy step has no network, reads no attempt input (the run's claims and notes are not its business) and outputs exactly its verdict.",
             "properties": {
               "network": {"const": "none"},
+              "inputs": {
+                "properties": {
+                  "artifacts": {
+                    "items": {"properties": {"from": {"not": {"const": "attempt"}}}}
+                  }
+                }
+              },
               "outputs": {
                 "properties": {
                   "artifacts": {

@@ -1601,9 +1601,7 @@
           "enum": [
             "claimed",
             "running",
-            "submitted",
-            "testing",
-            "evaluating",
+            "verifying",
             "awaiting_human_review",
             "promoted",
             "rejected",
@@ -2111,7 +2109,7 @@
   {
     "name": "submit_attempt",
     "title": "Submit the run document",
-    "description": "Submit the run document of a completed run and freeze the attempt for independent testing: Markdown with YAML front matter holding claims, provenance, artifact_roles, the verified manifest and extensions (GET /api/schemas/run), and optional run notes as the body. Claimed metrics stay unverified. A run that failed releases the attempt instead.",
+    "description": "Submit the run document of a completed run and freeze the attempt for independent verification: Markdown with YAML front matter holding claims, provenance, artifact_roles, the verified manifest and extensions (GET /api/schemas/run), and optional run notes as the body. Claimed metrics stay unverified. A run that failed releases the attempt instead.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2194,17 +2192,16 @@
   },
   {
     "name": "claim_job",
-    "title": "Claim a test or evaluation job",
-    "description": "Claim the oldest waiting job of the caller's stage (tester and evaluator service accounts only). The job document carries its lease token once.",
+    "title": "Claim a verify job",
+    "description": "Claim the oldest waiting verify job the caller may perform. A verifier service account receives jobs whose science revision has the runner perform verify and names it; an agent service account or a researcher receives jobs whose verify performer is agent, never of an attempt it ran itself. The job document carries its lease token once.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
-        "stage": {
+        "phase": {
           "anyOf": [
             {
               "enum": [
-                "tester",
-                "evaluator"
+                "verify"
               ],
               "type": "string"
             },
@@ -2213,8 +2210,8 @@
             }
           ],
           "default": null,
-          "description": "Defaults to the stage of the caller's service account kind.",
-          "title": "Stage"
+          "description": "The phase of the job to claim; verify is the only one.",
+          "title": "Phase"
         },
         "revision": {
           "anyOf": [
@@ -2228,7 +2225,7 @@
             }
           ],
           "default": null,
-          "description": "The policy revision the evaluator applies; required for evaluation claims, refused for test claims. Only evaluation jobs pinned to this revision are handed out, so an evaluator never receives a job it would have to fail.",
+          "description": "The policy revision the verifier applies; required for a verifier service account, refused for anyone else. Only verify jobs pinned to this revision are handed out, so a verifier never receives a job it would have to fail.",
           "title": "Revision"
         },
         "project": {
@@ -2261,7 +2258,7 @@
       "type": "object"
     },
     "annotations": {
-      "title": "Claim a test or evaluation job",
+      "title": "Claim a verify job",
       "readOnlyHint": false,
       "destructiveHint": true,
       "idempotentHint": false,
@@ -2353,10 +2350,9 @@
           "type": "integer"
         },
         "input": {
-          "description": "claimed_sheet (test jobs: the front matter of the run document), evidence (evaluation jobs) or manifest.",
+          "description": "run (the front matter of the run document, with its claims and provenance) or manifest (the run's verified artifacts). The run notes are not an input.",
           "enum": [
-            "claimed_sheet",
-            "evidence",
+            "run",
             "manifest"
           ],
           "title": "Input",
@@ -2482,7 +2478,7 @@
   {
     "name": "complete_job",
     "title": "Complete a job",
-    "description": "Complete the claimed job with its evidence (tester or evaluator).",
+    "description": "Complete the claimed verify job with its verification report: Markdown with YAML front matter (GET /api/schemas/verification), and the manifest of the files the job uploaded, if any. An invalid report from an agent or a researcher is refused with the details and the lease is kept; from a runner it fails the job run.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2555,7 +2551,7 @@
   {
     "name": "fail_job",
     "title": "Report a job failure",
-    "description": "Report that the claimed job failed (tester or evaluator).",
+    "description": "Report that the claimed verify job failed, with a failure code and a reason.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2613,7 +2609,7 @@
   {
     "name": "get_job",
     "title": "Get a job",
-    "description": "One test or evaluation job and its state.",
+    "description": "One verify job and its state.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2648,7 +2644,7 @@
   {
     "name": "list_attempt_jobs",
     "title": "List an attempt's jobs",
-    "description": "An attempt's test and evaluation runs (its evidence trail), by stage and run number, with their states and failures.",
+    "description": "An attempt's verify jobs, by run number, with their states and failures.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2839,7 +2835,7 @@
   {
     "name": "record_decision",
     "title": "Record a human decision",
-    "description": "Record a researcher's reasoned decision on a pending result or failure review case. Only people with the researcher role may; agent, tester and evaluator tokens are refused.",
+    "description": "Record a researcher's reasoned decision on a pending result or failure review case. Only people with the researcher role may; service account tokens are refused.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3009,7 +3005,7 @@
   {
     "name": "get_report",
     "title": "Get an attempt's report",
-    "description": "An attempt's report: claimed and verified measurements, discrepancies, the evaluator verdict and reason, gate results, decisions and artifacts.",
+    "description": "An attempt's report: claimed and verified measurements, discrepancies, the verification report with its verdict, reason and gate results, decisions and artifacts.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3272,16 +3268,14 @@
   {
     "name": "search",
     "title": "Search",
-    "description": "Search tracks, hypotheses, attempts, reports, tester observations, evaluator and decision reasons, and comments across the projects the caller can read. Use it to find prior related work before planning.",
+    "description": "Search tracks, hypotheses, attempts, reports, verification reports, decision reasons and comments across the projects the caller can read. Use it to find prior related work before planning.",
     "inputSchema": {
       "$defs": {
         "AttemptState": {
           "enum": [
             "claimed",
             "running",
-            "submitted",
-            "testing",
-            "evaluating",
+            "verifying",
             "awaiting_human_review",
             "promoted",
             "rejected",
@@ -3311,8 +3305,7 @@
             "hypothesis",
             "attempt",
             "report",
-            "tester_observation",
-            "evaluator_reason",
+            "verification",
             "decision_reason",
             "comment"
           ],
@@ -3583,16 +3576,14 @@
   {
     "name": "query_metrics",
     "title": "Query metrics",
-    "description": "Measurements of one metric across attempts, for charts and comparisons; tester-verified by default, or the agents' unverified claims.",
+    "description": "Measurements of one metric across attempts, for charts and comparisons; verified by default, or the agents' unverified claims.",
     "inputSchema": {
       "$defs": {
         "AttemptState": {
           "enum": [
             "claimed",
             "running",
-            "submitted",
-            "testing",
-            "evaluating",
+            "verifying",
             "awaiting_human_review",
             "promoted",
             "rejected",
@@ -3794,17 +3785,15 @@
   },
   {
     "name": "query_comparisons",
-    "title": "Query evaluator comparisons",
-    "description": "What evaluators compared across attempts: per metric, split and slice, the value, the reference it was compared against, and the record's verdict.",
+    "title": "Query verification comparisons",
+    "description": "What verification reports compared across attempts: per metric, split and slice, the value, the reference it was compared against, and the report's verdict.",
     "inputSchema": {
       "$defs": {
         "AttemptState": {
           "enum": [
             "claimed",
             "running",
-            "submitted",
-            "testing",
-            "evaluating",
+            "verifying",
             "awaiting_human_review",
             "promoted",
             "rejected",
@@ -4012,7 +4001,7 @@
       "type": "object"
     },
     "annotations": {
-      "title": "Query evaluator comparisons",
+      "title": "Query verification comparisons",
       "readOnlyHint": true,
       "destructiveHint": false,
       "idempotentHint": true,

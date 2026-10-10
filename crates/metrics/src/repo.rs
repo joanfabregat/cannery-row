@@ -116,7 +116,7 @@ impl Query {
             stage: if self.authority == "agent_claim" {
                 "agent"
             } else {
-                "tester"
+                "verification"
             },
             origin: if self.authority.starts_with("imported") {
                 "imported"

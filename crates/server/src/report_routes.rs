@@ -229,9 +229,7 @@ async fn read(
         .await
         .map_err(|_| internal(&context))?
         .ok_or_else(|| internal(&context))?;
-        let tester = records.get(&reports::Stage::Tester);
-        let evaluator = records.get(&reports::Stage::Evaluator);
-        let assessment = report_wire::assessment(evaluator).map_err(|_| internal(&context))?;
+        let verification = records.get(&reports::Stage::Verification);
         let ids = reports::result_case_ids(&mut auth.connection, attempt.id)
             .await
             .map_err(|_| internal(&context))?;
@@ -255,9 +253,7 @@ async fn read(
                 return Err(internal(&context));
             }
         }
-        let tester =
-            report_wire::tester(tester, profile.response).map_err(|_| internal(&context))?;
-        let evaluator = report_wire::evaluator(evaluator, assessment, profile.response)
+        let verification = report_wire::verification(verification, profile.response)
             .map_err(|_| internal(&context))?;
         let assets =
             cannery_attempts::repo::Repository::new(&mut auth.connection, profile.attempts)
@@ -272,8 +268,7 @@ async fn read(
                 .ok_or_else(|| internal(&context))?,
             sheet,
             imported: imported.as_ref(),
-            tester,
-            evaluator,
+            verification,
             decisions: &decisions,
             assets: &assets,
         };

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE attempts SET state = $1, lease_token_hash = NULL, lease_expires_at = NULL,\n            submitted_at = CASE WHEN $2 = 'verifying' THEN now() ELSE submitted_at END,\n            finished_at = CASE WHEN $3 IN ('failed', 'cancelled') THEN now() ELSE finished_at END\n        WHERE id = $4 AND state IN ('claimed', 'running')\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "892e162ee57a7ae600502c8b056636074b3d4169bd5850eb54f0d87c62e6dd11"
+}

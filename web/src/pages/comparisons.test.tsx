@@ -3,8 +3,6 @@ import { screen, within } from "@testing-library/react";
 import type { Schemas } from "@/api/client";
 
 import {
-  evaluation,
-  assessment,
   attempt,
   hypothesis,
   metric,
@@ -13,6 +11,9 @@ import {
   report,
   review,
   reviewCase,
+  verification,
+  verificationDocument,
+  verifiedMeasurement,
 } from "@/test/fixtures";
 import { json, renderApp, signedIn } from "@/test/render";
 
@@ -80,7 +81,7 @@ const COMPARISONS: Schemas["RequestEvidenceEnvelopeComparison"][] = [
   },
 ];
 
-const GATES: Schemas["RequestEvidenceEnvelopeAssessmentGatesItem"][] = [
+const GATES: Schemas["VerificationGate"][] = [
   { id: "primary-beats-control", result: "pass", detail: "ndcg on dev: 0.42 - 0.4 = 0.02 > 0" },
 ];
 
@@ -113,14 +114,14 @@ function expectComparisons(scope: HTMLElement) {
   expect(within(table).getAllByRole("row")).toHaveLength(COMPARISONS.length + 1);
 
   const overall = row(table, /^ndcg Data set: dev · Overall$/);
-  expect(within(overall).getByText("Verified by the tester")).toBeInTheDocument();
+  expect(within(overall).getByText("Measured by the verifier")).toBeInTheDocument();
   expect(within(overall).getByText("Base camp r3 · Baseline")).toBeInTheDocument();
   expect(within(overall).getByText("base-camp")).not.toHaveAttribute("href");
   expect(within(overall).getByText("+0.02")).toBeInTheDocument();
   expect(within(overall).getByText("Better")).toBeInTheDocument();
 
   const french = row(table, /^ndcg Data set: dev · Language: fr$/);
-  expect(within(french).getByText("Computed by the evaluator")).toBeInTheDocument();
+  expect(within(french).getByText("Computed by the policy")).toBeInTheDocument();
   expect(within(french).getByText("best promoted · Best promoted result")).toBeInTheDocument();
   expect(within(french).getByRole("link", { name: "#42" })).toHaveAttribute(
     "href",
@@ -160,7 +161,7 @@ function expectComparisons(scope: HTMLElement) {
   expect(within(other).queryByRole("link")).not.toBeInTheDocument();
 }
 
-describe("the evaluator's comparisons on the review screen", () => {
+describe("the verification's comparisons on the review screen", () => {
   function awaitingResult() {
     const h = hypothesis({
       state: "awaiting_human_review",
@@ -169,39 +170,39 @@ describe("the evaluator's comparisons on the review screen", () => {
     return {
       ...hypothesisApi(h, {
         attempts: [attempt({ state: "awaiting_human_review" })],
-        reports: { 1: report() },
+        reports: {
+          1: report({
+            verification: verification({ producer: { kind: "service", id: "stock-verifier" } }),
+          }),
+        },
       }),
       "GET /api/projects/sardines/metrics": catalog,
       [`GET /api/projects/sardines/review-cases/${CASE_ID}`]: () =>
         json(
           reviewCase({
             id: CASE_ID,
-            evaluation: evaluation({
-              producer: { kind: "service", id: "stock-evaluator" },
-              finished_at: "2026-03-04T10:00:00Z",
-              assessment: assessment({
-                policy_revision: "p2",
-                verdict: "pass",
-                reason: "Pass: all 1 gates pass.",
-                gates: GATES,
-                comparisons: COMPARISONS,
-              }),
+            verification: verificationDocument({
+              policy_revision: "p2",
+              verdict: "pass",
+              reason: "Pass: all 1 gates pass.",
+              gates: GATES,
+              comparisons: COMPARISONS,
             }),
           }),
         ),
     };
   }
 
-  it("names the evaluator and its rules version, lists its checks and what it compared", async () => {
+  it("names the verifier and its rules version, lists its checks and what it compared", async () => {
     signedIn({}, awaitingResult());
     renderApp("/hypotheses/12/review");
-    const verdict = await screen.findByRole("region", { name: "Evaluator verdict" });
+    const verdict = await screen.findByRole("region", { name: "Verification verdict" });
     expect(
-      await within(verdict).findByText(/^Judged by stock-evaluator \(rules version p2\)/),
+      await within(verdict).findByText(/^Judged by stock-verifier \(rules version p2\)/),
     ).toBeInTheDocument();
-    expect(verdict).not.toHaveTextContent(/policy/i);
+    expect(verdict).not.toHaveTextContent(/policy_revision/);
     expect(
-      within(verdict).getByRole("heading", { name: "The evaluator's checks" }),
+      within(verdict).getByRole("heading", { name: "The policy's checks" }),
     ).toBeInTheDocument();
     expect(
       within(verdict).getByRole("rowheader", { name: "Primary beats control" }),
@@ -213,21 +214,18 @@ describe("the evaluator's comparisons on the review screen", () => {
   });
 });
 
-describe("the evaluator's comparisons on the hypothesis page", () => {
+describe("the verification's comparisons on the hypothesis page", () => {
   it("shows the same table under the verdict, with the directions of the attempt's science revision", async () => {
     const { h, attempts } = promotedHypothesis();
     const withComparisons = report({
       science_revision: 3,
-      evaluation: {
-        status: "accepted",
-        verdict: "pass",
+      verification: verification({
         reason: "Pass: all 1 gates pass.",
         policy_revision: "p2",
         gates: GATES,
         comparisons: COMPARISONS,
-        producer: { kind: "service", id: "stock-evaluator" },
-        published_at: "2026-03-04T10:00:00Z",
-      },
+        producer: { kind: "service", id: "stock-verifier" },
+      }),
     });
     const { requests } = signedIn(
       {},
@@ -237,9 +235,9 @@ describe("the evaluator's comparisons on the hypothesis page", () => {
       },
     );
     renderApp("/hypotheses/12");
-    const verdict = await screen.findByRole("region", { name: "Evaluation" });
+    const verdict = await screen.findByRole("region", { name: "Verdict" });
     expect(
-      within(verdict).getByText(/^Judged by stock-evaluator \(rules version p2\)/),
+      within(verdict).getByText(/^Judged by stock-verifier \(rules version p2\)/),
     ).toBeInTheDocument();
     expect(await within(verdict).findAllByText("Better")).toHaveLength(2);
     expectComparisons(verdict);
@@ -255,16 +253,12 @@ describe("the evaluator's comparisons on the hypothesis page", () => {
   it("waits for the metrics' directions instead of saying it can't tell", async () => {
     const { h, attempts } = promotedHypothesis();
     const withComparisons = report({
-      evaluation: {
-        status: "accepted",
-        verdict: "pass",
+      verification: verification({
         reason: null,
         policy_revision: "p2",
-        gates: [],
         comparisons: COMPARISONS,
-        producer: { kind: "service", id: "stock-evaluator" },
-        published_at: "2026-03-04T10:00:00Z",
-      },
+        producer: { kind: "service", id: "stock-verifier" },
+      }),
     });
     let release: () => void = () => undefined;
     const answered = new Promise<void>((resolve) => {
@@ -281,7 +275,7 @@ describe("the evaluator's comparisons on the hypothesis page", () => {
       },
     );
     renderApp("/hypotheses/12");
-    const verdict = await screen.findByRole("region", { name: "Evaluation" });
+    const verdict = await screen.findByRole("region", { name: "Verdict" });
     const table = within(verdict).getByRole("table", { name: /“Better” follows/ });
     // Equal values need no direction; every other row waits.
     expect(within(table).getAllByText("Checking…")).toHaveLength(COMPARISONS.length - 2);
@@ -294,39 +288,24 @@ describe("the evaluator's comparisons on the hypothesis page", () => {
     expect(within(table).getByText("Can't tell")).toBeInTheDocument();
   });
 
-  it("falls back on the tester's directions and says when nothing was compared", async () => {
+  it("falls back on the verified directions and says when nothing was compared", async () => {
     const { h, attempts, reports } = promotedHypothesis();
     signedIn({}, hypothesisApi(h, { attempts, reports }));
     renderApp("/hypotheses/12");
-    const verdict = await screen.findByRole("region", { name: "Evaluation" });
+    const verdict = await screen.findByRole("region", { name: "Verdict" });
     expect(within(verdict).getByText(/^Judged by judge \(rules version 1\)/)).toBeInTheDocument();
     expect(
-      within(verdict).getByText("The evaluator did not say what it compared this result with."),
+      within(verdict).getByText("The verification did not say what it compared this result with."),
     ).toBeInTheDocument();
     expect(
-      within(verdict).queryByRole("heading", { name: "The evaluator's checks" }),
+      within(verdict).queryByRole("heading", { name: "The policy's checks" }),
     ).not.toBeInTheDocument();
   });
 });
 
 describe("a hypothesis without a control", () => {
   const noControl = report({
-    tester: {
-      status: "accepted",
-      observations: null,
-      discrepancies: [],
-      measurements: [
-        {
-          metric: "accuracy",
-          value: 0.91,
-          authority: "tester_verified",
-          unit: "ratio",
-          direction: "higher",
-          split: "test",
-        },
-      ],
-      published_at: "2026-03-03T12:00:00Z",
-    },
+    verification: verification({ measurements: [verifiedMeasurement()] }),
   });
 
   it("shows no empty control on the hypothesis page", async () => {
@@ -337,7 +316,7 @@ describe("a hypothesis without a control", () => {
     expect(sentence).not.toHaveTextContent(/undefined|null|control/i);
     const idea = screen.getByRole("region", { name: "The idea" });
     expect(within(idea).queryByText("Compared with")).not.toBeInTheDocument();
-    const evidence = screen.getByRole("region", { name: "Test" });
+    const evidence = screen.getByRole("region", { name: "Measurements" });
     expect(
       within(evidence).queryByRole("columnheader", { name: "Control" }),
     ).not.toBeInTheDocument();
@@ -356,7 +335,7 @@ describe("a hypothesis without a control", () => {
     const idea = await screen.findByRole("region", { name: "The idea" });
     expect(within(idea).getByText("Compared with")).toBeInTheDocument();
     expect(within(idea).getByText("base-camp, revision r3")).toBeInTheDocument();
-    const evidence = await screen.findByRole("region", { name: "Test" });
+    const evidence = await screen.findByRole("region", { name: "Measurements" });
     expect(within(evidence).getByRole("columnheader", { name: "Control" })).toBeInTheDocument();
   });
 });

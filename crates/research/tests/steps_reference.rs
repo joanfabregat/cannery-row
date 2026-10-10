@@ -87,7 +87,7 @@ fn observed(case: &Value) -> Result<Document, ScienceError> {
                 "scorer" => Role::Scorer,
                 "validator" => Role::Validator,
                 "experiment" => Role::Experiment,
-                "evaluator" => Role::Evaluator,
+                "policy" => Role::Policy,
                 _ => panic!("role"),
             };
             steps::check_step(

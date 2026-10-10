@@ -5,7 +5,7 @@ use crate::{
     authentication::authenticate,
     body::{self, DecodedBody},
     errors::ApiError,
-    job_claim_idempotency as replay, job_claim_request,
+    job_claim_idempotency as replay, job_claim_request, job_workers,
     request_context::first_header,
     requests::RequestContext,
     validation::{self, BodyInput},
@@ -22,11 +22,11 @@ use cannery_core::{
     errors::{DomainError, ErrorCode},
     ids::JobId,
     json::{self, DocumentBuilder, Node},
-    principal::{Principal, Secret, ServiceKind, ServicePrincipal},
+    principal::{Principal, Secret},
     timestamps::Timestamp,
 };
-use cannery_jobs::repo::{self, Job, Stage, State as JobState};
-use cannery_projects::{authz, repo::Project};
+use cannery_jobs::repo::{self, Claimant, Job, Performer, Phase, State as JobState};
+use cannery_projects::repo::Project;
 use cannery_research::{
     job_documents::{self, JobDocument},
     science::RenderingContext,
@@ -88,40 +88,6 @@ async fn claim_method(
         Ok(_) => Err(internal(&context, "literal job path invariant")),
     }
 }
-async fn worker(
-    c: &mut PgConnection,
-    p: &Principal,
-    slug: &str,
-    context: &RequestContext,
-) -> Result<Project, Failure> {
-    authz::project_access(
-        c,
-        p,
-        slug,
-        None,
-        &[ServiceKind::Tester, ServiceKind::Evaluator],
-        true,
-    )
-    .await
-    .map(|v| v.project)
-    .map_err(|e| failure(context.project_error(e)))
-}
-fn service<'a>(
-    principal: &'a Principal,
-    context: &RequestContext,
-) -> Result<&'a ServicePrincipal, Failure> {
-    match principal {
-        Principal::Service(p) => Ok(p),
-        Principal::User(_) => Err(internal(context, "job worker invariant")),
-    }
-}
-fn stage(p: &ServicePrincipal) -> Stage {
-    if p.kind == ServiceKind::Tester {
-        Stage::Tester
-    } else {
-        Stage::Evaluator
-    }
-}
 fn violation(path: &str, message: &str) -> Failure {
     failure(ApiError::from(
         DomainError::new(ErrorCode::ValidationFailed, message)
@@ -142,13 +108,13 @@ fn string(
 }
 fn hash(
     slug: &str,
-    stage: Stage,
+    phase: Phase,
     revision: Option<&str>,
     budget: usize,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
     let mut b = DocumentBuilder::new();
-    let value = string(&mut b, stage.as_str())?;
-    let mut fields = vec![(String::from("stage"), value)];
+    let value = string(&mut b, phase.as_str())?;
+    let mut fields = vec![(String::from("phase"), value)];
     if let Some(revision) = revision {
         let value = string(&mut b, revision)?;
         fields.push((String::from("revision"), value));
@@ -174,14 +140,14 @@ async fn claim_document(
         .await
         .map_err(|_| internal(context, "job claim attempt"))?
         .ok_or_else(|| internal(context, "job claim attempt invariant"))?;
-    let stage = String::from(job.stage.as_str());
+    let phase = String::from(job.phase.as_str());
     let science_revision = BigInt::from(job.science_revision);
     let generation = BigInt::from(job.lease_generation);
     let value = job_documents::job_document(
         &JobDocument {
             id: job.id,
             attempt_id: job.attempt_id,
-            stage: &stage,
+            phase: &phase,
             science_revision: &science_revision,
             lease_generation: &generation,
             deadline: job.deadline,
@@ -284,7 +250,7 @@ mod replay_generation_tests {
     path = "/api/projects/{slug}/jobs/claims",
     operation_id = "claim_job_api_projects__slug__jobs_claims_post",
     summary = "Claim Job",
-    description = "Claim the oldest waiting job of the caller's stage registered to its name.\n\nA tester claims test jobs and an evaluator evaluation jobs, each only the\njobs its project's science revision registers under its account name. An\nevaluator names the policy revision it applies and receives only jobs\npinned to it, so evaluators of two revisions can run side by side.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
+    description = "Claim the oldest waiting verify job the caller may verify.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
     params(("slug" = String, Path),
         ("idempotency-key" = Option<String>, Header)),
     request_body(content = crate::api_models::JobClaimRequest, content_type = "application/json"),
@@ -319,35 +285,25 @@ pub(crate) async fn claim(
         DecodedBody::Json(d) => BodyInput::Json(d),
     };
     let body = job_claim_request::claim(input).map_err(|e| checked_errors(&e, &context))?;
-    let project = worker(
+    let project = job_workers::worker(
         &mut auth.connection,
         &auth.principal,
         &paths["slug"],
         &context,
     )
     .await?;
-    let tester = service(&auth.principal, &context)?;
-    let stage = body.stage.unwrap_or_else(|| stage(tester));
-    if stage != self::stage(tester) {
-        return Err(domain(
-            ErrorCode::Forbidden,
-            format!(
-                "a {} service account cannot claim {} jobs",
-                self::stage(tester).as_str(),
-                stage.as_str()
-            ),
-        ));
-    }
-    if stage == Stage::Evaluator && body.revision.is_none() {
+    let phase = body.phase.unwrap_or(Phase::Verify);
+    let performer = job_workers::performer(&auth.principal);
+    if performer == Performer::Runner && body.revision.is_none() {
         return Err(violation(
             "/revision",
-            "an evaluation claim names the policy revision it applies",
+            "a verifier names the policy revision it applies",
         ));
     }
-    if stage == Stage::Tester && body.revision.is_some() {
+    if performer == Performer::Agent && body.revision.is_some() {
         return Err(violation(
             "/revision",
-            "only an evaluation claim names a policy revision",
+            "only a verifier names a policy revision",
         ));
     }
     let key = first_header(&parts.headers, "idempotency-key");
@@ -362,14 +318,14 @@ pub(crate) async fn claim(
     }
     let hash = hash(
         &project.slug,
-        stage,
+        phase,
         body.revision.as_deref(),
         state.profile.hash_budget,
     )
     .map_err(|_| internal(&context, "job claim hash"))?;
     let secret = (state.profile.mint)().map_err(|_| internal(&context, "job claim entropy"))?;
     let ttl = state.app.settings.leases.job_ttl_seconds.as_bigint();
-    let actor = format!("service:{}", tester.service_account_id);
+    let actor = job_workers::actor(&auth.principal);
     let mut tx = auth
         .connection
         .begin()
@@ -411,7 +367,7 @@ pub(crate) async fn claim(
             }
             let old = generation(raw_generation, &context)?;
             if old != BigInt::from(job.lease_generation)
-                || job.claimed_by_service != Some(tester.service_account_id)
+                || job.claimant() != Some(Claimant::of(&auth.principal))
                 || job.lease_expires_at.is_none_or(|time| time.0 <= now.0)
             {
                 return Err(domain(
@@ -456,41 +412,54 @@ pub(crate) async fn claim(
             .await
             .map(|d| (StatusCode::OK, d));
         }
-        let id = repo::pick_pending(
-            &mut tx,
-            project.id,
-            stage,
-            &tester.name,
-            body.revision.as_deref(),
-        )
-        .await
+        let claimant = Claimant::of(&auth.principal);
+        let id = match (&auth.principal, body.revision.as_deref()) {
+            (Principal::Service(verifier), Some(revision)) if performer == Performer::Runner => {
+                repo::pick_pending_runner(&mut tx, project.id, &verifier.name, revision).await
+            }
+            _ => repo::pick_pending_agent(&mut tx, project.id, claimant).await,
+        }
         .map_err(|_| internal(&context, "job claim selection"))?;
         let Some(id) = id else {
-            let repr = cannery_core::text::repr_string(&String::from(&tester.name))
-                .map_err(|_| internal(&context, "job worker representation"))?
-                .as_utf8()
-                .ok_or_else(|| internal(&context, "job worker representation"))?;
-            let wanted = body
-                .revision
-                .as_ref()
-                .map(|v| cannery_core::text::repr_string(&String::from(v)))
-                .transpose()
-                .map_err(|_| internal(&context, "job policy representation"))?
-                .and_then(|v| v.as_utf8().map(|v| format!(" under policy revision {v}")))
-                .unwrap_or_default();
+            if let (Principal::Service(verifier), Some(revision)) =
+                (&auth.principal, body.revision.as_deref())
+                && performer == Performer::Runner
+            {
+                let repr = |v: &str| {
+                    cannery_core::text::repr_string(&String::from(v))
+                        .ok()
+                        .and_then(|v| v.as_utf8())
+                        .ok_or_else(|| internal(&context, "job worker representation"))
+                };
+                return Err(domain(
+                    ErrorCode::Conflict,
+                    format!(
+                        "no {} job is waiting for verifier {} under policy revision {}",
+                        phase.as_str(),
+                        repr(&verifier.name)?,
+                        repr(revision)?
+                    ),
+                ));
+            }
+            let own = repo::own_pending_agent(&mut tx, project.id, claimant)
+                .await
+                .map_err(|_| internal(&context, "job claim own attempts"))?;
             return Err(domain(
                 ErrorCode::Conflict,
-                format!(
-                    "no {} job is waiting for {} {repr}{wanted}",
-                    stage.as_str(),
-                    stage.as_str()
-                ),
+                if own > 0 {
+                    format!(
+                        "the waiting {} jobs are of attempts you ran; another agent or researcher verifies them",
+                        phase.as_str()
+                    )
+                } else {
+                    format!("no {} job is waiting for an agent", phase.as_str())
+                },
             ));
         };
         let job = repo::claim_job(
             &mut tx,
             id,
-            tester,
+            &auth.principal,
             &cannery_identity::secrets::digest(secret.expose()),
             ttl,
             state.profile.jobs,
@@ -598,14 +567,13 @@ pub(crate) async fn heartbeat(
         ));
     }
     let id = JobId(id.ok_or_else(|| internal(&context, "job path invariant"))?);
-    let project = worker(
+    let project = job_workers::worker(
         &mut auth.connection,
         &auth.principal,
         &paths["slug"],
         &context,
     )
     .await?;
-    let tester = service(&auth.principal, &context)?;
     let mut tx = auth
         .connection
         .begin()
@@ -617,25 +585,7 @@ pub(crate) async fn heartbeat(
             .map_err(|_| internal(&context, "leased job lookup"))?
             .filter(|job| job.project_id == project.id)
             .ok_or_else(|| domain(ErrorCode::NotFound, "job not found"))?;
-        if job.stage != stage(tester) {
-            return Err(domain(
-                ErrorCode::Forbidden,
-                format!(
-                    "a {} service account cannot work on {} jobs",
-                    stage(tester).as_str(),
-                    job.stage.as_str()
-                ),
-            ));
-        }
-        if job.claimed_by_service != Some(tester.service_account_id) {
-            return Err(domain(
-                ErrorCode::Forbidden,
-                format!(
-                    "only the {} that claimed this job can work on it",
-                    job.stage.as_str()
-                ),
-            ));
-        }
+        job_workers::holder(&job, &auth.principal)?;
         let token = first_header(&parts.headers, "x-lease-token");
         let (Some(token), Some(generation)) = (token, generation) else {
             return Err(domain(
@@ -670,17 +620,11 @@ pub(crate) async fn heartbeat(
             .await
             .map_err(|_| internal(&context, "job heartbeat attempt"))?
             .ok_or_else(|| internal(&context, "job heartbeat attempt invariant"))?;
-        let expected = if job.stage == Stage::Tester {
-            cannery_attempts::model::State::Testing
-        } else {
-            cannery_attempts::model::State::Evaluating
-        };
-        if attempt.state != expected {
+        if attempt.state != cannery_attempts::model::State::Verifying {
             return Err(domain(
                 ErrorCode::StaleLease,
                 format!(
-                    "the attempt is no longer in the {} stage ({})",
-                    job.stage.as_str(),
+                    "the attempt is no longer being verified ({})",
                     attempt.state.as_str()
                 ),
             ));

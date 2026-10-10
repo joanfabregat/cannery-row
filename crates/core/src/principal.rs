@@ -39,8 +39,7 @@ impl Scope {
 pub enum ServiceKind {
     Agent,
     Experimenter,
-    Tester,
-    Evaluator,
+    Verifier,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]

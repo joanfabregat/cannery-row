@@ -1,7 +1,7 @@
 //! Lossless stock and step policy parsing with source-ordered schema diagnostics.
 use crate::{
     cli_depth::{self, PolicyEntryPoint},
-    config::{EvaluationPolicy, PolicyLoadError, PolicyLoader},
+    config::{PolicyLoadError, PolicyLoader, VerifyPolicy},
     gates::{Control, GateContext},
     launcher::PosixPath,
 };
@@ -56,7 +56,7 @@ impl std::fmt::Debug for PolicyError {
 }
 impl std::fmt::Display for PolicyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("evaluation policy was refused")
+        f.write_str("verification policy was refused")
     }
 }
 impl std::error::Error for PolicyError {}
@@ -95,7 +95,7 @@ impl From<ContractError> for PolicyError {
 
 /// Original stock document plus the source's flattened baseline projection.
 pub struct StockPolicy {
-    pub evaluator_id: String,
+    pub verifier_id: String,
     pub revision: String,
     pub default_control: Option<Control>,
     pub document: Arc<Document>,
@@ -121,12 +121,11 @@ impl StockPolicy {
 }
 /// `document` is the step manifest, not its registration envelope.
 pub struct StepPolicy {
-    pub evaluator_id: String,
+    pub verifier_id: String,
     pub revision: String,
     pub document: Arc<Document>,
     pub envelope: Arc<Document>,
     pub name: String,
-    pub needs_data_root: bool,
 }
 pub enum Policy {
     Stock(StockPolicy),
@@ -238,7 +237,7 @@ pub fn parse_policy(
 ) -> Result<StockPolicy, PolicyError> {
     let d = &*document;
     let root = d.root();
-    validate(d, ContractKind::EvaluatorConfig, point, budget, "")?;
+    validate(d, ContractKind::PolicyConfig, point, budget, "")?;
     let gates = field(d, root, "gates")?;
     let mut seen = HashSet::new();
     for &g in array(d, gates)? {
@@ -262,9 +261,9 @@ pub fn parse_policy(
     for (index, &base) in bases.iter().enumerate() {
         flattened.push(flatten_baseline(d, &mut b, base, index, budget)?);
     }
-    let evaluator = field(d, root, "evaluator")?;
-    let evaluator_id = text(d, field(d, evaluator, "id")?)?;
-    let revision = text(d, field(d, evaluator, "revision")?)?;
+    let verifier = field(d, root, "verifier")?;
+    let verifier_id = text(d, field(d, verifier, "id")?)?;
+    let revision = text(d, field(d, verifier, "revision")?)?;
     let default_control = d
         .field(root, "default_control")
         .map(|v| {
@@ -281,18 +280,18 @@ pub fn parse_policy(
     } else {
         b.push(Node::Null)?
     };
-    let id = b.push(Node::String(evaluator_id.clone()))?;
+    let id = b.push(Node::String(verifier_id.clone()))?;
     let revision_node = b.push(Node::String(revision.clone()))?;
     let bases = b.push(Node::Array(flattened))?;
     let root = b.push(Node::Object(vec![
-        (String::from("evaluator_id"), id),
+        (String::from("verifier_id"), id),
         (String::from("revision"), revision_node),
         (String::from("gates"), gates),
         (String::from("default_control"), default),
         (String::from("baselines"), bases),
     ]))?;
     Ok(StockPolicy {
-        evaluator_id,
+        verifier_id,
         revision,
         default_control,
         document,
@@ -314,6 +313,7 @@ fn identifier(s: &String) -> bool {
 /// Manual envelope checks precede whole manifest validation and input semantics.
 /// # Errors
 /// Source configuration, diagnostic value/recursion, or arena invariant failure.
+#[allow(clippy::too_many_lines)] // Envelope checks, then the manifest, then input semantics, in order.
 pub fn parse_step_policy(
     envelope: Arc<Document>,
     point: PolicyEntryPoint,
@@ -327,7 +327,7 @@ pub fn parse_step_policy(
     if let Some((key, _)) = entries
         .iter()
         .filter(|(k, _)| {
-            !["schema_version", "evaluator", "step"]
+            !["schema_version", "verifier", "step"]
                 .iter()
                 .any(|s| k.equals_utf8(s))
         })
@@ -346,22 +346,22 @@ pub fn parse_step_policy(
     {
         return Err(fail(ErrorKind::Configuration, "/schema_version"));
     }
-    let evaluator = d
-        .field(root, "evaluator")
-        .ok_or_else(|| fail(ErrorKind::Configuration, "/evaluator"))?;
-    let fields = object(d, evaluator).map_err(|_| fail(ErrorKind::Configuration, "/evaluator"))?;
+    let verifier = d
+        .field(root, "verifier")
+        .ok_or_else(|| fail(ErrorKind::Configuration, "/verifier"))?;
+    let fields = object(d, verifier).map_err(|_| fail(ErrorKind::Configuration, "/verifier"))?;
     if fields.len() != 2
-        || d.field(evaluator, "id").is_none()
-        || d.field(evaluator, "revision").is_none()
+        || d.field(verifier, "id").is_none()
+        || d.field(verifier, "revision").is_none()
     {
-        return Err(fail(ErrorKind::Configuration, "/evaluator"));
+        return Err(fail(ErrorKind::Configuration, "/verifier"));
     }
     let mut registration = Vec::new();
     for key in ["id", "revision"] {
-        let s = text(d, field(d, evaluator, key)?)
-            .map_err(|_| fail(ErrorKind::Configuration, &format!("/evaluator/{key}")))?;
+        let s = text(d, field(d, verifier, key)?)
+            .map_err(|_| fail(ErrorKind::Configuration, &format!("/verifier/{key}")))?;
         if !identifier(&s) {
-            return Err(fail(ErrorKind::Configuration, &format!("/evaluator/{key}")));
+            return Err(fail(ErrorKind::Configuration, &format!("/verifier/{key}")));
         }
         registration.push(s);
     }
@@ -381,12 +381,13 @@ pub fn parse_step_policy(
     )?;
     let root = document.root();
     let spec = field(&document, root, "spec")?;
-    if !text(&document, field(&document, spec, "role")?)?.equals_utf8("evaluator") {
+    if !text(&document, field(&document, spec, "role")?)?.equals_utf8("policy") {
         return Err(fail(ErrorKind::Configuration, "/step/spec/role"));
     }
+    // A policy step reads the producer's and the scorer's outputs, datasets
+    // and baselines; never the attempt's own artifacts.
     let inputs = field(&document, field(&document, spec, "inputs")?, "artifacts")?;
     let mut names = HashSet::new();
-    let mut needs_data_root = false;
     for (index, &a) in array(&document, inputs)?.iter().enumerate() {
         let name = text(&document, field(&document, a, "name")?)?;
         let source = text(&document, field(&document, a, "from")?)?;
@@ -394,30 +395,33 @@ pub fn parse_step_policy(
         if !names.insert(name.clone()) {
             return Err(fail(ErrorKind::Configuration, &format!("{where_}/name")));
         }
-        if source.equals_utf8("step") {
+        if source.equals_utf8("attempt") {
             return Err(fail(ErrorKind::Configuration, &format!("{where_}/from")));
         }
-        if name.equals_utf8("claimed_sheet") && source.equals_utf8("attempt") {
-            return Err(fail(ErrorKind::Configuration, &format!("{where_}/name")));
-        }
-        if (name.equals_utf8("evidence") || name.equals_utf8("manifest"))
-            && !source.equals_utf8("attempt")
-        {
-            return Err(fail(ErrorKind::Configuration, &format!("{where_}/from")));
-        }
-        needs_data_root |= source.equals_utf8("baseline") || source.equals_utf8("dataset");
+    }
+    // Its only output is the verdict the runner composes the report from.
+    let outputs = array(
+        &document,
+        field(&document, field(&document, spec, "outputs")?, "artifacts")?,
+    )?;
+    if outputs.len() != 1
+        || !text(&document, field(&document, outputs[0], "name")?)?.equals_utf8("verdict")
+    {
+        return Err(fail(
+            ErrorKind::Configuration,
+            "/step/spec/outputs/artifacts",
+        ));
     }
     let name = text(
         &document,
         field(&document, field(&document, root, "metadata")?, "name")?,
     )?;
     Ok(StepPolicy {
-        evaluator_id: registration.remove(0),
+        verifier_id: registration.remove(0),
         revision: registration.remove(0),
         document,
         envelope,
         name,
-        needs_data_root,
     })
 }
 /// Dispatch uses presence of `step`, including a null value.
@@ -467,14 +471,11 @@ impl FilePolicyLoader {
     }
 }
 impl PolicyLoader for FilePolicyLoader {
-    fn load(&self, path: &PosixPath) -> Result<EvaluationPolicy, PolicyLoadError> {
+    fn load(&self, path: &PosixPath) -> Result<VerifyPolicy, PolicyLoadError> {
         self.load_policy(path)
             .map(|p| match p {
-                Policy::Stock(p) => EvaluationPolicy::Stock(p.document),
-                Policy::Step(p) => EvaluationPolicy::Step {
-                    document: p.envelope,
-                    needs_data_root: p.needs_data_root,
-                },
+                Policy::Stock(p) => VerifyPolicy::Stock(p.document),
+                Policy::Step(p) => VerifyPolicy::Step(p.envelope),
             })
             .map_err(|e| match e.kind {
                 ErrorKind::Configuration | ErrorKind::Invariant => PolicyLoadError::Configuration,

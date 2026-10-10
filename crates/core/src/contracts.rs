@@ -28,7 +28,7 @@ pub enum ContractKind {
     Interface,
     Gates,
     ImportBundle,
-    EvaluatorConfig,
+    PolicyConfig,
     StepManifest,
     ScienceRevision,
     DashboardViews,
@@ -50,7 +50,7 @@ impl ContractKind {
             "step_manifest" => Self::StepManifest,
             "interface" => Self::Interface,
             "gates" => Self::Gates,
-            "evaluator_config" => Self::EvaluatorConfig,
+            "policy_config" => Self::PolicyConfig,
             "dashboard_views" => Self::DashboardViews,
             "science_revision" => Self::ScienceRevision,
             "import_bundle" => Self::ImportBundle,
@@ -344,8 +344,8 @@ const PUBLISHED_SOURCES: [(&str, &str); 21] = [
         include_str!("../../../contracts/schemas/gates.schema.json"),
     ),
     (
-        "evaluator_config",
-        include_str!("../../../contracts/schemas/evaluator_config.schema.json"),
+        "policy_config",
+        include_str!("../../../contracts/schemas/policy_config.schema.json"),
     ),
     (
         "step_manifest",

@@ -15,7 +15,7 @@ use num_bigint::BigInt;
 pub struct JobDocument<'a> {
     pub id: JobId,
     pub attempt_id: AttemptId,
-    pub stage: &'a String,
+    pub phase: &'a String,
     pub science_revision: &'a BigInt,
     pub lease_generation: &'a BigInt,
     pub deadline: Option<Timestamp>,
@@ -57,7 +57,7 @@ pub fn job_document(
     let deadline = job.deadline.ok_or(Error::Invariant)?;
     let expires = job.lease_expires_at.ok_or(Error::Invariant)?;
     let control = job_baselines::pinned_control(job.spec, rendering)?;
-    let parameters = job_baselines::pinned_parameters(job.stage, job.spec)?;
+    let parameters = job_baselines::pinned_parameters(job.spec)?;
     let Some(Node::Object(spec)) = job.spec.node(job.spec.root()) else {
         return Err(ScienceError::Attribute.into());
     };
@@ -71,9 +71,9 @@ pub fn job_document(
     );
     field(
         &mut fields,
-        "stage",
+        "phase",
         builder
-            .push(Node::String(job.stage.clone()))
+            .push(Node::String(job.phase.clone()))
             .map_err(|_| Error::Build)?,
     );
     field(

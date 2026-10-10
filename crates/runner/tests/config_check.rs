@@ -4,6 +4,7 @@ use std::{error::Error, fs, io, net::TcpListener, os::unix::fs::PermissionsExt, 
 
 #[test]
 #[ignore = "requires the installed CANNERY_NATIVE_CLI artifact"]
+#[allow(clippy::too_many_lines)] // One installed preflight, checked step by step.
 fn installed_runner_check_config_is_offline() -> Result<(), Box<dyn Error>> {
     let binary = std::env::var_os("CANNERY_NATIVE_CLI").ok_or("CLI artifact required")?;
     let mut nonce = [0u8; 16];
@@ -18,8 +19,8 @@ fn installed_runner_check_config_is_offline() -> Result<(), Box<dyn Error>> {
         peer.set_nonblocking(true)?;
         let api = format!("http://{}", peer.local_addr()?);
         for (file, token) in [
-            ("tester", "synthetic-tester-private"),
-            ("evaluator", "synthetic-evaluator-private"),
+            ("verifier", "synthetic-verifier-private"),
+            ("experimenter", "synthetic-experimenter-private"),
             ("cluster", "synthetic-cluster-private"),
         ] {
             let path = directory.join(file);
@@ -28,10 +29,10 @@ fn installed_runner_check_config_is_offline() -> Result<(), Box<dyn Error>> {
         }
         fs::write(
             directory.join("policy.json"),
-            r#"{"schema_version":"0.2","evaluator":{"id":"stock-evaluator","revision":"v1"},"gates":[{"id":"quality","metric":"mrr","split":"dev","statistic":"value","compare":"control","op":">=","min_delta":0}],"baselines":[]}"#,
+            r#"{"schema_version":"0.2","verifier":{"id":"stock-verifier","revision":"v1"},"gates":[{"id":"quality","metric":"mrr","split":"dev","statistic":"value","compare":"control","op":">=","min_delta":0}],"baselines":[]}"#,
         )?;
         let text = format!(
-            "api_url = {api:?}\nproject = \"fixture\"\ndata_root = \"absent-data\"\nwork_root = \"absent-work\"\ncache_root = \"absent-cache\"\n[launcher]\ntype = \"kubernetes\"\nrunner_id = \"fixture-runner\"\nk8s_namespace = \"isolated-runner\"\nk8s_api_url = {api:?}\nk8s_token_file = \"cluster\"\n[[kinds]]\nkind = \"test\"\ntoken_file = \"tester\"\n[[kinds]]\nkind = \"eval\"\ntoken_file = \"evaluator\"\npolicy = \"policy.json\"\n"
+            "api_url = {api:?}\nproject = \"fixture\"\ndata_root = \"absent-data\"\nwork_root = \"absent-work\"\ncache_root = \"absent-cache\"\n[launcher]\ntype = \"kubernetes\"\nrunner_id = \"fixture-runner\"\nk8s_namespace = \"isolated-runner\"\nk8s_api_url = {api:?}\nk8s_token_file = \"cluster\"\n[[kinds]]\nkind = \"verify\"\ntoken_file = \"verifier\"\npolicy = \"policy.json\"\n[[kinds]]\nkind = \"experiment\"\ntoken_file = \"experimenter\"\n"
         );
         let config = directory.join("runner.toml");
         fs::write(&config, &text)?;
@@ -72,11 +73,17 @@ fn installed_runner_check_config_is_offline() -> Result<(), Box<dyn Error>> {
             let failed = run(extra)?;
             assert_eq!(failed.status.code(), Some(2));
         }
-        fs::set_permissions(directory.join("tester"), fs::Permissions::from_mode(0o644))?;
+        fs::set_permissions(
+            directory.join("verifier"),
+            fs::Permissions::from_mode(0o644),
+        )?;
         let failed = run(&["--k8s-namespace-policy-acknowledged"])?;
         assert_eq!(failed.status.code(), Some(2));
-        assert!(!String::from_utf8_lossy(&failed.stderr).contains("synthetic-tester-private"));
-        fs::set_permissions(directory.join("tester"), fs::Permissions::from_mode(0o600))?;
+        assert!(!String::from_utf8_lossy(&failed.stderr).contains("synthetic-verifier-private"));
+        fs::set_permissions(
+            directory.join("verifier"),
+            fs::Permissions::from_mode(0o600),
+        )?;
         for suffix in [
             "\n[github]\napp_id = \"1\"\n",
             "\n[github]\napi_url = \"http://private-user:private-password@127.0.0.1\"\n",

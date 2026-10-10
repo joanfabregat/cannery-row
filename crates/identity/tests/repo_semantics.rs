@@ -380,8 +380,7 @@ async fn token_pagination_revoke_and_all_service_kinds_disable_once() -> Result<
     for (kind, name) in [
         (ServiceKind::Agent, "agent"),
         (ServiceKind::Experimenter, "experimenter"),
-        (ServiceKind::Tester, "tester"),
-        (ServiceKind::Evaluator, "evaluator"),
+        (ServiceKind::Verifier, "verifier"),
     ] {
         assert_service_kind(&mut conn, project, owner.id, foreign.id, kind, name).await?;
     }
@@ -389,12 +388,12 @@ async fn token_pagination_revoke_and_all_service_kinds_disable_once() -> Result<
         repo::list_service_accounts(&mut conn, project, None, None)
             .await?
             .len(),
-        4
+        3
     );
     let page =
         repo::list_service_accounts(&mut conn, project, Some("experimenter"), Some(1)).await?;
     assert_eq!(page.len(), 1);
-    assert_eq!(page[0].name, "tester");
+    assert_eq!(page[0].name, "verifier");
     Ok(())
 }
 

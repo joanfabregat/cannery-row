@@ -1,0 +1,6 @@
+{
+  "schema_version": "0.2",
+  "verifier": {"id": "cannery-verifier", "revision": "latency-r2"},
+  "gates": [{"id": "latency-holds", "metric": "latency_ms", "split": "dev", "statistic": "value", "compare": "control", "op": "<=", "min_delta": 5}],
+  "baselines": []
+}

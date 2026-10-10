@@ -83,9 +83,9 @@ impl TryFrom<&str> for $name{type Error=Error;fn try_from(s:&str)->Result<Self,E
 labels!(CaseKind{Result=>"result",Failure=>"failure"});
 labels!(CaseState{Pending=>"pending",Resolved=>"resolved"});
 labels!(Origin{Live=>"live",Imported=>"imported"});
-labels!(Stage{Agent=>"agent",Tester=>"tester",Evaluator=>"evaluator"});
+labels!(Stage{Agent=>"agent",Verify=>"verify"});
 labels!(HypothesisState{Queued=>"queued",Active=>"active",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
-labels!(AttemptState{Claimed=>"claimed",Running=>"running",Submitted=>"submitted",Testing=>"testing",Evaluating=>"evaluating",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+labels!(AttemptState{Claimed=>"claimed",Running=>"running",Verifying=>"verifying",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 labels!(Action{Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Retry=>"retry",CloseFailed=>"close_failed"});
 #[derive(Clone, Copy, Debug, Eq, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]

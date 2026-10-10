@@ -579,11 +579,10 @@ fn service_kind(node: &Node) -> Result<ServiceKind, Issue> {
     match node {
         Node::String(value) if value.equals_utf8("agent") => Ok(ServiceKind::Agent),
         Node::String(value) if value.equals_utf8("experimenter") => Ok(ServiceKind::Experimenter),
-        Node::String(value) if value.equals_utf8("tester") => Ok(ServiceKind::Tester),
-        Node::String(value) if value.equals_utf8("evaluator") => Ok(ServiceKind::Evaluator),
+        Node::String(value) if value.equals_utf8("verifier") => Ok(ServiceKind::Verifier),
         _ => Err(issue(
             "literal_error",
-            "Input should be 'agent', 'experimenter', 'tester' or 'evaluator'",
+            "Input should be 'agent', 'experimenter' or 'verifier'",
         )),
     }
 }
@@ -1767,19 +1766,13 @@ pub(crate) fn job_uuid(value: &str) -> Checked<Uuid> {
 }
 pub(crate) fn validate_job_claim(input: BodyInput<'_>) -> Checked<crate::job_claim_request::Claim> {
     let mut fields = Fields::from_input(input)?;
-    let stage = fields.field("stage", Some(None), |node| match node {
+    let phase = fields.field("phase", Some(None), |node| match node {
         Node::Null => Ok(None),
         Node::String(value) if value.as_utf8().is_none() => Err(STRING_UNICODE),
-        Node::String(value) if value.equals_utf8("tester") => {
-            Ok(Some(cannery_jobs::repo::Stage::Tester))
+        Node::String(value) if value.equals_utf8("verify") => {
+            Ok(Some(cannery_jobs::repo::Phase::Verify))
         }
-        Node::String(value) if value.equals_utf8("evaluator") => {
-            Ok(Some(cannery_jobs::repo::Stage::Evaluator))
-        }
-        _ => Err(issue(
-            "literal_error",
-            "Input should be 'tester' or 'evaluator'",
-        )),
+        _ => Err(issue("literal_error", "Input should be 'verify'")),
     });
     let revision = fields.field("revision", Some(None), |node| {
         if matches!(node, Node::Null) {
@@ -1787,10 +1780,10 @@ pub(crate) fn validate_job_claim(input: BodyInput<'_>) -> Checked<crate::job_cla
         }
         utf8_text(node, TextRule::Bounded(1, 128)).map(Some)
     });
-    fields.extras(&["stage", "revision"]);
-    match (stage, revision) {
-        (Some(stage), Some(revision)) if fields.problems.is_empty() => {
-            Ok(crate::job_claim_request::Claim { stage, revision })
+    fields.extras(&["phase", "revision"]);
+    match (phase, revision) {
+        (Some(phase), Some(revision)) if fields.problems.is_empty() => {
+            Ok(crate::job_claim_request::Claim { phase, revision })
         }
         _ => Err(fields.failure()),
     }

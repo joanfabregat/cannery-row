@@ -1,7 +1,7 @@
 //! Ordinary job models preserve Python projection and Pydantic construction order.
 use crate::{
     api_contract::{convert, decode, encode},
-    api_models::{JobOut, Page_JobOut_UUID_, StepRef, StepRefRevisionValue},
+    api_models::{JobOut, Page_JobOut_UUID_, StepRef, StepRefRevisionValue, VerificationDocument},
 };
 use cannery_attempts::model::{Artifact, StoredJson};
 use cannery_core::{
@@ -75,11 +75,8 @@ pub(crate) fn prepare(job: &Job, profile: ResponseContext) -> Result<Projection>
             Ok((name, revision))
         })
         .collect::<Result<Vec<_>>>()?;
-    let parameters = cannery_research::job_baselines::pinned_parameters(
-        &String::from(job.stage.as_str()),
-        document,
-    )
-    .map_err(|_| ModelEncodeError::InvalidNode)?;
+    let parameters = cannery_research::job_baselines::pinned_parameters(document)
+        .map_err(|_| ModelEncodeError::InvalidNode)?;
     let output_prefix = str_value(
         document,
         required(document, document.root(), "output_prefix")?,
@@ -95,10 +92,11 @@ pub(crate) fn prepare(job: &Job, profile: ResponseContext) -> Result<Projection>
 
 /// # Errors
 /// Rejects stored job fields that cannot be represented by the response contract.
+#[allow(clippy::too_many_lines)] // One wire projection of every stored job field.
 pub(crate) fn job(
     job: &Job,
     value: Projection,
-    evidence: Option<&StoredJson>,
+    verification: Option<(&StoredJson, &str)>,
     outputs: &[Artifact],
     profile: ResponseContext,
 ) -> Result<Vec<u8>> {
@@ -132,7 +130,8 @@ pub(crate) fn job(
                 profile.inferred_nesting_budget,
             )?)
         })
-        .transpose()?;
+        .transpose()?
+        .unwrap_or_default();
     let logs = match job.logs.node(job.logs.root()) {
         Some(Node::Array(ids)) => ids
             .iter()
@@ -146,25 +145,29 @@ pub(crate) fn job(
             .collect::<Result<Vec<_>>>()?,
         _ => return Err(ModelEncodeError::InvalidNode),
     };
-    let evidence = match evidence {
-        None | Some(StoredJson::SqlNull) => None,
-        Some(StoredJson::Value(d)) if matches!(d.node(d.root()), Some(Node::Null)) => None,
-        Some(StoredJson::Value(d)) => Some(decode(&model::encode_model_mapping(
-            d,
-            d.root(),
-            profile.inferred_nesting_budget,
-        )?)?),
+    let verification = match verification {
+        None | Some((StoredJson::SqlNull, _)) => None,
+        Some((StoredJson::Value(d), _)) if matches!(d.node(d.root()), Some(Node::Null)) => None,
+        Some((StoredJson::Value(d), body)) => Some(VerificationDocument {
+            front_matter: decode(&model::encode_model_mapping(
+                d,
+                d.root(),
+                profile.inferred_nesting_budget,
+            )?)?,
+            body_markdown: body.to_owned(),
+        }),
     };
     encode(&JobOut {
         id: job.id.to_string(),
         attempt_id: job.attempt_id.to_string(),
-        stage: job.stage.as_str().to_owned(),
+        phase: job.phase.as_str().to_owned(),
+        performer: job.performer.as_str().to_owned(),
         run_number: i64::from(job.run_number),
         origin: job.origin.as_str().to_owned(),
         previous_run_id: job.previous_run_id.map(|v| v.to_string()),
         state: job.state.as_str().to_owned(),
         science_revision: i64::from(job.science_revision),
-        tester: convert(&job.tester_id)?,
+        verifier: convert(&job.verifier_id)?,
         track: value.track.as_utf8().ok_or(ModelEncodeError::Encoding)?,
         steps,
         parameters,
@@ -177,6 +180,7 @@ pub(crate) fn job(
             .claimed_at
             .map(cannery_core::timestamps::Timestamp::model_isoformat),
         claimed_by: job.claimed_by_service.map(|v| v.to_string()),
+        claimed_by_user: job.claimed_by_user.map(|v| v.to_string()),
         via_client: convert(&job.via_client)?,
         deadline: job
             .deadline
@@ -192,7 +196,7 @@ pub(crate) fn job(
         error_code: convert(&job.error_code)?,
         error_reason: convert(&job.error_reason)?,
         logs,
-        evidence,
+        verification,
         outputs: outputs
             .iter()
             .map(crate::attempt_read_wire::artifact_model)

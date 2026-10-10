@@ -109,7 +109,7 @@ function Dashboard({ project }: { project: Project }) {
               {data.derived
                 ? "Default views, one set per registered metric."
                 : `Views of dashboard revision ${String(data.dashboard_revision)}.`}{" "}
-              Values are verified by the tester unless labelled otherwise.
+              Values are verified by the verifier unless labelled otherwise.
             </p>
             {views.map((view) => (
               <ViewCard key={view.id} project={project.slug} view={view} />
@@ -402,7 +402,7 @@ function ClaimedValues({
         ) : (
           <Table>
             <TableCaption>
-              These are the agents' own claims; they are never used to evaluate an attempt.
+              These are the agents' own claims; they are never used to judge an attempt.
             </TableCaption>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -445,7 +445,7 @@ function ClaimedValues({
 
 /**
  * The values of a research history imported with `cannery import`: never
- * measured by this project's tester, each labelled with where it was read
+ * measured by this project's verifier, each labelled with where it was read
  * (a run file or a document) and dated when it was recorded in the history.
  */
 function ImportedValues({
@@ -467,7 +467,7 @@ function ImportedValues({
       <Table>
         <TableCaption>
           Values of the history this project was imported from; they were not measured by this
-          project's tester.
+          project's verifier.
         </TableCaption>
         <TableHeader>
           <TableRow className="hover:bg-transparent">

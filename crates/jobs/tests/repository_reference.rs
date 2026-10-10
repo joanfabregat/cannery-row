@@ -5,13 +5,14 @@
 #[path = "../../../tests/support/runtime_reference.rs"]
 mod runtime_reference;
 use cannery_core::{
-    ids::{AttemptId, JobId, ProjectId, ServiceAccountId},
+    ids::{AttemptId, JobId, ProjectId, ServiceAccountId, UserId},
     json::{self, Document, DocumentBuilder, Node},
-    principal::{Channel, Scope, ServiceKind, ServicePrincipal, Via},
+    principal::{Channel, Principal, Scope, ServiceKind, ServicePrincipal, Via},
     timestamps::Timestamp,
 };
 use cannery_jobs::repo::{
-    self, EvidenceId, Failure, Job, JobError, JsonContext, ManifestId, NewJob, Origin, Stage,
+    self, Claimant, EvidenceId, Failure, Job, JobError, JsonContext, ManifestId, NewJob, Origin,
+    Performer, Phase,
 };
 use num_bigint::BigInt;
 use serde_json::{Value, json as value};
@@ -55,15 +56,15 @@ fn index(recipe: &Value, key: &str, default: u64) -> Uuid {
 fn text<'a>(recipe: &'a Value, key: &str, default: &'a str) -> &'a str {
     recipe[key].as_str().unwrap_or(default)
 }
-fn stage(recipe: &Value) -> Stage {
-    if recipe["stage"] == "evaluator" {
-        Stage::Evaluator
+fn claimant(recipe: &Value) -> Claimant {
+    if recipe["claimant"] == "user" {
+        Claimant::User(UserId(id(1)))
     } else {
-        Stage::Tester
+        Claimant::Service(ServiceAccountId(id(3)))
     }
 }
-fn principal(recipe: &Value) -> ServicePrincipal {
-    ServicePrincipal {
+fn principal(recipe: &Value) -> Principal {
+    Principal::Service(ServicePrincipal {
         service_account_id: ServiceAccountId(id(3)),
         project_id: ProjectId(id(if recipe["foreign_principal"] == true {
             0
@@ -73,9 +74,9 @@ fn principal(recipe: &Value) -> ServicePrincipal {
         kind: if recipe["foreign_principal"] == true {
             ServiceKind::Agent
         } else {
-            ServiceKind::Tester
+            ServiceKind::Verifier
         },
-        name: "tester".into(),
+        name: "fixture".into(),
         via: Via {
             channel: Channel::Cli,
             client: Some(text(recipe, "client", "fixture").into()),
@@ -85,7 +86,7 @@ fn principal(recipe: &Value) -> ServicePrincipal {
         } else {
             BTreeSet::from([Scope::Read, Scope::Write])
         },
-    }
+    })
 }
 fn document(recipe: &Value) -> Document {
     if let Some(power) = recipe["payload_power"].as_u64() {
@@ -165,9 +166,9 @@ async fn projection(conn: &mut PgConnection, job: Option<Job>) -> Result<Value, 
         |document: &Document| json::encode_ascii_pretty(document, 64).expect("fixture encoding");
     Ok(value!({
         "id":job.id.to_string(),"project_id":job.project_id.to_string(),"attempt_id":job.attempt_id.to_string(),
-        "stage":job.stage.as_str(),"run_number":job.run_number,"state":job.state.as_str(),
-        "science_revision":job.science_revision,"tester_id":job.tester_id,"spec":encoded(&job.spec),
-        "deadline_seconds":job.deadline_seconds,"claimed_by_service":job.claimed_by_service.map(|id|id.to_string()),
+        "phase":job.phase.as_str(),"performer":job.performer.as_str(),"run_number":job.run_number,"state":job.state.as_str(),
+        "science_revision":job.science_revision,"verifier_id":job.verifier_id,"spec":encoded(&job.spec),
+        "deadline_seconds":job.deadline_seconds,"claimed_by_service":job.claimed_by_service.map(|id|id.to_string()),"claimed_by_user":job.claimed_by_user.map(|id|id.to_string()),
         "via_channel":job.via_channel,"via_client":job.via_client,"lease_generation":job.lease_generation,
         "lease_token_hash":hash,"evidence_id":job.evidence_id.map(|id|id.0.to_string()),
         "manifest_id":job.manifest_id.map(|id|id.0.to_string()),"error_step":job.error_step,
@@ -207,10 +208,11 @@ async fn operation(conn: &mut PgConnection, recipe: &Value) -> Result<Value, Job
                 NewJob {
                     id: JobId(id(110)),
                     project_id: ProjectId(index(recipe, "project", 2)),
-                    attempt_id: AttemptId(index(recipe, "attempt", 23)),
-                    stage: Stage::Tester,
+                    attempt_id: AttemptId(index(recipe, "attempt", 25)),
+                    phase: Phase::Verify,
+                    performer: Performer::Runner,
                     science_revision: &science,
-                    tester_id: text(recipe, "tester", "fixture"),
+                    verifier_id: Some(text(recipe, "verifier", "fixture")),
                     spec: &payload,
                     deadline_seconds: &deadline,
                     origin,
@@ -229,14 +231,14 @@ async fn operation(conn: &mut PgConnection, recipe: &Value) -> Result<Value, Job
             let row = repo::latest_job(
                 conn,
                 AttemptId(index(recipe, "target", 21)),
-                stage(recipe),
+                Phase::Verify,
                 CONTEXT,
             )
             .await?;
             projection(conn, row).await
         }
         "automatic" => Ok(value!(
-            repo::automatic_reruns(conn, AttemptId(index(recipe, "target", 21)), stage(recipe))
+            repo::automatic_reruns(conn, AttemptId(index(recipe, "target", 21)), Phase::Verify)
                 .await?
         )),
         "sum" => Ok(value!(
@@ -278,16 +280,23 @@ async fn operation(conn: &mut PgConnection, recipe: &Value) -> Result<Value, Job
                     .collect::<Vec<_>>()
             ))
         }
+        "pick" if recipe["performer"] == "agent" => Ok(value!(
+            repo::pick_pending_agent(conn, ProjectId(id(2)), claimant(recipe))
+                .await?
+                .map(|id| id.to_string())
+        )),
         "pick" => Ok(value!(
-            repo::pick_pending(
+            repo::pick_pending_runner(
                 conn,
                 ProjectId(id(2)),
-                stage(recipe),
-                text(recipe, "tester", "fixture"),
-                recipe["revision"].as_str()
+                text(recipe, "verifier", "fixture"),
+                text(recipe, "revision", "r1")
             )
             .await?
             .map(|id| id.to_string())
+        )),
+        "own" => Ok(value!(
+            repo::own_pending_agent(conn, ProjectId(id(2)), claimant(recipe)).await?
         )),
         "claim" => {
             let ttl = number(recipe, "ttl", Some(60)).expect("TTL");
@@ -342,7 +351,7 @@ async fn operation(conn: &mut PgConnection, recipe: &Value) -> Result<Value, Job
 async fn observe(conn: &mut PgConnection, recipe: &Value) -> Result<Value, Box<dyn Error>> {
     let mut seed = if recipe["null_spec"] == true {
         SEED.replace(
-            r#"{"evaluator":{"revision":"r1"},"label":"é😀","float":1.0}"#,
+            r#"{"verifier":{"revision":"r1"},"label":"é😀","float":1.0}"#,
             "null",
         )
     } else {
@@ -350,7 +359,7 @@ async fn observe(conn: &mut PgConnection, recipe: &Value) -> Result<Value, Box<d
     };
     if let Some(power) = recipe["stored_power"].as_u64() {
         seed = seed.replace(
-            r#"{"evaluator":{"revision":"r1"},"label":"é😀","float":1.0}"#,
+            r#"{"verifier":{"revision":"r1"},"label":"é😀","float":1.0}"#,
             &format!(
                 "{{\"n\":1{}}}",
                 "0".repeat(usize::try_from(power).expect("fixture power"))
@@ -450,14 +459,11 @@ async fn concurrency(url: &str) -> Result<Value, Box<dyn Error>> {
     sqlx::raw_sql(SEED).execute(&mut first).await?;
     let mut a = first.begin().await?;
     let mut b = second.begin().await?;
-    let picked =
-        repo::pick_pending(&mut a, ProjectId(id(2)), Stage::Tester, "fixture", None).await?;
-    let repeat =
-        repo::pick_pending(&mut a, ProjectId(id(2)), Stage::Tester, "fixture", None).await?;
-    let skipped =
-        repo::pick_pending(&mut b, ProjectId(id(2)), Stage::Tester, "fixture", None).await?;
+    let picked = repo::pick_pending_runner(&mut a, ProjectId(id(2)), "fixture", "r1").await?;
+    let repeat = repo::pick_pending_runner(&mut a, ProjectId(id(2)), "fixture", "r1").await?;
+    let skipped = repo::pick_pending_runner(&mut b, ProjectId(id(2)), "fixture", "r1").await?;
     let exhausted =
-        repo::pick_pending(&mut third, ProjectId(id(2)), Stage::Tester, "fixture", None).await?;
+        repo::pick_pending_runner(&mut third, ProjectId(id(2)), "fixture", "r1").await?;
     let queue = [picked, repeat, skipped, exhausted].map(|id| id.map(|id| id.to_string()));
     a.commit().await?;
     b.commit().await?;
@@ -510,7 +516,7 @@ async fn concurrency(url: &str) -> Result<Value, Box<dyn Error>> {
 
 async fn remaining_jobs(conn: &mut PgConnection) -> Result<Value, Box<dyn Error>> {
     let rows = sqlx::query(
-        "SELECT id::text,state,stage,run_number,lease_generation FROM jobs ORDER BY id",
+        "SELECT id::text,state,phase,run_number,lease_generation FROM jobs ORDER BY id",
     )
     .fetch_all(conn)
     .await?;
@@ -687,7 +693,7 @@ async fn actual_python_jobs_repository_corpus() -> Result<(), Box<dyn Error>> {
         fixture["count"].as_u64(),
         Some(u64::try_from(recipes.len())?)
     );
-    assert_eq!(recipes.len(), 141);
+    assert_eq!(recipes.len(), 143);
     let mut conn = PgConnection::connect(&url())
         .await
         .map_err(|_| "isolated job connection failed")?;
@@ -722,5 +728,5 @@ fn public_errors_and_jobs_are_redacted() {
         .to_string(),
         "job database operation failed"
     );
-    assert_ne!(Stage::Tester, Stage::Evaluator);
+    assert_ne!(Performer::Runner, Performer::Agent);
 }

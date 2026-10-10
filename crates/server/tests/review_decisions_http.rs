@@ -8,7 +8,14 @@ use axum::{
     body::{Body, to_bytes},
     http::Request,
 };
-use cannery_core::{contracts::ContractValidator, json, settings::load_settings};
+use cannery_core::{
+    contracts::{
+        ContractValidator,
+        phases::{Phase, PhaseSchemas},
+    },
+    json,
+    settings::load_settings,
+};
 use cannery_server::{
     application_with_review_decision_context, review_attention_routes::ReviewAttentionContext,
     review_attention_wire::ResponseContext, review_decision_routes::ReviewDecisionContext,
@@ -26,28 +33,19 @@ fn fixture() -> Result<Value> {
     ))?)
 }
 #[test]
-fn ordinary_review_seed_uses_published_evidence_and_log_models() -> Result<()> {
+fn ordinary_review_seed_uses_published_verification_and_log_models() -> Result<()> {
     let seed = include_str!("fixtures/review_decisions_http/seed.sql");
-    let envelope = seed
+    let front_matter = seed
         .split('\'')
-        .find(|v| v.starts_with("{\"schema_version\":\"0.2\""))
-        .ok_or("published seed envelope")?;
-    let model: cannery_server::api_models::ReadEvidenceEnvelope = serde_json::from_str(envelope)?;
-    assert_eq!(
-        serde_json::to_value(model)?,
-        serde_json::from_str::<Value>(envelope)?
+        .find(|v| v.starts_with("{\"verdict\":\"pass\""))
+        .ok_or("published seed verification report")?;
+    let violations = PhaseSchemas::new()?.violations(
+        Phase::Verification,
+        &serde_json::from_str::<Value>(front_matter)?,
     );
-    let document = json::decode(
-        envelope.as_bytes(),
-        cannery_server::body::REST_JSON_NESTING_BUDGET,
-    )?;
-    let violations = ContractValidator::new()?.document_violations(
-        cannery_core::contracts::ContractKind::EvidenceEnvelope,
-        &document,
-    )?;
     assert!(
         violations.is_empty(),
-        "ordinary fixture must satisfy the published evidence contract"
+        "ordinary fixture must satisfy the published verification contract"
     );
     let logs = seed
         .split('\'')
@@ -93,6 +91,25 @@ fn profile() -> Result<ReviewDecisionContext> {
             decode_nesting_budget: 80,
         },
         audit_encoding_budget: 80,
+        lifecycle: std::sync::Arc::new(cannery_server::job_lifecycle::Context {
+            jobs: cannery_jobs::repo::JsonContext {
+                encode_nesting_budget: 80,
+                decode_nesting_budget: 80,
+            },
+            attempts: cannery_attempts::model::JsonContext {
+                encode_nesting_budget: 80,
+                decode_nesting_budget: 80,
+            },
+            config: cannery_research::config_repo::JsonContext {
+                encode_nesting_budget: 80,
+                decode_nesting_budget: 80,
+            },
+            hypotheses: cannery_hypotheses::repo::JsonContext {
+                encode_nesting_budget: 80,
+                decode_nesting_budget: 80,
+            },
+            rendering: cannery_research::science::RenderingContext { nesting_budget: 80 },
+        }),
     })
 }
 fn hex(bytes: &[u8]) -> Result<String> {
@@ -222,7 +239,7 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
         ("phase_outputs", "id"),
         ("review_cases", "id"),
         ("decisions", "review_case_id,decided_at,id"),
-        ("jobs", "attempt_id,stage,run_number"),
+        ("jobs", "attempt_id,phase,run_number"),
         ("audit_events", "seq"),
         ("idempotency_keys", "scope,actor,key"),
         ("search_documents", "kind,id"),
@@ -260,7 +277,7 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
                 format!(
                     "@job:{}:{}:{}",
                     row["attempt_id"].as_str().ok_or("attempt")?,
-                    row["stage"].as_str().ok_or("stage")?,
+                    row["phase"].as_str().ok_or("phase")?,
                     row["run_number"]
                 ),
             );
@@ -317,7 +334,7 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
             assert!(row[4].as_i64().ok_or("audit count")? >= 2);
         }
     }
-    let links:Value=sqlx::query_scalar("SELECT coalesce(jsonb_agg(jsonb_build_array(j.id,j.previous_run_id,j.run_number=p.run_number+1,j.spec-'output_prefix'=p.spec-'output_prefix',j.deadline_seconds=p.deadline_seconds,j.created_at>=p.created_at,j.origin='human_retry') ORDER BY j.attempt_id,j.run_number),'[]') FROM jobs j JOIN jobs p ON p.id=j.previous_run_id").fetch_one(pool).await?;
+    let links:Value=sqlx::query_scalar("SELECT coalesce(jsonb_agg(jsonb_build_array(j.id,j.previous_run_id,j.run_number=p.run_number+1,j.phase=p.phase,(j.performer,j.verifier_id) IS NOT DISTINCT FROM (p.performer,p.verifier_id),j.spec->'inputs'->'run'->>'ref'=(SELECT o.id::text FROM phase_outputs o WHERE o.attempt_id=j.attempt_id AND o.stage='agent' AND o.status='completed' ORDER BY o.revision DESC LIMIT 1),j.created_at>=p.created_at,j.origin='human_retry') ORDER BY j.attempt_id,j.run_number),'[]') FROM jobs j JOIN jobs p ON p.id=j.previous_run_id").fetch_one(pool).await?;
     for row in links.as_array().ok_or("links")? {
         for v in row.as_array().ok_or("link")?.iter().skip(2) {
             assert_eq!(v, true);
@@ -866,34 +883,26 @@ async fn review_decisions_match_production() -> Result<()> {
         ids = stored.ids;
         i += 1;
     }
-    serialization_failure_rolls_back_and_allows_retry(&app, &state.pool).await?;
+    off_type_verdicts_reject_and_replay(&app, &state.pool).await?;
     state.pool.close().await;
     Ok(())
 }
 
-// These recovered records deliberately violate the published evidence envelope.
-// Exercise native serialization failure separately from the valid source corpus.
-async fn serialization_failure_rolls_back_and_allows_retry(
-    app: &Router,
-    pool: &PgPool,
-) -> Result<()> {
-    let seed = include_str!("fixtures/review_decisions_http/seed.sql");
-    let mut envelope: Value = serde_json::from_str(
-        seed.split('\'')
-            .find(|v| v.starts_with("{\"schema_version\":\"0.2\""))
-            .ok_or("published seed envelope")?,
-    )?;
+// The promotion-verdict cases leave reports whose verdict is not a string. A
+// verification report's front matter is an open map, so a reject records the
+// decision and returns the report verbatim; the keyed request then replays.
+async fn off_type_verdicts_reject_and_replay(app: &Router, pool: &PgPool) -> Result<()> {
     for number in [7, 9, 10, 11] {
         let case_id = format!("00000000-0000-0000-0000-{:012}", 300 + number);
         let recipe = json!({
-            "name":"native-serialization-rollback", "number":number,
+            "name":"native-off-type-verdict", "number":number,
             "method":"POST", "role":"researcher",
-            "key":format!("native-serialization-rollback-{number}"),
+            "key":format!("native-off-type-verdict-{number}"),
             "body":{"review_case_id":case_id,"action":"reject",
-                    "evidence_revision":1,"reason":"Authored rollback retry é😀"}
+                    "evidence_revision":1,"reason":"Authored off-type verdict é😀"}
         });
         let mut requests = BTreeMap::new();
-        let corrupt: Value =
+        let report: Value =
             sqlx::query_scalar("SELECT front_matter FROM phase_outputs WHERE id=$1::uuid")
                 .bind(format!("00000000-0000-0000-0000-{:012}", 3000 + number))
                 .fetch_one(pool)
@@ -905,39 +914,7 @@ async fn serialization_failure_rolls_back_and_allows_retry(
             11 => json!([]),
             _ => unreachable!(),
         };
-        assert_eq!(corrupt, json!({"assessment":{"verdict":verdict}}));
-        assert!(
-            serde_json::from_value::<cannery_server::api_models::ReadEvidenceEnvelope>(corrupt)
-                .is_err()
-        );
-        let before = raw_storage(pool).await?;
-        let failed = call(app, &recipe, &BTreeMap::new(), &mut requests).await?;
-        assert_eq!(failed.0, 500);
-        assert_eq!(failed.1, None);
-        assert_eq!(failed.2, Value::Null);
-        assert_eq!(failed.3, hex(b"Internal Server Error")?);
-        assert_eq!(
-            raw_storage(pool).await?,
-            before,
-            "serialization refusal must preserve all rows, including cases, decisions, audit and idempotency"
-        );
-
-        // Repair only the evidence and retry the identical request/key. A rolled
-        // back idempotency entry must not reserve the key or replay a failed write.
-        envelope["attempt_id"] = json!(format!("00000000-0000-0000-0000-{:012}", 2000 + number));
-        let mut tx = pool.begin().await?;
-        sqlx::query("ALTER TABLE phase_outputs DISABLE TRIGGER phase_outputs_immutable")
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("UPDATE phase_outputs SET front_matter=$1 WHERE id=$2::uuid")
-            .bind(&envelope)
-            .bind(format!("00000000-0000-0000-0000-{:012}", 3000 + number))
-            .execute(&mut *tx)
-            .await?;
-        sqlx::query("ALTER TABLE phase_outputs ENABLE TRIGGER phase_outputs_immutable")
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
+        assert_eq!(report, json!({"verdict":verdict}));
         let created = call(app, &recipe, &BTreeMap::new(), &mut requests).await?;
         assert_eq!(created.0, 201);
         assert_eq!(created.1, None);
@@ -947,7 +924,7 @@ async fn serialization_failure_rolls_back_and_allows_retry(
         assert_eq!(model.state, "resolved");
         assert_eq!(model.hypothesis_state, "rejected");
         assert_eq!(model.attempt_state.as_deref(), Some("rejected"));
-        assert_eq!(created.2["evaluation"], envelope);
+        assert_eq!(created.2["verification"]["front_matter"], report);
         assert_eq!(model.decisions.len(), 1);
         assert_eq!(created.2["decisions"][0]["action"], "reject");
         assert_eq!(

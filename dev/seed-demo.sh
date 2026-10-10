@@ -51,12 +51,16 @@
 #
 # The REST part drives each hypothesis of dev/demo-data/projects/*/project.yaml
 # through the real lifecycle: plans and their reviews, claims, uploads,
-# claimed run documents, test jobs completed as the project's tester, verdicts
-# as its evaluator, human decisions, failure reviews, comments and track
-# transitions. There is no runner: the script plays the agent, the tester and
-# the evaluator itself. The attempt left running keeps its lease for
-# leases.ttl_seconds (15 minutes by default), then the sweep fails it with
-# lease_expired and opens a failure review, as for a crashed agent.
+# claimed run documents, verify jobs completed with a verification report,
+# human decisions, failure reviews, comments and track transitions. There is
+# no runner: the script plays the agent and the verifier itself. A project
+# whose science revision registers a runner verifier gets a verifier service
+# account of that name; in one whose agents verify, a researcher verifies the
+# agent's attempts and the agent service account the researchers' ones. The
+# attempt left running keeps its lease for leases.ttl_seconds (15 minutes by
+# default), then the sweep fails it with lease_expired and opens a failure
+# review, as for a crashed agent; a verify job left claimed (stop: verifying)
+# goes back to waiting the same way, as for a crashed verifier.
 #
 # Loading is not repeatable: the script refuses an instance that already has
 # a demo project. To start over, stop the instance, delete its data
@@ -134,10 +138,10 @@ yaml_json() {
 # ---------------------------------------------------------------- HTTP
 
 # creds ACTOR: the header file of a user key, or of the current project's
-# service account (agent, tester, evaluator).
+# service account (agent, verifier).
 creds() {
   case "$1" in
-    agent|tester|evaluator) printf '%s' "$SECRETS/svc-$PROJECT-$1.h" ;;
+    agent|verifier) printf '%s' "$SECRETS/svc-$PROJECT-$1.h" ;;
     *) printf '%s' "$SECRETS/user-$1.h" ;;
   esac
 }
@@ -258,7 +262,9 @@ setup_project() {
     api "$ADMIN" POST "$BASE/config/science" "$(cat "$DEMO/projects/$slug/science.json")" >/dev/null
   fi
   api "$ADMIN" POST "$BASE/producers" "$(cat "$DEMO/projects/$slug/producer.json")" >/dev/null
-  for kind in agent tester evaluator; do
+  local kinds=agent
+  [[ "$(verify_performer)" != runner ]] || kinds+=" verifier"
+  for kind in $kinds; do
     name=$(service_name "$kind")
     api "$ADMIN" POST "$BASE/service-accounts" "$(jq -nc --arg k "$kind" --arg n "$name" \
       --arg d "Demo $kind of $slug, played by dev/seed-demo.sh." '{kind: $k, name: $n, description: $d}')" >/dev/null
@@ -286,10 +292,12 @@ user_id() {
 service_name() {
   case "$1" in
     agent) printf 'demo-agent' ;;
-    tester) jq -r '.tester.id' "$DEMO/projects/$PROJECT/science.json" ;;
-    evaluator) jq -r '.evaluator.id' "$DEMO/projects/$PROJECT/science.json" ;;
+    verifier) jq -r '.verify.verifier.id' "$DEMO/projects/$PROJECT/science.json" ;;
   esac
 }
+
+# verify_performer: who verifies the current project's attempts, runner or agent.
+verify_performer() { jq -r '.verify.performer' "$DEMO/projects/$PROJECT/science.json"; }
 
 # ---------------------------------------------------------------- hypotheses
 
@@ -514,92 +522,91 @@ run_attempt() {
     "$(headers_file submit "$(cat "$lease_file")" "Idempotency-Key: seed-demo-$attempt_id")" >/dev/null
   [[ "$stop" != submitted ]] || return 0
 
-  run_test_job "$attempt_id" "$key" "$spec"
-  [[ "$stop" != tested ]] || return 0
-  run_evaluation_job "$attempt_id" "$key" "$spec"
+  run_verify_job "$attempt_id" "$key" "$spec"
+  [[ "$stop" != verifying ]] || return 0
   if jq -e .decision <<<"$spec" >/dev/null; then
     decide "$number" result "$(jq -c .decision <<<"$spec")"
   fi
 }
 
-run_test_job() {
-  local attempt_id=$1 key=$2 spec=$3 claimed job job_id lease_file evidence objects scorer
-  claimed=$(api tester POST "$BASE/jobs/claims" '{}')
+# run_verify_job ATTEMPT_ID KEY SPEC: claim the attempt's verify job, upload
+# the step outputs the science revision requires and complete it with a
+# verification report. A runner verifier claims under its policy revision; in
+# a project whose agents verify, the attempt's verifier claims (default the
+# brief's author for the agent's attempts, the agent for a researcher's).
+# With stop: verifying the job stays claimed.
+run_verify_job() {
+  local attempt_id=$1 key=$2 spec=$3 science=$DEMO/projects/$PROJECT/science.json
+  local verifier request claimed job job_id lease_file scorer role objects='' policy front body document
+  if [[ "$(verify_performer)" == runner ]]; then
+    verifier=verifier
+    request=$(jq -c '{phase: "verify", revision: .verify.verifier.revision}' "$science")
+  elif [[ "$(jq -r .by <<<"$spec")" == agent ]]; then
+    verifier=$(jq -r --arg d "$(pvr .brief.by)" '.verifier // $d' <<<"$spec")
+    request='{"phase":"verify"}'
+  else
+    verifier=$(jq -r '.verifier // "agent"' <<<"$spec")
+    request='{"phase":"verify"}'
+  fi
+  claimed=$(api "$verifier" POST "$BASE/jobs/claims" "$request")
   job=$(jq -c .job <<<"$claimed")
   [[ "$(jq -r .attempt_id <<<"$job")" == "$attempt_id" ]] ||
-    die "the tester claimed a test job of another attempt; is something else using this project?"
+    die "$verifier claimed a verify job of another attempt; is something else using this project?"
   job_id=$(jq -r .job_id <<<"$job")
   lease_file=$(headers_file job-lease \
     "X-Lease-Token: $(jq -r .lease.token <<<"$job")" \
     "X-Lease-Generation: $(jq -r .lease.generation <<<"$job")")
-  scorer=$(jq -r '.scorer.metadata.name' "$DEMO/projects/$PROJECT/science.json")
-  evidence=$(jq -c --argjson job "$job" --argjson measurements "$(measurements "$spec" verified tester_verified)" \
-    --arg started "$(ago 240)" --arg finished "$(now)" --arg commit "$(commit_of "$key")" \
-    --arg dataset "$(pvr .dataset_revision)" --arg tester "$(service_name tester)" '
-    {
-      schema_version: "0.2", attempt_id: $job.attempt_id, stage: "tester", status: "completed",
-      producer: {kind: "service", id: $tester},
-      started_at: $started, finished_at: $finished,
-      provenance: ({
-        source_revision: $commit, tester_revision: $job.tester.revision,
-        dataset_revision: $dataset, science_revision: $job.science_revision
-      } + (if $job.control then {control_revision: $job.control.revision} else {} end)),
-      observations: (.tester_notes // "Re-ran the frozen submission with the registered producer and scorer."),
+  log "  verify job claimed by $verifier"
+  [[ "$(jq -r .stop <<<"$spec")" != verifying ]] || return 0
+
+  local work=$SECRETS/work
+  scorer=$(jq -r '.scorer.metadata.name' "$science")
+  for role in $(jq -r '.required_artifact_roles.verify[]' "$science"); do
+    case "$role" in
+      evidence)
+        measurements "$spec" verified tester_verified | jq '{measurements: .}' >"$work/evidence.json"
+        objects+=$(upload "$verifier" "$BASE/jobs/$job_id/uploads" "$lease_file" path evidence \
+          "$scorer/evidence/evidence.json" application/json "$work/evidence.json")$'\n' ;;
+      step_log)
+        printf '%s %s: staged inputs, ran the producer and the scorer (demo)\n' "$(now)" "$scorer" >"$work/scorer.log"
+        objects+=$(upload "$verifier" "$BASE/jobs/$job_id/uploads" "$lease_file" path step_log \
+          "$scorer/step_log/$scorer.log" text/plain "$work/scorer.log")$'\n' ;;
+      *) die "no demo output for the verify role $role" ;;
+    esac
+  done
+  # A runner applies its registered policy revision; a person or an agent names its own.
+  policy=$(jq -r '.verify.verifier.revision // "demo-review-checklist-1"' "$science")
+  # The front matter, one JSON value per key (JSON is YAML), and the notes.
+  front=$(jq -r --argjson job "$job" --arg policy "$policy" \
+    --argjson measurements "$(measurements "$spec" verified tester_verified)" \
+    --argjson roles "$(jq -c '.required_artifact_roles.verify' "$science")" \
+    --arg commit "$(commit_of "$key")" --arg dataset "$(pvr .dataset_revision)" '
+    . as $spec
+    | {
+      verdict: .verdict.result,
+      reason: .verdict.reason,
+      policy_revision: $policy,
+      gates: .verdict.gates,
       measurements: $measurements,
-      discrepancies: [. as $spec | .discrepancies // [] | .[] as $d
+      discrepancies: [.discrepancies // [] | .[] as $d
         | ([$spec.results[] | select(.metric == $d.metric and .split == $d.split and ((.dims // {}) == ($d.dims // {})))][0]) as $r
         | {metric: $d.metric, split: $d.split, dimensions: ($d.dims // {}),
            claimed_value: $r.claimed, verified_value: $r.verified, description: $d.description}],
-      artifact_roles: ["evidence", "step_log"]
-    }' <<<"$spec")
-  local work=$SECRETS/work
-  printf '%s\n' "$evidence" >"$work/evidence.json"
-  printf '%s %s: staged inputs, ran the producer and the scorer (demo)\n' "$(now)" "$scorer" >"$work/scorer.log"
-  objects=$(upload tester "$BASE/jobs/$job_id/uploads" "$lease_file" path evidence \
-    "$scorer/evidence/evidence.json" application/json "$work/evidence.json")
-  objects+=$'\n'$(upload tester "$BASE/jobs/$job_id/uploads" "$lease_file" path step_log \
-    "$scorer/step_log/$scorer.log" text/plain "$work/scorer.log")
-  api tester POST "$BASE/jobs/$job_id/completion" "$(jq -nc --arg job "$job_id" --argjson evidence "$evidence" \
-    --argjson objects "$(jq -sc . <<<"$objects")" \
-    '{schema_version: "0.2", job_id: $job, evidence: $evidence,
-      manifest: {schema_version: "0.2", attempt_id: $evidence.attempt_id, objects: $objects}}')" "$lease_file" >/dev/null
-}
-
-run_evaluation_job() {
-  local attempt_id=$1 key=$2 spec=$3 revision claimed job job_id lease_file record
-  revision=$(jq -r '.evaluator.revision' "$DEMO/projects/$PROJECT/science.json")
-  claimed=$(api evaluator POST "$BASE/jobs/claims" "{\"stage\":\"evaluator\",\"revision\":\"$revision\"}")
-  job=$(jq -c .job <<<"$claimed")
-  [[ "$(jq -r .attempt_id <<<"$job")" == "$attempt_id" ]] ||
-    die "the evaluator claimed an evaluation job of another attempt; is something else using this project?"
-  job_id=$(jq -r .job_id <<<"$job")
-  lease_file=$(headers_file job-lease \
-    "X-Lease-Token: $(jq -r .lease.token <<<"$job")" \
-    "X-Lease-Generation: $(jq -r .lease.generation <<<"$job")")
-  record=$(jq -c --argjson job "$job" --arg started "$(ago 5)" --arg finished "$(now)" \
-    --arg evaluator "$(service_name evaluator)" --arg dataset "$(pvr .dataset_revision)" --arg commit "$(commit_of "$key")" '
-    . as $spec
-    | {
-      schema_version: "0.2", attempt_id: $job.attempt_id, stage: "evaluator", status: "completed",
-      producer: {kind: "service", id: $evaluator},
-      started_at: $started, finished_at: $finished,
-      provenance: ({source_revision: $commit, dataset_revision: $dataset, science_revision: $job.science_revision}
-        + (if $job.control then {control_revision: $job.control.revision} else {} end)),
-      assessment: ({
-        policy_revision: $job.evaluator.revision,
-        gates: .verdict.gates,
-        evidence: $job.inputs.evidence,
-        verdict: .verdict.result,
-        reason: .verdict.reason
-      } + (if .verdict.compare then {comparisons: [.verdict.compare[] as $c
+      comparisons: [.verdict.compare // [] | .[] as $c
         | {metric: $c.metric, split: $c.split, dimensions: ($c.dims // {}),
            value: ([$spec.results[] | select(.metric == $c.metric and .split == $c.split
              and ((.dims // {}) == ($c.dims // {})))][0].verified),
-           source: "tester", reference: $c.reference}]} else {} end))
-    }' <<<"$spec")
-  api evaluator POST "$BASE/jobs/$job_id/completion" \
-    "$(jq -nc --arg job "$job_id" --argjson record "$record" '{schema_version: "0.2", job_id: $job, evidence: $record}')" \
-    "$lease_file" >/dev/null
+           source: "tester", reference: $c.reference}],
+      provenance: ({source_revision: $commit, dataset_revision: $dataset, science_revision: $job.science_revision}
+        + (if $job.control then {control_revision: $job.control.revision} else {} end)),
+      artifact_roles: $roles
+    } | to_entries[] | "\(.key): \(.value | tojson)"' <<<"$spec")
+  body=$(jq -r '.notes // "Re-ran the frozen run with the registered producer and scorer."' <<<"$spec")
+  document=$(printf -- '---\n%s\n---\n%s\n' "$front" "$body")
+  api "$verifier" POST "$BASE/jobs/$job_id/completion" "$(jq -nc --arg job "$job_id" --arg id "$attempt_id" \
+    --arg document "$document" --argjson objects "$(jq -sc . <<<"$objects")" \
+    '{schema_version: "0.2", job_id: $job, document: $document,
+      manifest: {schema_version: "0.2", attempt_id: $id, objects: $objects}}')" "$lease_file" >/dev/null
 }
 
 # decide NUMBER KIND DECISION_JSON: the pending review case of that kind.
@@ -655,11 +662,11 @@ load_project() {
   # Plans: each hypothesis is a unit of its track's approved plan, written once
   # what its relations name exists; later units wait for the end.
   plan_all "$count"
-  # Attempts. A claim of a test or evaluation job cannot name its attempt, so
-  # hypotheses that leave a job pending go last: completed work first, then
-  # attempts waiting for evaluation, then for testing, then the running one.
+  # Attempts. A claim of a verify job cannot name its attempt, so hypotheses
+  # that leave a job open go last: verified work first, then the verify jobs
+  # left claimed, then those left waiting, then the running attempt.
   order=$(pv '[.hypotheses | to_entries[] | select(.value.attempts)
-    | {i: .key, g: ({"tested": 1, "submitted": 2, "running": 3}[.value.attempts[-1].stop] // 0)}]
+    | {i: .key, g: ({"verifying": 1, "submitted": 2, "running": 3}[.value.attempts[-1].stop] // 0)}]
     | sort_by(.g, .i) | .[].i')
   for i in $order; do
     attempts=$(hv "$i" '.attempts | length')

@@ -167,9 +167,9 @@ async fn invoke(
  "list_project_attempts"=> {let states=recipe.get("states").map(|v|v.as_array().expect("states").iter().map(|v|v.as_str().expect("state").to_owned()).collect::<Vec<_>>());let before=recipe.get("before").map(|_|AttemptId(id(target(recipe,"before",0))));Ok(Value::Array(repository.list_project_attempts(project,states.as_deref(),None,before,&number(recipe,"limit",50)).await?.iter().map(|value|value.project(now)).collect()))},
  "extend_lease"=> {repository.extend_lease(attempt,&ttl).await?;Ok(Value::Null)},
  "mark_running"=> {repository.mark_running(attempt).await?;Ok(Value::Null)},
- "end_lease"=> {repository.end_lease(attempt,"submitted").await?;Ok(Value::Null)},
- "move_attempt"=> {repository.move_attempt(attempt,"testing","evaluating").await?;Ok(Value::Null)},
- "reopen_attempt"=> {repository.reopen_attempt(attempt,"testing").await?;Ok(Value::Null)},
+ "end_lease"=> {repository.end_lease(attempt,"verifying").await?;Ok(Value::Null)},
+ "move_attempt"=> {repository.move_attempt(attempt,"verifying","awaiting_human_review").await?;Ok(Value::Null)},
+ "reopen_attempt"=> {repository.reopen_attempt(attempt,"verifying").await?;Ok(Value::Null)},
  "pin_track"=>Ok(repository.pin_track(hypothesis).await?.project(now)),
  "approved_project_fields"=>Ok(stored(&repository.approved_project_fields(hypothesis).await?)),
  "approved_control"=>Ok(repository.approved_control(hypothesis,981).await?.map_or(Value::Null,|value|json!({"id":value.id.as_utf8().expect("fixture control"),"revision":value.revision.as_utf8().expect("fixture control")}))),
@@ -190,9 +190,9 @@ async fn invoke(
  "list_job_artifacts"=>Ok(Value::Array(repository.list_job_artifacts(JobId(id(if missing{0}else{41}))).await?.iter().map(|value|value.project(now)).collect())),
  "add_manifest"=>Ok(repository.add_manifest(attempt,text(recipe,"stage","agent"),&payload,&digest).await?.project(now)),
  "get_manifest"=>Ok(repository.get_manifest(AttemptId(id(22)),ManifestId(id(if missing{0}else{31}))).await?.map_or(Value::Null,|value|value.project(now))),
- "add_evidence"=>Ok(json!(repository.add_evidence(AddEvidence{project_id:ProjectId(id(2)),attempt_id:AttemptId(id(22)),stage:"tester",status:text(recipe,"status","completed"),content:&payload,body:"",sha256:&digest,manifest_id:Some(ManifestId(id(31))),principal:&principal}).await?.0.to_string())),
+ "add_evidence"=>Ok(json!(repository.add_evidence(AddEvidence{project_id:ProjectId(id(2)),attempt_id:AttemptId(id(22)),stage:"verification",status:text(recipe,"status","completed"),content:&payload,body:"",sha256:&digest,manifest_id:Some(ManifestId(id(31))),principal:&principal}).await?.0.to_string())),
  "get_evidence_by_id"=>Ok(repository.get_evidence_by_id(AttemptId(id(22)),EvidenceId(id(if missing{0}else{32}))).await?.map_or(Value::Null,|(content,sha)|json!([stored(&content),sha]))),
- "get_evidence"=>Ok(repository.get_evidence(attempt,"tester").await?.map_or(Value::Null,|(id,content,sha)|json!([id.0.to_string(),stored(&content),sha]))),
+ "get_evidence"=>Ok(repository.get_evidence(attempt,"verification").await?.map_or(Value::Null,|(id,content,sha)|json!([id.0.to_string(),stored(&content),sha]))),
  "record_failure"|"requeue_failed"|"is_claimant"=> {let attempt=repository.get_attempt_by_id(attempt,false).await?.ok_or(AttemptError::Invariant)?;match text(recipe,"action","") {"is_claimant"=>Ok(json!(is_claimant(&principal,&attempt))),"record_failure"=>Ok(json!(repository.record_failure(RecordFailure{project_id:ProjectId(id(2)),attempt:&attempt,stage:"agent",code:text(recipe,"code","fixture_failure"),reason:text(recipe,"reason","é reason"),details:&payload,log_refs:None,from_state:recipe.get("from_state").and_then(Value::as_str)}).await?.0.to_string())),_=>{repository.requeue_failed(RequeueFailed{attempt:&attempt,code:text(recipe,"code","fixture_failure"),reason:text(recipe,"reason","é reason"),details:&payload,log_refs:None}).await?;Ok(Value::Null)}}},
  "automatic_requeues"=>Ok(json!(repository.automatic_requeues(hypothesis).await?)),
  "list_failures"=> {let ids=if flag(recipe,"empty"){Vec::new()}else{vec![attempt,AttemptId(id(22))]};let mut value=serde_json::Map::new();for (id,failures) in repository.list_failures(&ids).await? {value.insert(id.0.to_string(),Value::Array(failures.iter().map(|value|value.project(now)).collect()));}Ok(Value::Object(value))},
@@ -766,13 +766,13 @@ async fn zz_actual_attempt_locking_reference() {
         .expect("lease waiter identity");
     let waiter = tokio::spawn(async move {
         let result = Repository::new(&mut second, context())
-            .end_lease(AttemptId(id(21)), "submitted")
+            .end_lease(AttemptId(id(21)), "verifying")
             .await;
         (second, result)
     });
     wait_for_native_lock(&mut control, pid).await;
     Repository::new(&mut first, context())
-        .end_lease(AttemptId(id(21)), "submitted")
+        .end_lease(AttemptId(id(21)), "verifying")
         .await
         .expect("winning lease end");
     sqlx::query("COMMIT")

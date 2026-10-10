@@ -10,7 +10,7 @@ use crate::{
     attempt_lease_routes::{Failure, domain, failure, internal},
     authentication::authenticate,
     errors::ApiError,
-    job_lifecycle as flow, job_read_wire,
+    job_lifecycle as flow, job_read_wire, job_workers,
     request_context::first_header,
     requests::RequestContext,
     validation,
@@ -27,14 +27,14 @@ use cannery_attempts::{
     repo::Repository,
 };
 use cannery_core::{
-    contracts::{ContractKind, ContractValidator},
+    contracts::{ContractKind, ContractValidator, phases::PhaseSchemas},
     errors::{DomainError, ErrorCode},
     ids::JobId,
     json::Document,
-    principal::{Principal, ServiceKind, ServicePrincipal},
+    principal::Principal,
     timestamps::Timestamp,
 };
-use cannery_jobs::repo::{self as jobs, Job, Stage};
+use cannery_jobs::repo::{self as jobs, Claimant, Job, Performer};
 use num_bigint::BigInt;
 use serde_json::{Value, json};
 use sqlx::{Acquire, PgConnection};
@@ -44,6 +44,7 @@ use std::{collections::BTreeMap, sync::Arc};
 pub struct JobLifecycleContext {
     pub flow: flow::Context,
     pub contracts: ContractValidator,
+    pub phases: PhaseSchemas,
 
     pub repr_budget: usize,
     pub response: job_read_wire::ResponseContext,
@@ -78,31 +79,6 @@ fn validation_error(e: &validation::ValidationErrors, r: &RequestContext) -> Fai
         |v| failure(ApiError::from(v)),
     )
 }
-pub(crate) async fn worker(
-    c: &mut PgConnection,
-    p: &Principal,
-    slug: &str,
-    r: &RequestContext,
-) -> Result<cannery_projects::repo::Project, Failure> {
-    cannery_projects::authz::project_access(
-        c,
-        p,
-        slug,
-        None,
-        &[ServiceKind::Tester, ServiceKind::Evaluator],
-        true,
-    )
-    .await
-    .map(|v| v.project)
-    .map_err(|e| failure(r.project_error(e)))
-}
-pub(crate) fn stage(p: &ServicePrincipal) -> Stage {
-    if p.kind == ServiceKind::Tester {
-        Stage::Tester
-    } else {
-        Stage::Evaluator
-    }
-}
 pub(crate) async fn locked_attempt(
     c: &mut PgConnection,
     id: JobId,
@@ -123,7 +99,7 @@ pub(crate) async fn locked_attempt(
 }
 pub(crate) async fn leased(
     c: &mut PgConnection,
-    p: &ServicePrincipal,
+    p: &Principal,
     id: JobId,
     project: cannery_core::ids::ProjectId,
     token: Option<&str>,
@@ -136,25 +112,7 @@ pub(crate) async fn leased(
         .map_err(|_| internal(r, "job lease lock"))?
         .filter(|j| j.project_id == project)
         .ok_or_else(|| domain(ErrorCode::NotFound, "job not found"))?;
-    if job.stage != stage(p) {
-        return Err(domain(
-            ErrorCode::Forbidden,
-            format!(
-                "a {} service account cannot work on {} jobs",
-                stage(p).as_str(),
-                job.stage.as_str()
-            ),
-        ));
-    }
-    if job.claimed_by_service != Some(p.service_account_id) {
-        return Err(domain(
-            ErrorCode::Forbidden,
-            format!(
-                "only the {} that claimed this job can work on it",
-                job.stage.as_str()
-            ),
-        ));
-    }
+    job_workers::holder(&job, p)?;
     let (Some(token), Some(generation)) = (token, generation) else {
         return Err(domain(
             ErrorCode::StaleLease,
@@ -185,18 +143,12 @@ pub(crate) async fn leased(
     }
     Ok(job)
 }
-pub(crate) fn require_stage(a: &Attempt, j: &Job) -> Result<(), Failure> {
-    let expected = if j.stage == Stage::Tester {
-        "testing"
-    } else {
-        "evaluating"
-    };
-    if a.state.as_str() != expected {
+pub(crate) fn require_verifying(a: &Attempt) -> Result<(), Failure> {
+    if a.state != cannery_attempts::model::State::Verifying {
         return Err(domain(
             ErrorCode::StaleLease,
             format!(
-                "the attempt is no longer in the {} stage ({})",
-                j.stage.as_str(),
+                "the attempt is no longer being verified ({})",
                 a.state.as_str()
             ),
         ));
@@ -209,12 +161,12 @@ async fn output(
     s: &JobLifecycleContext,
     r: &RequestContext,
 ) -> Result<Response, Failure> {
-    let evidence = if let Some(id) = j.evidence_id {
+    let verification = if let Some(id) = j.evidence_id {
         Repository::new(c, s.flow.attempts)
-            .get_evidence_by_id(j.attempt_id, EvidenceId(id.0))
+            .get_output_by_id(j.attempt_id, EvidenceId(id.0))
             .await
-            .map_err(|_| internal(r, "completed job evidence"))?
-            .map(|v| v.0)
+            .map_err(|_| internal(r, "completed job verification"))?
+            .map(|v| (v.0, v.1))
     } else {
         None
     };
@@ -224,8 +176,16 @@ async fn output(
         .list_job_artifacts(j.id)
         .await
         .map_err(|_| internal(r, "completed job artifacts"))?;
-    let bytes = job_read_wire::job(j, projection, evidence.as_ref(), &artifacts, s.response)
-        .map_err(|_| internal(r, "completed job response"))?;
+    let bytes = job_read_wire::job(
+        j,
+        projection,
+        verification
+            .as_ref()
+            .map(|(front, body)| (front, body.as_str())),
+        &artifacts,
+        s.response,
+    )
+    .map_err(|_| internal(r, "completed job response"))?;
     Ok((
         StatusCode::OK,
         [(header::CONTENT_TYPE, "application/json")],
@@ -257,7 +217,7 @@ fn contract(
     path = "/api/projects/{slug}/jobs/{job_id}/completion",
     operation_id = "complete_job_api_projects__slug__jobs__job_id__completion_post",
     summary = "Complete Job",
-    description = "Publish the job's evidence envelope with the manifest of its outputs.\n\nA test job completes with tester evidence and a manifest; the attempt\nmoves on to ``evaluating`` and waits for its evaluation job\n(:mod:`cannery_row.evaluation.flow`). An evaluation job completes with the\nevaluator's record (the\nmanifest is optional); the attempt then awaits human review in a\n``result`` case. Repeating a completion returns the completed job\nwithout publishing again. An invalid completion from the lease holder is\nan infrastructure failure of the job's stage: it reruns or fails the\nattempt for human review.",
+    description = "Publish the verification report with the manifest of the job's outputs.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt then awaits human review in a ``result``\ncase. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -286,7 +246,7 @@ pub(crate) async fn complete(
     path = "/api/projects/{slug}/jobs/{job_id}/failure",
     operation_id = "fail_job_api_projects__slug__jobs__job_id__failure_post",
     summary = "Fail Job",
-    description = "Report that the job failed: never with metrics, always with a reason.\n\nThe stage runs again automatically while reruns remain; then the attempt\nfails with a failure of the job's stage and a review case opens. An\nevaluator crash is such a failure, never a `fail` or `inconclusive` verdict.\nAn `invalid_step_output` naming a producer step is the agent's failure\n(the attempt fails at once for review, with no rerun) only when the API\nitself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the tester's failure.",
+    description = "Report that the job failed: never with metrics, always with a reason.\n\nThe job runs again automatically, from the failed step, while reruns\nremain; then the attempt fails with a ``verify`` failure and a review case\nopens. A policy crash is such a failure, never a `fail` or `inconclusive`\nverdict. An `invalid_step_output` naming a producer step is the agent's\nfailure (the attempt fails at once for review, with no rerun) only when\nthe API itself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the verifier's failure.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -371,17 +331,15 @@ async fn publish(
     p: &Principal,
     a: &Attempt,
     j: &Job,
-    evidence: &Document,
-    manifest: Option<&Document>,
+    report: &crate::job_completion_checks::Report,
     key: Option<&str>,
     s: &JobLifecycleContext,
     r: &RequestContext,
 ) -> Result<(), Failure> {
-    let evidence_sha = sha(evidence, s, r)?;
-    let stored = if let Some(manifest) = manifest {
+    let stored = if let Some(manifest) = &report.manifest {
         Some(
             Repository::new(c, s.flow.attempts)
-                .add_manifest(a.id, j.stage.as_str(), manifest, &sha(manifest, s, r)?)
+                .add_manifest(a.id, "verify", manifest, &sha(manifest, s, r)?)
                 .await
                 .map_err(|_| internal(r, "job manifest publication"))?,
         )
@@ -392,54 +350,63 @@ async fn publish(
         .add_evidence(cannery_attempts::repo::AddEvidence {
             project_id: a.project_id,
             attempt_id: a.id,
-            stage: j.stage.as_str(),
+            stage: "verification",
             status: "completed",
-            content: evidence,
-            body: "",
-            sha256: &evidence_sha,
+            content: &report.front_matter,
+            body: &report.body,
+            sha256: &report.sha256,
             manifest_id: stored.as_ref().map(|v| v.id),
             principal: p,
         })
         .await
-        .map_err(|_| internal(r, "job evidence publication"))?;
-    if j.stage == Stage::Tester {
-        Repository::new(c, s.flow.attempts)
-            .move_attempt(a.id, "testing", "evaluating")
+        .map_err(|_| internal(r, "verification publication"))?;
+    let revision: i32 =
+        sqlx::query_scalar!("SELECT revision FROM phase_outputs WHERE id=$1", id.0 as _)
+            .fetch_one(&mut *c)
             .await
-            .map_err(|_| internal(r, "tested attempt transition"))?;
-    } else {
-        let revision: i32 =
-            sqlx::query_scalar!("SELECT revision FROM phase_outputs WHERE id=$1", id.0 as _)
-                .fetch_one(&mut *c)
-                .await
-                .map_err(|_| internal(r, "evaluator evidence revision"))?;
-        Repository::new(c, s.flow.attempts)
-            .move_attempt(a.id, "evaluating", "awaiting_human_review")
-            .await
-            .map_err(|_| internal(r, "evaluated attempt transition"))?;
-        cannery_hypotheses::repo::set_state(
-            c,
-            a.hypothesis_id,
-            cannery_hypotheses::repo::HypothesisState::AwaitingHumanReview,
-            None,
-        )
+            .map_err(|_| internal(r, "verification revision"))?;
+    Repository::new(c, s.flow.attempts)
+        .move_attempt(a.id, "verifying", "awaiting_human_review")
         .await
-        .map_err(|_| internal(r, "evaluated hypothesis transition"))?;
-        let case = cannery_reviews::repo::open_result_case(
-            c,
-            cannery_reviews::repo::OpenResultCase {
-                project_id: a.project_id,
-                hypothesis_id: a.hypothesis_id,
-                attempt_id: a.id,
-                evidence_id: cannery_reviews::EvidenceId(id.0),
-                evidence_revision: Some(&BigInt::from(revision)),
-            },
-        )
-        .await
-        .map_err(|_| internal(r, "evaluated result review"))?;
-        let record = flow::value(evidence, &s.flow, r)?;
-        flow::event(c,p,a,"attempt.evaluated","attempt",&a.id.to_string(),Some(&json!({"state":"evaluating","hypothesis_state":"active"})),&json!({"state":"awaiting_human_review","hypothesis_state":"awaiting_human_review","verdict":record["assessment"]["verdict"],"evaluator":record["producer"],"evidence_id":id.0.to_string(),"evidence_sha256":evidence_sha,"review_case_id":case.to_string(),"job_id":j.id.to_string()}),record["assessment"]["reason"].as_str(),r).await?;
-    }
+        .map_err(|_| internal(r, "verified attempt transition"))?;
+    cannery_hypotheses::repo::set_state(
+        c,
+        a.hypothesis_id,
+        cannery_hypotheses::repo::HypothesisState::AwaitingHumanReview,
+        None,
+    )
+    .await
+    .map_err(|_| internal(r, "verified hypothesis transition"))?;
+    let case = cannery_reviews::repo::open_result_case(
+        c,
+        cannery_reviews::repo::OpenResultCase {
+            project_id: a.project_id,
+            hypothesis_id: a.hypothesis_id,
+            attempt_id: a.id,
+            evidence_id: cannery_reviews::EvidenceId(id.0),
+            evidence_revision: Some(&BigInt::from(revision)),
+        },
+    )
+    .await
+    .map_err(|_| internal(r, "verified result review"))?;
+    let front_matter = flow::value(&report.front_matter, &s.flow, r)?;
+    flow::event(
+        c,
+        p,
+        a,
+        "attempt.verified",
+        "attempt",
+        &a.id.to_string(),
+        Some(&json!({"state":"verifying","hypothesis_state":"active"})),
+        &json!({"state":"awaiting_human_review","hypothesis_state":"awaiting_human_review",
+            "verdict":front_matter["verdict"],"performer":j.performer.as_str(),
+            "verifier":j.verifier_id,"evidence_id":id.0.to_string(),
+            "evidence_sha256":report.sha256,"review_case_id":case.to_string(),
+            "job_id":j.id.to_string()}),
+        front_matter["reason"].as_str(),
+        r,
+    )
+    .await?;
     jobs::complete_job(
         c,
         j.id,
@@ -449,44 +416,23 @@ async fn publish(
     )
     .await
     .map_err(|_| internal(r, "job completion transition"))?;
-    cannery_core::audit::record(c,cannery_core::audit::Attribution::Principal(p),cannery_core::audit::Record{
-        action:"job.completed",subject_type:"job",subject_id:&j.id.to_string(),project_id:Some(a.project_id),
-        prior_state:Some(&json!({"state":"claimed"})),new_state:Some(&json!({"state":"completed","evidence_sha256":evidence_sha,"manifest_sha256":stored.as_ref().map(|v|&v.sha256)})),reason:None,idempotency_key:key,
-    }).await.map_err(|_|internal(r,"job completion audit"))?;
-    if j.stage == Stage::Tester {
-        flow::event(
-            c,
-            p,
-            a,
-            "attempt.tested",
-            "attempt",
-            &a.id.to_string(),
-            Some(&json!({"state":"testing"})),
-            &json!({"state":"evaluating","job_id":j.id.to_string()}),
-            None,
-            r,
-        )
-        .await?;
-        let evaluating = Repository::new(c, s.flow.attempts)
-            .get_attempt_by_id(a.id, false)
-            .await
-            .map_err(|_| internal(r, "tested attempt reload"))?
-            .ok_or_else(|| internal(r, "tested attempt missing"))?;
-        flow::start_evaluation(
-            c,
-            p,
-            &evaluating,
-            j,
-            id,
-            &evidence_sha,
-            stored
-                .as_ref()
-                .ok_or_else(|| internal(r, "tester manifest missing"))?,
-            &s.flow,
-            r,
-        )
-        .await?;
-    }
+    cannery_core::audit::record(
+        c,
+        cannery_core::audit::Attribution::Principal(p),
+        cannery_core::audit::Record {
+            action: "job.completed",
+            subject_type: "job",
+            subject_id: &j.id.to_string(),
+            project_id: Some(a.project_id),
+            prior_state: Some(&json!({"state":"claimed"})),
+            new_state: Some(&json!({"state":"completed","evidence_sha256":report.sha256,
+                "manifest_sha256":stored.as_ref().map(|v|&v.sha256)})),
+            reason: None,
+            idempotency_key: key,
+        },
+    )
+    .await
+    .map_err(|_| internal(r, "job completion audit"))?;
     Ok(())
 }
 #[allow(
@@ -533,10 +479,8 @@ async fn mutate(
     }
     let document = document.ok_or_else(|| internal(&r, "job request document"))?;
     let id = JobId(id.ok_or_else(|| internal(&r, "job request identity"))?);
-    let project = worker(&mut auth.connection, &auth.principal, &paths["slug"], &r).await?;
-    let Principal::Service(service) = &auth.principal else {
-        return Err(internal(&r, "job worker principal"));
-    };
+    let project =
+        job_workers::worker(&mut auth.connection, &auth.principal, &paths["slug"], &r).await?;
     let token = first_header(&parts.headers, "x-lease-token");
     let key = completion
         .then(|| first_header(&parts.headers, "idempotency-key"))
@@ -580,7 +524,7 @@ async fn mutate(
         .await
         .map_err(|_| internal(&r, "job mutation transaction"))?;
     let result = async {
-        let actor = format!("service:{}", service.service_account_id);
+        let actor = job_workers::actor(&auth.principal);
         if let Some(key) = &key
             && let Some(previous) = replay_lookup(&mut tx, &actor, key, &hash, &r).await?
         {
@@ -598,27 +542,27 @@ async fn mutate(
             .ok_or_else(|| internal(&r, "completion current job missing"))?;
         if completion
             && current.state == jobs::State::Completed
-            && current.claimed_by_service == Some(service.service_account_id)
+            && current.claimant() == Some(Claimant::of(&auth.principal))
         {
-            let evidence = flow::value(document, &s.context.flow, &r)?;
-            let evidence = flow::document(
-                evidence.get("evidence").unwrap_or(&Value::Null),
-                &s.context.flow,
-                &r,
-            )?;
+            // The same report text again: the completion is already published.
+            let sent = flow::value(document, &s.context.flow, &r)?;
+            let sent = sent["document"].as_str().map(|text| {
+                use sha2::Digest as _;
+                format!("{:x}", sha2::Sha256::digest(text.as_bytes()))
+            });
             if let Some(evidence_id) = current.evidence_id
                 && Repository::new(&mut tx, s.context.flow.attempts)
                     .get_evidence_by_id(current.attempt_id, EvidenceId(evidence_id.0))
                     .await
-                    .map_err(|_| internal(&r, "completion prior evidence"))?
-                    .is_some_and(|v| sha(&evidence, &s.context, &r).ok().as_ref() == Some(&v.1))
+                    .map_err(|_| internal(&r, "completion prior verification"))?
+                    .is_some_and(|v| sent.as_ref() == Some(&v.1))
             {
                 return Ok((current, true, None));
             }
         }
         let job = leased(
             &mut tx,
-            service,
+            &auth.principal,
             id,
             project.id,
             token.as_deref(),
@@ -627,7 +571,7 @@ async fn mutate(
             &r,
         )
         .await?;
-        require_stage(&attempt, &job)?;
+        require_verifying(&attempt)?;
         if completion {
             let checked = match contract(document, ContractKind::JobCompletion, &s.context, &r) {
                 Ok(()) => match crate::api_models::request_document::<crate::api_models::JobCompletionRequest>(document) {
@@ -645,14 +589,13 @@ async fn mutate(
                 Err(e) => Err(e),
             };
             match checked {
-                Ok((evidence, manifest)) => {
+                Ok(report) => {
                     publish(
                         &mut tx,
                         &auth.principal,
                         &attempt,
                         &job,
-                        &evidence,
-                        manifest.as_ref(),
+                        &report,
                         key.as_deref(),
                         &s.context,
                         &r,
@@ -662,6 +605,8 @@ async fn mutate(
                         remember(&mut tx, &actor, key, &hash, id, &r).await?;
                     }
                 }
+                // An agent or a researcher keeps the lease and corrects its report.
+                Err(error) if job.performer == Performer::Agent => return Err(error),
                 Err(error) => {
                     let response = error.into_response();
                     if response.status() != StatusCode::UNPROCESSABLE_ENTITY {

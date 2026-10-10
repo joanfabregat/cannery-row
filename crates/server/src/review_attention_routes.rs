@@ -88,18 +88,18 @@ pub(crate) async fn case_detail(
     } else {
         None
     };
-    let evaluation = if let Some(id) = case.evidence_id {
+    let verification = if let Some(id) = case.evidence_id {
         let attempt = case
             .attempt_id
             .ok_or_else(|| internal(r, "review attempt invariant"))?;
-        let (record, _) = Repository::new(c, s.attempts)
-            .get_evidence_by_id(attempt, EvidenceId(id.0))
+        let (record, body, _) = Repository::new(c, s.attempts)
+            .get_output_by_id(attempt, EvidenceId(id.0))
             .await
             .map_err(|_| internal(r, "review evidence"))?
             .ok_or_else(|| internal(r, "review evidence invariant"))?;
         match record {
             StoredJson::SqlNull => None,
-            StoredJson::Value(v) => Some(v),
+            StoredJson::Value(v) => Some((v, body)),
         }
     } else {
         None
@@ -110,7 +110,7 @@ pub(crate) async fn case_detail(
     let d = CaseDetail {
         case,
         failure,
-        evaluation,
+        verification,
         decisions,
     };
     d.validate().map_err(|_| internal(r, "review model"))?;
@@ -179,11 +179,17 @@ async fn reading(
             cannery_attention::recent_failures(&mut auth.connection, project.id, Some(&limit))
                 .await
                 .map_err(|_| internal(&r, "attention failures"))?;
-        let (stalled_count, stalled) = cannery_attention::stalled_evaluations(
+        let (stalled_count, stalled) = cannery_attention::stalled_verifications(
             &mut auth.connection,
             project.id,
             Some(&limit),
-            Some(s.app.settings.leases.stalled_evaluation_seconds.as_bigint()),
+            Some(
+                s.app
+                    .settings
+                    .leases
+                    .stalled_verification_seconds
+                    .as_bigint(),
+            ),
         )
         .await
         .map_err(|_| internal(&r, "attention stalled"))?;
@@ -315,7 +321,7 @@ pub(crate) async fn read(
     path = "/api/projects/{slug}/attention",
     operation_id = "attention_api_projects__slug__attention_get",
     summary = "Attention",
-    description = "Pending reviews, running work, recent outcomes and failures of the project,\nand evaluation jobs no evaluator has claimed for too long.",
+    description = "Pending reviews, running work, recent outcomes and failures of the project,\nand verify jobs nobody has claimed for too long.",
     params(("slug" = String, Path),
         ("limit" = Option<i64>, Query, description = "Rows per list.", minimum = 1, maximum = 50)),
     responses((status = 200, description = "Successful Response", body = crate::api_models::AttentionOut, content_type = "application/json"),

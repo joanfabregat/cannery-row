@@ -22,7 +22,7 @@ pub enum Role {
     Scorer,
     Validator,
     Experiment,
-    Evaluator,
+    Policy,
 }
 impl Role {
     #[must_use]
@@ -32,7 +32,7 @@ impl Role {
             Self::Scorer => "scorer",
             Self::Validator => "validator",
             Self::Experiment => "experiment",
-            Self::Evaluator => "evaluator",
+            Self::Policy => "policy",
         }
     }
     #[must_use]
@@ -454,7 +454,10 @@ fn check_input(
             return Err(violation(where_, "/from", "no step precedes a producer"));
         }
         let interface = required_text(document, artifact, "interface", rendering)?;
-        if !science.interfaces.contains(&interface) {
+        // A policy step may read the scorer's verified measurements.
+        let readable = science.interfaces.contains(&interface)
+            || (role == Role::Policy && interface.equals_utf8(EVIDENCE_INTERFACE));
+        if !readable {
             return Err(violation(
                 where_,
                 "/interface",

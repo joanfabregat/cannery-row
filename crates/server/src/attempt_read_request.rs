@@ -10,9 +10,7 @@ use num_traits::ToPrimitive;
 pub(crate) const STATES: &[&str] = &[
     "claimed",
     "running",
-    "submitted",
-    "testing",
-    "evaluating",
+    "verifying",
     "awaiting_human_review",
     "promoted",
     "rejected",

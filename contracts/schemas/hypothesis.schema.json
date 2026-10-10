@@ -13,7 +13,7 @@
     "question": {"$ref": "common.schema.json#/$defs/text"},
     "intervention": {"$ref": "common.schema.json#/$defs/text"},
     "control": {
-      "description": "Optional label of what the hypothesis compares against. Cannery Row stores and shows it, and pins it on the test job; the evaluator decides what it means.",
+      "description": "Optional label of what the hypothesis compares against. Cannery Row stores and shows it, and pins it on the verify job; the verifier's policy decides what it means.",
       "type": "object",
       "properties": {
         "kind": {"enum": ["baseline"]},
@@ -49,7 +49,7 @@
         "success_criteria": {"$ref": "common.schema.json#/$defs/text"},
         "falsification_criteria": {"$ref": "common.schema.json#/$defs/text"},
         "regression_gates": {
-          "description": "Dimension names or evaluator gate ids guarded against regression; free text for humans and the evaluator.",
+          "description": "Dimension names or policy gate ids guarded against regression; free text for humans and the verifier.",
           "type": "array",
           "uniqueItems": true,
           "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"}

@@ -1,10 +1,11 @@
-//! Semantic binding of completed records to verified job inputs and outputs.
+//! Semantic binding of a verification report to the verify job's pinned inputs and outputs.
 #![allow(
     clippy::many_single_char_names,
     reason = "Explicit borrowed transaction and request contexts"
 )]
 use crate::{
-    attempt_lease_routes::{Failure, internal},
+    attempt_lease_routes::{Failure, failure, internal},
+    errors::ApiError,
     job_completion_routes::{JobLifecycleContext, invalid},
     job_lifecycle as flow,
     requests::RequestContext,
@@ -14,11 +15,17 @@ use cannery_attempts::{
     repo::Repository,
 };
 use cannery_core::{
-    contracts::instance::{self, ProjectValidationFailure},
+    contracts::{
+        instance::{self, ProjectValidationFailure},
+        phases::Phase,
+    },
+    errors::{DomainError, ErrorCode},
+    front_matter::{self, Limits},
     json::Document,
 };
-use cannery_jobs::repo::{Job, Stage};
+use cannery_jobs::repo::{Job, Performer};
 use serde_json::{Value, json};
+use sha2::Digest as _;
 use sqlx::PgConnection;
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -82,7 +89,7 @@ pub(crate) fn manifest_objects(
 }
 fn extensions(
     science: &Value,
-    evidence: &Value,
+    report: &Value,
     s: &JobLifecycleContext,
     r: &RequestContext,
 ) -> Result<(), Failure> {
@@ -90,7 +97,7 @@ fn extensions(
         return Ok(());
     };
     let schema = Arc::new(flow::document(schema, &s.flow, r)?);
-    let content = flow::document(evidence.get("extensions").unwrap_or(&json!({})), &s.flow, r)?;
+    let content = flow::document(report.get("extensions").unwrap_or(&json!({})), &s.flow, r)?;
     match instance::validate_project_fields(&schema, &content) {
         Ok(()) => Ok(()),
         Err(ProjectValidationFailure::Document(errors)) => {
@@ -99,21 +106,21 @@ fn extensions(
                 .and_then(|v| v.path.as_utf8())
                 .unwrap_or_default();
             Err(invalid(
-                &format!("/evidence/extensions{path}"),
+                &format!("/extensions{path}"),
                 "result extension violates its pinned schema",
             ))
         }
         Err(_) => Err(internal(r, "result extension schema")),
     }
 }
-fn measurements(science: &Value, evidence: &Value, r: &RequestContext) -> Result<(), Failure> {
-    for (i, m) in evidence["measurements"]
+fn measurements(science: &Value, report: &Value, r: &RequestContext) -> Result<(), Failure> {
+    for (i, m) in report["measurements"]
         .as_array()
         .into_iter()
         .flatten()
         .enumerate()
     {
-        let path = format!("/evidence/measurements/{i}");
+        let path = format!("/measurements/{i}");
         let metric = array(science, "metrics", r)?
             .iter()
             .find(|v| v["key"] == m["metric"])
@@ -154,7 +161,7 @@ fn measurements(science: &Value, evidence: &Value, r: &RequestContext) -> Result
             }
         }
     }
-    // Each explicitly required dimension slice must appear in the record.
+    // Each explicitly required dimension slice must appear in the report.
     for metric in science["metrics"].as_array().into_iter().flatten() {
         for slice in metric["required_slices"].as_array().into_iter().flatten() {
             let splits = slice
@@ -164,7 +171,7 @@ fn measurements(science: &Value, evidence: &Value, r: &RequestContext) -> Result
                 .or_else(|| metric["splits"].as_array());
             for required in slice["values"].as_array().into_iter().flatten() {
                 for split in splits.into_iter().flatten() {
-                    if !evidence["measurements"]
+                    if !report["measurements"]
                         .as_array()
                         .into_iter()
                         .flatten()
@@ -179,10 +186,7 @@ fn measurements(science: &Value, evidence: &Value, r: &RequestContext) -> Result
                                 })
                         })
                     {
-                        return Err(invalid(
-                            "/evidence/measurements",
-                            "required slices are missing",
-                        ));
+                        return Err(invalid("/measurements", "required slices are missing"));
                     }
                 }
             }
@@ -191,13 +195,8 @@ fn measurements(science: &Value, evidence: &Value, r: &RequestContext) -> Result
     Ok(())
 }
 
-fn comparisons(
-    science: &Value,
-    assessment: &Value,
-    tested: &Value,
-    r: &RequestContext,
-) -> Result<(), Failure> {
-    cannery_research::comparisons::check(science, assessment, tested).map_err(|error| match error {
+fn comparisons(science: &Value, report: &Value, r: &RequestContext) -> Result<(), Failure> {
+    cannery_research::comparisons::check(science, report, report).map_err(|error| match error {
         cannery_research::comparisons::ComparisonError::Invalid { path, message } => {
             invalid(&path, message)
         }
@@ -206,8 +205,62 @@ fn comparisons(
         }
     })
 }
+
+/// A checked verification report: its front matter, its body and the manifest of its outputs.
+pub(crate) struct Report {
+    pub front_matter: Document,
+    pub body: String,
+    pub manifest: Option<Document>,
+    /// The SHA-256 of the report text, as sent.
+    pub sha256: String,
+}
+
+/// The dataset revisions the job's scorer reads; held-out label datasets alone when it reads any.
+fn scored_datasets(
+    spec: &Value,
+    science: &Value,
+    r: &RequestContext,
+) -> Result<BTreeSet<String>, Failure> {
+    let inputs = &spec["inputs"];
+    let scorer = array(spec, "steps", r)?
+        .iter()
+        .map(|v| &v["manifest"])
+        .find(|v| v["spec"]["role"] == "scorer")
+        .ok_or_else(|| internal(r, "job scorer missing"))?;
+    let mut read = BTreeSet::new();
+    let mut held = BTreeSet::new();
+    for artifact in scorer["spec"]["inputs"]["artifacts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        if artifact["from"] == "dataset" {
+            let name = artifact
+                .get("id")
+                .or_else(|| artifact.get("name"))
+                .and_then(Value::as_str)
+                .ok_or_else(|| internal(r, "scorer dataset input"))?;
+            if let Some(pinned) = array(inputs, "datasets", r)?
+                .iter()
+                .find(|v| v["id"] == name)
+            {
+                let revision = string(pinned, "revision", r)?.to_owned();
+                read.insert(revision.clone());
+                if science["datasets"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|v| v["id"] == name && v["held_out_labels"] == true)
+                {
+                    held.insert(revision);
+                }
+            }
+        }
+    }
+    Ok(if held.is_empty() { read } else { held })
+}
+
 #[allow(
-    clippy::too_many_arguments,
     clippy::too_many_lines,
     reason = "Pinned input checks stay in publication order"
 )]
@@ -218,223 +271,126 @@ pub(crate) async fn completion(
     d: &Document,
     s: &JobLifecycleContext,
     r: &RequestContext,
-) -> Result<(Document, Option<Document>), Failure> {
+) -> Result<Report, Failure> {
     let completion = flow::value(d, &s.flow, r)?;
     if completion["job_id"] != j.id.to_string() {
         return Err(invalid("/job_id", format!("this is job {}", j.id)));
     }
-    let evidence = &completion["evidence"];
-    let stage = j.stage.as_str();
-    if evidence["stage"] != stage {
-        return Err(invalid(
-            "/evidence/stage",
-            format!(
-                "a {} job completes with {stage}-stage evidence",
-                if j.stage == Stage::Tester {
-                    "test"
-                } else {
-                    "evaluation"
-                }
-            ),
-        ));
-    }
-    if evidence["status"] != "completed" {
-        return Err(invalid(
-            "/evidence/status",
-            "report a failed run through the job's failure",
-        ));
-    }
-    if evidence["attempt_id"] != a.id.to_string() {
-        return Err(invalid(
-            "/evidence/attempt_id",
-            format!("this job runs attempt {}", a.id),
-        ));
+    let text = completion["document"]
+        .as_str()
+        .ok_or_else(|| internal(r, "verification report text"))?;
+    let parsed = front_matter::parse(text, Limits::default())
+        .map_err(|error| invalid("/document", error.to_string()))?;
+    let report = Value::Object(parsed.front_matter);
+    let violations = s.phases.violations(Phase::Verification, &report);
+    if !violations.is_empty() {
+        let details: Vec<_> = violations
+            .into_iter()
+            .map(|value| json!({"path":value.path,"message":value.message}))
+            .collect();
+        return Err(failure(ApiError::from(
+            DomainError::new(
+                ErrorCode::ValidationFailed,
+                "invalid verification report front matter",
+            )
+            .with_details(json!(details)),
+        )));
     }
     let spec = flow::value(&j.spec, &s.flow, r)?;
-    let service = &spec[stage];
-    if evidence["producer"] != json!({"kind":"service","id":service["id"]}) {
-        return Err(invalid("/evidence/producer", "not the registered service"));
-    }
     let inputs = &spec["inputs"];
-    let reference = if j.stage == Stage::Tester {
-        &inputs["claimed_sheet"]
-    } else {
-        array(inputs, "evidence", r)?
-            .first()
-            .ok_or_else(|| internal(r, "evaluation tester input"))?
-    };
-    let id = uuid::Uuid::parse_str(string(reference, "ref", r)?)
-        .map_err(|_| internal(r, "job evidence reference"))?;
-    let tested = Repository::new(c, s.flow.attempts)
+    let id = uuid::Uuid::parse_str(string(&inputs["run"], "ref", r)?)
+        .map_err(|_| internal(r, "job run reference"))?;
+    let run = Repository::new(c, s.flow.attempts)
         .get_evidence_by_id(a.id, EvidenceId(id))
         .await
-        .map_err(|_| internal(r, "job verified evidence"))?
-        .ok_or_else(|| internal(r, "job verified evidence missing"))?;
-    let StoredJson::Value(tested) = tested.0 else {
-        return Err(internal(r, "job verified evidence shape"));
+        .map_err(|_| internal(r, "job run record"))?
+        .ok_or_else(|| internal(r, "job run record missing"))?;
+    let StoredJson::Value(run) = run.0 else {
+        return Err(internal(r, "job run record shape"));
     };
-    let tested = flow::value(&tested, &s.flow, r)?;
+    let run = flow::value(&run, &s.flow, r)?;
     let raw = flow::science(c, a, &s.flow, r).await?;
     let science = flow::value(&raw.content, &s.flow, r)?;
-    let provenance = &evidence["provenance"];
+    let limit = science["limits"]["report_max_bytes"]
+        .as_u64()
+        .ok_or_else(|| internal(r, "verification report limit"))?;
+    if u64::try_from(parsed.body.len()).map_or(true, |bytes| bytes > limit) {
+        return Err(invalid(
+            "/document",
+            "the report body exceeds the configured byte limit",
+        ));
+    }
+    let provenance = &report["provenance"];
     let pinned_revision = j.science_revision.to_string();
     if provenance["science_revision"].as_str() != Some(pinned_revision.as_str()) {
         return Err(invalid(
-            "/evidence/provenance/science_revision",
+            "/provenance/science_revision",
             "must match the job's pinned science revision",
         ));
     }
-    if provenance["source_revision"] != tested["provenance"]["source_revision"] {
+    if provenance["source_revision"] != run["provenance"]["source_revision"] {
         return Err(invalid(
-            "/evidence/provenance/source_revision",
-            "must match the verified source revision",
+            "/provenance/source_revision",
+            "must match the run's source revision",
         ));
     }
-    if j.stage == Stage::Tester {
-        let control = cannery_research::job_baselines::pinned_control(&j.spec, s.flow.rendering)
-            .map_err(|_| internal(r, "job control"))?;
-        if let Some(control) = control {
-            let control = flow::value(&control, &s.flow, r)?;
-            if provenance["control_revision"] != control["revision"] {
-                return Err(invalid(
-                    "/evidence/provenance/control_revision",
-                    "must match the job's pinned control",
-                ));
-            }
-        }
-        if let Some(revision) = service.get("revision")
-            && provenance["tester_revision"] != *revision
-        {
-            return Err(invalid(
-                "/evidence/provenance/tester_revision",
-                "must match the registered tester",
-            ));
-        }
-        let scorer = array(&spec, "steps", r)?
-            .iter()
-            .map(|v| &v["manifest"])
-            .find(|v| v["spec"]["role"] == "scorer")
-            .ok_or_else(|| internal(r, "job scorer missing"))?;
-        let mut read = BTreeSet::new();
-        let mut held = BTreeSet::new();
-        for artifact in scorer["spec"]["inputs"]["artifacts"]
-            .as_array()
-            .into_iter()
-            .flatten()
-        {
-            if artifact["from"] == "dataset" {
-                let name = artifact
-                    .get("id")
-                    .or_else(|| artifact.get("name"))
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| internal(r, "scorer dataset input"))?;
-                if let Some(pinned) = array(inputs, "datasets", r)?
-                    .iter()
-                    .find(|v| v["id"] == name)
-                {
-                    let revision = string(pinned, "revision", r)?.to_owned();
-                    read.insert(revision.clone());
-                    if science["datasets"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .any(|v| v["id"] == name && v["held_out_labels"] == true)
-                    {
-                        held.insert(revision);
-                    }
-                }
-            }
-        }
-        let allowed = if held.is_empty() { read } else { held };
-        if !provenance["dataset_revision"]
-            .as_str()
-            .is_some_and(|v| allowed.contains(v))
-        {
-            return Err(invalid(
-                "/evidence/provenance/dataset_revision",
-                "must match a scored dataset revision",
-            ));
-        }
-        measurements(&science, evidence, r)?;
-        extensions(&science, evidence, s, r)?;
-    } else {
-        for field in ["dataset_revision", "control_revision"] {
-            if provenance.get(field) != tested["provenance"].get(field) {
-                return Err(invalid(
-                    &format!("/evidence/provenance/{field}"),
-                    "must match the verified tester provenance",
-                ));
-            }
-        }
-        let assessment = &evidence["assessment"];
-        if assessment["policy_revision"] != service["revision"] {
-            return Err(invalid(
-                "/evidence/assessment/policy_revision",
-                "must match the registered evaluator's policy revision",
-            ));
-        }
-        for (i, v) in array(assessment, "evidence", r)?.iter().enumerate() {
-            if !array(inputs, "evidence", r)?
-                .iter()
-                .any(|known| known["ref"] == v["ref"] && known["sha256"] == v["sha256"])
-            {
-                return Err(invalid(
-                    &format!("/evidence/assessment/evidence/{i}"),
-                    "not a verified evidence record of this job's inputs",
-                ));
-            }
-        }
-        let mut gates = BTreeSet::new();
-        for gate in array(assessment, "gates", r)? {
-            if !gates.insert(string(gate, "id", r)?) {
-                return Err(invalid(
-                    "/evidence/assessment/gates",
-                    "each gate is assessed once",
-                ));
-            }
-        }
-        // A policy step may cite any of the job's pinned tester records. Bind
-        // comparisons to that complete set, just as the evaluator worker does.
-        let mut measurements = tested["measurements"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        for reference in array(inputs, "evidence", r)?.iter().skip(1) {
-            let id = uuid::Uuid::parse_str(string(reference, "ref", r)?)
-                .map_err(|_| internal(r, "job evidence reference"))?;
-            let verified = Repository::new(c, s.flow.attempts)
-                .get_evidence_by_id(a.id, EvidenceId(id))
-                .await
-                .map_err(|_| internal(r, "job verified evidence"))?
-                .ok_or_else(|| internal(r, "job verified evidence missing"))?;
-            let StoredJson::Value(verified) = verified.0 else {
-                return Err(internal(r, "job verified evidence shape"));
-            };
-            let verified = flow::value(&verified, &s.flow, r)?;
-            if let Some(values) = verified.get("measurements") {
-                measurements.extend(
-                    values
-                        .as_array()
-                        .ok_or_else(|| internal(r, "job verified measurement shape"))?
-                        .iter()
-                        .cloned(),
-                );
-            }
-        }
-        comparisons(
-            &science,
-            assessment,
-            &json!({"measurements":measurements}),
-            r,
-        )?;
-        if evidence.get("extensions").is_some() {
-            extensions(&science, evidence, s, r)?;
+    let control = cannery_research::job_baselines::pinned_control(&j.spec, s.flow.rendering)
+        .map_err(|_| internal(r, "job control"))?
+        .map(|control| flow::value(&control, &s.flow, r))
+        .transpose()?;
+    if let Some(control) = &control
+        && provenance["control_revision"] != control["revision"]
+    {
+        return Err(invalid(
+            "/provenance/control_revision",
+            "must match the job's pinned control",
+        ));
+    }
+    let scored = scored_datasets(&spec, &science, r)?;
+    let dataset = provenance.get("dataset_revision").and_then(Value::as_str);
+    if dataset.map_or(!scored.is_empty(), |revision| !scored.contains(revision)) {
+        return Err(invalid(
+            "/provenance/dataset_revision",
+            "must match a scored dataset revision",
+        ));
+    }
+    measurements(&science, &report, r)?;
+    extensions(&science, &report, s, r)?;
+    if j.performer == Performer::Runner && report["policy_revision"] != spec["verifier"]["revision"]
+    {
+        return Err(invalid(
+            "/policy_revision",
+            "must match the registered verifier's policy revision",
+        ));
+    }
+    let mut gates = BTreeSet::new();
+    for gate in array(&report, "gates", r)? {
+        if !gates.insert(string(gate, "id", r)?) {
+            return Err(invalid("/gates", "each gate is reported once"));
         }
     }
-    let artifacts = Repository::new(c, s.flow.attempts)
+    comparisons(&science, &report, r)?;
+    // The manifest lists this job's verified uploads and the earlier outputs it reused.
+    let mut artifacts = Repository::new(c, s.flow.attempts)
         .list_job_artifacts(j.id)
         .await
         .map_err(|_| internal(r, "completion verified artifacts"))?;
+    let reused: BTreeSet<&str> = spec["resume"]["outputs"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|output| output["key"].as_str())
+        .collect();
+    if !reused.is_empty() {
+        artifacts.extend(
+            Repository::new(c, s.flow.attempts)
+                .list_artifacts(a.id)
+                .await
+                .map_err(|_| internal(r, "completion reused artifacts"))?
+                .into_iter()
+                .filter(|artifact| reused.contains(artifact.key.as_str())),
+        );
+    }
     let manifest = completion.get("manifest").filter(|v| !v.is_null());
     let roles = if let Some(manifest) = manifest {
         if manifest["attempt_id"] != a.id.to_string() {
@@ -447,18 +403,16 @@ pub(crate) async fn completion(
     } else {
         BTreeSet::new()
     };
-    if j.stage == Stage::Tester {
-        for role in science["required_artifact_roles"]["tester"]
-            .as_array()
-            .into_iter()
-            .flatten()
-        {
-            if !role.as_str().is_some_and(|v| roles.contains(v)) {
-                return Err(invalid("/manifest", "the manifest lacks required roles"));
-            }
+    for role in science["required_artifact_roles"]["verify"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        if !role.as_str().is_some_and(|v| roles.contains(v)) {
+            return Err(invalid("/manifest", "the manifest lacks required roles"));
         }
     }
-    for (i, role) in evidence["artifact_roles"]
+    for (i, role) in report["artifact_roles"]
         .as_array()
         .into_iter()
         .flatten()
@@ -466,17 +420,19 @@ pub(crate) async fn completion(
     {
         if !role.as_str().is_some_and(|v| roles.contains(v)) {
             return Err(invalid(
-                &format!("/evidence/artifact_roles/{i}"),
+                &format!("/artifact_roles/{i}"),
                 "the manifest has no object with this role",
             ));
         }
     }
-    Ok((
-        flow::document(evidence, &s.flow, r)?,
-        manifest
+    Ok(Report {
+        front_matter: flow::document(&report, &s.flow, r)?,
+        body: parsed.body,
+        sha256: format!("{:x}", sha2::Sha256::digest(text.as_bytes())),
+        manifest: manifest
             .map(|v| flow::document(v, &s.flow, r))
             .transpose()?,
-    ))
+    })
 }
 
 #[allow(unused_imports)]
@@ -500,7 +456,6 @@ mod tests {
         let Err(error) = comparisons(
             &science,
             &json!({"comparisons":[first,second]}),
-            &json!({}),
             &RequestContext::background(),
         ) else {
             return Err("duplicate comparison slice accepted".into());

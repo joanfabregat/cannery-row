@@ -158,7 +158,7 @@ async fn expect(
 }
 fn science() -> Result<Value> {
     let mut doc: Value = serde_json::from_str(include_str!(
-        "../../../tests/fixtures/contracts/science_revision/valid/stock_evaluator.json"
+        "../../../tests/fixtures/contracts/science_revision/valid/runner_verifier.json"
     ))?;
     doc["default_producer"] = json!({"name":"sparse-producer","revision":1});
     Ok(doc)
@@ -735,7 +735,7 @@ async fn configuration_matches_real_python_http_and_persisted_reference() -> Res
         }
         roles.insert(role, token);
     }
-    for kind in ["agent", "tester"] {
+    for kind in ["agent", "verifier"] {
         expect(
             &app,
             Method::POST,

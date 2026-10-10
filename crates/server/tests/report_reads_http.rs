@@ -159,7 +159,6 @@ fn assert_response(
             "partial-report"
             | "incomplete-claimed-measurement"
             | "incomplete-discrepancy"
-            | "carried-incomplete-discrepancy"
             | "incomplete-comparison",
         ) => true,
         Some(_) => return Err("unknown native report refusal profile".into()),
@@ -180,12 +179,6 @@ fn assert_response(
         return Ok(());
     }
     if native_refusal {
-        if r["native_contract_refusal"] == "carried-incomplete-discrepancy" {
-            assert_eq!(r["name"], "recovered-followup");
-            assert_eq!(r["response"]["tester"]["discrepancies"], json!([{}]));
-            assert_eq!(r["response"]["evaluation"]["comparisons"], json!([]));
-            assert!(serde_json::from_value::<ReportOut>(r["response"].clone()).is_err());
-        }
         assert_eq!(
             r["status"], 200,
             "frozen source accepts these malformed nested maps"
@@ -316,7 +309,6 @@ async fn report_reads_match_production() -> Result<()> {
         ("partial-report", 2),
         ("incomplete-claimed-measurement", 1),
         ("incomplete-discrepancy", 1),
-        ("carried-incomplete-discrepancy", 1),
         ("incomplete-comparison", 1),
     ] {
         assert_eq!(

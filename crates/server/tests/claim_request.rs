@@ -111,8 +111,7 @@ fn principal(kind: &str) -> Principal {
         let kind = match kind {
             "agent" => ServiceKind::Agent,
             "experimenter" => ServiceKind::Experimenter,
-            "tester" => ServiceKind::Tester,
-            _ => ServiceKind::Evaluator,
+            _ => ServiceKind::Verifier,
         };
         Principal::Service(ServicePrincipal {
             service_account_id: ServiceAccountId(Uuid::from_u128(2)),

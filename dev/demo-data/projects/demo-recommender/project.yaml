@@ -1,6 +1,10 @@
 # Demo project: next-item recommendations for a fictional online shop, on a
 # synthetic implicit-feedback dataset. Fictional demo data for
 # dev/seed-demo.sh.
+#
+# Agents verify here (verify.performer agent in science.json): a researcher
+# verifies an attempt the agent ran (the attempt's verifier, default
+# brief.by), and the agent service account an attempt a researcher ran.
 slug: demo-recommender
 title: "Demo: shop recommender"
 description: >-
@@ -70,7 +74,7 @@ hypotheses:
       project_fields: {factors: 64, seed: 3}
     attempts:
       - by: agent
-        stop: evaluated
+        stop: verified
         seconds: 2400
         candidate: {model: implicit-als, factors: 64, regularization: 0.05, alpha: 20, iterations: 15}
         sheet:
@@ -96,7 +100,7 @@ hypotheses:
           - {metric: recall_at_10, split: validation, dims: {user_segment: new}, claimed: 0.066, verified: 0.066, n: 5600, control: 0.064}
           - {metric: ndcg_at_10, split: validation, claimed: 0.094, verified: 0.093, n: 18000}
           - {metric: catalog_coverage, split: validation, claimed: 0.21, verified: 0.208, n: 3200}
-        tester_notes: Recommendations regenerated from the submitted factors; recall matches the claim within 0.002.
+        notes: Recommendations regenerated from the submitted factors; recall matches the claim within 0.002.
         verdict:
           result: pass
           gates:
@@ -131,7 +135,8 @@ hypotheses:
         - {kind: related_to, hypothesis: als-64}
     attempts:
       - by: agent
-        stop: evaluated
+        stop: verified
+        verifier: ada
         seconds: 1500
         candidate: {model: item-knn, similarity: cosine, k: 100, history_window: 20}
         sheet:
@@ -182,7 +187,7 @@ hypotheses:
         - {kind: related_to, hypothesis: als-64}
     attempts:
       - by: agent
-        stop: evaluated
+        stop: verified
         seconds: 5100
         candidate: {model: bpr, factors: 64, learning_rate: 0.05, epochs: 100}
         sheet:
@@ -253,7 +258,7 @@ hypotheses:
         compute_budget: {cpu_hours_max: 1}
     attempts:
       - by: chloe
-        stop: evaluated
+        stop: verified
         seconds: 1200
         candidate: {model: category-popularity, window_days: 30, fallback: global-popularity}
         sheet:

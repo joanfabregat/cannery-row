@@ -8,13 +8,12 @@ use cannery_runner::{
     runtime::{
         FutureResult, RuntimeError,
         backend::{Backend, PreparedStep},
-        evaluator::Evaluator,
         experiment::Experiment,
         http::{ApiClient, LeaseHeaders, read_json},
-        policy_evaluator::PolicyEvaluator,
         process::RuntimeWorker,
         validation::NativeOutputValidator,
-        worker::{NoCode, Tester},
+        verify::{AppliedPolicy, Verifier},
+        worker::{NoCode, Resources},
     },
 };
 use serde_json::{Value, json};
@@ -78,17 +77,17 @@ fn document(value: &Value) -> Result<Arc<json::Document>, Error> {
     Ok(Arc::new(json::decode(&serde_json::to_vec(value)?, 256)?))
 }
 fn step_policy() -> Result<Arc<policy::StepPolicy>, Error> {
-    let step = json!({"apiVersion":"cannery-row/v1","kind":"Step","metadata":{"name":"policy"},"spec":{"role":"evaluator","container":{"image":format!("fixture.invalid/step@sha256:{}","a".repeat(64)),"command":["/bin/true"],"env":[],"resources":{"limits":{"cpu":"1","memory":"128Mi"}}},"activeDeadlineSeconds":5,"network":"none","sandbox":"controlled cancellation fixture","inputs":{"artifacts":[]},"outputs":{"artifacts":[{"name":"verdict","path":"/cr/outputs/verdict"}]}}});
+    let step = json!({"apiVersion":"cannery-row/v1","kind":"Step","metadata":{"name":"policy"},"spec":{"role":"policy","container":{"image":format!("fixture.invalid/step@sha256:{}","a".repeat(64)),"command":["/bin/true"],"env":[],"resources":{"limits":{"cpu":"1","memory":"128Mi"}}},"activeDeadlineSeconds":5,"network":"none","sandbox":"controlled cancellation fixture","inputs":{"artifacts":[]},"outputs":{"artifacts":[{"name":"verdict","path":"/cr/outputs/verdict"}]}}});
     Ok(Arc::new(policy::parse_step_policy(
         document(
-            &json!({"schema_version":"0.2","evaluator":{"id":"policy-evaluator","revision":"v1"},"step":step}),
+            &json!({"schema_version":"0.2","verifier":{"id":"fixture-verifier","revision":"v1"},"step":step}),
         )?,
-        PolicyEntryPoint::Evaluator,
+        PolicyEntryPoint::RunnerVerifyKind,
         256,
     )?))
 }
 fn claim() -> Value {
-    json!({"job":{"job_id":ID,"attempt_id":ID,"track":"fixture","evaluator":{"id":"policy-evaluator","revision":"v1"},"science_revision":1,"deadline":(chrono::Utc::now()+chrono::Duration::seconds(300)).to_rfc3339(),"steps":null,"lease":{"token":"synthetic-lease","generation":1,"expires_at":(chrono::Utc::now()+chrono::Duration::seconds(120)).to_rfc3339()}},"heartbeat_seconds":0.05})
+    json!({"job":{"job_id":ID,"attempt_id":ID,"track":"fixture","performer":"runner","verifier":{"id":"fixture-verifier","revision":"v1"},"science_revision":1,"deadline":(chrono::Utc::now()+chrono::Duration::seconds(300)).to_rfc3339(),"steps":null,"lease":{"token":"synthetic-lease","generation":1,"expires_at":(chrono::Utc::now()+chrono::Duration::seconds(120)).to_rfc3339()}},"heartbeat_seconds":0.05})
 }
 async fn peer(
     mode: Stall,
@@ -179,7 +178,7 @@ async fn peer(
 #[tokio::test]
 async fn incomplete_claim_headers_and_json_cancel_all_worker_kinds() -> Result<(), Error> {
     for mode in [Stall::ClaimHeaders, Stall::ClaimBody] {
-        for kind in 0..4 {
+        for kind in 0..3 {
             exercise(mode, kind, false).await?;
         }
     }
@@ -187,9 +186,9 @@ async fn incomplete_claim_headers_and_json_cancel_all_worker_kinds() -> Result<(
 }
 #[tokio::test]
 async fn input_and_failure_body_cancellation_settle_owned_work() -> Result<(), Error> {
-    exercise(Stall::Input, 3, false).await?;
-    exercise(Stall::Input, 3, true).await?;
-    exercise(Stall::Failure, 0, false).await?;
+    exercise(Stall::Input, 2, false).await?;
+    exercise(Stall::Input, 2, true).await?;
+    exercise(Stall::Failure, 1, false).await?;
     Ok(())
 }
 #[tokio::test]
@@ -357,7 +356,7 @@ async fn exercise(mode: Stall, kind: usize, lost: bool) -> Result<(), Error> {
     let _stop_guard = StopGuard(stop.clone());
     let (root, server) = peer(mode, lost, ready.clone(), stop.clone()).await?;
     let backend = Arc::new(ObservedBackend(AtomicUsize::new(0)));
-    let resources = Tester {
+    let resources = Resources {
         client: ApiClient::new(&root)?,
         token: Secret::new("synthetic-token".into()),
         project: "fixture".into(),
@@ -368,21 +367,21 @@ async fn exercise(mode: Stall, kind: usize, lost: bool) -> Result<(), Error> {
         validator: Arc::new(NativeOutputValidator::runtime_policy()),
     };
     let worker: Arc<dyn RuntimeWorker> = match kind {
-        0 => Arc::new(resources),
-        1 => Arc::new(Experiment::new(resources)),
-        2 => Arc::new(Evaluator {
-            client: resources.client,
-            token: resources.token,
-            project: resources.project,
-            policy: Arc::new(policy::parse_policy(
+        0 => Arc::new(Experiment::new(resources)),
+        1 => Arc::new(Verifier::new(
+            resources,
+            AppliedPolicy::Stock(Arc::new(policy::parse_policy(
                 document(
-                    &json!({"schema_version":"0.2","evaluator":{"id":"stock","revision":"v1"},"gates":[{"id":"quality","metric":"mrr","split":"dev","statistic":"value","compare":"control","op":">=","min_delta":0.02}],"baselines":[]}),
+                    &json!({"schema_version":"0.2","verifier":{"id":"fixture-verifier","revision":"v1"},"gates":[{"id":"quality","metric":"mrr","split":"dev","statistic":"value","compare":"control","op":">=","min_delta":0.02}],"baselines":[]}),
                 )?,
-                PolicyEntryPoint::Evaluator,
+                PolicyEntryPoint::RunnerVerifyKind,
                 256,
-            )?),
-        }),
-        _ => Arc::new(PolicyEvaluator::new(resources, step_policy()?)?),
+            )?)),
+        )?),
+        _ => Arc::new(Verifier::new(
+            resources,
+            AppliedPolicy::Step(step_policy()?),
+        )?),
     };
     let cancel = CancellationEvent::new();
     let mut operation = {

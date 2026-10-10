@@ -153,7 +153,7 @@ fn assert_native_read_refusal(r: &Value, status: u16, response: &Value, wire: &s
             assert_eq!(r["name"], "recovered-sheet");
             assert!(!content.is_null());
             assert!(
-                serde_json::from_value::<cannery_server::api_models::ReadEvidenceEnvelope>(
+                serde_json::from_value::<cannery_server::api_models::RunFrontMatter>(
                     content.clone()
                 )
                 .is_err()

@@ -1,0 +1,5 @@
+{
+  "schema_version": "0.2",
+  "job_id": "verify-job-2",
+  "document": "---\nverdict: \"inconclusive\"\nreason: \"The French slice has 12 queries; the interval spans the control.\"\npolicy_revision: \"reviewer-checklist-2\"\ngates: [{\"id\":\"primary-beats-control\",\"result\":\"unknown\",\"detail\":\"Too few French queries to decide.\"},{\"id\":\"latency-holds\",\"result\":\"pass\"}]\nmeasurements: [{\"metric\":\"ndcg_at_10\",\"value\":0.41,\"authority\":\"tester_verified\",\"unit\":\"ratio\",\"direction\":\"higher\",\"split\":\"dev\",\"dimensions\":{\"language\":\"fr\"},\"sample_count\":12}]\nprovenance: {\"source_revision\":\"4f2a9c1\",\"science_revision\":\"3\"}\n---\n"
+}

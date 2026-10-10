@@ -260,7 +260,7 @@ async fn tracks_match_production() -> Result<()> {
         let id = recipe["id"].as_str().ok_or("id")?;
         if id == "producer-missing" {
             let mut d: Value = serde_json::from_str(include_str!(
-                "../../../tests/fixtures/contracts/science_revision/valid/stock_evaluator.json"
+                "../../../tests/fixtures/contracts/science_revision/valid/runner_verifier.json"
             ))?;
             d["default_producer"] = json!({"name":"sparse-producer","revision":1});
             sqlx::query("INSERT INTO config_revisions(project_id,kind,revision,content,created_by) VALUES('00000000-0000-0000-0000-000000000010','science',1,$1,'00000000-0000-0000-0000-000000000001')").bind(d).execute(&state.pool).await?;

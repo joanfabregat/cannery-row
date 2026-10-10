@@ -1,78 +1,68 @@
-//! Dedicated stock evaluator command, using HTTP and its service credential only.
+//! `cannery evaluator`: the stock policy, offline. It applies a stock policy
+//! configuration's gates to a scorer's evidence and prints the verdict a
+//! verification report takes (`verdict`, `reason`, `policy_revision`, `gates`,
+//! `comparisons`), so a verifier that runs its steps itself applies the same
+//! gates as the runner's verify kind. It reads local files only: no
+//! credential, network or launcher.
 use super::RuntimeError;
-use crate::{config, launcher::PosixPath, policy};
-
+use crate::{gates::Control, launcher::PosixPath, policy, verification};
 use clap::Args;
-use std::{path::PathBuf, time::Duration};
+use serde_json::Value;
+use std::path::{Path, PathBuf};
 
 #[derive(Args)]
 pub struct EvaluatorArgs {
-    #[arg(long)]
-    pub token_file: Option<PathBuf>,
-    #[arg(long)]
-    pub api_url: String,
-    #[arg(long)]
-    pub project: String,
+    /// The stock policy configuration; a policy step document is refused.
     #[arg(long)]
     pub config: PathBuf,
-    #[arg(long, default_value_t = 10.0)]
-    pub poll_seconds: f64,
+    /// The science revision: its content, or the API's response for it.
     #[arg(long)]
-    pub once: bool,
+    pub science: PathBuf,
+    /// The scorer's evidence: provenance and verified measurements.
+    #[arg(long)]
+    pub evidence: PathBuf,
+    /// The control the hypothesis names; the policy's default control otherwise.
+    #[arg(long, requires = "control_revision")]
+    pub control_id: Option<String>,
+    #[arg(long, requires = "control_id")]
+    pub control_revision: Option<String>,
+}
+
+const DEPTH: usize = 256;
+
+fn read(path: &Path) -> Result<Value, RuntimeError> {
+    let bytes = std::fs::read(path).map_err(|_| RuntimeError::Configuration)?;
+    cannery_core::json::decode(&bytes, crate::cli_depth::JSON_CONTAINERS)
+        .map_err(|_| RuntimeError::Configuration)?;
+    serde_json::from_slice(&bytes).map_err(|_| RuntimeError::Configuration)
 }
 
 /// # Errors
-/// Reject invalid policy, private file and polling settings before contacting the API.
-pub async fn run(args: EvaluatorArgs) -> Result<i32, RuntimeError> {
-    let token_file = args
-        .token_file
-        .or_else(|| {
-            std::env::var("CANNERY_EVALUATOR_TOKEN_FILE")
-                .ok()
-                .map(|value| value.trim().to_owned())
-                .filter(|value| !value.is_empty())
-                .map(PathBuf::from)
-        })
-        .ok_or(RuntimeError::Configuration)?;
-    let token = crate::credentials::read_token_file(&token_file)
-        .map_err(|_| RuntimeError::Configuration)?;
-    if !args.poll_seconds.is_finite()
-        || args.poll_seconds < 0.0
-        || Duration::try_from_secs_f64(args.poll_seconds).is_err()
-    {
-        return Err(RuntimeError::Configuration);
-    }
+/// Refuses an invalid policy or unreadable input (configuration, exit 2) and
+/// evidence the gates cannot read (exit 1).
+pub fn run(args: EvaluatorArgs) -> Result<i32, RuntimeError> {
     let loader = policy::FilePolicyLoader {
         entry_point: crate::cli_depth::PolicyEntryPoint::Evaluator,
-        repr_nesting_budget: 256,
+        repr_nesting_budget: DEPTH,
     };
     let path = args.config.to_str().ok_or(RuntimeError::Configuration)?;
-    let candidate = loader
+    let policy::Policy::Stock(policy) = loader
         .load_policy(&PosixPath::new(&String::from(path)))
-        .map_err(|_| RuntimeError::Configuration)?;
-    let policy::Policy::Stock(policy) = candidate else {
+        .map_err(|_| RuntimeError::Configuration)?
+    else {
         return Err(RuntimeError::Configuration);
     };
-    let config = config::ProcessConfig {
-        api_url: String::from(&args.api_url),
-        project: String::from(&args.project),
-        kinds: vec![config::KindEntry {
-            name: String::from("eval"),
-            kind: config::KindConfig::Eval(config::EvaluationPolicy::Stock(policy.document)),
-            token,
-            poll_seconds: args.poll_seconds,
-            concurrency: 1.into(),
-        }],
-        launcher: None,
-        step_root: None,
-        data_root: None,
-        work_root: None,
-        cache_root: None,
-        cache_max_bytes: None,
-        runner_id: None,
-        docker: config::DockerSettings::default(),
-        kubernetes: config::KubernetesSettings::default(),
-        github: config::GitHubSettings::default(),
-    };
-    super::command::run_config(config, args.once).await
+    let science = read(&args.science)?;
+    let science = science.get("content").cloned().unwrap_or(science);
+    let evidence = read(&args.evidence)?;
+    let control = args
+        .control_id
+        .zip(args.control_revision)
+        .map(|(id, revision)| Control { id, revision });
+    let mut verdict =
+        verification::stock_assessment(&policy, &science, &evidence, control.as_ref(), DEPTH)
+            .map_err(|_| RuntimeError::Contract)?;
+    verdict["policy_revision"] = Value::String(policy.revision.clone());
+    println!("{}", serde_json::to_string_pretty(&verdict)?);
+    Ok(0)
 }

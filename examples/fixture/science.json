@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2",
-  "tester": {"id": "cannery-runner", "revision": "runner-fixture-1"},
+  "verify": {"performer": "runner", "verifier": {"id": "cannery-runner", "revision": "fixture-policy-1"}},
   "hypothesis_fields": {
     "type": "object",
     "properties": {
@@ -32,7 +32,7 @@
     {
       "id": "base-camp",
       "revision": "fixture-r1",
-      "description": "Fixture control: the scores it stands for live in the stock evaluator's configuration (evaluator.json)."
+      "description": "Fixture control: the scores it stands for live in the stock policy configuration (policy.json)."
     }
   ],
   "interfaces": [
@@ -139,8 +139,7 @@
   },
   "default_producer": {"name": "overlap-producer", "revision": 1},
   "code_repositories": {"candidate": ["joanfabregat/cannery-row"]},
-  "evaluator": {"id": "stock-evaluator", "revision": "fixture-policy-1"},
-  "required_artifact_roles": {"attempt": ["candidate"], "tester": ["evidence", "step_log"]},
+  "required_artifact_roles": {"attempt": ["candidate"], "verify": ["evidence", "step_log"]},
   "limits": {
     "resource_ceilings": {"cpu": "2", "memory": "1Gi"},
     "max_deadline_seconds": 600,

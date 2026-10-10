@@ -1,0 +1,8 @@
+{
+  "schema_version": "0.2",
+  "verifier": {"id": "replace-with-verifier-account", "revision": "replace-with-registered-policy-revision"},
+  "gates": [
+    {"id": "holds-control", "metric": "replace-with-metric", "split": "replace-with-split", "statistic": "value", "compare": "control", "op": ">=", "min_delta": 0.0}
+  ],
+  "baselines": []
+}

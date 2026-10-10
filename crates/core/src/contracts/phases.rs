@@ -21,7 +21,7 @@ pub enum Phase {
     Brief,
     /// A run: its claims, provenance and manifest, with run notes as the body.
     Run,
-    /// The tester's verified evidence and the evaluator's assessment.
+    /// A verification report: the verdict, its gates and the verified measurements.
     Verification,
     /// The narrative of a run; only imported write-ups exist for now.
     Writeup,
@@ -308,27 +308,48 @@ mod tests {
     }
 
     #[test]
-    fn run_and_verification_take_their_own_envelopes() -> Result {
+    fn verification_reports_need_a_verdict_their_gates_support() -> Result {
         let schemas = schemas()?;
-        let envelope = |stage: &str| {
+        let report = |verdict: &str, gate: &str| {
             json!({
-                "schema_version": "0.2",
-                "attempt_id": "a1",
-                "stage": stage,
-                "status": "failed",
-                "producer": {"kind": "service", "id": "tester"},
-                "started_at": "2024-01-01T00:00:00Z",
-                "finished_at": "2024-01-01T00:01:00Z",
+                "verdict": verdict,
+                "reason": "the gate decided",
+                "policy_revision": "policy-1",
+                "gates": [{"id": "quality", "result": gate}],
+                "measurements": [{
+                    "metric": "mrr", "value": 0.5, "authority": "tester_verified",
+                    "unit": "ratio", "direction": "higher", "split": "dev"
+                }],
                 "provenance": {"source_revision": "abc", "science_revision": "1"}
             })
         };
         assert!(accepts(
             &schemas,
             Phase::Verification,
-            &envelope("evaluator")
+            &report("pass", "pass")
         ));
-        assert!(!accepts(&schemas, Phase::Run, &envelope("evaluator")));
-        assert!(!accepts(&schemas, Phase::Verification, &envelope("agent")));
+        assert!(accepts(
+            &schemas,
+            Phase::Verification,
+            &report("fail", "fail")
+        ));
+        assert!(accepts(
+            &schemas,
+            Phase::Verification,
+            &report("inconclusive", "unknown")
+        ));
+        assert!(!accepts(
+            &schemas,
+            Phase::Verification,
+            &report("pass", "unknown")
+        ));
+        let mut claimed = report("fail", "fail");
+        claimed["measurements"][0]["authority"] = json!("agent_claim");
+        assert!(!accepts(&schemas, Phase::Verification, &claimed));
+        let mut stray = report("fail", "fail");
+        stray["stage"] = json!("verification");
+        assert!(!accepts(&schemas, Phase::Verification, &stray));
+        assert!(!accepts(&schemas, Phase::Run, &report("pass", "pass")));
         assert!(!accepts(&schemas, Phase::Verification, &json!({})));
         Ok(())
     }

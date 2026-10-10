@@ -121,26 +121,24 @@ pub enum PolicyLoadError {
     Recursion,
 }
 /// Owned policy payload; parsing/validation belongs to the required policy loader.
-pub enum EvaluationPolicy {
+pub enum VerifyPolicy {
+    /// A stock policy configuration, whose gates the verify kind applies in process.
     Stock(Arc<Document>),
-    Step {
-        /// Complete registration envelope, including the evaluator identity.
-        document: Arc<Document>,
-        needs_data_root: bool,
-    },
+    /// A policy step's registration envelope, including the verifier identity.
+    Step(Arc<Document>),
 }
-impl fmt::Debug for EvaluationPolicy {
+impl fmt::Debug for VerifyPolicy {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Stock(_) => "StockPolicy([redacted])",
-            Self::Step { .. } => "StepPolicy([redacted])",
+            Self::Step(_) => "StepPolicy([redacted])",
         })
     }
 }
 pub trait PolicyLoader {
     /// # Errors
     /// Preserve policy configuration refusals versus uncaught source exceptions.
-    fn load(&self, path: &PosixPath) -> Result<EvaluationPolicy, PolicyLoadError>;
+    fn load(&self, path: &PosixPath) -> Result<VerifyPolicy, PolicyLoadError>;
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LauncherType {
@@ -150,47 +148,30 @@ pub enum LauncherType {
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JobKind {
-    Test,
-    Eval,
+    Verify,
     Experiment,
 }
 impl JobKind {
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
-            Self::Test => "test",
-            Self::Eval => "eval",
+            Self::Verify => "verify",
             Self::Experiment => "experiment",
         }
     }
 }
+/// Both kinds run steps, so both need a launcher and the data root.
 #[derive(Debug)]
 pub enum KindConfig {
-    Test,
-    Eval(EvaluationPolicy),
+    Verify(VerifyPolicy),
     Experiment,
 }
 impl KindConfig {
     #[must_use]
     pub const fn job_kind(&self) -> JobKind {
         match self {
-            Self::Test => JobKind::Test,
-            Self::Eval(_) => JobKind::Eval,
+            Self::Verify(_) => JobKind::Verify,
             Self::Experiment => JobKind::Experiment,
-        }
-    }
-    #[must_use]
-    pub const fn needs_launcher(&self) -> bool {
-        !matches!(self, Self::Eval(EvaluationPolicy::Stock(_)))
-    }
-    #[must_use]
-    pub const fn needs_data_root(&self) -> bool {
-        match self {
-            Self::Eval(EvaluationPolicy::Stock(_)) => false,
-            Self::Eval(EvaluationPolicy::Step {
-                needs_data_root, ..
-            }) => *needs_data_root,
-            _ => true,
         }
     }
 }
@@ -736,13 +717,12 @@ fn kinds(top: &Table<'_, '_>, policies: &dyn PolicyLoader) -> Result<Vec<KindEnt
             .find(|(k, _)| k.equals_utf8("kind"))
             .and_then(|(_, v)| v.text());
         let kind = match name {
-            Some(v) if v.equals_utf8("test") => JobKind::Test,
-            Some(v) if v.equals_utf8("eval") => JobKind::Eval,
+            Some(v) if v.equals_utf8("verify") => JobKind::Verify,
             Some(v) if v.equals_utf8("experiment") => JobKind::Experiment,
             _ => return Err(error(&format!("{location}.kind"), ErrorKind::Kind)),
         };
         let mut keys = COMMON.to_vec();
-        if kind == JobKind::Eval {
+        if kind == JobKind::Verify {
             keys.push("policy");
         }
         let t = Table::new(v, &location, &keys, top.base, top.paths)?;
@@ -764,9 +744,8 @@ fn kinds(top: &Table<'_, '_>, policies: &dyn PolicyLoader) -> Result<Vec<KindEnt
             return Err(error(&t.at("token_file"), ErrorKind::SharedToken));
         }
         let kind = match kind {
-            JobKind::Test => KindConfig::Test,
             JobKind::Experiment => KindConfig::Experiment,
-            JobKind::Eval => {
+            JobKind::Verify => {
                 let p = t
                     .get("policy")
                     .and_then(Value::text)
@@ -786,7 +765,7 @@ fn kinds(top: &Table<'_, '_>, policies: &dyn PolicyLoader) -> Result<Vec<KindEnt
                         ErrorKind::Policy,
                     )
                 })?;
-                KindConfig::Eval(policy)
+                KindConfig::Verify(policy)
             }
         };
         let entry = KindEntry {

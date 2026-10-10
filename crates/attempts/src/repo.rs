@@ -822,6 +822,32 @@ impl<'a> Repository<'a> {
             })
             .transpose()
     }
+    /// A phase output's front matter, its Markdown body and its digest.
+    /// # Errors
+    /// Returns sanitized database, stored-data, source conversion, or lease errors.
+    pub async fn get_output_by_id(
+        &mut self,
+        attempt: AttemptId,
+        id: EvidenceId,
+    ) -> Result<Option<(StoredJson, String, String)>, AttemptError> {
+        let (_, rows) = self
+            .execute(
+                Statement::GetEvidenceById0,
+                vec![Value::uuid(attempt.0), Value::uuid(id.0)],
+            )
+            .await?;
+        rows.first()
+            .map(|row| {
+                Ok((
+                    self.row_json(row, 0)?,
+                    row.try_get(2)
+                        .map_err(|error| AttemptError::database(&error))?,
+                    row.try_get(1)
+                        .map_err(|error| AttemptError::database(&error))?,
+                ))
+            })
+            .transpose()
+    }
     /// # Errors
     /// Returns sanitized database, stored-data, source conversion, or lease errors.
     pub async fn get_evidence(
@@ -1005,12 +1031,7 @@ fn channel(channel: Channel) -> &'static str {
 fn is_open(state: State) -> bool {
     matches!(
         state,
-        State::Claimed
-            | State::Running
-            | State::Submitted
-            | State::Testing
-            | State::Evaluating
-            | State::AwaitingHumanReview
+        State::Claimed | State::Running | State::Verifying | State::AwaitingHumanReview
     )
 }
 fn truthy(value: &StoredJson) -> bool {

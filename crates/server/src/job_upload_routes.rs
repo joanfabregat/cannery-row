@@ -30,10 +30,10 @@ use cannery_core::{
     errors::ErrorCode,
     ids::JobId,
     json::Document,
-    principal::{Principal, Via},
+    principal::Via,
     timestamps::Timestamp,
 };
-use cannery_jobs::repo::{self as jobs, Job, Stage};
+use cannery_jobs::repo::{self as jobs, Job};
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 use serde_json::{Value, json};
@@ -77,12 +77,7 @@ pub(crate) fn live(a: &Attempt, j: Option<&Job>, u: &Upload, now: Timestamp) -> 
                 && a.lease_expires_at.is_some_and(|v| v.0 > now.0)
         },
         |j| {
-            a.state.as_str()
-                == if j.stage == Stage::Tester {
-                    "testing"
-                } else {
-                    "evaluating"
-                }
+            a.state == cannery_attempts::model::State::Verifying
                 && j.state == jobs::State::Claimed
                 && j.lease_generation == u.lease_generation
                 && j.lease_expires_at.is_some_and(|v| v.0 > now.0)
@@ -93,15 +88,15 @@ pub(crate) fn live(a: &Attempt, j: Option<&Job>, u: &Upload, now: Timestamp) -> 
 fn actor(j: &Job, r: &RequestContext) -> Result<Actor, Failure> {
     let channel = serde_json::from_value(json!(j.via_channel.as_deref().unwrap_or("api")))
         .map_err(|_| internal(r, "job capability channel"))?;
-    Ok(Actor::Service {
-        id: j
-            .claimed_by_service
-            .ok_or_else(|| internal(r, "job capability actor"))?,
-        via: Via {
-            channel,
-            client: j.via_client.clone(),
-        },
-    })
+    let via = Via {
+        channel,
+        client: j.via_client.clone(),
+    };
+    match j.claimant() {
+        Some(jobs::Claimant::Service(id)) => Ok(Actor::Service { id, via }),
+        Some(jobs::Claimant::User(id)) => Ok(Actor::User { id, via }),
+        None => Err(internal(r, "job capability actor")),
+    }
 }
 #[allow(
     clippy::too_many_arguments,
@@ -239,10 +234,8 @@ pub(crate) async fn create(
     let body = body.ok_or_else(|| internal(&r, "job upload body"))?;
     let id = JobId(id.ok_or_else(|| internal(&r, "job upload identity"))?);
     let project =
-        jobs_http::worker(&mut auth.connection, &auth.principal, &paths["slug"], &r).await?;
-    let Principal::Service(service) = &auth.principal else {
-        return Err(internal(&r, "job upload worker"));
-    };
+        crate::job_workers::worker(&mut auth.connection, &auth.principal, &paths["slug"], &r)
+            .await?;
     if &body.size_bytes > state.app.settings.storage.max_object_bytes.as_bigint() {
         return Err(domain(
             ErrorCode::ValidationFailed,
@@ -293,7 +286,7 @@ pub(crate) async fn create(
             jobs_http::locked_attempt(&mut tx, id, project.id, &s.lifecycle.flow, &r).await?;
         let job = jobs_http::leased(
             &mut tx,
-            service,
+            &auth.principal,
             id,
             project.id,
             token.as_deref(),
@@ -302,7 +295,7 @@ pub(crate) async fn create(
             &r,
         )
         .await?;
-        jobs_http::require_stage(&attempt, &job)?;
+        jobs_http::require_verifying(&attempt)?;
         if let Some(reference) = &body.interface {
             crate::job_output_interface::load(&mut tx, &attempt, reference, &s.lifecycle, &r)
                 .await?;

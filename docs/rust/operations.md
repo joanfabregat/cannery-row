@@ -1,6 +1,6 @@
 # Building and operations
 
-How to build, release, configure and deploy the `cannery` binary, and what CI checks. The product-level deployment reference (every setting, the runner launchers, the stock evaluator) is [deploy.md](../deploy.md); this document adds what is specific to building and verifying the binary.
+How to build, release, configure and deploy the `cannery` binary, and what CI checks. The product-level deployment reference (every setting, the runner launchers, the stock policy) is [deploy.md](../deploy.md); this document adds what is specific to building and verifying the binary.
 
 ## Commands
 
@@ -11,7 +11,7 @@ How to build, release, configure and deploy the `cannery` binary, and what CI ch
 | `cannery db dump FILE`, `cannery db restore FILE [--replace]`, `cannery db upgrade --from-bin-dir DIR` | Dump the database; restore or upgrade the managed database ([deploy.md](../deploy.md#managed-database)). |
 | `cannery openapi [-o FILE]` | Write the OpenAPI document. Needs no settings or database. |
 | `cannery runner …` | Claim and run jobs (see [runner deployment](#runner-deployment-and-policy)). |
-| `cannery evaluator --config POLICY --api-url URL --project SLUG [--token-file FILE] [--poll-seconds 10] [--once]` | Run only the stock evaluator. The token file can also come from `CANNERY_EVALUATOR_TOKEN_FILE`. Step policies are refused before any claim. |
+| `cannery evaluator --config POLICY …` | Apply the stock policy alone, offline, for a verifier that runs its own steps (`--help` lists the arguments). A policy step file is refused. |
 | `cannery import …` | Import a historical research bundle ([import.md](../import.md)). |
 
 The global `--settings FILE` option, or `CANNERY_SETTINGS`, names the settings TOML; `CANNERY_<SECTION>_<FIELD>` environment variables override it. [deploy.md](../deploy.md#configuration) lists the settings; `settings.example.toml` shows the common ones. Supply secrets through environment variables or private files only.
@@ -111,7 +111,7 @@ Runner configuration, launchers, GitHub credentials, the cache and the Kubernete
 - Operator flags: `--default-step-cpu`, `--default-step-memory`, `--allow-unrestricted-egress`, `--k8s-namespace-policy-acknowledged`, `--k8s-api-service-host`, `--k8s-api-service-port`, `--docker-gpu-devices`. Their defaults and meaning are in [limits](limits.md#container-launchers).
 - `cannery runner --config FILE --check-config` validates the configuration, policy files, private credential files and launcher factory without creating clients, claiming jobs or touching work and cache directories ([details](../../crates/runner/CHECK_CONFIG.md)). It does not prove TLS trust, cluster permissions, image availability or dataset readiness.
 - Token files must not be group- or world-readable. Updating the runner's Cannery credential requires a runner restart; GitHub token files are reread after a 401.
-- `cannery evaluator` and `kind = "eval"` with a stock policy need no database settings, launcher, data root or cache root.
+- `cannery evaluator` needs no database settings, token, launcher, data root or cache root.
 - Recovery on the API side reclaims expired leases and claims; a runner that loses its lease abandons the job without reporting a failure.
 
 ## Continuous integration
@@ -121,7 +121,7 @@ CI (`.github/workflows/rust.yml`) runs on every pull request and push to `main` 
 - Audits and formatting: `cargo audit`, `cargo deny check` and `cargo fmt`.
 - Strict Clippy and the workspace tests, once with all features and once with the default features, as two jobs.
 - Tests against real PostgreSQL databases, on the stock PostgreSQL 17 image and on the managed PostgreSQL bundle: the repository, HTTP and storage tests in `ci/database-tests.txt`, each against a fresh database created and migrated by `cannery-test-launcher`, compared with the frozen references in `tests/references/`. `ci/database-tests.sh` runs `DATABASE_TEST_JOBS` targets at once (3 in CI, 1 by default); each target still runs its tests one at a time against its own database.
-- The runner's process, lease, transfer and policy-evaluator tests through the installed CLI.
+- The runner's process, lease, transfer and policy tests through the installed CLI.
 - The web app: lint, type check, tests, `api:types:check` and production build.
 - The managed PostgreSQL bundles: each bundle (Linux x86_64, Linux aarch64, macOS arm64) is built from the pinned source and must link only glibc or libSystem; the managed-database supervisor tests (first start, migrations, `pg_trgm`, lock, restart, stale and orphaned servers), the CLI tests (`migrate`, `serve` health, server stopped when `cannery` is killed on Linux or reclaimed by the next start on macOS, `db` commands), and a `bundled-postgres` build that unpacks and migrates.
 - The release builds described [above](#release-workflow).

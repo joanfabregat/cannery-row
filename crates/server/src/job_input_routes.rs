@@ -19,7 +19,7 @@ use cannery_core::{
     errors::{DomainError, ErrorCode},
     ids::JobId,
     json::{Document, Node, NodeId, model},
-    principal::{Principal, ServiceKind},
+    principal::{Role, ServiceKind},
     text,
     timestamps::Timestamp,
 };
@@ -62,20 +62,15 @@ fn not_found(message: &str) -> Failure {
 }
 #[derive(Clone, Copy)]
 enum Operation {
-    Sheet,
-    Evidence,
+    Run,
     Manifest,
     Object,
 }
 pub fn routes(app: AppState, profile: Arc<JobInputContext>) -> Router {
     Router::new()
         .route(
-            "/api/projects/{slug}/jobs/{job_id}/inputs/claimed-sheet",
-            get(sheet).head(head).fallback(method),
-        )
-        .route(
-            "/api/projects/{slug}/jobs/{job_id}/inputs/evidence",
-            get(evidence).head(head).fallback(method),
+            "/api/projects/{slug}/jobs/{job_id}/inputs/run",
+            get(run).head(head).fallback(method),
         )
         .route(
             "/api/projects/{slug}/jobs/{job_id}/inputs/manifest",
@@ -106,10 +101,10 @@ async fn method() -> impl IntoResponse {
 }
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/jobs/{job_id}/inputs/claimed-sheet",
-    operation_id = "claimed_sheet_api_projects__slug__jobs__job_id__inputs_claimed_sheet_get",
-    summary = "Claimed Sheet",
-    description = "The front matter of the frozen run document the job tests: the claims, provenance and manifest (test jobs only).",
+    path = "/api/projects/{slug}/jobs/{job_id}/inputs/run",
+    operation_id = "input_run_api_projects__slug__jobs__job_id__inputs_run_get",
+    summary = "Input Run",
+    description = "The front matter of the frozen run document the job verifies: the run's claims, provenance and manifest. The run notes are not an input.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -124,46 +119,19 @@ async fn method() -> impl IntoResponse {
         (status = 503, description = "Service unavailable", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
 )]
-pub(crate) async fn sheet(
+pub(crate) async fn run(
     State(state): State<RouteState>,
     axum::Extension(context): axum::Extension<RequestContext>,
     request: Request,
 ) -> Result<Response, Failure> {
-    read(state, context, request, Operation::Sheet).await
-}
-#[utoipa::path(
-    get,
-    path = "/api/projects/{slug}/jobs/{job_id}/inputs/evidence",
-    operation_id = "input_evidence_api_projects__slug__jobs__job_id__inputs_evidence_get",
-    summary = "Input Evidence",
-    description = "The tester-verified evidence records an evaluation job assesses, in its input order.",
-    params(("slug" = String, Path),
-        ("job_id" = String, Path, format = "uuid"),
-        ("X-Lease-Token" = Option<String>, Header),
-        ("X-Lease-Generation" = Option<i64>, Header)),
-    responses((status = 200, description = "Successful Response", body = Vec<crate::api_models::EvidenceEnvelopeRequest>, content_type = "application/json"),
-        (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
-        (status = 400, description = "Invalid request", body = crate::api_models::BadRequestResponse, content_type = "application/json"),
-        (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
-        (status = 403, description = "Permission denied or invalid CSRF token", body = crate::api_models::ErrorResponse, content_type = "application/json"),
-        (status = 404, description = "Resource not found", body = crate::api_models::ErrorResponse, content_type = "application/json"),
-        (status = 409, description = "Resource conflict or stale lease", body = crate::api_models::ErrorResponse, content_type = "application/json"),
-        (status = 503, description = "Service unavailable", body = crate::api_models::ErrorResponse, content_type = "application/json"),
-        (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
-)]
-pub(crate) async fn evidence(
-    State(state): State<RouteState>,
-    axum::Extension(context): axum::Extension<RequestContext>,
-    request: Request,
-) -> Result<Response, Failure> {
-    read(state, context, request, Operation::Evidence).await
+    read(state, context, request, Operation::Run).await
 }
 #[utoipa::path(
     get,
     path = "/api/projects/{slug}/jobs/{job_id}/inputs/manifest",
     operation_id = "input_manifest_api_projects__slug__jobs__job_id__inputs_manifest_get",
     summary = "Input Manifest",
-    description = "The verified artifact manifest the job reads: the submission's for a test job,\nthe tested outputs' for an evaluation job.",
+    description = "The verified artifact manifest of the run the job verifies.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -190,7 +158,7 @@ pub(crate) async fn manifest(
     path = "/api/projects/{slug}/jobs/{job_id}/inputs/object",
     operation_id = "input_object_api_projects__slug__jobs__job_id__inputs_object_get",
     summary = "Input Object",
-    description = "Stream one object listed in the job's input manifest; nothing else is readable.\n\nWith an object store that presigns, the answer is a redirect (302) to a\nshort-lived presigned GET instead: follow it without this request's\nheaders (the URL is the credential), and check the bytes against the\nmanifest's size and SHA-256 as always. Either way the stored object is\nchecked first (a HEAD): one that is gone, or no longer the verified\nartifact (another size or generation), is ``not_found``.",
+    description = "Stream one object listed in the job's input manifest, or one output of an earlier\nrun the job resumes from (``resume.outputs``); nothing else is readable.\n\nWith an object store that presigns, the answer is a redirect (302) to a\nshort-lived presigned GET instead: follow it without this request's\nheaders (the URL is the credential), and check the bytes against the\nmanifest's size and SHA-256 as always. Either way the stored object is\nchecked first (a HEAD): one that is gone, or no longer the verified\nartifact (another size or generation), is ``not_found``.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("key" = String, Query, max_length = 1024),
@@ -280,6 +248,39 @@ async fn input_manifest(
         .ok_or_else(|| internal(context))?;
     document(&found.content, context)
 }
+/// The readable objects of a job: its input manifest's, and on a rerun the verified outputs of
+/// the earlier run's steps it resumes after (`resume.outputs`), which live in this store.
+fn with_resumed_outputs(
+    manifest: &Arc<Document>,
+    job: &Job,
+    profile: &JobInputContext,
+    context: &RequestContext,
+) -> Result<Arc<Document>, Failure> {
+    let spec = cannery_core::json::to_value(&job.spec).map_err(|_| internal(context))?;
+    let outputs = spec["resume"]["outputs"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if outputs.is_empty() {
+        return Ok(Arc::clone(manifest));
+    }
+    let mut value = cannery_core::json::to_value(manifest).map_err(|_| internal(context))?;
+    let objects = value["objects"]
+        .as_array_mut()
+        .ok_or_else(|| internal(context))?;
+    for output in outputs {
+        objects.push(serde_json::json!({
+            "role": output["name"],
+            "storage": {"backend": profile.store.backend(), "bucket": profile.store.bucket(), "key": output["key"]},
+            "size_bytes": output["size_bytes"],
+            "sha256": output["sha256"],
+            "media_type": output["media_type"],
+        }));
+    }
+    cannery_core::json::from_value(value)
+        .map(Arc::new)
+        .map_err(|_| internal(context))
+}
 #[allow(
     clippy::too_many_lines,
     reason = "Retain source dependency, lease and response construction order"
@@ -341,21 +342,13 @@ async fn read(
         &mut auth.connection,
         &auth.principal,
         &paths["slug"],
-        None,
-        &[ServiceKind::Tester, ServiceKind::Evaluator],
+        Some(Role::Researcher),
+        &[ServiceKind::Agent, ServiceKind::Verifier],
         false,
     )
     .await
     .map_err(|error| failure(context.project_error(error)))?
     .project;
-    let Principal::Service(worker) = &auth.principal else {
-        return Err(internal(&context));
-    };
-    let kind = if worker.kind == ServiceKind::Tester {
-        "tester"
-    } else {
-        "evaluator"
-    };
     let job = repo::get_job(
         &mut auth.connection,
         id.ok_or_else(|| internal(&context))?,
@@ -366,24 +359,7 @@ async fn read(
     .map_err(|_| internal(&context))?
     .filter(|job| job.project_id == project.id)
     .ok_or_else(|| not_found("job not found"))?;
-    if job.stage.as_str() != kind {
-        return Err(domain(
-            ErrorCode::Forbidden,
-            format!(
-                "a {kind} service account cannot work on {} jobs",
-                job.stage.as_str()
-            ),
-        ));
-    }
-    if job.claimed_by_service != Some(worker.service_account_id) {
-        return Err(domain(
-            ErrorCode::Forbidden,
-            format!(
-                "only the {} that claimed this job can work on it",
-                job.stage.as_str()
-            ),
-        ));
-    }
+    crate::job_workers::holder(&job, &auth.principal).map_err(failure)?;
     let token = crate::request_context::first_header(&parts.headers, "x-lease-token");
     let (Some(token), Some(generation)) = (token, generation) else {
         return Err(domain(
@@ -415,77 +391,38 @@ async fn read(
     }
     let mut repository = Repository::new(&mut auth.connection, state.profile.attempts);
     let bytes = match operation {
-        Operation::Sheet | Operation::Evidence => {
+        Operation::Run => {
             let inputs = field(&job.spec, job.spec.root(), "inputs", &context)?;
             if !matches!(job.spec.node(inputs), Some(Node::Object(_))) {
                 return Err(internal(&context));
             }
-            let name = if matches!(operation, Operation::Sheet) {
-                "claimed_sheet"
-            } else {
-                "evidence"
-            };
             let reference = job
                 .spec
-                .field(inputs, name)
+                .field(inputs, "run")
                 .filter(|id| !matches!(job.spec.node(*id), Some(Node::Null)))
-                .ok_or_else(|| {
-                    not_found(if matches!(operation, Operation::Sheet) {
-                        "an evaluation job reads verified evidence, not the claimed sheet"
-                    } else {
-                        "a test job has no verified evidence input"
-                    })
-                })?;
-            let references = if matches!(operation, Operation::Sheet) {
-                vec![reference]
-            } else {
-                match job.spec.node(reference) {
-                    Some(Node::Array(values)) => values.clone(),
-                    Some(Node::Object(values)) if values.is_empty() => vec![],
-                    Some(Node::String(value)) if value.codepoints().is_empty() => vec![],
-                    _ => return Err(internal(&context)),
-                }
-            };
-            let mut records = vec![];
-            for reference in references {
-                let id = uuid(
-                    &job.spec,
-                    field(&job.spec, reference, "ref", &context)?,
+                .ok_or_else(|| not_found("this job has no run input"))?;
+            let id = uuid(
+                &job.spec,
+                field(&job.spec, reference, "ref", &context)?,
+                &state.profile,
+                &context,
+            )?;
+            let found = repository
+                .get_evidence_by_id(job.attempt_id, EvidenceId(id))
+                .await
+                .map_err(|_| internal(&context))?
+                .ok_or_else(|| internal(&context))?;
+            let record = document(&found.0, &context)?;
+            serde_json::to_vec(
+                &crate::api_contract::decode::<crate::api_models::ClaimedResult>(&mapping(
+                    &record,
+                    record.root(),
                     &state.profile,
                     &context,
-                )?;
-                let found = repository
-                    .get_evidence_by_id(job.attempt_id, EvidenceId(id))
-                    .await
-                    .map_err(|_| internal(&context))?
-                    .ok_or_else(|| internal(&context))?;
-                records.push(document(&found.0, &context)?);
-            }
-            if matches!(operation, Operation::Sheet) {
-                let record = records.first().ok_or_else(|| internal(&context))?;
-                serde_json::to_vec(
-                    &crate::api_contract::decode::<crate::api_models::ClaimedResult>(&mapping(
-                        record,
-                        record.root(),
-                        &state.profile,
-                        &context,
-                    )?)
-                    .map_err(|_| internal(&context))?,
-                )
-                .map_err(|_| internal(&context))?
-            } else {
-                let documents = records
-                    .iter()
-                    .map(|record| {
-                        let bytes = mapping(record, record.root(), &state.profile, &context)?;
-                        crate::api_contract::decode::<crate::api_models::EvidenceEnvelopeRequest>(
-                            &bytes,
-                        )
-                        .map_err(|_| internal(&context))
-                    })
-                    .collect::<Result<Vec<_>, Failure>>()?;
-                serde_json::to_vec(&documents).map_err(|_| internal(&context))?
-            }
+                )?)
+                .map_err(|_| internal(&context))?,
+            )
+            .map_err(|_| internal(&context))?
         }
         Operation::Manifest => {
             let value = input_manifest(&mut repository, &job, &state.profile, &context).await?;
@@ -499,6 +436,7 @@ async fn read(
         }
         Operation::Object => {
             let value = input_manifest(&mut repository, &job, &state.profile, &context).await?;
+            let value = with_resumed_outputs(&value, &job, &state.profile, &context)?;
             let response = transfer(
                 &mut repository,
                 value,

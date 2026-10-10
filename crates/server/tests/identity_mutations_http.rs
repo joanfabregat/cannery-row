@@ -477,7 +477,7 @@ async fn service_administration_preserves_scope_channel_disabled_and_audit_rules
             Method::POST,
             &base,
             world.admin_headers.clone(),
-            Some(&json!({"kind":"tester","name":"alpha"})),
+            Some(&json!({"kind":"verifier","name":"alpha"})),
         )
         .await?;
     let listed = world

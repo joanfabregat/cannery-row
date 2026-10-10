@@ -2,12 +2,12 @@
 
 This is the list of explicit limits and support boundaries of the implementation: request budgets, accepted encodings, schema and OIDC support, configuration grammar, and runner and launcher policies. Each entry says what the implementation does and, where it is not obvious, why. The general reason throughout is the same: the implementation uses maintained libraries and explicit application limits rather than open-ended or library-dependent behaviour. When you change one of these, update this page together with its schemas, the web client, the CLI documentation and the tests.
 
-The product behaviour these limits sit under (the REST operations, the MCP tools, the audit actions, the database schema and its `schema_migrations` bookkeeping, authorization, CSRF, state transitions, leases, recovery, object integrity, transactional audit, the error envelope, the step container contract, the runner job kinds and the stock evaluator's gates) is described in [spec.md](../spec.md), [contracts.md](../contracts.md) and [deploy.md](../deploy.md).
+The product behaviour these limits sit under (the REST operations, the MCP tools, the audit actions, the database schema and its `schema_migrations` bookkeeping, authorization, CSRF, state transitions, leases, recovery, object integrity, transactional audit, the error envelope, the step container contract, the runner job kinds and the stock policy's gates) is described in [spec.md](../spec.md), [contracts.md](../contracts.md) and [deploy.md](../deploy.md).
 
 Some fixed formats:
 
 - HTTP datetime formatting: `Z` for a zero UTC offset, six fractional digits only when microseconds are nonzero, offset seconds truncated to minutes (`crates/server/src/timestamps.rs`).
-- Canonical evidence bytes and their digests: sorted keys, compact UTF-8, the evaluator protocol's binary64 spelling.
+- Canonical evidence bytes and their digests: sorted keys, compact UTF-8, the runner protocol's binary64 spelling.
 - Unhandled failures return HTTP 500 with the plain-text body `Internal Server Error`.
 
 ## Request bodies and JSON
@@ -18,7 +18,7 @@ Some fixed formats:
 | Body read time | One 30-second deadline for the whole body read. It starts when reading starts and is not renewed by incoming chunks. Expiry returns the same HTTP 400. It does not cover authentication, database work or the response. | Slow clients cannot hold a handler indefinitely. |
 | JSON nesting | At most 127 nested containers are accepted. At 128, serde_json's recursion limit rejects the body as a syntax error: HTTP 422 `validation_failed` with a `body/<position>` "JSON decode error" detail. The internal conversion budget is `json::MAX_DEPTH` = 128. | A fixed, documented limit. |
 | Encoding and numbers | Standard UTF-8 JSON only. Invalid UTF-8, lone surrogate escapes and `NaN`/`Infinity` literals are syntax errors (HTTP 422 on REST control routes). A numeric literal longer than 1,024 bytes, or a float that overflows binary64, returns HTTP 400 like the byte cap. Runner configuration, policy files and API responses read by the runner follow the same UTF-8-only rule. | Rust strings are UTF-8; nonfinite numbers have no JSON representation. |
-| Number formatting | Standard serde JSON number formatting. Runner-written JSON files (`job.json` and similar) are pretty-printed UTF-8, not ASCII-escaped, and floats use Rust's display (`1` rather than `1.0` for an integral binary64 value in evaluator descriptions). | Standard serialization. Canonical evidence bytes are unaffected. |
+| Number formatting | Standard serde JSON number formatting. Runner-written JSON files (`job.json` and similar) are pretty-printed UTF-8, not ASCII-escaped, and floats use Rust's display (`1` rather than `1.0` for an integral binary64 value in gate details). | Standard serialization. Canonical evidence bytes are unaffected. |
 | Integers in queries and control fields | Checked integers within PostgreSQL's signed 64-bit range. Booleans, fractional values, Unicode digits and underscores are not integers. Consumed science and setup integer fields must be JSON integers in that range. | Typed DTOs. |
 | Fixed request shapes | Named serde DTOs. Fixed request envelopes must be JSON objects, even when every field is optional. Explicitly nullable optional bodies also accept JSON null. Unknown fields are rejected where the DTO declares it. PATCH keeps the difference between omitted and null. | One set of types generates both validation and OpenAPI. |
 | Validation errors | A sanitized `validation_failed` envelope with ordered paths and static wording. Error codes and paths are the contract; prose is not. | Messages never echo submitted values. |
@@ -34,7 +34,7 @@ Artifact byte streams and MCP requests use their own adapters and limits; the RE
 - Frozen job parameters stay dynamic project values, including scalar values.
 - Agent reports, imported reports and absent reports are distinct typed variants.
 - Phase output documents are at most 1 MiB, with front matter nested at most 64 deep and at most 100,000 nodes (`front_matter::Limits`), read by the same strict YAML rules as import bundles. A number that YAML would read as NaN or infinity is never turned into JSON null.
-- Historical imports have explicit read models for normalized hypothesis headers, imported evidence with provenance and measurement authority, and science revisions written before the evaluator field existed. The historical science variant has no evaluator field in serde or OpenAPI. These read models do not relax creation or update contracts.
+- Historical imports have explicit read models for normalized hypothesis headers, imported evidence with provenance and measurement authority. These read models do not relax creation or update contracts.
 - Stored artifact MIME values must be strings; malformed values fail before object-store access.
 - Human decision evidence revisions are checked signed 64-bit integers.
 - Model number projections serialize nonfinite results as JSON null. Nonfinite values cannot enter canonical evidence.
@@ -122,7 +122,7 @@ UTC sessions are the only supported configuration. Stored timestamps decode only
 ## Recovery
 
 - Shutdown waits for the active recovery statement to settle before closing the session and pool.
-- `sweeps.batch_size` is at most 10,000 records and `sweeps.batches_per_run` at most 100 pages per phase. Durations must be finite, positive and at most 86,400 seconds. Lease durations and sweep intervals must be positive; stalled-evaluation thresholds may be zero. Missed ticks are skipped.
+- `sweeps.batch_size` is at most 10,000 records and `sweeps.batches_per_run` at most 100 pages per phase. Durations must be finite, positive and at most 86,400 seconds. Lease durations and sweep intervals must be positive; the stalled-verification threshold may be zero. Missed ticks are skipped.
 
 ## Configuration
 
@@ -132,7 +132,7 @@ UTC sessions are the only supported configuration. Stored timestamps decode only
 
 ## Command line
 
-- Usage errors and runner or evaluator configuration refusals exit 2.
+- Usage errors and runner or policy configuration refusals exit 2.
 - An import that is refused, or that cannot read its bundle or settings, exits 1 with its problems on stderr.
 - A repeated option such as `--api-url` is refused.
 - Worker commands are checked by exit status and the persisted job, attempt, artifact and audit state, not by console wording.
@@ -159,8 +159,8 @@ UTC sessions are the only supported configuration. Stored timestamps decode only
 - Archives use the `tar` and `flate2` crates with explicit extraction limits, commit checks and safe link and destination handling. Gzip checksums are verified before publication. Failed publication and staging cleanup release cache holds.
 - A runner whose cache root another runner holds fails its scripted steps with `runner_error` and the reason `runner cache root is already in use`.
 - The local launcher resolves the command heads `python` and `python3` to `python3` on `PATH`. The step inherits only `PATH` from the runner's environment.
-- Policy evaluation requires setup time plus the step deadline plus 30 seconds of runner margin to fit in the science budget before fetching inputs or launching a step. An impossible budget produces a computed `evaluator_error` reason and no logs.
-- Evaluator inputs must match the pinned evidence digests one to one. Duplicate served digests and repeated pins are rejected. Missing, extra or tampered evidence is rejected.
+- A policy step requires setup time plus the step deadline plus 30 seconds of runner margin to fit in the science budget before fetching inputs or launching a step. An impossible budget fails the job with `deadline_exceeded`, a computed reason and no logs.
+- A rerun's reused outputs must match the digests its `resume` pins; a missing or tampered output is rejected before any step runs.
 - A denied 401/403 heartbeat is logged once. A 422 on an upload grant is classified `invalid_output` before any PUT.
 
 ### Container launchers

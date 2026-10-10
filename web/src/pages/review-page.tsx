@@ -33,7 +33,7 @@ import { usePermissions } from "@/projects/use-permissions";
 /**
  * The one-screen review of whatever waits for a researcher on a hypothesis:
  * its result or its failure. The evidence summary, the
- * evaluator's verdict, checks and comparisons, the decisions and a required
+ * verification's verdict, checks and comparisons, the decisions and a required
  * reason.
  */
 export function ReviewPage() {
@@ -179,13 +179,10 @@ function ResultReview({
   return (
     <QueryView query={reviewCase}>
       {(found) => {
-        const evaluation = (found.evaluation ?? {}) as {
-          assessment?: Record<string, unknown>;
-          producer?: { kind?: unknown; id?: unknown };
-          finished_at?: unknown;
-        };
-        const assessment = evaluation.assessment ?? {};
-        const verdict = text(assessment.verdict) ?? "unknown";
+        // The verification report the case is about: its front matter holds the verdict.
+        const verified = found.verification?.front_matter ?? {};
+        const published = report.data?.verification ?? null;
+        const verdict = text(verified.verdict) ?? "unknown";
         const subject = found.attempt_ref ?? hypothesis.ref;
         const choices: DecisionChoice<components["schemas"]["HumanDecisionRequestAction"]>[] = [
           ...(verdict === "pass"
@@ -217,8 +214,8 @@ function ResultReview({
               title="What happened"
               description={
                 imported
-                  ? `Attempt ${subject}, as recorded in the history this project was imported from: no agent reported it and this project's tester did not measure it.`
-                  : `Attempt ${subject}, as reported by the agent and measured by the tester.`
+                  ? `Attempt ${subject}, as recorded in the history this project was imported from: no agent reported it and this project's verifier did not measure it.`
+                  : `Attempt ${subject}, as reported by the agent and measured by the verifier.`
               }
             >
               {report.isPending && ref !== null ? (
@@ -240,16 +237,18 @@ function ResultReview({
                     </Fact>
                   ) : null}
                   <MeasurementsTable
-                    verified={asList<Measurement>(report.data.tester?.measurements)}
+                    verified={asList<Measurement>(report.data.verification?.measurements)}
                     claimed={asList<Measurement>(report.data.claimed_measurements)}
                   />
-                  {asList<Discrepancy>(report.data.tester?.discrepancies).length > 0 ? (
+                  {asList<Discrepancy>(report.data.verification?.discrepancies).length > 0 ? (
                     <div className="flex flex-col gap-2">
-                      <h3 className="font-medium">Disagreements found by the tester</h3>
+                      <h3 className="font-medium">Disagreements found by the verifier</h3>
                       <ul className="flex list-disc flex-col gap-1 pl-5 text-sm">
-                        {asList<Discrepancy>(report.data.tester?.discrepancies).map((d, i) => (
-                          <li key={i}>{d.description}</li>
-                        ))}
+                        {asList<Discrepancy>(report.data.verification?.discrepancies).map(
+                          (d, i) => (
+                            <li key={i}>{d.description}</li>
+                          ),
+                        )}
                       </ul>
                     </div>
                   ) : null}
@@ -267,29 +266,30 @@ function ResultReview({
               )}
             </Section>
             <Section
-              title="Evaluator verdict"
+              title="Verification verdict"
               description={
                 imported
                   ? "The verdict the imported history recorded, under the rules it names; the decision is yours."
-                  : "The evaluator registered for this project applies its own rules; the decision is yours."
+                  : "The verifier applies the policy this project registers; the decision is yours."
               }
             >
               <div className="flex flex-col gap-4">
                 <Assessment
                   project={project}
                   scienceRevision={report.data?.science_revision ?? null}
-                  measurements={asList<Measurement>(report.data?.tester?.measurements)}
+                  measurements={asList<Measurement>(verified.measurements)}
                   verdict={verdict}
-                  reason={text(assessment.reason)}
-                  judged={judgedBy(evaluation.producer, text(assessment.policy_revision))}
-                  at={text(evaluation.finished_at) ?? undefined}
-                  gates={asList<GateResult>(assessment.gates)}
-                  comparisons={asComparisons(assessment.comparisons)}
+                  reason={text(verified.reason)}
+                  judged={judgedBy(published?.producer, text(verified.policy_revision))}
+                  at={published?.published_at}
+                  gates={asList<GateResult>(verified.gates)}
+                  comparisons={asComparisons(verified.comparisons)}
                   reportLoading={ref !== null && report.isPending}
                 />
                 {verdict !== "pass" ? (
                   <p className="text-sm text-muted-foreground">
-                    Accepting is not possible: only a result the evaluator passed can be accepted.
+                    Accepting is not possible: only a result the verification passed can be
+                    accepted.
                   </p>
                 ) : null}
               </div>
@@ -334,7 +334,7 @@ function FailureReview({
             variant: "default",
             effect: agentSide
               ? `${hypothesis.ref} goes back to the queue: an agent can claim it again, which starts a new attempt.`
-              : `The ${label("stage", failure?.stage ?? "tester").toLowerCase()} of attempt ${subject} will run again on the same submission.`,
+              : `The ${label("stage", failure?.stage ?? "verify").toLowerCase()} of attempt ${subject} will run again on the same submission.`,
           },
           {
             action: "close_failed",

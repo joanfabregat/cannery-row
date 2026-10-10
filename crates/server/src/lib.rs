@@ -57,6 +57,7 @@ pub mod job_read_routes;
 pub mod job_read_wire;
 mod job_upload_request;
 pub mod job_upload_routes;
+mod job_workers;
 pub mod manifest_routes;
 pub mod mcp;
 mod metric_request;
@@ -194,8 +195,7 @@ pub use documentation::OPENAPI;
         step_routes::rest_get_experiment_step,
         job_claim_routes::claim,
         job_claim_routes::heartbeat,
-        job_input_routes::sheet,
-        job_input_routes::evidence,
+        job_input_routes::run,
         job_input_routes::manifest,
         job_input_routes::object,
         job_upload_routes::create,

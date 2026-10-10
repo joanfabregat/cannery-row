@@ -67,7 +67,7 @@ hypotheses:
         - {kind: supersedes, hypothesis: 3}
     attempts:
       - by: agent
-        stop: evaluated
+        stop: verified
         seconds: 7800
         candidate: {model: gradient-boosted-trees, loss: tweedie, horizons: [1, 7], lags: 28, num_leaves: 63, learning_rate: 0.05}
         sheet:
@@ -92,7 +92,7 @@ hypotheses:
           - {metric: mase, split: backtest, dims: {horizon: d1}, claimed: 0.8, verified: 0.803, n: 480}
           - {metric: mase, split: backtest, dims: {horizon: d7}, claimed: 0.88, verified: 0.881, n: 480}
           - {metric: mape, split: backtest, claimed: 18.4, verified: 18.6, n: 480}
-        tester_notes: Refitted on the 13 backtest windows from the submitted configuration; MASE within 0.003 of the claim.
+        notes: Refitted on the 13 backtest windows from the submitted configuration; MASE within 0.003 of the claim.
         verdict:
           result: pass
           gates:
@@ -129,7 +129,7 @@ hypotheses:
         - {kind: derived_from, hypothesis: lgbm-global}
     attempts:
       - by: agent
-        stop: tested
+        stop: verifying
         seconds: 8100
         candidate: {model: gradient-boosted-trees, loss: tweedie, horizons: [1, 7], weather: [forecast_tmax, forecast_rain_prob]}
         sheet:
@@ -147,7 +147,7 @@ hypotheses:
           - {metric: mase, split: backtest, claimed: 0.826, verified: 0.829, n: 480, control: 1.0}
           - {metric: mase, split: backtest, dims: {horizon: d1}, claimed: 0.801, verified: 0.802, n: 480}
           - {metric: mase, split: backtest, dims: {horizon: d7}, claimed: 0.851, verified: 0.856, n: 480}
-        tester_notes: Checked that every weather value was issued before the forecast date.
+        notes: Checked that every weather value was issued before the forecast date.
 
   - key: quantile-intervals
     doc:
@@ -170,7 +170,7 @@ hypotheses:
         - {kind: derived_from, hypothesis: lgbm-global}
     attempts:
       - by: chloe
-        stop: evaluated
+        stop: verified
         seconds: 9900
         candidate: {model: gradient-boosted-trees, quantiles: [0.1, 0.5, 0.9]}
         sheet:

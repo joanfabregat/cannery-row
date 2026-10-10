@@ -1,0 +1,21 @@
+{
+  "schema_version": "0.2",
+  "verifier": {"id": "cannery-runner", "revision": "fixture-policy-1"},
+  "gates": [
+    {"id": "mrr-holds-control", "metric": "mrr", "split": "dev", "statistic": "value", "compare": "control", "op": ">=", "min_delta": 0.0},
+    {"id": "no-language-regression", "metric": "mrr", "split": "dev", "per_dimension": "language", "statistic": "value", "compare": "control", "op": ">=", "min_delta": -0.05}
+  ],
+  "baselines": [
+    {
+      "id": "base-camp",
+      "revision": "fixture-r1",
+      "label": "Fixture control (base-camp fixture-r1)",
+      "measurements": [
+        {"metric": "mrr", "split": "dev", "dimensions": {}, "value": 0.625},
+        {"metric": "mrr", "split": "dev", "dimensions": {"language": "en"}, "value": 0.75},
+        {"metric": "mrr", "split": "dev", "dimensions": {"language": "fr"}, "value": 0.5}
+      ]
+    }
+  ],
+  "default_control": {"id": "base-camp", "revision": "fixture-r1"}
+}

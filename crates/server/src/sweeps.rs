@@ -38,8 +38,6 @@ pub struct SweepReport {
     pub attempts_requeued: u64,
     pub jobs_failed: u64,
     pub jobs_rerun: u64,
-    pub evaluations_started: u64,
-    pub evaluations_refused: u64,
     pub uploads_expired: u64,
     pub uploads_failed: u64,
     pub objects_deleted: u64,
@@ -71,7 +69,6 @@ type Result<T> = std::result::Result<T, SweepError>;
 enum Phase {
     Attempts,
     Jobs,
-    Evaluations,
     Uploads,
     FailedUploads,
 }
@@ -303,7 +300,6 @@ async fn run_owned(state: &AppState, settlement: Arc<Settlement>) -> Result<Swee
         for phase in [
             Phase::Attempts,
             Phase::Jobs,
-            Phase::Evaluations,
             Phase::Uploads,
             Phase::FailedUploads,
         ] {
@@ -367,7 +363,6 @@ async fn each(
                     )
                     .await
                 }
-                Phase::Evaluations => restart(c, s, row.id, report, r).await,
                 Phase::Uploads => {
                     orphan(
                         c,
@@ -411,7 +406,6 @@ async fn candidates(
     Ok(match phase {
         Phase::Attempts => sqlx::query!("SELECT id AS \"id: Uuid\" FROM attempts WHERE state IN ('claimed','running') AND (lease_expires_at<=now() OR deadline<=now()) AND id<>ALL($1::uuid[]) ORDER BY lease_expires_at,id LIMIT $2", seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:None }).collect(),
         Phase::Jobs => sqlx::query!("SELECT id AS \"id: Uuid\",attempt_id AS \"attempt_id: Uuid\" FROM jobs WHERE state='claimed' AND (lease_expires_at<=now() OR deadline<=now()) AND id<>ALL($1::uuid[]) ORDER BY lease_expires_at,id LIMIT $2", seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:Some(r.attempt_id), key:None }).collect(),
-        Phase::Evaluations => sqlx::query!("SELECT id AS \"id: Uuid\" FROM attempts WHERE state='evaluating' AND lease_token_hash IS NULL AND NOT EXISTS(SELECT 1 FROM jobs WHERE jobs.attempt_id=attempts.id AND stage='evaluator' AND state IN ('pending','claimed')) AND NOT EXISTS(SELECT 1 FROM phase_outputs WHERE phase_outputs.attempt_id=attempts.id AND stage='evaluator') AND id<>ALL($1::uuid[]) ORDER BY submitted_at,id LIMIT $2", seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:None }).collect(),
         Phase::Uploads => sqlx::query!("SELECT id AS \"id: Uuid\",key FROM uploads WHERE state IN ('pending','receiving') AND expires_at<=now() AND (state='pending' OR receiving_since<=now()-($1::float8*interval '1 second')) AND backend=$2 AND bucket=$3 AND id<>ALL($4::uuid[]) ORDER BY expires_at,id LIMIT $5", s.max_stream_seconds, s.store.backend(), s.store.bucket(), seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:Some(r.key) }).collect(),
         Phase::FailedUploads => sqlx::query!("SELECT id AS \"id: Uuid\",key FROM uploads WHERE state='failed' AND object_pending_delete AND (urls_expire_at IS NULL OR urls_expire_at<=now()) AND backend=$1 AND bucket=$2 AND id<>ALL($3::uuid[]) ORDER BY id LIMIT $4", s.store.backend(), s.store.bucket(), seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:Some(r.key) }).collect(),
     })
@@ -544,12 +538,7 @@ async fn expire_job(
         reason,
         logs: &empty,
     };
-    let state = if job.stage == jobs::Stage::Tester {
-        "testing"
-    } else {
-        "evaluating"
-    };
-    let rerun = if attempt.state.as_str() == state {
+    let rerun = if attempt.state == cannery_attempts::model::State::Verifying {
         job_lifecycle::fail_job_run_as(
             &mut tx,
             Attribution::System(None),
@@ -588,99 +577,6 @@ async fn expire_job(
     tx.commit().await?;
     report.jobs_failed += 1;
     report.jobs_rerun += u64::from(rerun);
-    Ok(())
-}
-
-async fn restart(
-    c: &mut PgConnection,
-    s: &SweepContext,
-    id: Uuid,
-    report: &mut SweepReport,
-    r: &RequestContext,
-) -> Result<()> {
-    let mut tx = c.begin().await?;
-    let locked = sqlx::query!("SELECT id AS \"id: Uuid\" FROM attempts WHERE id=$1 AND state='evaluating' AND lease_token_hash IS NULL AND NOT EXISTS(SELECT 1 FROM jobs WHERE jobs.attempt_id=attempts.id AND stage='evaluator' AND state IN ('pending','claimed')) AND NOT EXISTS(SELECT 1 FROM phase_outputs WHERE phase_outputs.attempt_id=attempts.id AND stage='evaluator') FOR UPDATE OF attempts SKIP LOCKED", id as _).fetch_optional(&mut *tx).await?;
-    if locked.is_none() {
-        tx.rollback().await?;
-        return Ok(());
-    }
-    let attempt = Repository::new(&mut tx, s.lifecycle.attempts)
-        .get_attempt_by_id(AttemptId(id), false)
-        .await
-        .map_err(|_| SweepError::Database)?
-        .ok_or(SweepError::Database)?;
-    if let Some(reason) = job_lifecycle::no_evaluator_reason(&mut tx, &attempt, &s.lifecycle, r)
-        .await
-        .map_err(|_| SweepError::Transition)?
-    {
-        job_lifecycle::fail_without_evaluator_as(
-            &mut tx,
-            Attribution::System(None),
-            &attempt,
-            jobs::Stage::Evaluator,
-            &reason,
-            &s.lifecycle,
-            r,
-        )
-        .await
-        .map_err(|_| SweepError::Transition)?;
-        tx.commit().await?;
-        report.evaluations_refused += 1;
-        return Ok(());
-    }
-    let test = jobs::latest_job(&mut tx, attempt.id, jobs::Stage::Tester, s.lifecycle.jobs)
-        .await
-        .map_err(|_| SweepError::Database)?;
-    let Some(test) = test.filter(|j| {
-        j.state == jobs::State::Completed && j.evidence_id.is_some() && j.manifest_id.is_some()
-    }) else {
-        tx.rollback().await?;
-        return Ok(());
-    };
-    let evidence =
-        cannery_attempts::model::EvidenceId(test.evidence_id.ok_or(SweepError::Transition)?.0);
-    let manifest_id =
-        cannery_attempts::model::ManifestId(test.manifest_id.ok_or(SweepError::Transition)?.0);
-    let mut repository = Repository::new(&mut tx, s.lifecycle.attempts);
-    let (_, hash) = repository
-        .get_evidence_by_id(attempt.id, evidence)
-        .await
-        .map_err(|_| SweepError::Database)?
-        .ok_or(SweepError::Database)?;
-    let manifest = repository
-        .get_manifest(attempt.id, manifest_id)
-        .await
-        .map_err(|_| SweepError::Database)?
-        .ok_or(SweepError::Database)?;
-    let job = job_lifecycle::start_evaluation_as(
-        &mut tx,
-        Attribution::System(None),
-        &attempt,
-        &test,
-        evidence,
-        &hash,
-        &manifest,
-        &s.lifecycle,
-        r,
-    )
-    .await
-    .map_err(|_| SweepError::Transition)?;
-    job_lifecycle::event_as(
-        &mut tx,
-        Attribution::System(None),
-        &attempt,
-        "attempt.evaluation_restarted",
-        "attempt",
-        &id.to_string(),
-        Some(&json!({"state":"evaluating"})),
-        &json!({"test_job_id":test.id,"evidence_id":evidence.0,"evaluation_job_id":job.map(|j|j.id)}),
-        Some("an evaluating attempt had no evaluation job and no evaluator record"),
-        r,
-    )
-    .await
-    .map_err(|_| SweepError::Transition)?;
-    tx.commit().await?;
-    report.evaluations_started += 1;
     Ok(())
 }
 

@@ -170,7 +170,8 @@ pub(super) fn contexts(
     let job_lifecycle = Arc::new(crate::job_completion_routes::JobLifecycleContext {
         flow: (*lifecycle).clone(),
         contracts: validator()?,
-
+        phases: cannery_core::contracts::phases::PhaseSchemas::new()
+            .map_err(|_| ServerError::Contracts)?,
         repr_budget: DEPTH,
         response: crate::job_read_wire::ResponseContext {
             inferred_nesting_budget: DEPTH,
@@ -212,7 +213,7 @@ pub(super) fn contexts(
             ),
         })),
         submissions: Some(Arc::new(crate::submission_routes::SubmissionContext {
-            lifecycle,
+            lifecycle: lifecycle.clone(),
             phases: cannery_core::contracts::phases::PhaseSchemas::new()
                 .map_err(|_| ServerError::Contracts)?,
             nesting_budget: DEPTH,
@@ -361,6 +362,7 @@ pub(super) fn contexts(
                 science_rendering: science(),
                 jobs: jobs(),
                 audit_encoding_budget: DEPTH,
+                lifecycle: lifecycle.clone(),
             },
         )),
         search: Some(Arc::new(crate::search_routes::SearchContext {

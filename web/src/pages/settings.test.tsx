@@ -112,7 +112,7 @@ describe("Results", () => {
     expect(new URL(query?.url ?? "").searchParams.get("authority")).toBe("agent_claim");
   });
 
-  it("labels each point's reference and notes results evaluated before references", async () => {
+  it("labels each point's reference and notes results verified before references", async () => {
     const base = view();
     const [first] = base.series[0]?.points ?? [];
     if (first === undefined) throw new Error("no point");
@@ -160,7 +160,7 @@ describe("Results", () => {
     expect(within(table).getByRole("columnheader", { name: "Reference" })).toBeInTheDocument();
     expect(within(table).getByText("best promoted (#42)")).toBeInTheDocument();
     expect(
-      within(card).getByText(/^No reference for results evaluated before .+\.$/),
+      within(card).getByText(/^No reference for results verified before .+\.$/),
     ).toBeInTheDocument();
   });
 

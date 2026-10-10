@@ -49,13 +49,13 @@ fn job_documents_preserve_source_order_leases_and_native_text()
         let Some(Node::String(token)) = token.node(token.root()) else {
             return Err("token".into());
         };
-        let stage = String::from(text("stage")?);
+        let phase = String::from("verify");
         let revision: BigInt = text("revision")?.parse()?;
         let generation: BigInt = text("generation")?.parse()?;
         let job = JobDocument {
             id: "11111111-1111-4111-8111-111111111111".parse::<JobId>()?,
             attempt_id: "22222222-2222-4222-8222-222222222222".parse::<AttemptId>()?,
-            stage: &stage,
+            phase: &phase,
             science_revision: &revision,
             lease_generation: &generation,
             deadline: timestamp("deadline")?,
@@ -94,6 +94,6 @@ fn job_documents_preserve_source_order_leases_and_native_text()
             }
         }
     }
-    assert_eq!(cases.len(), 160);
+    assert_eq!(cases.len(), 70);
     Ok(())
 }

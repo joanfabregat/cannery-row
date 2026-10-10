@@ -1,0 +1,38 @@
+{
+  "reason": "'schema_version' was unexpected",
+  "document": {
+    "schema_version": "0.2",
+    "verdict": "inconclusive",
+    "reason": "The French slice has 12 queries; the interval spans the control.",
+    "policy_revision": "reviewer-checklist-2",
+    "gates": [
+      {
+        "id": "primary-beats-control",
+        "result": "unknown",
+        "detail": "Too few French queries to decide."
+      },
+      {
+        "id": "latency-holds",
+        "result": "pass"
+      }
+    ],
+    "measurements": [
+      {
+        "metric": "ndcg_at_10",
+        "value": 0.41,
+        "authority": "tester_verified",
+        "unit": "ratio",
+        "direction": "higher",
+        "split": "dev",
+        "dimensions": {
+          "language": "fr"
+        },
+        "sample_count": 12
+      }
+    ],
+    "provenance": {
+      "source_revision": "4f2a9c1",
+      "science_revision": "3"
+    }
+  }
+}

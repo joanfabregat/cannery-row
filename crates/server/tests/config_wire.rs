@@ -20,7 +20,7 @@ const CONTEXT: ResponseContext = ResponseContext {
 
 fn science() -> Result<Value, Box<dyn std::error::Error>> {
     Ok(serde_json::from_slice(include_bytes!(
-        "../../../tests/fixtures/contracts/science_revision/valid/external_evaluator_minimal.json"
+        "../../../tests/fixtures/contracts/science_revision/valid/agent_minimal.json"
     ))?)
 }
 
@@ -96,9 +96,9 @@ fn content_round_trips_json_strings_numbers_arrays_and_nested_objects() -> TestR
 #[test]
 fn page_preserves_item_order_and_serializes_optional_cursor() -> TestResult {
     let mut content = science()?;
-    content["tester"]["revision"] = value!("page-first");
+    content["baselines"][0]["revision"] = value!("page-first");
     let first = row(&serde_json::to_string(&content)?)?;
-    content["tester"]["revision"] = value!("page-second");
+    content["baselines"][0]["revision"] = value!("page-second");
     let mut second = row(&serde_json::to_string(&content)?)?;
     second.revision = 6;
     let bytes = config_wire::page_bytes(&[first, second], Some(6), CONTEXT)?;
@@ -113,7 +113,7 @@ fn page_preserves_item_order_and_serializes_optional_cursor() -> TestResult {
     );
     for (item, revision) in page.items.iter().zip(["page-first", "page-second"]) {
         let content = serde_json::to_value(&item.content)?;
-        assert_eq!(content["tester"]["revision"], revision);
+        assert_eq!(content["baselines"][0]["revision"], revision);
     }
     let empty: Value = serde_json::from_slice(&config_wire::page_bytes(&[], None, CONTEXT)?)?;
     assert_eq!(empty, value!({"items":[], "next_before":null}));
@@ -139,7 +139,7 @@ fn stored_content_rejects_malformed_fixed_configuration_fields() -> TestResult {
         );
     }
     let mut content = science()?;
-    content["tester"]["revision"] = value!(false);
+    content["verify"]["performer"] = value!(false);
     assert!(config_wire::config_bytes(&row(&serde_json::to_string(&content)?)?, CONTEXT).is_err());
     let mut content = dashboard()?;
     content["views"] = value!({"id":"not-an-array"});

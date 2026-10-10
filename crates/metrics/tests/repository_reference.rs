@@ -178,7 +178,7 @@ async fn queries_match_actual_source() -> Result<(), Box<dyn Error>> {
         (
             include_str!("../src/sql/points.sql"),
             include_str!(
-                "../../../.sqlx/query-8c70f997103972dd18d0ff4a1362aaa05a2c6ede4771527d41d7d1795035567a.json"
+                "../../../.sqlx/query-484dca16323b85511b72f610e37f807104bef4ca5d8c67ac7d4c08551a309679.json"
             ),
         ),
         (

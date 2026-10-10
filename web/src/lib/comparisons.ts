@@ -5,8 +5,8 @@ import { resolveLink } from "./links";
 import { refTarget } from "./refs";
 
 /**
- * What an evaluator verdict compared, as its record reports it
- * (`assessment.comparisons`): a value per metric, split and slice, and the
+ * What a verification verdict compared, as its report states it
+ * (`comparisons`): a value per metric, split and slice, and the
  * reference it was held against. Cannery Row does not judge a comparison;
  * the page only says which side the metric's direction favours.
  */
@@ -38,7 +38,7 @@ function asReference(value: unknown): Reference | null {
   };
 }
 
-/** The comparisons of an evaluator record, skipping any entry it cannot read. */
+/** The comparisons of a verification report, skipping any entry it cannot read. */
 export function asComparisons(value: unknown): Comparison[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry: unknown) => {
@@ -126,8 +126,8 @@ export function standing(value: number, reference: number, direction: Direction 
 }
 
 /**
- * Who judged, under which rules: "Judged by stock-evaluator (rules version
- * p2)". The rules are the evaluator's, not Cannery Row's.
+ * Who judged, under which rules: "Judged by stock-verifier (rules version
+ * p2)". The rules are the project's policy, not Cannery Row's.
  */
 export function judgedBy(
   producer: { kind?: unknown; id?: unknown } | null | undefined,
@@ -151,7 +151,7 @@ const PROJECT_PREFIX = /^\s*([a-z0-9][a-z0-9-]{0,62})#/;
 /**
  * Where a reference's `ref` leads: a hypothesis (`#12`) or attempt (`#12.3`)
  * of this project, or an http(s) address opened in a new tab. A ref naming
- * another project (`other#12`) is not followed: the comparison's evaluator
+ * another project (`other#12`) is not followed: the comparison's verifier
  * reports on this project only. A baseline id, a DOI or anything else stays
  * plain text (null).
  */

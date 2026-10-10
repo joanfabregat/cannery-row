@@ -134,12 +134,8 @@ pub enum AttemptState {
     Claimed,
     #[serde(rename = "running")]
     Running,
-    #[serde(rename = "submitted")]
-    Submitted,
-    #[serde(rename = "testing")]
-    Testing,
-    #[serde(rename = "evaluating")]
-    Evaluating,
+    #[serde(rename = "verifying")]
+    Verifying,
     #[serde(rename = "awaiting_human_review")]
     AwaitingHumanReview,
     #[serde(rename = "promoted")]
@@ -182,8 +178,8 @@ pub struct AttentionOut {
     pub running: Vec<AttentionRunning>,
     pub recent_outcomes: Vec<AttentionOutcome>,
     pub recent_failures: Vec<AttentionFailure>,
-    pub stalled_evaluation_count: i64,
-    pub stalled_evaluations: Vec<AttentionStalledEvaluation>,
+    pub stalled_verification_count: i64,
+    pub stalled_verifications: Vec<AttentionStalledVerification>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -244,14 +240,17 @@ pub struct AttentionRunning {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct AttentionStalledEvaluation {
+pub struct AttentionStalledVerification {
     pub hypothesis: i64,
     pub hypothesis_ref: String,
     pub title: String,
     pub track: String,
     pub attempt_ref: String,
-    pub evaluator: String,
-    pub revision: String,
+    pub performer: String,
+    #[schema(required = true)]
+    pub verifier: Option<String>,
+    #[schema(required = true)]
+    pub revision: Option<String>,
     #[schema(format = "date-time")]
     pub waiting_since: String,
     pub message: String,
@@ -923,7 +922,7 @@ pub struct DisableRequest {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct EvaluatorReport {
+pub struct VerificationReport {
     pub status: String,
     #[schema(required = true)]
     pub verdict: Option<String>,
@@ -931,13 +930,51 @@ pub struct EvaluatorReport {
     pub reason: Option<String>,
     #[schema(required = true)]
     pub policy_revision: Option<String>,
-    pub gates: Vec<RequestEvidenceEnvelopeAssessmentGatesItem>,
+    pub gates: Vec<VerificationGate>,
     pub comparisons: Vec<RequestEvidenceEnvelopeComparison>,
+    pub measurements: Vec<ReadMeasurement>,
+    pub discrepancies: Vec<RequestEvidenceEnvelopeDiscrepancy>,
+    /// The report's Markdown body; null when it has none.
+    #[schema(required = true)]
+    pub body_markdown: Option<String>,
     pub producer: Producer,
     #[schema(format = "date-time")]
     pub published_at: String,
     #[serde(default)]
     pub source_ref: Option<String>,
+}
+
+/// One gate of a verification report.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VerificationGate {
+    pub id: String,
+    pub result: VerificationGateResult,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub detail: Option<String>,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+pub enum VerificationGateResult {
+    #[serde(rename = "pass")]
+    Pass,
+    #[serde(rename = "fail")]
+    Fail,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+/// A published verification report: its front matter and its Markdown body.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VerificationDocument {
+    pub front_matter: BTreeMap<String, serde_json::Value>,
+    pub body_markdown: String,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -1083,8 +1120,9 @@ pub struct JobClaimOut {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct JobClaimRequest {
+    /// The phase to claim a job of; only `verify` today.
     #[serde(default)]
-    pub stage: Option<String>,
+    pub phase: Option<String>,
     #[serde(default)]
     #[schema(min_length = 1, max_length = 128)]
     pub revision: Option<String>,
@@ -1107,25 +1145,33 @@ pub struct JobOut {
     pub id: String,
     #[schema(format = "uuid")]
     pub attempt_id: String,
-    pub stage: String,
+    pub phase: String,
+    /// `runner` (a verifier service account runs it) or `agent` (an agent
+    /// service account or a researcher who did not run the attempt).
+    pub performer: String,
     pub run_number: i64,
     pub origin: String,
     #[schema(format = "uuid", required = true)]
     pub previous_run_id: Option<String>,
     pub state: String,
     pub science_revision: i64,
-    pub tester: String,
+    /// The verifier service account registered to run a runner job.
+    #[schema(required = true)]
+    pub verifier: Option<String>,
     pub track: String,
     pub steps: Vec<StepRef>,
-    #[schema(required = true)]
-    pub parameters: Option<BTreeMap<String, serde_json::Value>>,
+    pub parameters: BTreeMap<String, serde_json::Value>,
     pub output_prefix: String,
     #[schema(format = "date-time")]
     pub created_at: String,
     #[schema(format = "date-time", required = true)]
     pub claimed_at: Option<String>,
+    /// The service account that claimed the job.
     #[schema(format = "uuid", required = true)]
     pub claimed_by: Option<String>,
+    /// The researcher who claimed the job.
+    #[schema(format = "uuid", required = true)]
+    pub claimed_by_user: Option<String>,
     #[schema(required = true)]
     pub via_client: Option<String>,
     #[schema(format = "date-time", required = true)]
@@ -1142,8 +1188,9 @@ pub struct JobOut {
     #[schema(required = true)]
     pub error_reason: Option<String>,
     pub logs: Vec<LogRef>,
+    /// The verification report the job published.
     #[schema(required = true)]
-    pub evidence: Option<ReadEvidenceEnvelope>,
+    pub verification: Option<VerificationDocument>,
     pub outputs: Vec<ArtifactOut>,
 }
 
@@ -1631,10 +1678,9 @@ pub struct ReportOut {
     #[schema(format = "date-time")]
     pub submitted_at: String,
     pub author: Producer,
+    /// The attempt's latest verification report.
     #[schema(required = true)]
-    pub tester: Option<TesterReport>,
-    #[schema(required = true)]
-    pub evaluation: Option<EvaluatorReport>,
+    pub verification: Option<VerificationReport>,
     pub decisions: Vec<DecisionOut>,
     pub assets: Vec<ArtifactOut>,
 }
@@ -1834,10 +1880,8 @@ pub enum ServiceKind {
     Agent,
     #[serde(rename = "experimenter")]
     Experimenter,
-    #[serde(rename = "tester")]
-    Tester,
-    #[serde(rename = "evaluator")]
-    Evaluator,
+    #[serde(rename = "verifier")]
+    Verifier,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -1853,20 +1897,6 @@ pub struct StorageRef {
     pub backend: String,
     pub bucket: String,
     pub key: String,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct TesterReport {
-    pub status: String,
-    #[schema(required = true)]
-    pub observations: Option<String>,
-    pub discrepancies: Vec<RequestEvidenceEnvelopeDiscrepancy>,
-    pub measurements: Vec<ReadMeasurement>,
-    #[schema(format = "date-time")]
-    pub published_at: String,
-    #[serde(default)]
-    pub source_ref: Option<String>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -2143,8 +2173,9 @@ pub struct cannery_row__reviews__routes__ReviewCaseOut {
     pub source_ref: Option<String>,
     #[schema(required = true)]
     pub failure: Option<cannery_row__reviews__routes__FailureOut>,
+    /// The verification report a result case is about.
     #[schema(required = true)]
-    pub evaluation: Option<ReadEvidenceEnvelope>,
+    pub verification: Option<VerificationDocument>,
     pub decisions: Vec<DecisionOut>,
 }
 
@@ -2158,10 +2189,8 @@ pub enum cannery_row__search__routes__Kind {
     Attempt,
     #[serde(rename = "report")]
     Report,
-    #[serde(rename = "tester_observation")]
-    TesterObservation,
-    #[serde(rename = "evaluator_reason")]
-    EvaluatorReason,
+    #[serde(rename = "verification")]
+    Verification,
     #[serde(rename = "decision_reason")]
     DecisionReason,
     #[serde(rename = "comment")]
@@ -2324,7 +2353,9 @@ pub enum RequestArtifactManifestObjectStorageBackend {
 pub struct JobCompletionRequest {
     pub schema_version: RequestCommonSchemaVersion,
     pub job_id: String,
-    pub evidence: CompletionEvidenceEnvelopeRequest,
+    /// The verification report: Markdown with YAML front matter.
+    #[schema(min_length = 1, max_length = 1_048_576)]
+    pub document: String,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -2375,27 +2406,8 @@ pub struct EvidenceEnvelopeRequest {
     )]
     #[schema(nullable = false)]
     pub artifact_roles: Option<Vec<String>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub report: Option<RequestEvidenceEnvelopeReport>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub manifest: Option<RequestCommonContentRef>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub assessment: Option<RequestEvidenceEnvelopeAssessment>,
+    pub report: RequestEvidenceEnvelopeReport,
+    pub manifest: RequestCommonContentRef,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -2409,10 +2421,6 @@ pub struct EvidenceEnvelopeRequest {
 pub enum EvidenceEnvelopeRequestStage {
     #[serde(rename = "agent")]
     Agent,
-    #[serde(rename = "tester")]
-    Tester,
-    #[serde(rename = "evaluator")]
-    Evaluator,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -2434,23 +2442,12 @@ pub struct EvidenceEnvelopeRequestProducer {
 pub enum EvidenceEnvelopeRequestProducerKind {
     #[serde(rename = "agent")]
     Agent,
-    #[serde(rename = "service")]
-    Service,
-    #[serde(rename = "builtin")]
-    Builtin,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EvidenceEnvelopeRequestProvenance {
     pub source_revision: String,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub tester_revision: Option<String>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -2623,47 +2620,6 @@ pub struct RequestCommonContentRef {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RequestEvidenceEnvelopeAssessment {
-    pub policy_revision: String,
-    pub gates: Vec<RequestEvidenceEnvelopeAssessmentGatesItem>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub comparisons: Option<Vec<RequestEvidenceEnvelopeComparison>>,
-    pub evidence: Vec<RequestCommonContentRef>,
-    pub verdict: RequestEvidenceEnvelopeAssessmentVerdict,
-    pub reason: String,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct RequestEvidenceEnvelopeAssessmentGatesItem {
-    pub id: String,
-    pub result: RequestEvidenceEnvelopeAssessmentGatesItemResult,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub detail: Option<String>,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum RequestEvidenceEnvelopeAssessmentGatesItemResult {
-    #[serde(rename = "pass")]
-    Pass,
-    #[serde(rename = "fail")]
-    Fail,
-    #[serde(rename = "unknown")]
-    Unknown,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
 pub struct RequestEvidenceEnvelopeComparison {
     pub metric: String,
     pub split: String,
@@ -2712,16 +2668,6 @@ pub enum RequestEvidenceEnvelopeComparisonReferenceKind {
     Manual,
     #[serde(rename = "other")]
     Other,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum RequestEvidenceEnvelopeAssessmentVerdict {
-    #[serde(rename = "pass")]
-    Pass,
-    #[serde(rename = "fail")]
-    Fail,
-    #[serde(rename = "inconclusive")]
-    Inconclusive,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3059,8 +3005,8 @@ pub enum StepManifestRequestSpecRole {
     Validator,
     #[serde(rename = "experiment")]
     Experiment,
-    #[serde(rename = "evaluator")]
-    Evaluator,
+    #[serde(rename = "policy")]
+    Policy,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3252,7 +3198,6 @@ pub struct ScienceRevisionRequest {
     )]
     #[schema(nullable = false)]
     pub result_extensions: Option<BTreeMap<String, serde_json::Value>>,
-    pub tester: ScienceRevisionRequestTester,
     pub metrics: Vec<RequestScienceRevisionMetric>,
     pub datasets: Vec<ScienceRevisionRequestDatasetsItem>,
     pub baselines: Vec<ScienceRevisionRequestBaselinesItem>,
@@ -3273,7 +3218,7 @@ pub struct ScienceRevisionRequest {
     )]
     #[schema(nullable = false)]
     pub code_repositories: Option<ScienceRevisionRequestCodeRepositories>,
-    pub evaluator: ScienceRevisionRequestEvaluator,
+    pub verify: ScienceRevisionRequestVerify,
     pub required_artifact_roles: ScienceRevisionRequestRequiredArtifactRoles,
     #[serde(
         default,
@@ -3297,117 +3242,38 @@ pub struct ScienceRevisionRequest {
 #[serde(untagged)]
 pub enum ConfigDocument {
     Native(ConfigRevisionRequest),
-    LegacyScience(Box<LegacyScienceRevision>),
+}
+
+/// How a science revision's attempts are verified: by a registered verifier
+/// service account running `cannery runner`, or by an agent or a researcher
+/// who did not run the attempt.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ScienceRevisionRequestVerify {
+    pub performer: ScienceRevisionRequestVerifyPerformer,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_non_null"
+    )]
+    #[schema(nullable = false)]
+    pub verifier: Option<ScienceRevisionRequestVerifier>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct LegacyScienceRevision {
-    pub schema_version: RequestCommonSchemaVersion,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub hypothesis_fields: Option<BTreeMap<String, serde_json::Value>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub result_extensions: Option<BTreeMap<String, serde_json::Value>>,
-    pub tester: ScienceRevisionRequestTester,
-    pub metrics: Vec<RequestScienceRevisionMetric>,
-    pub datasets: Vec<ScienceRevisionRequestDatasetsItem>,
-    pub baselines: Vec<ScienceRevisionRequestBaselinesItem>,
-    pub interfaces: Vec<InterfaceRequest>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub validators: Option<Vec<StepManifestRequest>>,
-    pub scorer: StepManifestRequest,
-    pub default_producer: RequestCommonProducerRef,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub code_repositories: Option<ScienceRevisionRequestCodeRepositories>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub gates: Option<Vec<RequestCommonGate>>,
-    pub required_artifact_roles: ScienceRevisionRequestRequiredArtifactRoles,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub retention: Option<Vec<ScienceRevisionRequestRetentionItem>>,
-    pub limits: ScienceRevisionRequestLimits,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    #[schema(value_type = Option<i64>)]
-    pub max_auto_retries: Option<serde_json::Number>,
+pub enum ScienceRevisionRequestVerifyPerformer {
+    #[serde(rename = "runner")]
+    Runner,
+    #[serde(rename = "agent")]
+    Agent,
 }
 
+/// The verifier service account and the policy revision it applies.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RequestCommonGate {
+pub struct ScienceRevisionRequestVerifier {
     pub id: String,
-    pub metric: String,
-    pub split: String,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub per_dimension: Option<String>,
-    pub statistic: GateStatistic,
-    pub compare: GateComparison,
-    pub op: GateOperator,
-    #[schema(value_type = f64)]
-    pub min_delta: serde_json::Number,
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum GateStatistic {
-    #[serde(rename = "value")]
-    Value,
-    #[serde(rename = "uncertainty.lower")]
-    UncertaintyLower,
-    #[serde(rename = "uncertainty.upper")]
-    UncertaintyUpper,
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum GateComparison {
-    #[serde(rename = "control")]
-    Control,
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum GateOperator {
-    #[serde(rename = ">")]
-    Greater,
-    #[serde(rename = ">=")]
-    GreaterOrEqual,
-    #[serde(rename = "<")]
-    Less,
-    #[serde(rename = "<=")]
-    LessOrEqual,
+    pub revision: String,
 }
 
 /// A run document: Markdown with YAML front matter, checked against
@@ -3483,90 +3349,7 @@ pub struct RunProvenance {
 #[serde(untagged)]
 pub enum ClaimedResult {
     Run(Box<RunFrontMatter>),
-    Sheet(Box<ReadEvidenceEnvelope>),
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(untagged)]
-pub enum ReadEvidenceEnvelope {
-    Native(Box<EvidenceEnvelopeRequest>),
-    Imported(Box<ImportedEvidenceEnvelope>),
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ImportedEvidenceEnvelope {
-    pub schema_version: RequestCommonSchemaVersion,
-    pub attempt_id: String,
-    pub stage: EvidenceEnvelopeRequestStage,
-    pub status: EvidenceEnvelopeRequestStatus,
-    pub producer: ImportedEvidenceProducer,
-    #[schema(format = "date-time")]
-    pub started_at: String,
-    #[schema(format = "date-time")]
-    pub finished_at: String,
-    pub provenance: ImportedEvidenceProvenance,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub observations: Option<String>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub measurements: Option<Vec<ReadMeasurement>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub assessment: Option<RequestEvidenceEnvelopeAssessment>,
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ImportedEvidenceProducer {
-    pub kind: ImportedEvidenceProducerKind,
-    pub id: ImportedEvidenceProducerId,
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum ImportedEvidenceProducerKind {
-    #[serde(rename = "import")]
-    Import,
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum ImportedEvidenceProducerId {
-    #[serde(rename = "cannery-import")]
-    CanneryImport,
-}
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ImportedEvidenceProvenance {
-    pub science_revision: String,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub source_revision: Option<String>,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct ScienceRevisionRequestTester {
-    pub id: String,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub revision: Option<String>,
+    Sheet(Box<EvidenceEnvelopeRequest>),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3764,16 +3547,9 @@ pub struct ScienceRevisionRequestCodeRepositories {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
-pub struct ScienceRevisionRequestEvaluator {
-    pub id: String,
-    pub revision: String,
-}
-
-#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
 pub struct ScienceRevisionRequestRequiredArtifactRoles {
     pub attempt: Vec<String>,
-    pub tester: Vec<String>,
+    pub verify: Vec<String>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3865,83 +3641,19 @@ pub enum ConfigRevisionRequest {
     Science(Box<ScienceRevisionRequest>),
     Dashboard(DashboardRevisionRequest),
 }
+
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-#[serde(deny_unknown_fields)]
-pub struct CompletionEvidenceEnvelopeRequest {
-    pub schema_version: RequestCommonSchemaVersion,
-    pub attempt_id: String,
-    pub stage: CompletionEvidenceStage,
-    pub status: EvidenceEnvelopeRequestStatus,
-    pub producer: EvidenceEnvelopeRequestProducer,
-    #[schema(format = "date-time")]
-    pub started_at: String,
-    #[schema(format = "date-time")]
-    pub finished_at: String,
-    pub provenance: EvidenceEnvelopeRequestProvenance,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub observations: Option<String>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub measurements: Option<Vec<RequestEvidenceEnvelopeMeasurement>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub discrepancies: Option<Vec<RequestEvidenceEnvelopeDiscrepancy>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub artifact_roles: Option<Vec<String>>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub report: Option<RequestEvidenceEnvelopeReport>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub manifest: Option<RequestCommonContentRef>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub assessment: Option<RequestEvidenceEnvelopeAssessment>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "optional_non_null"
-    )]
-    #[schema(nullable = false)]
-    pub extensions: Option<BTreeMap<String, serde_json::Value>>,
+pub enum ClaimedJobPhase {
+    #[serde(rename = "verify")]
+    Verify,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum CompletionEvidenceStage {
-    #[serde(rename = "tester")]
-    Tester,
-    #[serde(rename = "evaluator")]
-    Evaluator,
+pub enum ClaimedJobPerformer {
+    #[serde(rename = "runner")]
+    Runner,
+    #[serde(rename = "agent")]
+    Agent,
 }
 
 /// Decode the declared request DTO after authorization/domain checks, then pass
@@ -4014,22 +3726,23 @@ mod request_tests {
 pub struct ClaimedJobDocument {
     pub schema_version: RequestCommonSchemaVersion,
     pub job_id: String,
-    pub stage: CompletionEvidenceStage,
+    pub phase: ClaimedJobPhase,
     pub attempt_id: String,
+    pub performer: ClaimedJobPerformer,
+    /// The registered verifier and policy revision; runner jobs only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tester: Option<ClaimedJobService>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub evaluator: Option<ClaimedJobService>,
+    pub verifier: Option<ClaimedJobService>,
     pub track: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub control: Option<ClaimedJobPinnedRef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Frozen project fields can contain scalar legacy values.
-    pub parameters: Option<serde_json::Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub steps: Option<Vec<ClaimedJobStep>>,
+    pub parameters: serde_json::Value,
+    pub steps: Vec<ClaimedJobStep>,
     pub science_revision: String,
     pub inputs: ClaimedJobInputs,
+    /// Present on an automatic rerun that starts from a failed step.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resume: Option<ClaimedJobResume>,
     pub output_prefix: String,
     #[schema(format = "date-time")]
     pub deadline: String,
@@ -4059,14 +3772,31 @@ pub struct ClaimedJobStep {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ClaimedJobInputs {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub claimed_sheet: Option<RequestCommonContentRef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub manifest: Option<RequestCommonContentRef>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub evidence: Option<Vec<RequestCommonContentRef>>,
+    /// The run front matter, read at `inputs/run`.
+    pub run: RequestCommonContentRef,
+    /// The run's artifact manifest, read at `inputs/manifest`.
+    pub manifest: RequestCommonContentRef,
     pub baselines: Vec<ClaimedJobPinnedRef>,
     pub datasets: Vec<ClaimedJobPinnedRef>,
+}
+/// Where an automatic rerun starts, and the earlier steps' outputs it reuses.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimedJobResume {
+    pub from_step: String,
+    pub outputs: Vec<ClaimedJobResumeOutput>,
+}
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ClaimedJobResumeOutput {
+    pub step: String,
+    pub name: String,
+    pub key: String,
+    pub size_bytes: i64,
+    pub sha256: String,
+    pub media_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interface: Option<String>,
 }
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
@@ -4260,58 +3990,46 @@ mod nested_contract_tests {
     }
 
     #[test]
-    fn imported_evidence_preserves_writer_provenance_and_fixed_producer()
+    fn verification_documents_preserve_front_matter_and_body()
     -> Result<(), Box<dyn std::error::Error>> {
-        let mut envelope = json!({"schema_version":"0.2",
-            "attempt_id":"00000000-0000-0000-0000-000000000041","stage":"evaluator",
-            "status":"completed","producer":{"kind":"import","id":"cannery-import"},
-            "provenance":{"science_revision":"1"},"started_at":"2025-03-05T00:00:00Z",
-            "finished_at":"2025-03-05T00:00:00Z","assessment":{"policy_revision":"release-gate@fixture-r1",
-            "gates":[{"id":"mrr-holds","result":"pass"}],"evidence":[],"verdict":"pass",
-            "reason":"Both gates pass; the gain over H-001 is 0.02."}});
-        let example = include_str!("../../../examples/import/hypotheses/H-006.yaml");
-        assert!(
-            example.contains(
-                envelope["assessment"]["reason"]
-                    .as_str()
-                    .ok_or("reason absent")?
-            )
-        );
-        round_trip::<ReadEvidenceEnvelope>(&serde_json::to_vec(&envelope)?)?;
-        assert!(serde_json::from_value::<EvidenceEnvelopeRequest>(envelope.clone()).is_err());
-        envelope["provenance"]["source_revision"] = json!("8d1e0f4");
-        round_trip::<ReadEvidenceEnvelope>(&serde_json::to_vec(&envelope)?)?;
-        envelope["provenance"]
-            .as_object_mut()
-            .ok_or("provenance absent")?
-            .remove("source_revision");
-        envelope["producer"]["kind"] = json!("agent");
-        assert!(serde_json::from_value::<ReadEvidenceEnvelope>(envelope).is_err());
-        round_trip::<ReadEvidenceEnvelope>(include_bytes!(
-            "../../../tests/fixtures/contracts/evidence_envelope/valid/agent.json"
+        let front_matter: Value = serde_json::from_slice(include_bytes!(
+            "../../../tests/fixtures/contracts/verification/valid/pass.json"
         ))?;
+        for body in ["", "The scorer completed with no missing query rows.\n"] {
+            let document = json!({"front_matter":front_matter, "body_markdown":body});
+            round_trip::<VerificationDocument>(&serde_json::to_vec(&document)?)?;
+        }
+        assert!(
+            serde_json::from_value::<VerificationDocument>(
+                json!({"front_matter":[],"body_markdown":""})
+            )
+            .is_err()
+        );
+        let report = json!({"status":"completed", "verdict":"pass", "reason":"All gates pass.",
+            "policy_revision":"policy-r1", "gates":[{"id":"g","result":"pass"}], "comparisons":[],
+            "measurements":[], "discrepancies":[], "body_markdown":"",
+            "producer":{"kind":"service","id":"cannery-verifier"},
+            "published_at":"2026-09-29T01:00:02Z","source_ref":null});
+        round_trip::<VerificationReport>(&serde_json::to_vec(&report)?)?;
         Ok(())
     }
 
     #[test]
-    fn historical_science_reads_without_evaluator_preserve_typed_gates()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn science_revisions_name_who_verifies() -> Result<(), Box<dyn std::error::Error>> {
         let fixture = include_bytes!("../../../examples/fixture/science.json");
-        let native: Value = serde_json::from_slice(fixture)?;
-        assert!(serde_json::from_value::<LegacyScienceRevision>(native).is_err());
-        let mut historical: Value = serde_json::from_slice(fixture)?;
-        historical
+        round_trip::<ConfigDocument>(fixture)?;
+        let mut agent: Value = serde_json::from_slice(fixture)?;
+        agent["verify"] = json!({"performer":"agent"});
+        round_trip::<ConfigRevisionRequest>(&serde_json::to_vec(&agent)?)?;
+        let mut missing = agent.clone();
+        missing
             .as_object_mut()
             .ok_or("science object absent")?
-            .remove("evaluator");
-        round_trip::<ConfigDocument>(&serde_json::to_vec(&historical)?)?;
-        assert!(serde_json::from_value::<ConfigRevisionRequest>(historical.clone()).is_err());
-        historical["gates"] = json!([{"id":"g","metric":"mrr","split":"dev",
-            "statistic":"value","compare":"control","op":">=","min_delta":0.0}]);
-        round_trip::<ConfigDocument>(&serde_json::to_vec(&historical)?)?;
-        historical["gates"][0]["op"] = json!("arbitrary_expression");
-        assert!(serde_json::from_value::<ConfigDocument>(historical).is_err());
-        round_trip::<ConfigDocument>(fixture)?;
+            .remove("verify");
+        assert!(serde_json::from_value::<ConfigRevisionRequest>(missing).is_err());
+        let mut tester = agent;
+        tester["tester"] = json!({"id":"cannery-runner"});
+        assert!(serde_json::from_value::<ConfigRevisionRequest>(tester).is_err());
         Ok(())
     }
 
@@ -4319,11 +4037,12 @@ mod nested_contract_tests {
     fn leased_jobs_preserve_pinned_inputs_manifests_and_optional_services()
     -> Result<(), Box<dyn std::error::Error>> {
         for bytes in [
-            include_bytes!("../../../tests/fixtures/contracts/job/valid/tester_self_hosted.json")
+            include_bytes!("../../../tests/fixtures/contracts/job/valid/verify_runner.json")
                 .as_slice(),
-            include_bytes!("../../../tests/fixtures/contracts/job/valid/tester_runner.json")
+            include_bytes!("../../../tests/fixtures/contracts/job/valid/verify_agent.json")
                 .as_slice(),
-            include_bytes!("../../../tests/fixtures/contracts/job/valid/evaluator.json").as_slice(),
+            include_bytes!("../../../tests/fixtures/contracts/job/valid/verify_resumed.json")
+                .as_slice(),
         ] {
             round_trip::<ClaimedJobDocument>(bytes)?;
             let mut malformed: Value = serde_json::from_slice(bytes)?;
@@ -4337,7 +4056,7 @@ mod nested_contract_tests {
     fn resolved_workflow_uses_pinned_control_and_preserves_predecessor_and_parameters()
     -> Result<(), Box<dyn std::error::Error>> {
         let job: Value = serde_json::from_slice(include_bytes!(
-            "../../../tests/fixtures/contracts/job/valid/tester_runner.json"
+            "../../../tests/fixtures/contracts/job/valid/verify_runner.json"
         ))?;
         let workflow = json!({"attempt_id":"attempt", "attempt_ref":"#1.1", "track":"track", "science_revision":"1", "steps":job["steps"], "parameters":{"custom":[null,true]}, "inputs":{"datasets":[], "baselines":[], "predecessor":null}, "limits":{"max_output_bytes":1024}, "deadline":"2026-10-06T00:00:00Z", "control":{"id":"control", "revision":"1"}});
         round_trip::<ClaimedWorkflow>(&serde_json::to_vec(&workflow)?)?;
@@ -4352,7 +4071,7 @@ mod nested_contract_tests {
             "../../../tests/fixtures/contracts/evidence_envelope/valid/agent.json"
         ))?;
         round_trip::<ConfigRevisionRequest>(include_bytes!(
-            "../../../tests/fixtures/contracts/science_revision/valid/stock_evaluator.json"
+            "../../../tests/fixtures/contracts/science_revision/valid/runner_verifier.json"
         ))?;
         round_trip::<ConfigRevisionRequest>(include_bytes!(
             "../../../tests/fixtures/contracts/dashboard_views/valid/table_and_facets.json"

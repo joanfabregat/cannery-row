@@ -14,7 +14,7 @@ import { plainText } from "./plain-text";
 /**
  * A hypothesis page answers first, in one sentence, "what was tried, what
  * happened, what was decided and why". The sentence is built from the
- * hypothesis, its latest attempt, that attempt's report and evaluator
+ * hypothesis, its latest attempt, that attempt's report and verification
  * verdict, and the decision in force with its reason. The parts are also
  * returned on their own for the summary under the sentence.
  */
@@ -55,7 +55,7 @@ function text(value: unknown): string | null {
 /**
  * What the hypothesis compares against, in words ("base-camp, revision
  * r3"), or null when it names no control: the control is optional, and the
- * evaluator decides what it means.
+ * policy decides what it means.
  */
 export function controlText(document: unknown): string | null {
   const control =
@@ -172,15 +172,15 @@ export function summarizeOutcome(
       hypothesis.title,
   );
 
-  const evaluation = report?.evaluation ?? null;
-  const verdict = evaluation?.verdict ?? null;
+  const verification = report?.verification ?? null;
+  const verdict = verification?.verdict ?? null;
   const verdictPhrase = verdict === null ? null : (VERDICT_PHRASES[verdict] ?? "was assessed");
   const failure = attempt?.state === "failed" ? (attempt.failures.at(-1) ?? null) : null;
 
   let happened: string | null = null;
   if (verdictPhrase !== null) {
-    const reason = text(evaluation?.reason);
-    happened = `The evaluation ${verdictPhrase}${reason ? `: ${reason}` : "."}`;
+    const reason = text(verification?.reason);
+    happened = `The verification ${verdictPhrase}${reason ? `: ${reason}` : "."}`;
   } else if (failure !== null && attempt !== null) {
     happened = `Attempt ${attempt.ref} failed: ${failure.reason}`;
   } else if (attempt !== null) {
@@ -222,7 +222,7 @@ export function summarizeOutcome(
         }; a researcher has to decide whether to try again.`;
       } else {
         sentence = `We tried ${title}${
-          verdictPhrase === null ? "" : `: the evaluation ${verdictPhrase}`
+          verdictPhrase === null ? "" : `: the verification ${verdictPhrase}`
         }, and it is waiting for a researcher's decision.`;
       }
       break;
@@ -235,7 +235,7 @@ export function summarizeOutcome(
           ? `it was ${statusLabel("hypothesis", hypothesis.state).toLowerCase()}.`
           : `a researcher ${DECISION_PHRASES[decision.action] ?? "decided"}${because}`;
       sentence = `We tried ${title}${
-        verdictPhrase === null ? ", and " : `: the evaluation ${verdictPhrase}, and `
+        verdictPhrase === null ? ", and " : `: the verification ${verdictPhrase}, and `
       }${phrase}`;
       break;
     }

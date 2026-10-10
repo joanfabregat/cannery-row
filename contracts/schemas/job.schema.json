@@ -1,27 +1,39 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/job.schema.json",
-  "title": "Test or evaluation job",
-  "description": "The job document a tester or external evaluator receives when it claims work. The lease token authorizes only reading the listed inputs and writing under output_prefix.",
+  "title": "Verify job",
+  "description": "The job document a verifier receives when it claims a verify job: a verifier service account running the runner (performer `runner`), or an agent service account or researcher who did not run the attempt (performer `agent`). The lease token authorizes only reading the listed inputs and writing under output_prefix.",
   "type": "object",
   "properties": {
     "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
     "job_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "stage": {"enum": ["tester", "evaluator"]},
+    "phase": {"const": "verify"},
     "attempt_id": {"$ref": "common.schema.json#/$defs/identifier"},
-    "tester": {"$ref": "#/$defs/service_ref"},
-    "evaluator": {"$ref": "#/$defs/service_ref"},
+    "performer": {
+      "description": "Who verifies: the runner under the registered verifier, or an agent.",
+      "enum": ["runner", "agent"]
+    },
+    "verifier": {
+      "description": "The registered verifier: the verifier service account name and the policy revision its reports must name. Runner jobs only.",
+      "type": "object",
+      "properties": {
+        "id": {"$ref": "common.schema.json#/$defs/identifier"},
+        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+      },
+      "required": ["id", "revision"],
+      "additionalProperties": false
+    },
     "track": {"$ref": "common.schema.json#/$defs/slug"},
     "control": {
-      "description": "The control the hypothesis names, pinned only when it names one. The tester's control_revision must equal its revision.",
+      "description": "The control the hypothesis names, pinned only when it names one. The report's control_revision must equal its revision.",
       "$ref": "common.schema.json#/$defs/pinned_ref"
     },
     "parameters": {
-      "description": "An evaluation job's hypothesis parameters: the project_fields of the hypothesis revision the attempt pinned ({} without any), frozen when the job was created.",
+      "description": "The hypothesis parameters: the project_fields of the hypothesis revision the attempt pinned ({} without any), frozen when the job was created.",
       "$ref": "common.schema.json#/$defs/open_object"
     },
     "steps": {
-      "description": "Present when the Cannery Row runner executes the job; a self-hosted tester ignores it.",
+      "description": "The producer and the scorer the job verifies with. The runner executes them; an agent may run them or verify another way.",
       "type": "array",
       "minItems": 1,
       "items": {
@@ -45,13 +57,13 @@
     "inputs": {
       "type": "object",
       "properties": {
-        "claimed_sheet": {"$ref": "common.schema.json#/$defs/content_ref"},
-        "manifest": {"$ref": "common.schema.json#/$defs/content_ref"},
-        "evidence": {
-          "description": "Tester-verified evidence records, for an evaluation job.",
-          "type": "array",
-          "minItems": 1,
-          "items": {"$ref": "common.schema.json#/$defs/content_ref"}
+        "run": {
+          "description": "The front matter of the frozen run document: its claims, provenance and manifest. The run notes are not an input.",
+          "$ref": "common.schema.json#/$defs/content_ref"
+        },
+        "manifest": {
+          "description": "The run's verified artifact manifest.",
+          "$ref": "common.schema.json#/$defs/content_ref"
         },
         "baselines": {
           "description": "Baselines the job's steps may stage: the control, and each baseline a step takes as input, by id from the science revision.",
@@ -63,7 +75,33 @@
           "items": {"$ref": "common.schema.json#/$defs/pinned_ref"}
         }
       },
-      "required": ["baselines", "datasets"],
+      "required": ["run", "manifest", "baselines", "datasets"],
+      "additionalProperties": false
+    },
+    "resume": {
+      "description": "Present on an automatic rerun after an infrastructure failure in a named step: the run starts from that step and reuses the verified outputs of the steps before it, readable as inputs.",
+      "type": "object",
+      "properties": {
+        "from_step": {"$ref": "common.schema.json#/$defs/slug"},
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": {"$ref": "common.schema.json#/$defs/slug"},
+              "name": {"$ref": "common.schema.json#/$defs/name"},
+              "key": {"$ref": "common.schema.json#/$defs/object_key"},
+              "size_bytes": {"type": "integer", "minimum": 0},
+              "sha256": {"$ref": "common.schema.json#/$defs/sha256"},
+              "media_type": {"$ref": "common.schema.json#/$defs/media_type"},
+              "interface": {"$ref": "common.schema.json#/$defs/interface_ref"}
+            },
+            "required": ["step", "name", "key", "size_bytes", "sha256", "media_type"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["from_step", "outputs"],
       "additionalProperties": false
     },
     "output_prefix": {"$ref": "common.schema.json#/$defs/object_prefix"},
@@ -90,9 +128,12 @@
   "required": [
     "schema_version",
     "job_id",
-    "stage",
+    "phase",
     "attempt_id",
+    "performer",
     "track",
+    "parameters",
+    "steps",
     "science_revision",
     "inputs",
     "output_prefix",
@@ -101,39 +142,7 @@
     "lease"
   ],
   "additionalProperties": false,
-  "allOf": [
-    {
-      "if": {"properties": {"stage": {"const": "tester"}}, "required": ["stage"]},
-      "then": {
-        "required": ["tester"],
-        "properties": {
-          "evaluator": {"not": {}},
-          "parameters": {"not": {}},
-          "inputs": {"required": ["claimed_sheet", "manifest"], "properties": {"evidence": {"not": {}}}}
-        }
-      }
-    },
-    {
-      "if": {"properties": {"stage": {"const": "evaluator"}}, "required": ["stage"]},
-      "then": {
-        "required": ["evaluator"],
-        "properties": {
-          "tester": {"not": {}},
-          "steps": {"not": {}},
-          "inputs": {"required": ["evidence"]}
-        }
-      }
-    }
-  ],
-  "$defs": {
-    "service_ref": {
-      "type": "object",
-      "properties": {
-        "id": {"$ref": "common.schema.json#/$defs/identifier"},
-        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    }
-  }
+  "if": {"properties": {"performer": {"const": "runner"}}, "required": ["performer"]},
+  "then": {"required": ["verifier"]},
+  "else": {"properties": {"verifier": {"not": {}}}}
 }

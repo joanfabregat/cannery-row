@@ -3,11 +3,13 @@ use crate::{
     api_contract::{convert, decode, encode},
     api_models::{
         AttentionFailure, AttentionOut, AttentionOutcome, AttentionReview, AttentionRunning,
-        AttentionStalledEvaluation, ReviewCasePage, cannery_row__reviews__routes__FailureOut,
-        cannery_row__reviews__routes__ReviewCaseOut,
+        AttentionStalledVerification, ReviewCasePage, VerificationDocument,
+        cannery_row__reviews__routes__FailureOut, cannery_row__reviews__routes__ReviewCaseOut,
     },
 };
-use cannery_attention::{Outcome, PendingReview, RecentFailure, RunningAttempt, StalledEvaluation};
+use cannery_attention::{
+    Outcome, PendingReview, RecentFailure, RunningAttempt, StalledVerification,
+};
 use cannery_core::json::{
     Document, Node,
     model::{self, ModelEncodeError},
@@ -38,7 +40,7 @@ fn mapping(d: &Document, p: ResponseContext) -> Result<Vec<u8>> {
 pub(crate) struct CaseDetail {
     pub case: Case,
     pub failure: Option<Failure>,
-    pub evaluation: Option<std::sync::Arc<Document>>,
+    pub verification: Option<(std::sync::Arc<Document>, String)>,
     pub decisions: Vec<Decision>,
 }
 impl CaseDetail {
@@ -60,7 +62,7 @@ impl CaseDetail {
         if let Some(f) = &self.failure {
             Self::validate_failure(f)?;
         }
-        if let Some(d) = &self.evaluation
+        if let Some((d, _)) = &self.verification
             && !matches!(d.node(d.root()), Some(Node::Object(_) | Node::Null))
         {
             return Err(ModelEncodeError::InvalidNode);
@@ -101,12 +103,17 @@ pub(crate) fn case(d: &CaseDetail, p: ResponseContext) -> Result<Vec<u8>> {
                 })
             },
         )?)?,
-        evaluation: decode(
-            &d.evaluation
-                .as_ref()
-                .filter(|d| !matches!(d.node(d.root()), Some(Node::Null)))
-                .map_or_else(|| Ok(b"null".to_vec()), |d| mapping(d, p))?,
-        )?,
+        verification: d
+            .verification
+            .as_ref()
+            .filter(|(d, _)| !matches!(d.node(d.root()), Some(Node::Null)))
+            .map(|(d, body)| {
+                Ok(VerificationDocument {
+                    front_matter: decode(&mapping(d, p)?)?,
+                    body_markdown: body.clone(),
+                })
+            })
+            .transpose()?,
         decisions: decode(&array(
             d.decisions.iter().map(crate::hypothesis_wire::decision),
         )?)?,
@@ -133,7 +140,7 @@ pub(crate) struct AttentionDetail {
     pub outcomes: Vec<Outcome>,
     pub failures: Vec<RecentFailure>,
     pub stalled_count: i64,
-    pub stalled: Vec<StalledEvaluation>,
+    pub stalled: Vec<StalledVerification>,
 }
 #[allow(
     clippy::too_many_lines,
@@ -224,12 +231,23 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
                 origin: convert(v.origin.as_str())?,
             })
         }))?)?,
-        stalled_evaluation_count: convert(d.stalled_count)?,
-        stalled_evaluations: decode(&array(d.stalled.iter().map(|v| {
-            let evaluator = v.evaluator.as_ref().ok_or(ModelEncodeError::InvalidNode)?;
-            let revision = v.revision.as_ref().ok_or(ModelEncodeError::InvalidNode)?;
-
-            encode(&AttentionStalledEvaluation {
+        stalled_verification_count: convert(d.stalled_count)?,
+        stalled_verifications: decode(&array(d.stalled.iter().map(|v| {
+            let text = |value: &Option<String>| {
+                value
+                    .as_ref()
+                    .map(|v| v.as_utf8().ok_or(ModelEncodeError::Encoding))
+                    .transpose()
+            };
+            let verifier = text(&v.verifier)?;
+            let revision = text(&v.revision)?;
+            let waiting_for = match (&verifier, &revision) {
+                (Some(verifier), Some(revision)) => {
+                    format!("verifier {verifier} revision {revision}")
+                }
+                _ => String::from("an agent or a researcher"),
+            };
+            encode(&AttentionStalledVerification {
                 hypothesis: convert(v.hypothesis_number)?,
                 hypothesis_ref: convert(format!("#{}", v.hypothesis_number))?,
                 title: v
@@ -238,15 +256,14 @@ pub(crate) fn attention(d: &AttentionDetail) -> Result<Vec<u8>> {
                     .ok_or(ModelEncodeError::Encoding)?,
                 track: v.track_slug.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 attempt_ref: convert(format!("#{}.{}", v.hypothesis_number, v.attempt_sequence))?,
-                evaluator: (evaluator).as_utf8().ok_or(ModelEncodeError::Encoding)?,
-                revision: (revision).as_utf8().ok_or(ModelEncodeError::Encoding)?,
+                performer: v.performer.as_utf8().ok_or(ModelEncodeError::Encoding)?,
                 waiting_since: convert(timestamp(v.waiting_since))?,
                 message: convert(format!(
-                    "evaluation for #{} waits for evaluator {} revision {}",
-                    v.hypothesis_number,
-                    evaluator.as_utf8().ok_or(ModelEncodeError::Encoding)?,
-                    revision.as_utf8().ok_or(ModelEncodeError::Encoding)?
+                    "verification of #{}.{} waits for {waiting_for}",
+                    v.hypothesis_number, v.attempt_sequence
                 ))?,
+                verifier,
+                revision,
             })
         }))?)?,
     })
