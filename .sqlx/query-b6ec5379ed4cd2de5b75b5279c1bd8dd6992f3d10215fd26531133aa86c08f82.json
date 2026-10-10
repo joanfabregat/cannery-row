@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!: Uuid\", size_bytes, sha256 FROM artifacts\n        WHERE attempt_id = $1 AND role = 'transcript' AND job_id IS NULL\n        ORDER BY verified_at LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "sha256",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b6ec5379ed4cd2de5b75b5279c1bd8dd6992f3d10215fd26531133aa86c08f82"
+}

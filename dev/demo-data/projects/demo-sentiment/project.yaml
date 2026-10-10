@@ -440,6 +440,22 @@ units:
         stop: submitted
         seconds: 13200
         candidate: {model: distilled-encoder-66m, seeds: [7, 21, 42], epochs: 3}
+        conversation:
+          transcript:
+            - {kind: assistant, content: "Reading the unit plan and the context bundle before training."}
+            - {kind: tool_call, tool: get_unit_plan, call_id: plan-1, content: {unit: encoder-seeds}}
+            - {kind: tool_result, tool: get_unit_plan, call_id: plan-1, content: "Re-run the three-epoch recipe with seeds 21 and 42; selection and confirmation on dev."}
+          blocking:
+            body: "The plan confirms on dev, the split the seeds are selected on. Should the three seeds also be scored on test, or is dev enough for this check?"
+            answer: {by: ben, body: "Dev is enough: this unit measures seed spread, not the final number. Leave test for the promotion."}
+          steering: {by: ada, body: "Log each seed's training loss curve as well, so we can see why seed 21 is slower if it is."}
+          open:
+            body: "Seed 21 needs about 20% more steps to converge. Worth a fourth seed to check it is not an outlier?"
+            default: "Report the three seeds as planned and mention the slower convergence in the limitations."
+          closing:
+            - {kind: tool_call, tool: shell, call_id: train-1, content: "python train.py --epochs 3 --seeds 7,21,42"}
+            - {kind: tool_result, tool: shell, call_id: train-1, content: "seed 7: 0.902, seed 21: 0.896, seed 42: 0.899 (dev macro-F1)"}
+            - {kind: assistant, content: "Mean 0.899, range 0.006: within the success criteria. Uploading and submitting."}
         sheet:
           tried: The three-epoch recipe with seeds 7, 21 and 42.
           configuration: Unchanged recipe; seeds varied.

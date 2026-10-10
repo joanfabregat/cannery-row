@@ -1,0 +1,9 @@
+{
+  "reason": "'secret' was unexpected",
+  "document": {
+    "ts": "2026-10-07T09:14:03Z",
+    "kind": "note",
+    "content": "an event names only what the schema defines",
+    "secret": "redact this before appending"
+  }
+}

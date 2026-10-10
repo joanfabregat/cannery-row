@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE messages m SET acknowledged_at = now()\n        WHERE m.project_id = $1 AND m.id = ANY($2::uuid[]) AND m.acknowledged_at IS NULL AND (\n            (m.kind = 'steer' AND EXISTS (SELECT 1 FROM attempts a WHERE a.id = m.attempt_id\n                AND a.claimed_by_user IS NOT DISTINCT FROM $3\n                AND a.claimed_by_service IS NOT DISTINCT FROM $4))\n            OR (m.kind = 'answer' AND EXISTS (SELECT 1 FROM messages q WHERE q.id = m.question_id\n                AND ((q.author_user IS NOT DISTINCT FROM $3\n                      AND q.author_service IS NOT DISTINCT FROM $4)\n                     OR (q.released_at IS NOT NULL AND EXISTS (\n                         SELECT 1 FROM attempts a WHERE a.unit_id = q.unit_id\n                           AND a.state IN ('claimed', 'running', 'waiting_on_human')\n                           AND a.claimed_by_user IS NOT DISTINCT FROM $3\n                           AND a.claimed_by_service IS NOT DISTINCT FROM $4))))))\n        RETURNING m.id AS \"id!: MessageId\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: MessageId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e9822315a1b3c070eab1b04d9941946c9a4e76e0055f5990ab70354420dcb950"
+}

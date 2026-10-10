@@ -4,6 +4,8 @@ An agent, such as a Codex or Claude Code session, works on a Cannery Row project
 
 Before working, read the project brief (`get_brief`, or the resource `cannery-row://projects/{project}/brief`) and search for prior work (`search`).
 
+This page is the working protocol. The MCP server sends it as its instructions, `GET /api/protocol` serves it as Markdown, and every claim and job claim names it as `protocol` with its `version`, `sha256` and size in `bytes`: when the digest differs from the copy you read, read it again.
+
 ## Planning
 
 A track's plan says how the track tests its idea and which units of work it runs. To plan a track, work with the researcher:
@@ -22,9 +24,31 @@ A unit's fields and the limits that apply to them are in [the contract](contract
 
 Raise a concern (`raise_concern`) when your work shows that the track's plan itself is wrong, whatever phase you are in: a wrong assumption the plan relies on, a better idea than the plan's for testing the track's idea, or a blocker that stops the plan from being carried out as written. The concern is Markdown with YAML front matter (`GET /api/schemas/concern`): its `kind` (`wrong_assumption`, `better_idea`, `blocker` or `other`) and, when it comes from one, the `unit` number and the `attempt` sequence, with the argument as the body (at most 16 KiB): what you saw, why it matters to the plan, and what you would change. A runner step raises one by writing `/cr/outputs/concern/concern.md`.
 
-Otherwise, just continue: a failure of your own run is a failure report, a disagreement with a run's claims is the verification report, an unexpected result is the write-up, and a question about one unit is a comment. A concern holds up the whole track: while one is open, no new unit of the track can be claimed (`409 concern_open`); work already claimed continues through run, verify, document and decide, so finish what you hold.
+Otherwise, just continue: a failure of your own run is a failure report, a disagreement with a run's claims is the verification report, an unexpected result is the write-up, and a question about one unit is a [question](#questions). A concern holds up the whole track: while one is open, no new unit of the track can be claimed (`409 concern_open`); work already claimed continues through run, verify, document and decide, so finish what you hold.
 
 A plan revision answers the concern (`answer_concern` in the draft; `check_plan` lists every open concern the draft does not answer, and approval closes those it answers), or a researcher dismisses it with a reason (`dismiss_concern`). `list_concerns` and `get_concern` read them.
+
+## Questions
+
+Ask a researcher (`ask` under an attempt's lease in agent mode, `ask_job` under a job's lease) when you cannot settle something about the unit you hold from the brief, the context bundle or the plan: an ambiguous acceptance criterion, a choice between two readings of the brief, a resource you need and do not have. A question concerns one unit and pauses at most its own attempt or job; a concern is about the track's plan and holds up the whole track. When the answer would change the plan rather than this unit, raise a concern instead.
+
+Prefer proceeding on a stated default. Ask a non-blocking question (`blocking: false`) with the `default` you proceed on, a sentence a researcher can accept by not answering, then carry on as if it were the answer. Ask a blocking question (`blocking: true`) only when every default would waste the run or do harm: what you would build on is unknown, the step is irreversible or costly, or the brief contradicts itself. Ask one thing per question, say what you saw and what each answer would change, and keep it short (at most 16 KiB of Markdown).
+
+A blocking question puts your attempt in `waiting_on_human`, or pauses your job, and stops its lease clock: the lease and the deadline do not run out while it waits. Do nothing else on the attempt meanwhile. Wait for the answer with `wait_for_answer`, which returns within a minute with the answer or without one (call it again), or keep heartbeating: each heartbeat carries the answers you have not acknowledged. Once the question is answered or escalated, you get a fresh lease and the deadline moves by the time you waited. Answers to non-blocking questions arrive the same way: when one contradicts your default, change course and say so in your run notes.
+
+A blocking question that nobody answers within the project's `limits.question_wait` (24 hours by default) releases your attempt as `unanswered_question` (a job fails with the same code) and the unit is queued again; it does not count against the automatic retries. The next attempt's context bundle carries the question, and its answer once given.
+
+A researcher answers from the Questions queue on Home or from the unit page (`answer_question`), or escalates the question into a concern when it shows the plan is wrong (`escalate_question`): the question is then closed as escalated, the note is your answer, and the track waits for a plan revision.
+
+## Steering
+
+A researcher may post a steering note to your running attempt (`post_steering`), unasked: a correction, a hint, a narrower focus. Every heartbeat (`heartbeat_attempt`) carries the notes and answers you have not acknowledged; `get_steering` lists them too. At each heartbeat, read them, act on them, and acknowledge them with `ack_steering` and their ids, so the researcher sees that you took them in: a note stays marked unacknowledged on the attempt page until you do. When a note conflicts with the unit's brief, follow the note and say so in your run notes; when it conflicts with the plan, raise a concern.
+
+## Transcripts
+
+In agent mode, append your transcript as you work (`append_transcript`), in batches at least as often as you heartbeat: one event per line of JSON Lines with its time `ts`, its `kind` (`assistant`, `user`, `tool_call`, `tool_result`, `note`, `question`, `answer` or `steer`) and its `content`, as [`transcript.schema.json`](../contracts/schemas/transcript.schema.json) defines. Record the questions you ask, the answers and the steering notes you read as `question`, `answer` and `steer` events with their `message` id. Each event is validated, a batch holds at most 1000, and an append that would take the transcript over the project's `limits.transcript_max_bytes` (64 MiB by default) is refused with the location, the size and the limit: summarize long tool output rather than append it whole.
+
+Redacting is your job: Cannery Row stores what you append as is and shows it to every member of the project. Leave out secrets, tokens, credentials and personal data before you append. Researchers follow the transcript live on the attempt's timeline page (`get_transcript` reads it). Submitting the attempt seals it as the attempt's `transcript` artifact, and no append is accepted after that.
 
 ## Context
 

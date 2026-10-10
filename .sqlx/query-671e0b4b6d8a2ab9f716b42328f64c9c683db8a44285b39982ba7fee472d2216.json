@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO transcript_chunks (attempt_id, sequence, first_event, events, backend,\n        bucket, key, size_bytes, sha256, author_user, author_service, via_channel, via_client)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "671e0b4b6d8a2ab9f716b42328f64c9c683db8a44285b39982ba7fee472d2216"
+}

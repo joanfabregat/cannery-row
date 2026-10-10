@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO project_limits (project_id, brief_max_bytes, plan_approach_max_bytes,\n        unit_brief_max_bytes, context_items_max, index_line_max_bytes, context_summary_max_bytes,\n        question_wait_seconds, transcript_max_bytes, updated_by)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n        ON CONFLICT (project_id) DO UPDATE SET brief_max_bytes = EXCLUDED.brief_max_bytes,\n        plan_approach_max_bytes = EXCLUDED.plan_approach_max_bytes,\n        unit_brief_max_bytes = EXCLUDED.unit_brief_max_bytes,\n        context_items_max = EXCLUDED.context_items_max,\n        index_line_max_bytes = EXCLUDED.index_line_max_bytes,\n        context_summary_max_bytes = EXCLUDED.context_summary_max_bytes,\n        question_wait_seconds = EXCLUDED.question_wait_seconds,\n        transcript_max_bytes = EXCLUDED.transcript_max_bytes,\n        updated_by = EXCLUDED.updated_by, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fb8bf94d4c7277582cbf0f96937544b1a0812b3c44503a753abc8088326e9a0f"
+}

@@ -119,6 +119,7 @@ pub(crate) fn claim(
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
+        protocol: crate::protocol::reference(),
     })
 }
 pub(crate) fn artifact_model(a: &Artifact) -> Result<ArtifactOut> {

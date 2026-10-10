@@ -1,4 +1,9 @@
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { isNotFound } from "@/lib/errors";
 import type { UnitState } from "@/lib/states";
@@ -286,6 +291,100 @@ export function useConcerns(slug: string, state: ConcernState, enabled = true) {
           params: { path: { slug }, query: { state, limit: 50 } },
         }),
       ),
+  });
+}
+
+export type QuestionState = "open" | "answered" | "escalated";
+
+/** The questions performers asked about the project's units, newest first. */
+export function useQuestions(slug: string, state: QuestionState, enabled = true) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "questions", state],
+    enabled,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/projects/{slug}/questions", {
+          params: { path: { slug }, query: { state, limit: 50 } },
+        }),
+      ),
+  });
+}
+
+/** A unit's questions, answers and steering notes, newest first. */
+export function useUnitMessages(slug: string, number: number) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "unit", number, "messages"],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/projects/{slug}/units/{number}/messages", {
+          params: { path: { slug, number }, query: { limit: 200 } },
+        }),
+      ),
+  });
+}
+
+/** The steering notes posted to an attempt, oldest first. */
+export function useSteering(slug: string, number: number, sequence: number, enabled = true) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "unit", number, "attempt", sequence, "steering"],
+    enabled,
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/projects/{slug}/units/{number}/attempts/{sequence}/steering", {
+          params: { path: { slug, number, sequence } },
+        }),
+      ),
+  });
+}
+
+/** One page of an attempt's transcript, from the event after `after`. */
+export async function fetchTranscript(
+  slug: string,
+  number: number,
+  sequence: number,
+  after: number | undefined,
+  signal?: AbortSignal,
+) {
+  return unwrap(
+    await api.GET("/api/projects/{slug}/units/{number}/attempts/{sequence}/transcript", {
+      params: { path: { slug, number, sequence }, query: { after, limit: 1000 } },
+      signal,
+    }),
+  );
+}
+
+/** An attempt's transcript as read so far. */
+export interface TranscriptFeed {
+  events: Schemas["TranscriptEventOut"][];
+  sealed: boolean;
+  bytes: number;
+}
+
+/** How often a running attempt's transcript is read again. */
+export const TRANSCRIPT_REFRESH_MS = 3000;
+
+/**
+ * An attempt's transcript, followed live until it is sealed: each refresh
+ * reads only the events after the last one already read.
+ */
+export function useTranscript(slug: string, number: number, sequence: number) {
+  const queryClient = useQueryClient();
+  const queryKey = [...projectKey(slug), "unit", number, "attempt", sequence, "transcript"];
+  return useQuery({
+    queryKey,
+    queryFn: async ({ signal }): Promise<TranscriptFeed> => {
+      const events = [...(queryClient.getQueryData<TranscriptFeed>(queryKey)?.events ?? [])];
+      let after = events.at(-1)?.index;
+      for (;;) {
+        const page = await fetchTranscript(slug, number, sequence, after, signal);
+        events.push(...page.events);
+        if (page.next_after == null || page.events.length === 0) {
+          return { events, sealed: page.sealed, bytes: page.bytes };
+        }
+        after = page.next_after;
+      }
+    },
+    refetchInterval: (query) => (query.state.data?.sealed ? false : TRANSCRIPT_REFRESH_MS),
   });
 }
 

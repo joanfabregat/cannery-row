@@ -251,7 +251,7 @@ async fn attempt_leases_match_production() -> Result<()> {
             let expected_time = cannery_server::timestamps::public_timestamp(expires);
             assert_eq!(response["lease_expires_at"], json!(expected_time));
             let expected = format!(
-                "{{\"lease_generation\":{},\"lease_expires_at\":\"{expected_time}\"}}",
+                "{{\"lease_generation\":{},\"lease_expires_at\":\"{expected_time}\",\"waiting_on_human\":false,\"answers\":[],\"steering\":[]}}",
                 response["lease_generation"]
             );
             assert_eq!(bytes, expected.as_bytes());
@@ -348,7 +348,7 @@ async fn race(app: &Router, pool: &PgPool, expected: &Value) -> Result<()> {
         let text = cannery_server::timestamps::public_timestamp(expires);
         assert_eq!(
             bytes,
-            format!("{{\"lease_generation\":1,\"lease_expires_at\":\"{text}\"}}").as_bytes()
+            format!("{{\"lease_generation\":1,\"lease_expires_at\":\"{text}\",\"waiting_on_human\":false,\"answers\":[],\"steering\":[]}}").as_bytes()
         );
         statuses.push(status);
         renewals.push(expires);

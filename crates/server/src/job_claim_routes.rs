@@ -199,6 +199,7 @@ async fn claim_document(
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
+        protocol: crate::protocol::reference(),
     })
 }
 /// A claimed document job: what its write-up covers and cites, and the
@@ -283,6 +284,7 @@ async fn document_job(
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
+        protocol: crate::protocol::reference(),
     })
 }
 /// A claimed decide job: the decision case, what its decision document
@@ -410,6 +412,7 @@ async fn decide_job(
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
+        protocol: crate::protocol::reference(),
     })
 }
 async fn audit_claim(
@@ -893,14 +896,20 @@ pub(crate) async fn heartbeat(
                 "this lease is no longer valid for the job",
             ));
         }
+        // A blocking question stopped the job's lease clock: neither its
+        // lease nor its deadline expires, and a heartbeat changes nothing.
+        let paused = cannery_tracks::messages::job_paused_at(&mut tx, job.id)
+            .await
+            .map_err(|_| internal(&context, "job pause lookup"))?
+            .is_some();
         let now: Timestamp = sqlx::query_scalar("SELECT now()")
             .fetch_one(&mut *tx)
             .await
             .map_err(|_| internal(&context, "job lease clock"))?;
-        if job.deadline.is_none_or(|time| time.0 <= now.0) {
+        if !paused && job.deadline.is_none_or(|time| time.0 <= now.0) {
             return Err(domain(ErrorCode::StaleLease, "the job's deadline passed"));
         }
-        if job.lease_expires_at.is_none_or(|time| time.0 <= now.0) {
+        if !paused && job.lease_expires_at.is_none_or(|time| time.0 <= now.0) {
             return Err(domain(ErrorCode::StaleLease, "the lease expired"));
         }
         let attempt = cannery_attempts::repo::Repository::new(&mut tx, state.profile.attempts)
@@ -918,17 +927,31 @@ pub(crate) async fn heartbeat(
                 ),
             ));
         }
-        repo::extend_lease(
+        let renewed = if paused {
+            job
+        } else {
+            repo::extend_lease(
+                &mut tx,
+                job.id,
+                state.app.settings.leases.job_ttl_seconds.as_bigint(),
+                state.profile.jobs,
+            )
+            .await
+            .map_err(|_| internal(&context, "job heartbeat extension"))?
+        };
+        let (answers, _) = crate::message_routes::pending(
             &mut tx,
-            job.id,
-            state.app.settings.leases.job_ttl_seconds.as_bigint(),
-            state.profile.jobs,
+            &project,
+            renewed.attempt_id,
+            Some(renewed.id),
+            &context,
         )
         .await
-        .map_err(|_| internal(&context, "job heartbeat extension"))
+        .map_err(failure)?;
+        Ok((renewed, paused, answers))
     }
     .await;
-    let renewed = match result {
+    let (renewed, paused, answers) = match result {
         Ok(value) => {
             tx.commit()
                 .await
@@ -952,6 +975,8 @@ pub(crate) async fn heartbeat(
         lease_generation: i64::from(renewed.lease_generation),
         lease_expires_at: crate::timestamps::public_timestamp(expires),
         deadline: crate::timestamps::public_timestamp(deadline),
+        waiting_on_human: paused,
+        answers,
     })
     .map_err(|_| internal(&context, "job heartbeat serialization"))?;
     Ok((

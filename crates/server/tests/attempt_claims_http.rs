@@ -66,6 +66,14 @@ fn hex(bytes: &[u8]) -> Result<String> {
     }
     Ok(out)
 }
+/// A recorded claim response with the working protocol every claim now
+/// names; the frozen corpus predates it.
+fn with_protocol(mut value: Value) -> Value {
+    if value.get("lease_token").is_some() {
+        value["protocol"] = json!(cannery_server::protocol::reference());
+    }
+    value
+}
 fn output(value: Value) -> Value {
     if value
         .get("error")
@@ -600,10 +608,10 @@ async fn attempt_claims_match_production() -> Result<()> {
         }
         if (200..300).contains(&r["status"].as_u64().ok_or("source status")?) {
             let _: cannery_server::api_models::ClaimOut =
-                serde_json::from_value(r["response"].clone())
+                serde_json::from_value(with_protocol(r["response"].clone()))
                     .map_err(|error| format!("ordinary source claim {}: {error}", r["name"]))?;
         }
-        let mut expected_response = r["response"].clone();
+        let mut expected_response = with_protocol(r["response"].clone());
         if let Some(quotes) = r["native_error_quotes"].as_array()
             && !quotes.is_empty()
         {
@@ -669,7 +677,8 @@ async fn attempt_claims_match_production() -> Result<()> {
                 .step_by(2)
                 .map(|i| u8::from_str_radix(&source[i..i + 2], 16))
                 .collect::<std::result::Result<Vec<_>, _>>()?;
-            let typed: cannery_server::api_models::ClaimOut = serde_json::from_slice(&bytes)?;
+            let typed: cannery_server::api_models::ClaimOut =
+                serde_json::from_value(with_protocol(serde_json::from_slice(&bytes)?))?;
             assert_eq!(
                 wire,
                 hex(&serde_json::to_vec(&typed)?)?,

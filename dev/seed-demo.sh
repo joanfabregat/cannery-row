@@ -69,6 +69,12 @@
 # runner: a decision by: decider is the decider's, recorded through its decide
 # job; a unit written up without one leaves that job waiting.
 #
+# An agent-mode attempt with a conversation: talks to the researchers while it
+# runs: it appends the conversation's transcript: events, asks the blocking:
+# question that blocking.answer.by answers, reads and acknowledges the
+# steering: note, asks the open: question (left open, with its default) and
+# appends the closing: events; submitting the attempt seals the transcript.
+#
 # Once the attempts and the later plans are done, the scenario's concerns:
 # about the plans are raised by their authors (from: names the unit and
 # attempt), and a dismissed: one is dismissed by a researcher with a reason;
@@ -476,6 +482,50 @@ measurements() {
 
 # run_attempt INDEX ATTEMPT_INDEX: claim, then go as far as the scenario's
 # `stop` says.
+# transcript BY PATH LEASE_FILE EVENTS_JSON: appends events to the attempt's
+# transcript, each stamped with the current time.
+transcript() {
+  local events
+  events=$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" '{events: map({ts: $ts} + .)}' <<<"$4")
+  api "$1" POST "$2/transcript" "$events" "$3" >/dev/null
+}
+
+# recorded BY PATH LEASE_FILE KIND MESSAGE: the transcript event recording a
+# question, answer or steering note (a message object).
+recorded() {
+  transcript "$1" "$2" "$3" "$(jq -c --arg kind "$4" '[{kind: $kind, message: .id, content: .body}]' <<<"$5")"
+}
+
+# converse BY PATH LEASE_FILE SPEC: an attempt's conversation: (agent mode).
+# The agent appends its transcript, asks a blocking question a researcher
+# answers while the attempt waits, reads and acknowledges a researcher's
+# steering note, and asks a non-blocking question left open with its default.
+converse() {
+  local by=$1 path=$2 lease_file=$3 talk question answer note
+  talk=$(jq -c '.conversation // empty' <<<"$4")
+  [[ -n "$talk" ]] || return 0
+  transcript "$by" "$path" "$lease_file" "$(jq -c .transcript <<<"$talk")"
+  question=$(api "$by" POST "$path/questions" "$(jq -c '{body: .blocking.body, blocking: true}' <<<"$talk")" "$lease_file")
+  recorded "$by" "$path" "$lease_file" question "$question"
+  api "$(jq -r .blocking.answer.by <<<"$talk")" POST "$BASE/questions/$(jq -r .id <<<"$question")/answer" \
+    "$(jq -c '{body: .blocking.answer.body}' <<<"$talk")" >/dev/null
+  # Waiting for the answer as its asker acknowledges it; the lease starts afresh.
+  answer=$(api "$by" GET "$BASE/questions/$(jq -r .id <<<"$question")/answer?wait=1" | jq -c .answer)
+  [[ "$answer" != null ]] || die "the demo question was not answered"
+  recorded "$by" "$path" "$lease_file" answer "$answer"
+  note=$(api "$(jq -r .steering.by <<<"$talk")" POST "$path/steering" "$(jq -c '{body: .steering.body}' <<<"$talk")")
+  api "$by" POST "$path/heartbeat" '{}' "$lease_file" |
+    jq -e --arg id "$(jq -r .id <<<"$note")" '.steering | any(.id == $id)' >/dev/null ||
+    die "the steering note is missing from the heartbeat"
+  api "$by" POST "$BASE/messages/acknowledgements" "$(jq -c '{ids: [.id]}' <<<"$note")" >/dev/null
+  recorded "$by" "$path" "$lease_file" steer "$note"
+  question=$(api "$by" POST "$path/questions" \
+    "$(jq -c '{body: .open.body, blocking: false, default: .open.default}' <<<"$talk")" "$lease_file")
+  recorded "$by" "$path" "$lease_file" question "$question"
+  transcript "$by" "$path" "$lease_file" "$(jq -c .closing <<<"$talk")"
+  log "    questions, steering and a transcript"
+}
+
 run_attempt() {
   local i=$1 a=$2 key number spec by stop claim lease_file attempt_id sequence path
   key=$(hvr "$i" .key)
@@ -493,6 +543,7 @@ run_attempt() {
     "X-Lease-Generation: $(jq -r .lease_generation <<<"$claim")")
   api "$by" POST "$path/heartbeat" '{}' "$lease_file" >/dev/null
   log "  #$number.$sequence claimed by $by"
+  converse "$by" "$path" "$lease_file" "$spec"
   case "$stop" in
     running) return ;;
     released)

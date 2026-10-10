@@ -14,7 +14,7 @@ macro_rules! domain {($name:ident {$($variant:ident=>$value:literal),+})=>{
 #[derive(Clone,Copy,Debug,Eq,PartialEq)] pub enum $name {$($variant),+}
 impl $name {#[must_use] pub const fn as_str(self)->&'static str {match self {$(Self::$variant=>$value),+}} pub(crate) fn parse(value:&str)->Result<Self,AttemptError> {match value {$($value=>Ok(Self::$variant)),+,_=>Err(AttemptError::CorruptData)}}}
 };}
-domain!(State {Claimed=>"claimed",Running=>"running",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+domain!(State {Claimed=>"claimed",Running=>"running",WaitingOnHuman=>"waiting_on_human",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 domain!(UploadState {Pending=>"pending",Receiving=>"receiving",Verified=>"verified",Failed=>"failed",Expired=>"expired"});
 domain!(Transfer {Stream=>"stream",Single=>"single",Multipart=>"multipart"});
 domain!(Origin {Live=>"live",Imported=>"imported"});

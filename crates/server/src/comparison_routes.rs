@@ -160,6 +160,7 @@ pub(crate) async fn list(
             ![
                 "claimed",
                 "running",
+                "waiting_on_human",
                 "verifying",
                 "verified",
                 "failed",

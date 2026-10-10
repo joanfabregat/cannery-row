@@ -41,4 +41,5 @@ identifiers!(
     ReviewCaseId,
     PlanRevisionId,
     ConcernId,
+    MessageId,
 );

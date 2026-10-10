@@ -1476,6 +1476,8 @@ fn limits_out(limits: Limits) -> ProjectLimits {
         context_items_max: i64::from(limits.context_items_max),
         index_line_max_bytes: i64::from(limits.index_line_max_bytes),
         context_summary_max_bytes: i64::from(limits.context_summary_max_bytes),
+        question_wait_seconds: Some(i64::from(limits.question_wait_seconds)),
+        transcript_max_bytes: Some(limits.transcript_max_bytes),
     }
 }
 
@@ -1540,7 +1542,26 @@ pub(crate) async fn set_limits(
             ))
         }
     };
-    let limits = Limits {
+    let question_wait_seconds = input
+        .question_wait_seconds
+        .map(|value| field("question_wait_seconds", value, 60, 2_592_000))
+        .transpose()?;
+    let transcript_max_bytes = input
+        .transcript_max_bytes
+        .map(|value| {
+            if (65_536..=1_073_741_824).contains(&value) {
+                Ok(value)
+            } else {
+                Err(invalid(
+                    "body/transcript_max_bytes",
+                    "Input should be between 65536 and 1073741824",
+                ))
+            }
+        })
+        .transpose()?;
+    let mut limits = Limits {
+        question_wait_seconds: 0,
+        transcript_max_bytes: 0,
         brief_max_bytes: field("brief_max_bytes", input.brief_max_bytes, 1024, 262_144)?,
         plan_approach_max_bytes: field(
             "plan_approach_max_bytes",
@@ -1575,6 +1596,8 @@ pub(crate) async fn set_limits(
     let prior = plans::limits(&mut tx, project.id)
         .await
         .map_err(track_error(&context))?;
+    limits.question_wait_seconds = question_wait_seconds.unwrap_or(prior.question_wait_seconds);
+    limits.transcript_max_bytes = transcript_max_bytes.unwrap_or(prior.transcript_max_bytes);
     plans::set_limits(&mut tx, project.id, limits, user_id)
         .await
         .map_err(track_error(&context))?;

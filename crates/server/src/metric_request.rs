@@ -201,6 +201,7 @@ pub(crate) fn parse(q: &QueryParams, operation: Operation) -> Result<Parameters,
                     if ![
                         "claimed",
                         "running",
+                        "waiting_on_human",
                         "verifying",
                         "verified",
                         "failed",

@@ -68,6 +68,7 @@ type Result<T> = std::result::Result<T, SweepError>;
 #[derive(Clone, Copy)]
 enum Phase {
     Attempts,
+    Questions,
     Jobs,
     Uploads,
     FailedUploads,
@@ -168,6 +169,7 @@ struct Candidate {
     id: Uuid,
     attempt: Option<Uuid>,
     key: Option<String>,
+    job: Option<Uuid>,
 }
 
 fn duration(seconds: f64) -> Result<Duration> {
@@ -299,6 +301,7 @@ async fn run_owned(state: &AppState, settlement: Arc<Settlement>) -> Result<Swee
         let request = RequestContext::background();
         for phase in [
             Phase::Attempts,
+            Phase::Questions,
             Phase::Jobs,
             Phase::Uploads,
             Phase::FailedUploads,
@@ -352,6 +355,18 @@ async fn each(
             seen.push(row.id);
             let result = match phase {
                 Phase::Attempts => expire_attempt(c, s, row.id, report, r).await,
+                Phase::Questions => {
+                    unanswered(
+                        c,
+                        s,
+                        row.id,
+                        row.attempt.ok_or(SweepError::Database)?,
+                        row.job,
+                        report,
+                        r,
+                    )
+                    .await
+                }
                 Phase::Jobs => {
                     expire_job(
                         c,
@@ -404,10 +419,21 @@ async fn candidates(
     limit: i64,
 ) -> Result<Vec<Candidate>> {
     Ok(match phase {
-        Phase::Attempts => sqlx::query!("SELECT id AS \"id: Uuid\" FROM attempts WHERE state IN ('claimed','running') AND (lease_expires_at<=now() OR deadline<=now()) AND id<>ALL($1::uuid[]) ORDER BY lease_expires_at,id LIMIT $2", seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:None }).collect(),
-        Phase::Jobs => sqlx::query!("SELECT id AS \"id: Uuid\",attempt_id AS \"attempt_id: Uuid\" FROM jobs WHERE state='claimed' AND (lease_expires_at<=now() OR deadline<=now()) AND id<>ALL($1::uuid[]) ORDER BY lease_expires_at,id LIMIT $2", seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:Some(r.attempt_id), key:None }).collect(),
-        Phase::Uploads => sqlx::query!("SELECT id AS \"id: Uuid\",key FROM uploads WHERE state IN ('pending','receiving') AND expires_at<=now() AND (state='pending' OR receiving_since<=now()-($1::float8*interval '1 second')) AND backend=$2 AND bucket=$3 AND id<>ALL($4::uuid[]) ORDER BY expires_at,id LIMIT $5", s.max_stream_seconds, s.store.backend(), s.store.bucket(), seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:Some(r.key) }).collect(),
-        Phase::FailedUploads => sqlx::query!("SELECT id AS \"id: Uuid\",key FROM uploads WHERE state='failed' AND object_pending_delete AND (urls_expire_at IS NULL OR urls_expire_at<=now()) AND backend=$1 AND bucket=$2 AND id<>ALL($3::uuid[]) ORDER BY id LIMIT $4", s.store.backend(), s.store.bucket(), seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:Some(r.key) }).collect(),
+        Phase::Questions => cannery_tracks::messages::overdue(c, seen, limit)
+            .await
+            .map_err(|_| SweepError::Database)?
+            .into_iter()
+            .map(|r| Candidate {
+                id: r.id.0,
+                attempt: Some(r.attempt_id.0),
+                key: None,
+                job: r.job_id.map(|job| job.0),
+            })
+            .collect(),
+        Phase::Attempts => sqlx::query!("SELECT id AS \"id: Uuid\" FROM attempts WHERE state IN ('claimed','running') AND (lease_expires_at<=now() OR deadline<=now()) AND id<>ALL($1::uuid[]) ORDER BY lease_expires_at,id LIMIT $2", seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:None, job:None }).collect(),
+        Phase::Jobs => sqlx::query!("SELECT id AS \"id: Uuid\",attempt_id AS \"attempt_id: Uuid\" FROM jobs WHERE state='claimed' AND NOT EXISTS (SELECT 1 FROM lease_pauses p WHERE p.job_id=jobs.id) AND (lease_expires_at<=now() OR deadline<=now()) AND id<>ALL($1::uuid[]) ORDER BY lease_expires_at,id LIMIT $2", seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:Some(r.attempt_id), key:None, job:None }).collect(),
+        Phase::Uploads => sqlx::query!("SELECT id AS \"id: Uuid\",key FROM uploads WHERE state IN ('pending','receiving') AND expires_at<=now() AND (state='pending' OR receiving_since<=now()-($1::float8*interval '1 second')) AND backend=$2 AND bucket=$3 AND id<>ALL($4::uuid[]) ORDER BY expires_at,id LIMIT $5", s.max_stream_seconds, s.store.backend(), s.store.bucket(), seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:Some(r.key), job:None }).collect(),
+        Phase::FailedUploads => sqlx::query!("SELECT id AS \"id: Uuid\",key FROM uploads WHERE state='failed' AND object_pending_delete AND (urls_expire_at IS NULL OR urls_expire_at<=now()) AND backend=$1 AND bucket=$2 AND id<>ALL($3::uuid[]) ORDER BY id LIMIT $4", s.store.backend(), s.store.bucket(), seen as _, limit).fetch_all(c).await?.into_iter().map(|r| Candidate { id:r.id, attempt:None, key:Some(r.key), job:None }).collect(),
     })
 }
 
@@ -503,7 +529,7 @@ async fn expire_job(
         tx.rollback().await?;
         return Ok(());
     }
-    let locked = sqlx::query!("SELECT id AS \"id: Uuid\",coalesce(deadline<=now(),false) AS \"deadline_passed!\" FROM jobs WHERE id=$1 AND state='claimed' AND (lease_expires_at<=now() OR deadline<=now()) FOR UPDATE SKIP LOCKED", id as _).fetch_optional(&mut *tx).await?;
+    let locked = sqlx::query!("SELECT id AS \"id: Uuid\",coalesce(deadline<=now(),false) AS \"deadline_passed!\" FROM jobs WHERE id=$1 AND state='claimed' AND NOT EXISTS (SELECT 1 FROM lease_pauses p WHERE p.job_id=jobs.id) AND (lease_expires_at<=now() OR deadline<=now()) FOR UPDATE SKIP LOCKED", id as _).fetch_optional(&mut *tx).await?;
     let Some(locked) = locked else {
         tx.rollback().await?;
         return Ok(());
@@ -528,6 +554,133 @@ async fn expire_job(
             "the job's lease expired without a heartbeat",
         )
     };
+    let rerun = fail_job(&mut tx, s, &attempt, &job, code, reason, r).await?;
+    tx.commit().await?;
+    report.jobs_failed += 1;
+    report.jobs_rerun += u64::from(rerun);
+    Ok(())
+}
+
+/// Release an attempt or fail a job whose blocking question went
+/// unanswered for longer than its project allows. The question stays open:
+/// answered later, it reaches the unit's next attempt.
+async fn unanswered(
+    c: &mut PgConnection,
+    s: &SweepContext,
+    question: Uuid,
+    attempt_id: Uuid,
+    job_id: Option<Uuid>,
+    report: &mut SweepReport,
+    r: &RequestContext,
+) -> Result<()> {
+    let mut tx = c.begin().await?;
+    let attempt_lock = sqlx::query!(
+        "SELECT id AS \"id: Uuid\" FROM attempts WHERE id=$1 FOR UPDATE SKIP LOCKED",
+        attempt_id as _
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    let still = sqlx::query_scalar!(
+        "SELECT EXISTS (SELECT 1 FROM messages WHERE id=$1 AND state='open' AND released_at IS NULL) AS \"open!\"",
+        question as _
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    if attempt_lock.is_none() || !still {
+        tx.rollback().await?;
+        return Ok(());
+    }
+    let attempt = Repository::new(&mut tx, s.lifecycle.attempts)
+        .get_attempt_by_id(AttemptId(attempt_id), false)
+        .await
+        .map_err(|_| SweepError::Database)?
+        .ok_or(SweepError::Database)?;
+    let code = "unanswered_question";
+    match job_id {
+        None => {
+            if attempt.state != cannery_attempts::model::State::WaitingOnHuman {
+                tx.rollback().await?;
+                return Ok(());
+            }
+            cannery_tracks::messages::release(&mut tx, attempt.id, None)
+                .await
+                .map_err(|_| SweepError::Database)?;
+            let details = job_lifecycle::document(
+                &json!({"question": question.to_string()}),
+                &s.lifecycle,
+                r,
+            )
+            .map_err(|_| SweepError::Transition)?;
+            attempt_failure::unanswered(
+                &mut tx,
+                s.lifecycle.attempts,
+                Attribution::System(None),
+                &attempt,
+                &attempt_failure::Report {
+                    code,
+                    reason: "the attempt's blocking question went unanswered",
+                    details: &details,
+                    log_refs: None,
+                    step: None,
+                    idempotency_key: None,
+                    manifest_sha256: None,
+                },
+                r,
+            )
+            .await
+            .map_err(|_| SweepError::Transition)?;
+            tx.commit().await?;
+            report.attempts_expired += 1;
+            report.attempts_requeued += 1;
+        }
+        Some(job_id) => {
+            let locked = sqlx::query!(
+                "SELECT id AS \"id: Uuid\" FROM jobs WHERE id=$1 AND state='claimed' AND EXISTS (SELECT 1 FROM lease_pauses p WHERE p.job_id=jobs.id) FOR UPDATE SKIP LOCKED",
+                job_id as _
+            )
+            .fetch_optional(&mut *tx)
+            .await?;
+            if locked.is_none() {
+                tx.rollback().await?;
+                return Ok(());
+            }
+            let job = jobs::get_job(&mut tx, JobId(job_id), false, s.lifecycle.jobs)
+                .await
+                .map_err(|_| SweepError::Database)?
+                .ok_or(SweepError::Database)?;
+            cannery_tracks::messages::release(&mut tx, attempt.id, Some(job.id))
+                .await
+                .map_err(|_| SweepError::Database)?;
+            let rerun = fail_job(
+                &mut tx,
+                s,
+                &attempt,
+                &job,
+                code,
+                "the job's blocking question went unanswered",
+                r,
+            )
+            .await?;
+            tx.commit().await?;
+            report.jobs_failed += 1;
+            report.jobs_rerun += u64::from(rerun);
+        }
+    }
+    Ok(())
+}
+
+/// Fail a claimed job the sweep found stuck, as its phase fails it; returns
+/// whether it runs again.
+async fn fail_job(
+    tx: &mut PgConnection,
+    s: &SweepContext,
+    attempt: &cannery_attempts::model::Attempt,
+    job: &jobs::Job,
+    code: &str,
+    reason: &str,
+    r: &RequestContext,
+) -> Result<bool> {
+    let id = job.id.0;
     let details = job_lifecycle::document(
         &json!({"lease_generation":job.lease_generation}),
         &s.lifecycle,
@@ -545,10 +698,10 @@ async fn expire_job(
     let rerun = if job.phase == jobs::Phase::Decide {
         // A decide job reruns within its budget; then researchers decide.
         crate::decide_jobs::fail(
-            &mut tx,
+            &mut *tx,
             Attribution::System(None),
-            &attempt,
-            &job,
+            attempt,
+            job,
             failure,
             &s.lifecycle,
             r,
@@ -559,10 +712,10 @@ async fn expire_job(
     } else if job.phase == jobs::Phase::Document {
         // A document job is queued again: only a researcher skips it.
         crate::document_jobs::requeue(
-            &mut tx,
+            &mut *tx,
             Attribution::System(None),
-            &attempt,
-            &job,
+            attempt,
+            job,
             failure,
             &s.lifecycle,
             r,
@@ -572,10 +725,10 @@ async fn expire_job(
         true
     } else if attempt.state == cannery_attempts::model::State::Verifying {
         job_lifecycle::fail_job_run_as(
-            &mut tx,
+            &mut *tx,
             Attribution::System(None),
-            &attempt,
-            &job,
+            attempt,
+            job,
             failure,
             &details,
             false,
@@ -587,13 +740,13 @@ async fn expire_job(
         .1
         .is_some()
     } else {
-        jobs::fail_job(&mut tx, job.id, failure, s.lifecycle.jobs)
+        jobs::fail_job(&mut *tx, job.id, failure, s.lifecycle.jobs)
             .await
             .map_err(|_| SweepError::Transition)?;
         job_lifecycle::event_as(
-            &mut tx,
+            &mut *tx,
             Attribution::System(None),
-            &attempt,
+            attempt,
             "job.failed",
             "job",
             &id.to_string(),
@@ -606,10 +759,7 @@ async fn expire_job(
         .map_err(|_| SweepError::Transition)?;
         false
     };
-    tx.commit().await?;
-    report.jobs_failed += 1;
-    report.jobs_rerun += u64::from(rerun);
-    Ok(())
+    Ok(rerun)
 }
 
 async fn upload_event(

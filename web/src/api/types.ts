@@ -33,6 +33,11 @@ export type UnitIndex = Schemas["UnitIndexOut"];
 export type Concern = Schemas["ConcernOut"];
 export type ConcernAnswer = Schemas["AnswerOut"];
 
+export type Message = Schemas["MessageOut"];
+export type QuestionAnswer = Schemas["QuestionAnswerOut"];
+export type TranscriptPage = Schemas["TranscriptOut"];
+export type TranscriptEvent = Schemas["TranscriptEventOut"];
+
 export type Comment = Schemas["CommentOut"];
 export type CommentRevision = Schemas["CommentRevisionOut"];
 

@@ -49,6 +49,7 @@ server attempt_release_http
 server tracks_http
 server plans_http
 server concerns_http
+server messages_http
 server step_binding
 server uploads_http
 server attempt_workflow --prefix preparation_owner_ --set CANNERY_WORKFLOW_REFERENCE=crates/server/tests/fixtures/attempt_workflow/reference.json

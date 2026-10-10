@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/transcript.schema.json",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
+  "title": "Transcript event",
+  "description": "One line of an agent's transcript, stored as JSON Lines: one event per line, in the order they happened. The performer appends its transcript while its attempt runs and redacts secrets before appending; the transcript is sealed when the attempt is submitted.",
+  "type": "object",
+  "properties": {
+    "ts": {
+      "description": "When the event happened, as an RFC 3339 date-time.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "kind": {
+      "description": "`assistant`: the agent's own text. `user`: a prompt the agent was given. `tool_call`: a tool the agent called, with its arguments as `content`. `tool_result`: what the tool returned. `note`: anything else worth keeping. `question`, `answer` and `steer`: a question the agent asked, the answer it received, and a steering note it read, as it saw them.",
+      "enum": ["assistant", "user", "tool_call", "tool_result", "note", "question", "answer", "steer"]
+    },
+    "content": {
+      "description": "What the event says: text, or for a tool call or result any JSON value."
+    },
+    "tool": {
+      "description": "The tool a `tool_call` or `tool_result` is about.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "call_id": {
+      "description": "Pairs a `tool_result` with its `tool_call`.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "message": {
+      "description": "The Cannery Row message a `question`, `answer` or `steer` event records.",
+      "type": "string",
+      "format": "uuid"
+    },
+    "model": {
+      "description": "The model that produced an `assistant` event.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    }
+  },
+  "required": ["ts", "kind", "content"],
+  "additionalProperties": false
+}

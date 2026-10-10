@@ -287,6 +287,7 @@ pub async fn running_attempts(
     let states = vec![
         "claimed".to_owned(),
         "running".to_owned(),
+        "waiting_on_human".to_owned(),
         "verifying".to_owned(),
     ];
     let total = sqlx::query!(

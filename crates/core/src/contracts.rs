@@ -32,6 +32,7 @@ pub enum ContractKind {
     StepManifest,
     ScienceRevision,
     DashboardViews,
+    Transcript,
 }
 impl ContractKind {
     /// Resolve an unchanged published schema name; unknown names remain absent.
@@ -54,6 +55,7 @@ impl ContractKind {
             "dashboard_views" => Self::DashboardViews,
             "science_revision" => Self::ScienceRevision,
             "import_bundle" => Self::ImportBundle,
+            "transcript" => Self::Transcript,
             _ => return None,
         })
     }
@@ -294,7 +296,7 @@ fn embedded_schemas(kind: ContractKind, value: &Value, errors: &mut Vec<Contract
         _ => {}
     }
 }
-const PUBLISHED_SOURCES: [(&str, &str); 23] = [
+const PUBLISHED_SOURCES: [(&str, &str); 24] = [
     (
         "track",
         include_str!("../../../contracts/schemas/track.schema.json"),
@@ -386,5 +388,9 @@ const PUBLISHED_SOURCES: [(&str, &str); 23] = [
     (
         "concern",
         include_str!("../../../contracts/schemas/concern.schema.json"),
+    ),
+    (
+        "transcript",
+        include_str!("../../../contracts/schemas/transcript.schema.json"),
     ),
 ];

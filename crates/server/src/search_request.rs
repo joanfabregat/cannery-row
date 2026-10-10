@@ -143,6 +143,7 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
             "writeup",
             "decision_reason",
             "comment",
+            "message",
         ]),
         &mut errors,
     );
@@ -169,6 +170,7 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
         Some(&[
             "claimed",
             "running",
+            "waiting_on_human",
             "verifying",
             "verified",
             "failed",

@@ -188,6 +188,7 @@ struct RouteContexts {
     search: Option<Arc<crate::search_routes::SearchContext>>,
     comments: Option<Arc<crate::comment_routes::CommentContext>>,
     review_decisions: Option<Arc<crate::review_decision_routes::ReviewDecisionContext>>,
+    messages: Option<Arc<crate::message_routes::MessageContext>>,
 }
 #[allow(clippy::too_many_lines)] // Route assembly keeps optional installation boundaries visible.
 fn application_with_proxy(
@@ -239,6 +240,10 @@ fn application_with_proxy(
         .merge(crate::project_routes::routes(state.clone()))
         .merge(crate::brief_routes::routes(state.clone())?)
         .merge(crate::concern_routes::routes(state.clone())?)
+        .merge(crate::protocol::routes())
+        .merge(contexts.messages.map_or_else(Router::new, |context| {
+            crate::message_routes::routes(state.clone(), context)
+        }))
         .merge(contexts.attempt_claims.map_or_else(Router::new, |context| {
             crate::attempt_claim_routes::routes(state.clone(), context)
         }))

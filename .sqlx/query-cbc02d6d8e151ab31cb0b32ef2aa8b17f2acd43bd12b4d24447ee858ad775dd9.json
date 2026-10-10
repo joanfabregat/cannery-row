@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.id AS \"id!: _\", m.project_id AS \"project_id!: _\",\n        m.attempt_id AS \"attempt_id!: _\", m.job_id AS \"job_id?: _\"\n        FROM messages m\n        LEFT JOIN project_limits l ON l.project_id = m.project_id\n        JOIN attempts a ON a.id = m.attempt_id\n        LEFT JOIN jobs j ON j.id = m.job_id\n        WHERE m.kind = 'question' AND m.blocking AND m.state = 'open' AND m.released_at IS NULL\n          AND m.created_at + make_interval(secs => coalesce(l.question_wait_seconds, 86400))\n              <= now()\n          AND ((m.job_id IS NULL AND a.state = 'waiting_on_human')\n               OR (j.state = 'claimed' AND EXISTS (\n                   SELECT 1 FROM lease_pauses p WHERE p.job_id = j.id)))\n          AND m.id <> ALL($1::uuid[])\n        ORDER BY m.created_at, m.id LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "attempt_id!: _",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "job_id?: _",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "cbc02d6d8e151ab31cb0b32ef2aa8b17f2acd43bd12b4d24447ee858ad775dd9"
+}

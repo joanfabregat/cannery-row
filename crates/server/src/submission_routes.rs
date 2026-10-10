@@ -41,6 +41,9 @@ use std::{
 };
 
 pub struct SubmissionContext {
+    /// Where an agent's transcript is sealed at its submission; none leaves
+    /// transcripts unsealed.
+    pub transcripts: Option<Arc<cannery_storage::ObjectStore>>,
     pub lifecycle: Arc<Context>,
     pub phases: PhaseSchemas,
     pub nesting_budget: usize,
@@ -475,6 +478,11 @@ pub(crate) async fn submit(
             &request_context,
         )
         .await?;
+    }
+    if let Some(store) = &state.profile.transcripts {
+        crate::transcript_routes::seal(&mut tx, store, project.id, &attempt, &request_context)
+            .await
+            .map_err(failure)?;
     }
     let frozen = Repository::new(&mut tx, state.profile.lifecycle.attempts)
         .get_attempt_by_id(attempt.id, false)

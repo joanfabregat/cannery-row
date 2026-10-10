@@ -55,6 +55,14 @@ fn hex(bytes: &[u8]) -> Result<String> {
     }
     Ok(out)
 }
+/// A recorded job claim response with the working protocol every claim
+/// now names; the frozen corpus predates it.
+fn with_protocol(mut value: Value) -> Value {
+    if value.get("heartbeat_seconds").is_some() {
+        value["protocol"] = json!(cannery_server::protocol::reference());
+    }
+    value
+}
 fn output(value: Value) -> Value {
     if value
         .get("error")
@@ -492,13 +500,27 @@ async fn job_claims_match_production() -> Result<()> {
                 r["name"]
             );
         }
-        assert_eq!(output(response), r["response"], "response {}", r["name"]);
+        assert_eq!(
+            output(response),
+            with_protocol(r["response"].clone()),
+            "response {}",
+            r["name"]
+        );
         if let Some(expected) = r["wire_hex"].as_str() {
             if status == 200 || status == 201 {
                 let bytes = (0..expected.len())
                     .step_by(2)
                     .map(|i| u8::from_str_radix(&expected[i..i + 2], 16))
                     .collect::<std::result::Result<Vec<_>, _>>()?;
+                // The recorded bytes predate the protocol reference: append
+                // it to the object, keeping the bytes' own numbers exact.
+                let mut bytes = bytes;
+                if bytes.pop() != Some(b'}') {
+                    return Err("recorded claim is not an object".into());
+                }
+                bytes.extend_from_slice(b",\"protocol\":");
+                bytes.extend(serde_json::to_vec(&cannery_server::protocol::reference())?);
+                bytes.push(b'}');
                 let typed: JobClaimOut = serde_json::from_slice(&bytes)?;
                 assert_eq!(
                     wire,
@@ -591,7 +613,13 @@ async fn job_claims_match_production() -> Result<()> {
         response["job"]["lease"]["expires_at"] = json!("@checked-clock");
         response["job"]["deadline"] = json!("@checked-clock");
     }
-    assert_eq!(json!(responses), f["race"]["response"]);
+    let recorded: Vec<Value> = f["race"]["response"]
+        .as_array()
+        .ok_or("race responses")?
+        .iter()
+        .map(|response| with_protocol(response.clone()))
+        .collect();
+    assert_eq!(json!(responses), json!(recorded));
     assert_eq!(storage(&state.pool, true).await?, f["race"]["storage"]);
     let heartbeat = f["cases"]
         .as_array()

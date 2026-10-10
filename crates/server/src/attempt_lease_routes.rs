@@ -169,7 +169,29 @@ pub(crate) fn parameters_with_path_errors(
 }
 
 /// Called only inside the caller's transaction, after worker authorization.
+/// An attempt waiting on an answer to a blocking question is refused: its
+/// performer waits for the answer first.
 pub(crate) async fn leased(
+    conn: &mut PgConnection,
+    principal: &Principal,
+    project: &Project,
+    parameters: &LeaseParameters,
+    profile: JsonContext,
+    context: &RequestContext,
+) -> Result<Attempt, Failure> {
+    let attempt = leased_or_waiting(conn, principal, project, parameters, profile, context).await?;
+    if attempt.state == AttemptState::WaitingOnHuman {
+        return Err(domain(
+            ErrorCode::Conflict,
+            "the attempt waits on an answer to a blocking question; wait_for_answer first",
+        ));
+    }
+    Ok(attempt)
+}
+
+/// As `leased`, but an attempt waiting on an answer is accepted: its lease
+/// clock is stopped, so neither its lease nor its deadline expires.
+pub(crate) async fn leased_or_waiting(
     conn: &mut PgConnection,
     principal: &Principal,
     project: &Project,
@@ -202,17 +224,22 @@ pub(crate) async fn leased(
             "send X-Lease-Token and X-Lease-Generation",
         ));
     };
-    if !matches!(attempt.state, AttemptState::Claimed | AttemptState::Running)
-        || !attempt
-            .lease_token_hash
-            .as_ref()
-            .is_some_and(|held| cannery_identity::secrets::matches_digest(held, token))
+    if !matches!(
+        attempt.state,
+        AttemptState::Claimed | AttemptState::Running | AttemptState::WaitingOnHuman
+    ) || !attempt
+        .lease_token_hash
+        .as_ref()
+        .is_some_and(|held| cannery_identity::secrets::matches_digest(held, token))
         || generation != &BigInt::from(attempt.lease_generation)
     {
         return Err(domain(
             ErrorCode::StaleLease,
             "this lease is no longer valid for the attempt",
         ));
+    }
+    if attempt.state == AttemptState::WaitingOnHuman {
+        return Ok(attempt);
     }
     let now: Timestamp = sqlx::query_scalar("SELECT now()")
         .fetch_one(&mut *conn)
@@ -277,7 +304,7 @@ pub(crate) async fn heartbeat(
         .await
         .map_err(|_| internal(&context, "lease transaction"))?;
     let result = async {
-        let attempt = leased(
+        let attempt = leased_or_waiting(
             &mut tx,
             &auth.principal,
             &project,
@@ -287,20 +314,28 @@ pub(crate) async fn heartbeat(
         )
         .await?;
         let mut repository = Repository::new(&mut tx, state.context.repository);
-        repository
-            .extend_lease(
-                attempt.id,
-                state.app.settings.leases.ttl_seconds.as_bigint(),
-            )
-            .await
-            .map_err(|_| internal(&context, "lease extension"))?;
-        repository
+        // A waiting attempt's lease clock is stopped: a heartbeat changes
+        // nothing until its question is answered.
+        if attempt.state != AttemptState::WaitingOnHuman {
+            repository
+                .extend_lease(
+                    attempt.id,
+                    state.app.settings.leases.ttl_seconds.as_bigint(),
+                )
+                .await
+                .map_err(|_| internal(&context, "lease extension"))?;
+        }
+        let renewed = repository
             .get_attempt_by_id(attempt.id, false)
             .await
-            .map_err(|_| internal(&context, "renewed lease lookup"))
+            .map_err(|_| internal(&context, "renewed lease lookup"))?;
+        let pending = crate::message_routes::pending(&mut tx, &project, attempt.id, None, &context)
+            .await
+            .map_err(failure)?;
+        Ok((renewed, pending))
     }
     .await;
-    let renewed = match result {
+    let (renewed, (answers, steering)) = match result {
         Ok(renewed) => {
             tx.commit()
                 .await
@@ -313,14 +348,17 @@ pub(crate) async fn heartbeat(
             }
             return Err(error);
         }
-    }
-    .ok_or_else(|| internal(&context, "renewed lease invariant"))?;
+    };
+    let renewed = renewed.ok_or_else(|| internal(&context, "renewed lease invariant"))?;
     let expires = renewed
         .lease_expires_at
         .ok_or_else(|| internal(&context, "renewed lease expiry invariant"))?;
     let bytes = serde_json::to_vec(&LeaseOut {
         lease_generation: i64::from(renewed.lease_generation),
         lease_expires_at: crate::timestamps::public_timestamp(expires),
+        waiting_on_human: renewed.state == AttemptState::WaitingOnHuman,
+        answers,
+        steering,
     })
     .map_err(|_| internal(&context, "lease serialization"))?;
     Ok((

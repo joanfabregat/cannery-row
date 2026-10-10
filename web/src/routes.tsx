@@ -16,6 +16,7 @@ import { SettingsPage } from "@/pages/settings-page";
 import { SignInPage } from "@/pages/sign-in-page";
 import { TrackPage } from "@/pages/track-page";
 import { TracksPage } from "@/pages/tracks-page";
+import { TranscriptPage } from "@/pages/transcript-page";
 
 export const routes: RouteObject[] = [
   { path: "/sign-in", element: <SignInPage /> },
@@ -32,6 +33,7 @@ export const routes: RouteObject[] = [
       { path: "units/:number/review", element: <ReviewPage /> },
       { path: "units/:number/writeup", element: <WriteupPage /> },
       { path: "units/:number/attempts/:sequence", element: <AttemptPage /> },
+      { path: "units/:number/attempts/:sequence/transcript", element: <TranscriptPage /> },
       {
         path: "results",
         // The chart library is loaded with the only page that draws charts.

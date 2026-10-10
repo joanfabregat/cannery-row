@@ -20,6 +20,11 @@ export function attemptPath(
   return inProject(`/units/${number}/attempts/${sequence}`, project);
 }
 
+/** An agent-mode attempt's transcript timeline. */
+export function transcriptPath(number: number | string, sequence: number | string): string {
+  return `/units/${number}/attempts/${sequence}/transcript`;
+}
+
 export function reviewPath(number: number | string): string {
   return `/units/${number}/review`;
 }

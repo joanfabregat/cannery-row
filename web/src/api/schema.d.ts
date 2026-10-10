@@ -806,6 +806,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/jobs/{job_id}/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask Job
+         * @description Ask a question about the job's unit under the job's lease, as `ask` does
+         *     for an attempt. A blocking question stops the job's lease clock until a
+         *     researcher answers it; unanswered after the project's
+         *     `question_wait_seconds`, the job fails (`unanswered_question`) as an
+         *     expired one does.
+         */
+        post: operations["ask_job_api_projects__slug__jobs__job_id__questions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/jobs/{job_id}/uploads": {
         parameters: {
             query?: never;
@@ -895,6 +919,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/messages/acknowledgements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ack Steering
+         * @description Acknowledge steering notes and answers you have read, by id: a note posted
+         *     to an attempt you hold, an answer to a question you asked, or an answer to
+         *     a released question of the unit whose attempt you now hold. Heartbeat
+         *     responses stop carrying them. Acknowledging twice is harmless.
+         */
+        post: operations["ack_steering_api_projects__slug__messages_acknowledgements_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/metrics": {
         parameters: {
             query?: never;
@@ -967,6 +1014,105 @@ export interface paths {
         get: operations["get_producer_api_projects__slug__producers__name___revision__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Questions
+         * @description The questions performers asked about the project's units, newest first,
+         *     with their answers: of one track when `track` is given. `state=open`
+         *     lists those waiting for a researcher.
+         */
+        get: operations["list_questions_api_projects__slug__questions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/questions/{question_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Question
+         * @description One question: who asked it, under which attempt or job, whether it blocks,
+         *     the default it proceeds on, and its answer once given.
+         */
+        get: operations["get_question_api_projects__slug__questions__question_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/questions/{question_id}/answer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wait For Answer
+         * @description Wait up to `wait` seconds (default 30, at most 60) for a question to be
+         *     answered or escalated, then return it, with its `answer` once given
+         *     (`null` when the wait ran out: ask again). When you asked the question, the
+         *     answer returned is acknowledged.
+         */
+        get: operations["wait_for_answer_api_projects__slug__questions__question_id__answer_get"];
+        put?: never;
+        /**
+         * Answer Question
+         * @description A researcher answers an open question, as Markdown (at most 16 KiB). The
+         *     performer reads it with `wait_for_answer` or in its next heartbeat
+         *     response; a blocking question's attempt or job gets a fresh lease and runs
+         *     on. A question whose attempt was released is still answered: the answer
+         *     reaches the unit's next attempt.
+         */
+        post: operations["answer_question_api_projects__slug__questions__question_id__answer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/questions/{question_id}/escalation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Escalate Question
+         * @description A researcher escalates an open question into a concern about the plan of
+         *     the unit's track: the concern takes the `kind` and the `note`, quoting the
+         *     question, and blocks new claims on the track until a plan revision answers
+         *     it or a researcher dismisses it. The question closes as `escalated`, and the
+         *     note is its answer: the performer reads it as any answer and its lease
+         *     clock restarts.
+         */
+        post: operations["escalate_question_api_projects__slug__questions__question_id__escalation_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1712,6 +1858,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Ask a question about the unit under the attempt's lease (agent mode only):
+         *     what you need, as Markdown (at most 16 KiB). A blocking question puts the
+         *     attempt in `waiting_on_human` and stops its lease clock: neither the lease
+         *     nor the deadline expires while it waits, and a fresh lease starts once a
+         *     researcher answers it. Unanswered after the project's
+         *     `question_wait_seconds`, the attempt is released (`unanswered_question`)
+         *     and the unit queued again, the question attached for the next attempt. A
+         *     non-blocking question states the `default` you proceed on until it is
+         *     answered. Read the answer with `wait_for_answer` or in the next heartbeat
+         *     response. With an `Idempotency-Key`, a retry returns the same question.
+         */
+        post: operations["ask_api_projects__slug__units__number__attempts__sequence__questions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/units/{number}/attempts/{sequence}/release": {
         parameters: {
             query?: never;
@@ -1758,6 +1933,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/steering": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Steering
+         * @description The steering notes posted to an attempt, oldest first; only those not yet
+         *     acknowledged with `pending=true`. Heartbeat responses carry the same
+         *     unacknowledged notes.
+         */
+        get: operations["get_steering_api_projects__slug__units__number__attempts__sequence__steering_get"];
+        put?: never;
+        /**
+         * Post Steering
+         * @description A researcher posts a steering note to a running attempt in agent mode,
+         *     unasked, as Markdown (at most 16 KiB). The agent reads it in its next
+         *     heartbeat response or with `get_steering`, and acknowledges it; until then
+         *     it shows as unacknowledged on the attempt.
+         */
+        post: operations["post_steering_api_projects__slug__units__number__attempts__sequence__steering_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/units/{number}/attempts/{sequence}/submission": {
         parameters: {
             query?: never;
@@ -1779,6 +1983,41 @@ export interface paths {
          *     review, once the caller has shown it holds the lease.
          */
         post: operations["submit_api_projects__slug__units__number__attempts__sequence__submission_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Transcript
+         * @description A page of the attempt's transcript, oldest event first, from the event
+         *     after `after` (an index, from 0): `next_after` names where the next page
+         *     starts while more events wait; follow a running attempt by asking again
+         *     after the last index read. `sealed` says whether the attempt was
+         *     submitted and its transcript stored as its `transcript` artifact.
+         */
+        get: operations["get_transcript_api_projects__slug__units__number__attempts__sequence__transcript_get"];
+        put?: never;
+        /**
+         * Append Transcript
+         * @description Append events to the attempt's transcript under its lease (agent mode
+         *     only), as you go: each event is one line of `transcript.schema.json` (`ts`,
+         *     `kind`, `content`), at most 1000 per append. The transcript is stored as
+         *     JSON Lines and read live with `get_transcript`; submitting the attempt seals
+         *     it as its `transcript` artifact. An append that would take the transcript
+         *     over the project's `transcript_max_bytes` is refused with its `size` and the
+         *     `limit`. Redact secrets before appending. With an `Idempotency-Key`, a retry
+         *     appends nothing twice.
+         */
+        post: operations["append_transcript_api_projects__slug__units__number__attempts__sequence__transcript_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1843,6 +2082,27 @@ export interface paths {
          *     and the alignment entries approved plans made about it, oldest first.
          */
         get: operations["get_unit_history_api_projects__slug__units__number__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Messages
+         * @description The questions, answers and steering notes of a unit, newest first: of one
+         *     attempt when `attempt` (its sequence) is given.
+         */
+        get: operations["list_messages_api_projects__slug__units__number__messages_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1978,6 +2238,31 @@ export interface paths {
          *     document job: `pending` until an agent or a researcher claims it.
          */
         get: operations["list_writeups_api_projects__slug__writeups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/protocol": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Protocol
+         * @description The working protocol every performer follows, as Markdown: when to ask a
+         *     question and when to proceed on a stated default, when to raise a concern
+         *     instead, reading and acknowledging steering at each heartbeat, and
+         *     appending the transcript. Every claim and job claim names it as `protocol`
+         *     with its `sha256`, also sent as the `ETag`; the MCP server sends the same
+         *     text as its instructions. No authentication.
+         */
+        get: operations["get_protocol_api_protocol_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2173,6 +2458,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Answers and steering notes the performer has read. */
+        AcknowledgementIn: {
+            ids: string[];
+        };
+        /** @description The messages newly acknowledged. */
+        AcknowledgementOut: {
+            acknowledged: string[];
+        };
         /** @description What a plan revision decides about a done or in-flight unit. */
         AlignmentOut: {
             decision: string;
@@ -2186,6 +2479,10 @@ export interface components {
         AlignmentSet: {
             decision: string;
             reason: string;
+        };
+        /** @description A researcher's answer to a question, as Markdown. */
+        AnswerIn: {
+            body: string;
         };
         /** @description One concern a plan revision answers, and how. */
         AnswerOut: {
@@ -2320,7 +2617,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        AttemptState: "claimed" | "running" | "verifying" | "verified" | "failed" | "cancelled" | "unreviewed";
+        AttemptState: "claimed" | "running" | "waiting_on_human" | "verifying" | "verified" | "failed" | "cancelled" | "unreviewed";
         AttentionFailure: {
             attempt_ref: string;
             code: string;
@@ -2535,6 +2832,11 @@ export interface components {
             lease_generation: number;
             lease_token: string;
             plan?: components["schemas"]["PlanRef"] | null;
+            /**
+             * @description The working protocol every performer follows: when to ask, when to
+             *     raise a concern, steering and transcripts.
+             */
+            protocol: components["schemas"]["ProtocolRef"];
             workflow?: components["schemas"]["ClaimedWorkflow"] | null;
         };
         ClaimRequest: {
@@ -2982,6 +3284,14 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorDetail"];
         };
+        /**
+         * @description Escalate a question into a concern about its track's plan: the concern's
+         *     kind and a note, which also answers the question.
+         */
+        EscalationIn: {
+            kind: string;
+            note: string;
+        };
         EvidenceEnvelopeRequest: {
             artifact_roles?: string[];
             attempt_id: string;
@@ -3112,6 +3422,11 @@ export interface components {
             heartbeat_seconds: number;
             job: components["schemas"]["ClaimedJobDocument"];
             plan?: components["schemas"]["PlanRef"] | null;
+            /**
+             * @description The working protocol every performer follows: when to ask, when to
+             *     raise a concern, steering and transcripts.
+             */
+            protocol: components["schemas"]["ProtocolRef"];
         };
         JobClaimRequest: {
             /**
@@ -3143,12 +3458,19 @@ export interface components {
             size_bytes: number;
         };
         JobLeaseOut: {
+            /** @description Answers to the job's questions it has not acknowledged yet. */
+            answers: components["schemas"]["MessageOut"][];
             /** Format: date-time */
             deadline: string;
             /** Format: date-time */
             lease_expires_at: string;
             /** Format: int64 */
             lease_generation: number;
+            /**
+             * @description The job asked a blocking question still open: its lease clock is
+             *     stopped until a researcher answers it.
+             */
+            waiting_on_human: boolean;
         };
         JobOut: {
             /** Format: uuid */
@@ -3218,10 +3540,19 @@ export interface components {
             size_bytes: number;
         };
         LeaseOut: {
+            /** @description Answers to the attempt's questions not acknowledged yet. */
+            answers: components["schemas"]["MessageOut"][];
             /** Format: date-time */
             lease_expires_at: string;
             /** Format: int64 */
             lease_generation: number;
+            /** @description Steering notes posted to the attempt not acknowledged yet. */
+            steering: components["schemas"]["MessageOut"][];
+            /**
+             * @description The attempt waits on an answer to a blocking question: its lease
+             *     clock is stopped, and a fresh lease starts once it is answered.
+             */
+            waiting_on_human: boolean;
         };
         LegacyUnitDocument: {
             question: string;
@@ -3277,6 +3608,70 @@ export interface components {
         };
         MembershipSet: {
             role: string;
+        };
+        /**
+         * @description A question, an answer or a steering note about a unit, who wrote it and
+         *     where it stands.
+         */
+        MessageOut: {
+            /**
+             * Format: date-time
+             * @description When the performer acknowledged this answer or steering note.
+             */
+            acknowledged_at: string | null;
+            answer: components["schemas"]["QuestionAnswerOut"] | null;
+            /** Format: int64 */
+            attempt: number;
+            /** Format: uuid */
+            author: string;
+            author_kind: string;
+            author_name: string | null;
+            /** @description Whether a question blocks its performer; none for other kinds. */
+            blocking: boolean | null;
+            body: string;
+            /** Format: date-time */
+            closed_at: string | null;
+            /**
+             * Format: uuid
+             * @description The concern an escalated question became.
+             */
+            concern: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** @description What the performer of a question proceeds on until answered. */
+            default: string | null;
+            /** Format: uuid */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The job whose performer asked the question; none for the attempt's.
+             */
+            job: string | null;
+            job_phase: string | null;
+            kind: string;
+            /**
+             * Format: uuid
+             * @description The question an answer answers.
+             */
+            question: string | null;
+            /**
+             * Format: date-time
+             * @description When the attempt or job waiting on this blocking question was
+             *     released because it went unanswered.
+             */
+            released_at: string | null;
+            sha256: string;
+            /** @description A question's state: `open`, `answered` or `escalated`. */
+            state: string | null;
+            track: string;
+            /** Format: int64 */
+            unit: number;
+            via_channel: string;
+            via_client: string | null;
+        };
+        /** @description Messages, oldest first. */
+        MessagesOut: {
+            items: components["schemas"]["MessageOut"][];
         };
         MetricsPage: {
             context: components["schemas"]["Context"];
@@ -3354,6 +3749,11 @@ export interface components {
         };
         Page_MemberOut_UUID_: {
             items: components["schemas"]["MemberOut"][];
+            /** Format: uuid */
+            next_before: string | null;
+        };
+        Page_MessageOut_UUID_: {
+            items: components["schemas"]["MessageOut"][];
             /** Format: uuid */
             next_before: string | null;
         };
@@ -3629,6 +4029,18 @@ export interface components {
             index_line_max_bytes: number;
             /** Format: int64 */
             plan_approach_max_bytes: number;
+            /**
+             * Format: int64
+             * @description How long a blocking question waits for an answer before its attempt
+             *     or job is released, in seconds. Kept when a write omits it.
+             */
+            question_wait_seconds?: number | null;
+            /**
+             * Format: int64
+             * @description The largest transcript of an attempt, in bytes. Kept when a write
+             *     omits it.
+             */
+            transcript_max_bytes?: number | null;
             /** Format: int64 */
             unit_brief_max_bytes: number;
         };
@@ -3649,6 +4061,43 @@ export interface components {
             /** @description Unique within the project. */
             slug: string;
             title: string;
+        };
+        /** @description Where the working protocol is served, and what it is. */
+        ProtocolRef: {
+            /** Format: int64 */
+            bytes: number;
+            ref: string;
+            sha256: string;
+            version: string;
+        };
+        /** @description The answer to a question. */
+        QuestionAnswerOut: {
+            /** Format: date-time */
+            acknowledged_at: string | null;
+            /** Format: uuid */
+            author: string;
+            author_name: string | null;
+            body: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            id: string;
+        };
+        /**
+         * @description A question about a unit from the performer of one of its phases. A
+         *     blocking one stops the performer's lease clock until a researcher
+         *     answers it; a non-blocking one names the default the performer
+         *     proceeds on meanwhile.
+         */
+        QuestionAsk: {
+            blocking: boolean;
+            /** @description What the performer needs, as Markdown. */
+            body: string;
+            /**
+             * @description What the performer assumes and proceeds on until answered; required
+             *     when the question does not block.
+             */
+            default?: string | null;
         };
         /** @description Evidence reads include provenance that historical import records preserve. */
         ReadMeasurement: {
@@ -4094,6 +4543,10 @@ export interface components {
         };
         /** @enum {string} */
         ServiceKind: "agent" | "experimenter" | "verifier" | "decider";
+        /** @description A researcher's steering note to a running attempt, as Markdown. */
+        SteeringIn: {
+            body: string;
+        };
         StepManifestRequest: {
             apiVersion: components["schemas"]["StepManifestRequestApiVersion"];
             kind: components["schemas"]["StepManifestRequestKind"];
@@ -4280,6 +4733,72 @@ export interface components {
             reason?: string | null;
             title?: string | null;
             workflow?: components["schemas"]["TrackCreateRequestWorkflow"] | null;
+        };
+        /**
+         * @description Transcript events to append, each one line of
+         *     `transcript.schema.json`.
+         */
+        TranscriptAppend: {
+            events: unknown[];
+        };
+        /** @description What a transcript holds after an append. */
+        TranscriptAppendOut: {
+            /**
+             * Format: int64
+             * @description Bytes in the transcript.
+             */
+            bytes: number;
+            /**
+             * Format: int64
+             * @description The chunk this append stored, from 1.
+             */
+            chunk: number;
+            /**
+             * Format: int64
+             * @description Events in the transcript.
+             */
+            events: number;
+            /**
+             * Format: int64
+             * @description The project's transcript limit, in bytes.
+             */
+            limit: number;
+        };
+        /** @description One event of a transcript and its index, from 0. */
+        TranscriptEventOut: {
+            event: unknown;
+            /** Format: int64 */
+            index: number;
+        };
+        /** @description A page of an attempt's transcript, oldest event first. */
+        TranscriptOut: {
+            /**
+             * Format: uuid
+             * @description The sealed `transcript` artifact.
+             */
+            artifact: string | null;
+            /** Format: int64 */
+            attempt: number;
+            /**
+             * Format: int64
+             * @description Bytes in the transcript.
+             */
+            bytes: number;
+            events: components["schemas"]["TranscriptEventOut"][];
+            /**
+             * Format: int64
+             * @description Continue after this index; none at the end.
+             */
+            next_after: number | null;
+            /** @description Whether the attempt was submitted and its transcript sealed. */
+            sealed: boolean;
+            /**
+             * Format: int64
+             * @description Events in the transcript.
+             */
+            total_events: number;
+            /** Format: int64 */
+            unit: number;
         };
         Uncertainty: {
             /** Format: double */
@@ -4718,7 +5237,7 @@ export interface components {
             verification: components["schemas"]["VerificationDocument"] | null;
         };
         /** @enum {string} */
-        cannery_row__search__routes__Kind: "track" | "unit" | "attempt" | "report" | "verification" | "decision_reason" | "comment";
+        cannery_row__search__routes__Kind: "track" | "unit" | "attempt" | "report" | "verification" | "decision_reason" | "comment" | "message";
         cannery_row__units__routes__ReviewCaseOut: {
             decisions: components["schemas"]["DecisionOut"][];
             /** Format: uuid */
@@ -8475,6 +8994,100 @@ export interface operations {
             };
         };
     };
+    ask_job_api_projects__slug__jobs__job_id__questions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                slug: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionAsk"];
+            };
+        };
+        responses: {
+            /** @description Replayed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     create_job_upload_api_projects__slug__jobs__job_id__uploads_post: {
         parameters: {
             query?: never;
@@ -8997,6 +9610,77 @@ export interface operations {
             };
         };
     };
+    ack_steering_api_projects__slug__messages_acknowledgements_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcknowledgementIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcknowledgementOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     metric_catalog_api_projects__slug__metrics_get: {
         parameters: {
             query?: {
@@ -9499,6 +10183,392 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_questions_api_projects__slug__questions_get: {
+        parameters: {
+            query?: {
+                /** @description Only questions about units of this track. */
+                track?: string;
+                /** @description Only questions in this state: `open`, `answered` or `escalated`. */
+                state?: string;
+                /** @description Continue before this question. */
+                before?: string;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MessageOut_UUID_"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    get_question_api_projects__slug__questions__question_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    wait_for_answer_api_projects__slug__questions__question_id__answer_get: {
+        parameters: {
+            query?: {
+                /** @description Seconds to wait for the answer. */
+                wait?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    answer_question_api_projects__slug__questions__question_id__answer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnswerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    escalate_question_api_projects__slug__questions__question_id__escalation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                question_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EscalationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
         };
@@ -13345,6 +14415,101 @@ export interface operations {
             };
         };
     };
+    ask_api_projects__slug__units__number__attempts__sequence__questions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionAsk"];
+            };
+        };
+        responses: {
+            /** @description Replayed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     release_api_projects__slug__units__number__attempts__sequence__release_post: {
         parameters: {
             query?: never;
@@ -13544,6 +14709,160 @@ export interface operations {
             };
         };
     };
+    get_steering_api_projects__slug__units__number__attempts__sequence__steering_get: {
+        parameters: {
+            query?: {
+                /** @description Only notes not yet acknowledged. */
+                pending?: boolean;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagesOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    post_steering_api_projects__slug__units__number__attempts__sequence__steering_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SteeringIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
     submit_api_projects__slug__units__number__attempts__sequence__submission_post: {
         parameters: {
             query?: never;
@@ -13581,6 +14900,193 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_transcript_api_projects__slug__units__number__attempts__sequence__transcript_get: {
+        parameters: {
+            query?: {
+                /** @description Continue after this event index. */
+                after?: number;
+                /** @description Events per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    append_transcript_api_projects__slug__units__number__attempts__sequence__transcript_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TranscriptAppend"];
+            };
+        };
+        responses: {
+            /** @description Replayed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptAppendOut"];
+                };
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptAppendOut"];
                 };
             };
             /** @description Authentication required */
@@ -13969,6 +15475,81 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitHistoryOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    list_messages_api_projects__slug__units__number__messages_get: {
+        parameters: {
+            query?: {
+                /** @description Only messages of this attempt. */
+                attempt?: number;
+                /** @description Continue before this message. */
+                before?: string;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_MessageOut_UUID_"];
                 };
             };
             /** @description Authentication required */
@@ -14597,6 +16178,33 @@ export interface operations {
                 content: {
                     "text/plain": string;
                 };
+            };
+        };
+    };
+    get_protocol_api_protocol_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
+                };
+            };
+            /** @description Not modified */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -18,7 +18,10 @@ use axum::{
 };
 use cannery_core::{errors::ErrorCode, ids::AttemptId};
 use cannery_projects::{authz, briefs, repo as projects};
-use cannery_tracks::plans::{self, AttemptPins, Limits};
+use cannery_tracks::{
+    messages,
+    plans::{self, AttemptPins, Limits},
+};
 use serde_json::Value;
 use sqlx::PgConnection;
 use std::fmt::Write as _;
@@ -385,6 +388,7 @@ async fn record(
         );
     }
     body.push('\n');
+    conversation(conn, project, pins, body, context).await?;
     if detail == Detail::Decide {
         body.push_str("## Write-up\n\n");
         let writeup = outputs.iter().rfind(|output| output.stage == "writeup");
@@ -416,6 +420,161 @@ async fn record(
             (None, None) => body.push_str("Not written yet.\n\n"),
         }
     }
+    Ok(())
+}
+
+/// Indent the lines after the first of a Markdown text, so it stays inside
+/// its list item.
+fn indented(text: &str) -> String {
+    text.trim().replace('\n', "\n  ")
+}
+
+/// The questions asked during the unit's earlier attempts, with the answers
+/// given before this attempt was claimed, so the bundle does not change
+/// while it runs; a later answer reaches the attempt in its heartbeats.
+/// Nothing when there are none. One line each when `line_max` is given.
+async fn earlier_questions(
+    conn: &mut PgConnection,
+    project: &projects::Project,
+    pins: &AttemptPins,
+    line_max: Option<usize>,
+    body: &mut String,
+    context: &RequestContext,
+) -> Result<(), Failure> {
+    let questions = messages::earlier_questions(conn, project.id, pins.unit_id, pins.sequence)
+        .await
+        .map_err(persistence(context))?;
+    if questions.is_empty() {
+        return Ok(());
+    }
+    let claimed: cannery_core::timestamps::Timestamp =
+        sqlx::query_scalar("SELECT claimed_at FROM attempts WHERE id = $1")
+            .bind(pins.attempt_id.0)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(|_| internal(context, "bundle claim time"))?;
+    body.push_str("## Questions from earlier attempts\n\n");
+    for question in questions {
+        let answer = question.answer_body.as_deref().filter(|_| {
+            question
+                .answer_created_at
+                .is_some_and(|at| at.0 <= claimed.0)
+        });
+        let kind = if question.blocking == Some(true) {
+            "blocking"
+        } else {
+            "non-blocking"
+        };
+        let about = format!(
+            "#{}.{}, {kind}, {}",
+            question.unit_number,
+            question.attempt_sequence,
+            if answer.is_some() {
+                question.state.as_deref().unwrap_or("open")
+            } else {
+                "not answered yet"
+            }
+        );
+        if let Some(max) = line_max {
+            let line = format!(
+                "{about}: {}{}",
+                first_line(&question.body),
+                answer.map_or_else(String::new, |answer| format!(
+                    " Answer: {}",
+                    first_line(answer)
+                ))
+            );
+            let _ = writeln!(body, "- {}", truncate(&line, max));
+            continue;
+        }
+        let _ = writeln!(body, "- {about}: {}", indented(&question.body));
+        if let Some(default) = &question.default_text {
+            let _ = writeln!(body, "  - Assumed meanwhile: {}", indented(default));
+        }
+        if let Some(answer) = answer {
+            let _ = writeln!(
+                body,
+                "  - Answer ({}): {}",
+                question
+                    .answer_author_name
+                    .as_deref()
+                    .unwrap_or("a researcher"),
+                indented(answer)
+            );
+        }
+    }
+    body.push('\n');
+    Ok(())
+}
+
+/// The unit's questions, answers and steering notes, oldest first, for its
+/// documenter and decider. Nothing when there are none.
+async fn conversation(
+    conn: &mut PgConnection,
+    project: &projects::Project,
+    pins: &AttemptPins,
+    body: &mut String,
+    context: &RequestContext,
+) -> Result<(), Failure> {
+    let filter = messages::Filter {
+        unit: Some(pins.unit_id),
+        ..messages::Filter::default()
+    };
+    let mut found = messages::select(conn, project.id, filter, i64::MAX)
+        .await
+        .map_err(persistence(context))?;
+    found.retain(|message| message.kind != "answer");
+    if found.is_empty() {
+        return Ok(());
+    }
+    found.reverse();
+    body.push_str("## Questions and steering\n\n");
+    for message in found {
+        let at = format!("#{}.{}", message.unit_number, message.attempt_sequence);
+        let by = message.author_name.as_deref().unwrap_or("someone");
+        let when = message.created_at.isoformat();
+        if message.kind == "steer" {
+            let _ = writeln!(
+                body,
+                "- Steering note on {at} by {by} ({when}): {}",
+                indented(&message.body)
+            );
+            continue;
+        }
+        let _ = writeln!(
+            body,
+            "- Question on {at}{} by {by} ({when}, {}{}): {}",
+            message
+                .job_phase
+                .as_deref()
+                .map_or_else(String::new, |phase| format!(" ({phase} job)")),
+            if message.blocking == Some(true) {
+                "blocking"
+            } else {
+                "non-blocking"
+            },
+            message
+                .state
+                .as_deref()
+                .map_or_else(String::new, |state| format!(", {state}")),
+            indented(&message.body)
+        );
+        if let Some(default) = &message.default_text {
+            let _ = writeln!(body, "  - Assumed meanwhile: {}", indented(default));
+        }
+        if let Some(answer) = &message.answer_body {
+            let _ = writeln!(
+                body,
+                "  - Answer ({}): {}",
+                message
+                    .answer_author_name
+                    .as_deref()
+                    .unwrap_or("a researcher"),
+                indented(answer)
+            );
+        }
+    }
+    body.push('\n');
     Ok(())
 }
 
@@ -626,6 +785,10 @@ pub(crate) async fn build_for(
             }
             body.push('\n');
         }
+    }
+    if matches!(detail, Detail::Full | Detail::Compact) {
+        let line_max = compact.then(|| limit(limits.context_summary_max_bytes));
+        earlier_questions(conn, project, pins, line_max, &mut body, context).await?;
     }
     if matches!(detail, Detail::Document | Detail::Decide) {
         record(conn, project, pins, detail, &mut body, context).await?;

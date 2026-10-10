@@ -85,7 +85,7 @@ labels!(CaseState{Pending=>"pending",Resolved=>"resolved"});
 labels!(Origin{Live=>"live",Imported=>"imported"});
 labels!(Stage{Agent=>"agent",Verify=>"verify"});
 labels!(UnitState{Queued=>"queued",Active=>"active",Documenting=>"documenting",Deciding=>"deciding",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
-labels!(AttemptState{Claimed=>"claimed",Running=>"running",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+labels!(AttemptState{Claimed=>"claimed",Running=>"running",WaitingOnHuman=>"waiting_on_human",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 labels!(Action{Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Failed=>"failed",Retry=>"retry",Stop=>"stop"});
 #[derive(Clone, Copy, Debug, Eq, PartialEq, sqlx::Type)]
 #[sqlx(transparent)]

@@ -218,3 +218,46 @@ pub(crate) async fn experiment_as(
     agent_as(conn, profile, actor, attempt, report, context).await?;
     Ok(false)
 }
+
+/// Release an attempt whose blocking question went unanswered: the unit is
+/// queued again whatever its retry budget, and the question, answered or
+/// not, reaches its next attempt.
+pub(crate) async fn unanswered(
+    conn: &mut PgConnection,
+    profile: JsonContext,
+    actor: Attribution<'_>,
+    attempt: &Attempt,
+    report: &Report<'_>,
+    context: &RequestContext,
+) -> Result<(), Failure> {
+    Repository::new(conn, profile)
+        .requeue_failed(RequeueFailed {
+            attempt,
+            code: report.code,
+            reason: report.reason,
+            details: report.details,
+            log_refs: report.log_refs,
+        })
+        .await
+        .map_err(|_| internal(context, "unanswered question transition"))?;
+    failed_audit(conn, actor, attempt, report, true, context).await?;
+    let prior = json!({"state":"active"});
+    let new = json!({"state":"queued","failed_attempt":format!("#{}.{}",attempt.unit_number,attempt.sequence),"code":report.code});
+    audit::record(
+        conn,
+        actor,
+        Record {
+            action: "unit.requeued",
+            subject_type: "unit",
+            subject_id: &attempt.unit_id.0.to_string(),
+            project_id: Some(attempt.project_id),
+            prior_state: Some(&prior),
+            new_state: Some(&new),
+            reason: Some(report.reason),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .map(|_| ())
+    .map_err(|_| internal(context, "unanswered question audit"))
+}
