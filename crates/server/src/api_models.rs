@@ -450,12 +450,21 @@ pub struct PlanRef {
     pub r#ref: String,
 }
 
-/// Where to read an attempt's context bundle, and its size in bytes.
+/// Where to read an attempt's context bundle, and its size in bytes: over
+/// REST at `ref`, over MCP with `tool` and `arguments`, or as the MCP
+/// resource `resource`.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ContextBundleRef {
+    /// The REST path of the bundle, `GET` with the bearer token.
     pub r#ref: String,
     pub bytes: i64,
+    /// The MCP tool that returns the bundle: `get_context`.
+    pub tool: String,
+    /// The arguments to call `tool` with.
+    pub arguments: BTreeMap<String, serde_json::Value>,
+    /// The bundle as an MCP resource URI (`resources/read`).
+    pub resource: String,
 }
 
 /// A typed relation of a unit, whose `unit` is a unit of the project (its
@@ -843,11 +852,16 @@ pub struct AcknowledgementIn {
     pub ids: Vec<String>,
 }
 
-/// The messages newly acknowledged.
+/// The messages acknowledged.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct AcknowledgementOut {
+    /// Every id sent, in order: all are acknowledged now.
     pub acknowledged: Vec<String>,
+    /// Those of them acknowledged before this request: by an earlier
+    /// acknowledgement, or an answer `wait_for_answer` returned to its
+    /// asker, which it acknowledges as it returns it.
+    pub already_acknowledged: Vec<String>,
 }
 
 /// The answer to a question.
@@ -893,7 +907,8 @@ pub struct MessageOut {
     pub body: String,
     #[schema(pattern = "^[0-9a-f]{64}$")]
     pub sha256: String,
-    /// The question an answer answers.
+    /// For an answer, the id of the question it answers; null for a question
+    /// or a steering note. A message's text, a question's included, is `body`.
     #[schema(format = "uuid", required = true)]
     pub question: Option<String>,
     #[schema(pattern = "^(user|service)$")]
@@ -1792,19 +1807,80 @@ pub enum Origin {
     Imported,
 }
 
-/// A phase whose output documents have a published front matter schema.
+/// The name of a published contract schema: its file name stem under
+/// `contracts/schemas/`.
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
-pub enum DocumentPhase {
-    #[serde(rename = "brief")]
+#[serde(rename_all = "snake_case")]
+pub enum ContractSchemaName {
+    ArtifactManifest,
     Brief,
-    #[serde(rename = "run")]
-    Run,
-    #[serde(rename = "verification")]
-    Verification,
-    #[serde(rename = "writeup")]
-    Writeup,
-    #[serde(rename = "decision")]
+    Common,
+    Concern,
+    DashboardViews,
     Decision,
+    EvidenceEnvelope,
+    Gates,
+    HumanDecision,
+    ImportBundle,
+    Interface,
+    Job,
+    JobCompletion,
+    JobFailure,
+    PolicyConfig,
+    Run,
+    ScienceRevision,
+    StepManifest,
+    Track,
+    TrackTransition,
+    Transcript,
+    Unit,
+    Verification,
+    Writeup,
+}
+
+/// An artifact a job's holder may download while it holds the job.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct JobInputArtifact {
+    #[schema(format = "uuid")]
+    pub artifact_id: String,
+    pub role: String,
+    /// The attempt it belongs to, as `#number.sequence`.
+    pub attempt: String,
+    pub media_type: String,
+    pub size_bytes: i64,
+    #[schema(pattern = "^[0-9a-f]{64}$")]
+    pub sha256: String,
+    /// `GET` it with the same bearer token; an S3-backed API redirects to a
+    /// short-lived presigned URL, followed without the token.
+    pub download_url: String,
+    /// The MCP tool that gives the same URL with the artifact's metadata.
+    pub tool: String,
+}
+
+/// The artifacts a job's holder may download, in attempt and role order.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct JobInputArtifactsOut {
+    pub items: Vec<JobInputArtifact>,
+}
+
+/// One published contract schema.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchemaListItem {
+    pub name: ContractSchemaName,
+    /// Where to read it: `/api/schemas/{name}`.
+    pub r#ref: String,
+    /// What it describes and which tool or route takes it.
+    pub description: String,
+}
+
+/// The published contract schemas, by name.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SchemaListOut {
+    pub items: Vec<SchemaListItem>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

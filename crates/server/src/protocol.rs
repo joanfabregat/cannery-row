@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The working protocol every performer follows, `docs/agents.md`: served
-//! as Markdown at `/api/protocol`, referenced by every claim and job claim,
-//! and sent as the MCP server's instructions, so all three say the same.
+//! as Markdown at `/api/protocol` and by the MCP tool `get_protocol`, and
+//! referenced by every claim and job claim. Its opening, up to the first
+//! section, is the MCP server's instructions: short enough for a client to
+//! keep whole, and it says to read the rest with `get_protocol`.
 use crate::api_models::ProtocolRef;
 use axum::{
     Router,
@@ -18,6 +20,15 @@ pub const TEXT: &str = include_str!("../../../docs/agents.md");
 pub const PATH: &str = "/api/protocol";
 
 static DIGEST: LazyLock<String> = LazyLock::new(|| format!("{:x}", Sha256::digest(TEXT)));
+
+/// The MCP server's instructions: the protocol's opening, before its first
+/// `##` section.
+#[must_use]
+pub fn instructions() -> &'static str {
+    TEXT.split_once("\n## ")
+        .map_or(TEXT, |(opening, _)| opening)
+        .trim_end()
+}
 
 /// The reference a claim carries.
 #[must_use]
@@ -39,7 +50,7 @@ pub(crate) fn routes() -> Router {
     path = "/api/protocol",
     operation_id = "get_protocol_api_protocol_get",
     summary = "Get Protocol",
-    description = "The working protocol every performer follows, as Markdown: when to ask a\nquestion and when to proceed on a stated default, when to raise a concern\ninstead, reading and acknowledging steering at each heartbeat, and\nappending the transcript. Every claim and job claim names it as `protocol`\nwith its `sha256`, also sent as the `ETag`; the MCP server sends the same\ntext as its instructions. No authentication.",
+    description = "The working protocol every performer follows, as Markdown: when to ask a\nquestion and when to proceed on a stated default, when to raise a concern\ninstead, reading and acknowledging steering at each heartbeat, and\nappending the transcript. Every claim and job claim names it as `protocol`\nwith its `sha256`, also sent as the `ETag`. The MCP tool `get_protocol`\nreturns the same text; its opening, before the first section, is the MCP\nserver's instructions. No authentication.",
     responses((status = 200, description = "Successful Response", body = String, content_type = "text/markdown"),
         (status = 304, description = "Not modified"))
 )]
@@ -78,6 +89,22 @@ mod tests {
             Some(super::TEXT.len())
         );
         assert_eq!(reference.sha256.len(), 64);
+        let instructions = super::instructions();
+        assert!(
+            instructions.len() < 2048,
+            "the MCP instructions are {} bytes; keep them under 2 KiB",
+            instructions.len()
+        );
+        assert!(super::TEXT.starts_with(instructions));
+        for tool in [
+            "get_protocol",
+            "get_context",
+            "get_schema",
+            "claim_unit",
+            "claim_job",
+        ] {
+            assert!(instructions.contains(tool), "the instructions lack {tool}");
+        }
         for section in [
             "## Questions",
             "## Steering",

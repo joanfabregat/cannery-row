@@ -108,6 +108,7 @@ fn lines(state: &RouteState, input: &TranscriptAppend) -> Result<(Vec<u8>, i32),
     }
     let mut details = Vec::new();
     let mut bytes = Vec::new();
+    let received_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Micros, true);
     for (index, event) in input.events.iter().enumerate() {
         let document = cannery_core::json::from_value(event.clone())
             .map_err(|_| invalid(&format!("body/events/{index}"), "not a JSON object"))?;
@@ -122,7 +123,13 @@ fn lines(state: &RouteState, input: &TranscriptAppend) -> Result<(Vec<u8>, i32),
                 "message": violation.message,
             }));
         }
-        let line = serde_json::to_vec(event).map_err(|_| invalid("body/events", "not JSON"))?;
+        // The server's clock, not the performer's: an agent has none it
+        // can trust, so every event says when it arrived.
+        let mut event = event.clone();
+        if let Some(fields) = event.as_object_mut() {
+            fields.insert("received_at".into(), Value::String(received_at.clone()));
+        }
+        let line = serde_json::to_vec(&event).map_err(|_| invalid("body/events", "not JSON"))?;
         bytes.extend_from_slice(&line);
         bytes.push(b'\n');
     }
@@ -198,7 +205,11 @@ pub(crate) async fn append(
     hasher.update(b"\n");
     hasher.update(parameters.reference().as_bytes());
     hasher.update(b"\n");
-    hasher.update(&bytes);
+    // The events as sent: the stored lines carry the time they arrived,
+    // which a retry must not change.
+    hasher.update(
+        serde_json::to_vec(&input.events).map_err(|_| internal(&context, "transcript digest"))?,
+    );
     let hash = hasher.finalize().to_vec();
     let (user, service, via) = match &auth.principal {
         Principal::User(user) => (Some(user.user_id), None, user.via.clone()),

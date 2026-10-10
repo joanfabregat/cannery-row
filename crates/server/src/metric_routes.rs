@@ -329,7 +329,7 @@ async fn query_page(
     path = "/api/projects/{slug}/metrics",
     operation_id = "metric_catalog_api_projects__slug__metrics_get",
     summary = "Metric Catalog",
-    description = "The metric registry of the latest (or the given) science revision.",
+    description = "The metric registry of the latest (or the given) science revision: each\nmetric's key, unit, direction, aggregation, splits, dimensions as\n`{name, values}` and required slices as `{dimension, values}`. A unit's\n`acceptance.required_slices` names dimensions only, as bare names such as\n`[\"language\"]`.",
     params(("slug" = String, Path),
         ("science_revision" = Option<i64>, Query, minimum = 1, maximum = 2_147_483_647)),
     responses((status = 200, description = "Successful Response", body = crate::api_models::CatalogOut, content_type = "application/json"),

@@ -1,5 +1,6 @@
 //! Stateless Streamable HTTP MCP, with a single authenticated connection handoff.
 mod registry;
+pub(crate) use registry::encode;
 mod resources;
 
 use crate::{
@@ -26,8 +27,11 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
-/// The working protocol, `docs/agents.md`, as `/api/protocol` serves it.
-const INSTRUCTIONS: &str = crate::protocol::TEXT;
+
+/// The protocol's opening; `get_protocol` returns the whole of it.
+fn instructions() -> &'static str {
+    crate::protocol::instructions()
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
@@ -366,7 +370,7 @@ async fn endpoint(State(state): State<McpState>, request: Request) -> Response {
             }
             rpc_result(
                 reply_id,
-                json!({"protocolVersion":PROTOCOL_VERSION,"capabilities":{"tools":{"listChanged":false},"resources":{"listChanged":false}},"serverInfo":{"name":"cannery-row","title":"Cannery Row","version":env!("CARGO_PKG_VERSION")},"instructions":INSTRUCTIONS}),
+                json!({"protocolVersion":PROTOCOL_VERSION,"capabilities":{"tools":{"listChanged":false},"resources":{"listChanged":false}},"serverInfo":{"name":"cannery-row","title":"Cannery Row","version":env!("CARGO_PKG_VERSION")},"instructions":instructions()}),
             )
         }
         "ping" => rpc_result(reply_id, json!({})),
@@ -416,6 +420,24 @@ fn tool_result(payload: Value, is_error: bool, replayed: bool, limit: usize) -> 
     }
     result
 }
+/// A Markdown result: the text itself as the content a model reads, and
+/// `{"markdown": text}` as the structured content.
+fn markdown_result(text: &str, limit: usize) -> Value {
+    if text.len() > limit {
+        return tool_result(result_too_large(limit), true, false, usize::MAX);
+    }
+    json!({"content":[{"type":"text","text":text}],"structuredContent":{"markdown":text},"isError":false})
+}
+/// `get_protocol`: the whole of `docs/agents.md`, as `GET /api/protocol`
+/// serves it, with the reference claims name it by.
+fn protocol_result(limit: usize) -> Value {
+    let reference = crate::protocol::reference();
+    let text = crate::protocol::TEXT;
+    if text.len() > limit {
+        return tool_result(result_too_large(limit), true, false, usize::MAX);
+    }
+    json!({"content":[{"type":"text","text":text}],"structuredContent":{"ref":reference.r#ref,"version":reference.version,"sha256":reference.sha256,"bytes":reference.bytes,"markdown":text},"isError":false})
+}
 async fn tool_call(
     state: &McpState,
     context: RequestContext,
@@ -452,6 +474,9 @@ async fn tool_call(
             StatusCode::OK,
         );
     };
+    if name == "get_protocol" {
+        return rpc_result(id, protocol_result(state.result_limit));
+    }
     if name == "get_artifact" {
         return match artifact(state, &context, authentication, args).await {
             Ok(payload) => rpc_result(id, tool_result(payload, false, false, state.result_limit)),
@@ -508,6 +533,11 @@ async fn response_result(
     replayed: bool,
 ) -> Response {
     let success = response.status().is_success();
+    let markdown = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("text/markdown"));
     let Ok(bytes) = to_bytes(response.into_body(), state.result_limit).await else {
         return rpc_result(
             id,
@@ -519,6 +549,12 @@ async fn response_result(
             ),
         );
     };
+    if success && markdown {
+        return match std::str::from_utf8(&bytes) {
+            Ok(text) => rpc_result(id, markdown_result(text, state.result_limit)),
+            Err(_) => rpc_error(id, -32603, "internal error", None, StatusCode::OK),
+        };
+    }
     match serde_json::from_slice(&bytes) {
         Ok(payload) => rpc_result(
             id,
@@ -596,9 +632,9 @@ mod tests {
     #[test]
     fn registry_has_all_source_tools_and_complete_validation() {
         let tools = registry::tools().expect("compiled registry");
-        assert_eq!(tools.len(), 77);
+        assert_eq!(tools.len(), 81);
         let names: std::collections::BTreeSet<_> = tools.iter().map(registry::Tool::name).collect();
-        assert_eq!(names.len(), 77);
+        assert_eq!(names.len(), 81);
         for tool in &tools {
             assert!(
                 tool.invalid_arguments(&json!({"unexpected":"secret"}))
@@ -769,7 +805,7 @@ mod tests {
         assert_eq!(wait.method, axum::http::Method::GET);
         assert_eq!(
             wait.uri,
-            "/api/projects/matrix/questions/uuid/answer?wait=30"
+            "/api/projects/matrix/questions/uuid/answer?wait=20"
         );
         let answer = build(
             "answer_question",

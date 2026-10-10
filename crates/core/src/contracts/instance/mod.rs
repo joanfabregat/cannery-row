@@ -48,7 +48,7 @@ impl ProjectValidator {
             .take(limit)
             .map(|error| ProjectViolation {
                 path: error.path,
-                message: error.message.into(),
+                message: error.message,
             })
             .collect())
     }

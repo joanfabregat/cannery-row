@@ -255,10 +255,10 @@ async fn mcp_stateless_http() -> Result<()> {
         assert_eq!(json!(allow), recipe["allow"], "{}", recipe["name"]);
         assert_eq!(json!(challenge), recipe["challenge"], "{}", recipe["name"]);
         let mut projected = projection(value, recipe["name"] == "registry")?;
-        // The instructions are the working protocol, docs/agents.md; the
+        // The instructions are the opening of docs/agents.md; the
         // reference names it rather than freezing its text.
         if let Some(instructions) = projected.pointer_mut("/result/instructions") {
-            assert_eq!(instructions.as_str(), Some(crate::protocol::TEXT));
+            assert_eq!(instructions.as_str(), Some(crate::protocol::instructions()));
             *instructions = json!("@protocol");
         }
         assert_eq!(projected, recipe["output"], "{}", recipe["name"]);
@@ -297,7 +297,10 @@ async fn mcp_stateless_http() -> Result<()> {
     let (_, _, _, value) = request(&layered, &original).await?;
     assert_eq!(value["error"]["code"], -32603);
     assert_eq!(touches(&state).await?, before + 1);
-    original["message"] = json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"post_manifest","arguments":{"project":"matrix","number":1,"sequence":1,"lease_token":"opaque","lease_generation":1,"document":{}}}});
+    // A manifest of the right shape: the tool's input schema embeds the
+    // artifact manifest contract, so an empty one is refused before dispatch.
+    let manifest = json!({"schema_version":"0.2","attempt_id":"00000000-0000-0000-0000-000000000001","objects":[{"role":"data","storage":{"backend":"local","bucket":"local","key":"data"},"size_bytes":1,"sha256":"0".repeat(64),"media_type":"application/json"}]});
+    original["message"] = json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"post_manifest","arguments":{"project":"matrix","number":1,"sequence":1,"lease_token":"opaque","lease_generation":1,"document":manifest}}});
     let (_, _, _, value) = request(&app, &original).await?;
     assert_eq!(
         value["result"]["structuredContent"]["error"]["code"],

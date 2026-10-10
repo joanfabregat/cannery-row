@@ -1,17 +1,25 @@
 //! Application JSON Schema validation using the maintained jsonschema engine.
 pub mod comparison;
+mod explain;
 mod formats;
 pub mod instance;
 pub mod phases;
 mod policy;
+pub mod published;
 use crate::json::{self, Document};
+pub use explain::{describe, describe_in, explain, explain_in, merge};
 use jsonschema::{Registry, Validator};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ContractViolation {
+    /// Where the document breaks the schema, as a JSON Pointer: the value
+    /// itself, or for a missing or unexpected property the object holding it.
     pub path: String,
-    pub message: &'static str,
+    /// What the schema expected there, in words: the missing or unexpected
+    /// property names, the expected type, values or pattern. It quotes the
+    /// schema and property names only, never a value of the document.
+    pub message: String,
 }
 /// Published contracts needed by runner policy and research configuration loading.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -160,9 +168,9 @@ impl ContractValidator {
 pub(crate) fn schema_errors(validator: &Validator, value: &Value) -> Vec<ContractViolation> {
     let mut errors: Vec<_> = validator
         .iter_errors(value)
-        .map(|error| ContractViolation {
-            path: useful_path(&error),
-            message: "value does not satisfy the schema",
+        .map(|error| {
+            let (path, message) = explain(&error);
+            ContractViolation { path, message }
         })
         .collect();
     sort_errors(value, &mut errors);
@@ -214,9 +222,26 @@ fn pointer_order(value: &Value, left: &str, right: &str) -> std::cmp::Ordering {
 
 fn sort_errors(value: &Value, errors: &mut Vec<ContractViolation>) {
     errors.sort_by(|left, right| {
-        pointer_order(value, &left.path, &right.path).then_with(|| left.message.cmp(right.message))
+        pointer_order(value, &left.path, &right.path).then_with(|| left.message.cmp(&right.message))
     });
     errors.dedup();
+    // One violation per location: two missing properties of one object are
+    // one detail naming both.
+    let mut merged: Vec<(String, Vec<String>)> = Vec::new();
+    for error in errors.drain(..) {
+        match merged.last_mut() {
+            Some((path, messages)) if *path == error.path => messages.push(error.message),
+            _ => merged.push((error.path, vec![error.message])),
+        }
+    }
+    errors.extend(
+        merged
+            .into_iter()
+            .map(|(path, messages)| ContractViolation {
+                path,
+                message: explain::merge(messages),
+            }),
+    );
 }
 /// # Errors
 /// Returns sanitized schema-validation failures without schema contents.
@@ -236,35 +261,14 @@ pub(crate) fn project_schema_errors(value: &Value) -> Vec<ContractViolation> {
             Ok(_) => Vec::new(),
             Err(error) => vec![ContractViolation {
                 path: error.instance_path().to_string(),
-                message: "schema cannot be compiled without external retrieval",
+                message: "schema cannot be compiled without external retrieval".into(),
             }],
         },
         Err(error) => vec![ContractViolation {
             path: error.instance_path().to_string(),
-            message: "invalid JSON Schema",
+            message: "invalid JSON Schema".into(),
         }],
     }
-}
-fn useful_path(error: &jsonschema::ValidationError<'_>) -> String {
-    use jsonschema::error::ValidationErrorKind;
-    let mut best = error.instance_path().to_string();
-    let mut pending = vec![error];
-    while let Some(error) = pending.pop() {
-        let path = error.instance_path().to_string();
-        if path.bytes().filter(|byte| *byte == b'/').count()
-            > best.bytes().filter(|byte| *byte == b'/').count()
-        {
-            best = path;
-        }
-        match error.kind() {
-            ValidationErrorKind::AnyOf { context }
-            | ValidationErrorKind::OneOfNotValid { context } => {
-                pending.extend(context.iter().rev().flat_map(|branch| branch.iter().rev()));
-            }
-            _ => {}
-        }
-    }
-    best
 }
 fn embedded_schemas(kind: ContractKind, value: &Value, errors: &mut Vec<ContractViolation>) {
     let mut validate = |schema: &Value, prefix: String| {

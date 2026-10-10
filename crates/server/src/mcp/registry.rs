@@ -13,15 +13,29 @@ impl Tool {
         self.definition["name"].as_str().unwrap_or_default()
     }
     pub fn invalid_arguments(&self, args: &Value) -> Option<Value> {
-        let errors: Vec<_> = self.validator.iter_errors(args).map(|error| {
-            // Do not put values (possibly lease tokens) into diagnostic messages.
-            json!({"path": error.instance_path().to_string(), "message": "argument does not match the tool input schema"})
-        }).collect();
+        // What was expected, in words that quote the schema and the property
+        // names, never a value (possibly a lease token); one entry per place.
+        let schema = &self.definition["inputSchema"];
+        let mut places: Vec<(String, Vec<String>)> = Vec::new();
+        for error in self.validator.iter_errors(args) {
+            let (path, message) = cannery_core::contracts::explain_in(&error, Some(schema));
+            match places.iter_mut().find(|(place, _)| *place == path) {
+                Some((_, messages)) if messages.contains(&message) => {}
+                Some((_, messages)) => messages.push(message),
+                None => places.push((path, vec![message])),
+            }
+        }
+        let errors: Vec<_> = places
+            .into_iter()
+            .map(|(path, messages)| {
+                json!({"path": path, "message": cannery_core::contracts::merge(messages)})
+            })
+            .collect();
         (!errors.is_empty()).then(|| json!(errors))
     }
     #[allow(
         clippy::too_many_lines,
-        reason = "All 77 canonical tool mappings are reviewed together"
+        reason = "All 81 canonical tool mappings are reviewed together"
     )]
     pub fn request(&self, args: &Map<String, Value>) -> Result<ToolRequest, ()> {
         let mut args = args.clone();
@@ -50,6 +64,12 @@ impl Tool {
         }
         let (method, path) = match name {
             "list_projects" => (Method::GET, "/api/projects".into()),
+            "get_protocol" => (Method::GET, String::from(crate::protocol::PATH)),
+            "list_schemas" => (Method::GET, "/api/schemas".into()),
+            "get_schema" => {
+                let name = take_path(&mut args, "name");
+                (Method::GET, format!("/api/schemas/{name}"))
+            }
             "get_brief" => {
                 let revision = take_path(&mut args, "revision");
                 if revision.is_empty() {
@@ -150,7 +170,8 @@ impl Tool {
                     (Method::GET, format!("{base}/concerns/{id}"))
                 }
             }
-            "ask" | "get_steering" | "post_steering" | "append_transcript" | "get_transcript" => {
+            "ask" | "get_steering" | "post_steering" | "append_transcript" | "get_transcript"
+            | "get_context" => {
                 let number = take_path(&mut args, "number");
                 let sequence = take_path(&mut args, "sequence");
                 let (method, suffix) = match name {
@@ -158,6 +179,7 @@ impl Tool {
                     "get_steering" => (Method::GET, "/steering"),
                     "post_steering" => (Method::POST, "/steering"),
                     "append_transcript" => (Method::POST, "/transcript"),
+                    "get_context" => (Method::GET, "/context.md"),
                     _ => (Method::GET, "/transcript"),
                 };
                 (
@@ -365,7 +387,7 @@ fn take_path(args: &mut Map<String, Value>, name: &str) -> String {
         .map(|v| encode(&v.as_str().map_or_else(|| v.to_string(), str::to_owned)))
         .unwrap_or_default()
 }
-pub(super) fn encode(value: &str) -> String {
+pub(crate) fn encode(value: &str) -> String {
     let mut result = String::new();
     for byte in value.bytes() {
         if byte.is_ascii_alphanumeric() || b"-_~".contains(&byte) {
@@ -376,10 +398,45 @@ pub(super) fn encode(value: &str) -> String {
     }
     result
 }
+/// The marker by which `tools.json` embeds a published contract schema in a
+/// tool's input schema: `"<schema name>#<JSON Pointer>"`. Each is replaced
+/// by that schema, inlined, so a client sees the real shape (required keys,
+/// types, patterns, enums and descriptions) and the contract stays the one
+/// source; the marker's own keywords, such as its description, are kept.
+const CONTRACT: &str = "x-cannery-contract";
+
+fn contracts(schema: &mut Value) -> Result<(), StartupError> {
+    match schema {
+        Value::Object(fields) => {
+            if let Some(reference) = fields.remove(CONTRACT) {
+                let (name, pointer) = reference
+                    .as_str()
+                    .and_then(|reference| reference.split_once('#'))
+                    .ok_or(StartupError::Registry)?;
+                let Value::Object(mut inlined) =
+                    cannery_core::contracts::published::inlined(name, pointer)
+                        .map_err(|_| StartupError::Registry)?
+                else {
+                    return Err(StartupError::Registry);
+                };
+                inlined.append(fields);
+                *fields = inlined;
+                return Ok(());
+            }
+            for value in fields.values_mut() {
+                contracts(value)?;
+            }
+            Ok(())
+        }
+        Value::Array(items) => items.iter_mut().try_for_each(contracts),
+        _ => Ok(()),
+    }
+}
+
 pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
     let values: Vec<Value> =
         serde_json::from_str(include_str!("tools.json")).map_err(|_| StartupError::Registry)?;
-    if values.len() != 77 {
+    if values.len() != 81 {
         return Err(StartupError::Registry);
     }
     values
@@ -390,8 +447,8 @@ pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
                     property["pattern"] = json!("^[\\x20-\\x7e]+$");
                 }
             }
-            let validator = jsonschema::options()
-                .should_validate_formats(true)
+            contracts(&mut definition["inputSchema"])?;
+            let validator = cannery_core::contracts::published::options()
                 .build(&definition["inputSchema"])
                 .map_err(|_| StartupError::Registry)?;
             definition["outputSchema"] = json!({"type":"object","additionalProperties":true});

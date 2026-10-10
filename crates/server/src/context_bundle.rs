@@ -2,8 +2,10 @@
 //! An attempt's context bundle: what its performer reads before working,
 //! assembled on demand from the revisions the attempt pinned at its claim
 //! and never stored. The brief, the plan's approach, the unit's fields and
-//! brief, a one-line index of the track's other units, and a summary line
-//! with a reference for each context item and each unit it derives from.
+//! brief, what to submit (from the pinned science revision), a one-line
+//! index of the track's other units, a summary line with a reference for
+//! each context item and each unit it derives from, and how the unit's
+//! earlier attempts ended, with their decisions, steering and questions.
 use crate::{
     api_models::{ContextBundleRef, ContextItem, PlanRef},
     plan_routes::{context_label, paths, positive},
@@ -67,6 +69,40 @@ pub(crate) fn bundle_path(slug: &str, number: i32, sequence: i32) -> String {
     format!("/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md")
 }
 
+/// How to read an attempt's bundle of `bytes` bytes over REST, over MCP with
+/// `get_context`, and as an MCP resource; `phase` is `document` or `decide`
+/// for the documenter's or the decider's bundle.
+pub(crate) fn bundle_ref(
+    slug: &str,
+    number: i32,
+    sequence: i32,
+    phase: Option<&str>,
+    bytes: usize,
+) -> ContextBundleRef {
+    let mut arguments = std::collections::BTreeMap::from([
+        ("project".to_owned(), Value::from(slug)),
+        ("number".to_owned(), Value::from(number)),
+        ("sequence".to_owned(), Value::from(sequence)),
+    ]);
+    if let Some(phase) = phase {
+        arguments.insert("phase".to_owned(), Value::from(phase));
+    }
+    ContextBundleRef {
+        r#ref: format!(
+            "{}{}",
+            bundle_path(slug, number, sequence),
+            phase.map_or_else(String::new, |phase| format!("?phase={phase}"))
+        ),
+        bytes: i64::try_from(bytes).unwrap_or(i64::MAX),
+        tool: String::from("get_context"),
+        arguments,
+        resource: format!(
+            "cannery-row://projects/{slug}/units/{number}/attempts/{sequence}/context{}",
+            phase.map_or_else(String::new, |phase| format!("/{phase}"))
+        ),
+    }
+}
+
 /// The plan revision an attempt pinned and its bundle's reference, as claims,
 /// jobs and attempt reads hand them out; both absent when the attempt pinned
 /// no plan revision.
@@ -94,10 +130,13 @@ pub(crate) async fn refs(
                 project.slug, pins.track_slug
             ),
         }),
-        Some(ContextBundleRef {
-            r#ref: bundle_path(&project.slug, pins.number, pins.sequence),
-            bytes: i64::try_from(bundle.len()).unwrap_or(i64::MAX),
-        }),
+        Some(bundle_ref(
+            &project.slug,
+            pins.number,
+            pins.sequence,
+            None,
+            bundle.len(),
+        )),
     ))
 }
 
@@ -240,11 +279,17 @@ pub(crate) async fn build(
 }
 
 fn fenced(value: &str) -> String {
+    fenced_as("", value)
+}
+
+/// A fenced block of `language`, its fence longer than any run of backticks
+/// in `value`.
+fn fenced_as(language: &str, value: &str) -> String {
     let mut fence = String::from("```");
     while value.contains(fence.as_str()) {
         fence.push('`');
     }
-    format!("{fence}\n{}\n{fence}", value.trim_end())
+    format!("{fence}{language}\n{}\n{fence}", value.trim_end())
 }
 
 /// The unit's record, in attempt order: each attempt's run document
@@ -447,12 +492,7 @@ async fn earlier_questions(
     if questions.is_empty() {
         return Ok(());
     }
-    let claimed: cannery_core::timestamps::Timestamp =
-        sqlx::query_scalar("SELECT claimed_at FROM attempts WHERE id = $1")
-            .bind(pins.attempt_id.0)
-            .fetch_one(&mut *conn)
-            .await
-            .map_err(|_| internal(context, "bundle claim time"))?;
+    let claimed = claimed_at(conn, pins, context).await?;
     body.push_str("## Questions from earlier attempts\n\n");
     for question in questions {
         let answer = question.answer_body.as_deref().filter(|_| {
@@ -575,6 +615,368 @@ async fn conversation(
         }
     }
     body.push('\n');
+    Ok(())
+}
+
+/// When the attempt was claimed: what the bundle shows of other attempts
+/// stops there, so it does not change while the attempt runs.
+async fn claimed_at(
+    conn: &mut PgConnection,
+    pins: &AttemptPins,
+    context: &RequestContext,
+) -> Result<cannery_core::timestamps::Timestamp, Failure> {
+    sqlx::query_scalar("SELECT claimed_at FROM attempts WHERE id = $1")
+        .bind(pins.attempt_id.0)
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(|_| internal(context, "bundle claim time"))
+}
+
+/// The unit's earlier attempts as they stood at this attempt's claim: how
+/// each ended, why it failed, the researchers' decisions on it with their
+/// reasons (a failure case's `retry` says what to do differently), and the
+/// steering notes posted to it. Nothing for a first attempt. One line per
+/// attempt and note when `line_max` is given.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Each attempt's failures and decisions, then the notes, in reading order"
+)]
+async fn earlier_attempts(
+    conn: &mut PgConnection,
+    project: &projects::Project,
+    pins: &AttemptPins,
+    line_max: Option<usize>,
+    body: &mut String,
+    context: &RequestContext,
+) -> Result<(), Failure> {
+    if pins.sequence <= 1 {
+        return Ok(());
+    }
+    let rows = sqlx::query!(
+        r#"WITH claim AS (SELECT claimed_at AS at FROM attempts WHERE id = $3)
+           SELECT a.sequence, a.state,
+             (SELECT jsonb_agg(jsonb_build_object('stage', f.stage, 'code', f.code, 'reason', f.reason)
+                               ORDER BY f.created_at, f.id)
+              FROM attempt_failures f, claim WHERE f.attempt_id = a.id AND f.created_at <= claim.at)::text
+               AS "failures?",
+             (SELECT jsonb_agg(jsonb_build_object('kind', c.kind, 'action', d.action, 'reason', d.reason)
+                               ORDER BY d.decided_at, d.id)
+              FROM review_cases c JOIN decisions d ON d.review_case_id = c.id, claim
+              WHERE c.attempt_id = a.id AND d.decided_at <= claim.at
+                AND NOT EXISTS (SELECT 1 FROM decisions s
+                                WHERE s.supersedes = d.id AND s.decided_at <= claim.at))::text
+               AS "decisions?"
+           FROM attempts a WHERE a.unit_id = $1 AND a.sequence < $2 ORDER BY a.sequence"#,
+        pins.unit_id.0 as _,
+        pins.sequence,
+        pins.attempt_id.0 as _
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(|_| internal(context, "bundle earlier attempts"))?;
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let claimed = claimed_at(conn, pins, context).await?;
+    let filter = messages::Filter {
+        unit: Some(pins.unit_id),
+        ..messages::Filter::default()
+    };
+    let mut steering = messages::select(conn, project.id, filter, i64::MAX)
+        .await
+        .map_err(persistence(context))?;
+    steering.retain(|message| {
+        message.kind == "steer"
+            && message.attempt_sequence < pins.sequence
+            && message.created_at.0 <= claimed.0
+    });
+    steering.reverse();
+    let number = pins.number;
+    body.push_str("## Earlier attempts\n\n");
+    body.push_str(
+        "What the unit's earlier attempts ran into, as it stood at your claim. Do not repeat what failed; follow the reasons of the decisions.\n\n",
+    );
+    for row in rows {
+        let failures: Value = row
+            .failures
+            .as_deref()
+            .and_then(|text| serde_json::from_str(text).ok())
+            .unwrap_or_default();
+        let decisions: Value = row
+            .decisions
+            .as_deref()
+            .and_then(|text| serde_json::from_str(text).ok())
+            .unwrap_or_default();
+        let mut parts = Vec::new();
+        for failure in failures.as_array().into_iter().flatten() {
+            parts.push(format!(
+                "failed at {} with `{}`: {}",
+                failure["stage"].as_str().unwrap_or_default(),
+                failure["code"].as_str().unwrap_or_default(),
+                failure["reason"].as_str().unwrap_or_default().trim()
+            ));
+        }
+        for decision in decisions.as_array().into_iter().flatten() {
+            parts.push(format!(
+                "{} decision `{}`: {}",
+                decision["kind"].as_str().unwrap_or_default(),
+                decision["action"].as_str().unwrap_or_default(),
+                decision["reason"].as_str().unwrap_or_default().trim()
+            ));
+        }
+        let at = format!("#{number}.{} ({})", row.sequence, row.state);
+        if let Some(max) = line_max {
+            let line = format!(
+                "{at}: {}",
+                parts
+                    .iter()
+                    .map(|part| first_line(part))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            );
+            let _ = writeln!(body, "- {}", truncate(&line, max));
+            continue;
+        }
+        let _ = writeln!(body, "- {at}");
+        for part in parts {
+            let _ = writeln!(body, "  - {}", indented(&part).replace('\n', "\n  "));
+        }
+    }
+    for message in steering {
+        let line = format!(
+            "Steering note on #{number}.{} by {}: {}",
+            message.attempt_sequence,
+            message.author_name.as_deref().unwrap_or("a researcher"),
+            message.body.trim()
+        );
+        match line_max {
+            Some(max) => {
+                let _ = writeln!(body, "- {}", truncate(&first_line(&line), max));
+            }
+            None => {
+                let _ = writeln!(body, "- {}", indented(&line));
+            }
+        }
+    }
+    body.push('\n');
+    Ok(())
+}
+
+/// What the attempt must submit, from the science revision it pinned: the
+/// steps, the artifact roles its manifest needs, the metrics it may claim,
+/// the datasets and interfaces, and an example manifest and run document.
+/// Compact keeps the steps, roles and metric keys.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The section follows the order of the steps it describes"
+)]
+async fn submitting(
+    conn: &mut PgConnection,
+    pins: &AttemptPins,
+    compact: bool,
+    body: &mut String,
+    context: &RequestContext,
+) -> Result<(), Failure> {
+    let row = sqlx::query!(
+        r#"SELECT a.science_revision, c.content::text AS "content!"
+           FROM attempts a JOIN config_revisions c ON c.project_id = a.project_id
+             AND c.kind = 'science' AND c.revision = a.science_revision
+           WHERE a.id = $1"#,
+        pins.attempt_id.0 as _
+    )
+    .fetch_one(&mut *conn)
+    .await
+    .map_err(|_| internal(context, "bundle science revision"))?;
+    let science: Value =
+        serde_json::from_str(&row.content).map_err(|_| internal(context, "bundle science"))?;
+    let revision = row.science_revision;
+    let roles: Vec<&str> = science["required_artifact_roles"]["attempt"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    let metrics = science["metrics"].as_array().cloned().unwrap_or_default();
+    let quoted = |items: &[&str]| {
+        items
+            .iter()
+            .map(|item| format!("`{item}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let _ = writeln!(body, "## Submitting\n");
+    let _ = writeln!(
+        body,
+        "From science revision {revision}, which this attempt pinned. When the run is done:\n\n\
+         1. Upload each file with `create_upload` (role, name, size_bytes, sha256, media_type) and send its bytes as the grant says.\n\
+         2. Record the manifest with `post_manifest`: one object per uploaded file. It returns the manifest's `ref` and `sha256`.\n\
+         3. Submit the run document with `submit_attempt`: YAML front matter (`get_schema` `run`) and run notes as the body.\n\n\
+         A document the server refuses fails the attempt with `invalid_submission` and the reason, so check it against this section first. A run that failed releases the attempt (`release_attempt`) with a failure report instead.\n"
+    );
+    let _ = writeln!(
+        body,
+        "Required artifact roles (the manifest needs an object of each): {}\n",
+        if roles.is_empty() {
+            String::from("none")
+        } else {
+            quoted(&roles)
+        }
+    );
+    if compact {
+        let keys: Vec<&str> = metrics
+            .iter()
+            .filter_map(|metric| metric["key"].as_str())
+            .collect();
+        let _ = writeln!(
+            body,
+            "Metrics you may claim: {}. The full bundle lists their splits and slices and shows an example manifest and run document.\n",
+            quoted(&keys)
+        );
+        return Ok(());
+    }
+    let list = |value: &Value| {
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    body.push_str("### Metrics\n\nClaim them in `claims`, one entry per metric, split and slice (`dimensions`), with `authority: agent_claim` and the metric's unit and direction. Report a value you could not measure with a `missing_reason` instead of a value, never as zero.\n\n");
+    for metric in &metrics {
+        let mut line = format!(
+            "- `{}`: {}, {} is better, {} over splits {}",
+            metric["key"].as_str().unwrap_or_default(),
+            metric["unit"].as_str().unwrap_or_default(),
+            metric["direction"].as_str().unwrap_or_default(),
+            metric["aggregation"].as_str().unwrap_or_default(),
+            list(&metric["splits"])
+        );
+        let dimensions: Vec<String> = metric["dimensions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|dimension| {
+                let name = dimension["name"].as_str().unwrap_or_default();
+                match dimension.get("values") {
+                    Some(values) => format!("{name} ({})", list(values)),
+                    None => name.to_owned(),
+                }
+            })
+            .collect();
+        if !dimensions.is_empty() {
+            let _ = write!(line, "; dimensions {}", dimensions.join(", "));
+        }
+        let slices: Vec<String> = metric["required_slices"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|slice| {
+                format!(
+                    "{} = {}{}",
+                    slice["dimension"].as_str().unwrap_or_default(),
+                    list(&slice["values"]),
+                    slice
+                        .get("splits")
+                        .map_or_else(String::new, |splits| format!(" on {}", list(splits)))
+                )
+            })
+            .collect();
+        if !slices.is_empty() {
+            let _ = write!(line, "; report every required slice: {}", slices.join("; "));
+        }
+        let _ = writeln!(body, "{line}");
+    }
+    body.push('\n');
+    if let Some(datasets) = science["datasets"]
+        .as_array()
+        .filter(|items| !items.is_empty())
+    {
+        body.push_str("### Datasets\n\n");
+        for dataset in datasets {
+            let _ = writeln!(
+                body,
+                "- `{}` revision `{}`{}{}",
+                dataset["id"].as_str().unwrap_or_default(),
+                dataset["revision"].as_str().unwrap_or_default(),
+                if dataset["held_out_labels"].as_bool() == Some(true) {
+                    " (held-out labels: never in your outputs)"
+                } else {
+                    ""
+                },
+                dataset["description"]
+                    .as_str()
+                    .map_or_else(String::new, |text| format!(": {}", first_line(text)))
+            );
+        }
+        body.push('\n');
+    }
+    if let Some(interfaces) = science["interfaces"]
+        .as_array()
+        .filter(|items| !items.is_empty())
+    {
+        body.push_str("### Interfaces\n\nThe formats the project's steps exchange:\n\n");
+        for interface in interfaces {
+            let mut line = format!(
+                "- `{}` version {}",
+                interface["name"].as_str().unwrap_or_default(),
+                interface["version"]
+            );
+            for field in ["media_type", "format", "encoding"] {
+                if let Some(value) = interface[field].as_str() {
+                    let _ = write!(line, ", {field} `{value}`");
+                }
+            }
+            let _ = writeln!(body, "{line}");
+        }
+        body.push('\n');
+    }
+    let example_role = roles.first().copied().unwrap_or("result");
+    let manifest = serde_json::json!({
+        "schema_version": "0.2",
+        "attempt_id": pins.attempt_id.0.to_string(),
+        "objects": [{
+            "role": example_role,
+            "storage": {"backend": "<as create_upload returned it>", "bucket": "<as returned>", "key": "<as returned>"},
+            "size_bytes": 1234,
+            "sha256": "<hex SHA-256 of the bytes>",
+            "media_type": "application/json"
+        }]
+    });
+    let _ = writeln!(
+        body,
+        "### Manifest\n\nThe `document` of `post_manifest` (`get_schema` `artifact_manifest`), one object per uploaded file:\n\n{}\n",
+        fenced_as(
+            "json",
+            &serde_json::to_string_pretty(&manifest).unwrap_or_default()
+        )
+    );
+    let metric = metrics.first();
+    let claim = metric.map_or_else(String::new, |metric| {
+        let split = metric["splits"]
+            .as_array()
+            .and_then(|splits| splits.first())
+            .and_then(Value::as_str)
+            .unwrap_or("<split>");
+        format!(
+            "claims:\n  - metric: {}\n    authority: agent_claim\n    unit: {}\n    direction: {}\n    split: {split}\n    value: 0.0\n",
+            metric["key"].as_str().unwrap_or_default(),
+            yaml(&metric["unit"]),
+            metric["direction"].as_str().unwrap_or_default()
+        )
+    });
+    let _ = writeln!(
+        body,
+        "### Run document\n\nThe `document` of `submit_attempt`: `provenance.science_revision` must be \"{revision}\", `manifest` the `ref` and `sha256` `post_manifest` returned, `artifact_roles` the roles your notes refer to:\n\n{}\n",
+        fenced_as(
+            "markdown",
+            &format!(
+                "---\nprovenance:\n  source_revision: <commit of the code you ran>\n  science_revision: \"{revision}\"\nmanifest:\n  ref: <ref from post_manifest>\n  sha256: <sha256 from post_manifest>\nartifact_roles: [{}]\n{claim}---\n\nWhat you ran and what you saw.",
+                roles.join(", ")
+            )
+        )
+    );
     Ok(())
 }
 
@@ -704,6 +1106,9 @@ pub(crate) async fn build_for(
     {
         let _ = writeln!(body, "### Unit brief\n\n{}\n", brief.trim());
     }
+    if matches!(detail, Detail::Full | Detail::Compact) {
+        submitting(conn, pins, compact, &mut body, context).await?;
+    }
     let index = plans::track_units(conn, pins.track_id, None, None, i64::MAX)
         .await
         .map_err(persistence(context))?;
@@ -788,6 +1193,7 @@ pub(crate) async fn build_for(
     }
     if matches!(detail, Detail::Full | Detail::Compact) {
         let line_max = compact.then(|| limit(limits.context_summary_max_bytes));
+        earlier_attempts(conn, project, pins, line_max, &mut body, context).await?;
         earlier_questions(conn, project, pins, line_max, &mut body, context).await?;
     }
     if matches!(detail, Detail::Document | Detail::Decide) {
@@ -847,12 +1253,64 @@ pub(crate) async fn build_for(
     Ok(format!("{}{body}", header(bytes)))
 }
 
+/// The bundle a query asks for: `detail` (`full` or `compact`) or `phase`
+/// (`document` or `decide`), at most one of each, and not a compact
+/// documenter's or decider's bundle.
+fn detail(query: &str) -> Result<Detail, Failure> {
+    let mut detail = None;
+    let mut phase = None;
+    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
+        let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
+        match name {
+            "detail" if detail.is_none() => {
+                detail = Some(match value {
+                    "full" => false,
+                    "compact" => true,
+                    _ => {
+                        return Err(crate::plan_routes::invalid(
+                            "query/detail",
+                            "Input should be 'full' or 'compact'",
+                        ));
+                    }
+                });
+            }
+            "phase" if phase.is_none() => {
+                phase = Some(match value {
+                    "document" => Detail::Document,
+                    "decide" => Detail::Decide,
+                    _ => {
+                        return Err(crate::plan_routes::invalid(
+                            "query/phase",
+                            "Input should be 'document' or 'decide'",
+                        ));
+                    }
+                });
+            }
+            _ => {
+                return Err(crate::plan_routes::invalid(
+                    &format!("query/{name}"),
+                    "Name detail ('full' or 'compact') or phase ('document' or 'decide'), each at most once",
+                ));
+            }
+        }
+    }
+    match (phase, detail) {
+        (Some(_), Some(true)) => Err(crate::plan_routes::invalid(
+            "query/detail",
+            "The documenter's and the decider's bundles have no compact form",
+        )),
+        (Some(phase), _) => Ok(phase),
+        (None, Some(true)) => Ok(Detail::Compact),
+        (None, _) => Ok(Detail::Full),
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md",
     operation_id = "get_context_api_projects__slug__units__number__attempts__sequence__context_md_get",
     summary = "Get Context Bundle",
-    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB. `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
+    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from; what to\nsubmit (the required artifact roles, the metrics, datasets and interfaces\nof the pinned science revision, an example manifest and run document); and\nhow the unit's earlier attempts ended, with the decisions' reasons, their\nsteering notes, questions and answers. The front matter states its size in\nbytes. `detail=compact` keeps the brief's goal, the unit, what to submit,\nthe index and the earlier attempts, capped at 16 KiB. Over MCP:\n`get_context`. `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
     params(("slug" = String, Path), ("number" = i64, Path), ("sequence" = i64, Path),
         ("detail" = Option<String>, Query, description = "`full` (the default) or `compact`."),
         ("phase" = Option<String>, Query, description = "`document` or `decide`: the documenter's or the decider's bundle.")),
@@ -874,24 +1332,7 @@ pub(crate) async fn route(
             .await
             .map_err(Failure::new)?;
     let paths = paths(&mut parts, &state).await?;
-    let detail = match parts.uri.query().unwrap_or_default() {
-        "" | "detail=full" => Detail::Full,
-        "detail=compact" => Detail::Compact,
-        "phase=document" => Detail::Document,
-        "phase=decide" => Detail::Decide,
-        query if query.starts_with("phase=") => {
-            return Err(crate::plan_routes::invalid(
-                "query/phase",
-                "Input should be 'document' or 'decide'",
-            ));
-        }
-        _ => {
-            return Err(crate::plan_routes::invalid(
-                "query/detail",
-                "Input should be 'full' or 'compact'",
-            ));
-        }
-    };
+    let detail = detail(parts.uri.query().unwrap_or_default())?;
     let number = positive(&paths, "number")?;
     let sequence = positive(&paths, "sequence")?;
     let project = authz::project_read(&mut auth.connection, &auth.principal, &paths["slug"])

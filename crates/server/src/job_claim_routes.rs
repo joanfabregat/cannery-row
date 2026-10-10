@@ -234,7 +234,6 @@ async fn document_job(
             .ok_or_else(|| internal(context, "document job specification"))
     };
     if let Some(bundle) = pins.context.as_mut() {
-        bundle.r#ref.push_str("?phase=document");
         let pinned = cannery_tracks::plans::attempt_pins_by_id(c, attempt.id)
             .await
             .map_err(|_| internal(context, "document job pins"))?
@@ -248,7 +247,13 @@ async fn document_job(
         )
         .await
         .map_err(failure)?;
-        bundle.bytes = i64::try_from(built.len()).unwrap_or(i64::MAX);
+        *bundle = crate::context_bundle::bundle_ref(
+            &project.slug,
+            attempt.unit_number,
+            attempt.sequence,
+            Some("document"),
+            built.len(),
+        );
     }
     Ok(crate::api_models::JobClaimOut {
         job: crate::api_models::ClaimedJobDocument::Document(Box::new(
@@ -362,17 +367,13 @@ async fn decide_job(
     )
     .await
     .map_err(failure)?;
-    pins.context = Some(crate::api_models::ContextBundleRef {
-        r#ref: format!(
-            "{}?phase=decide",
-            crate::context_bundle::bundle_path(
-                &project.slug,
-                attempt.unit_number,
-                attempt.sequence
-            )
-        ),
-        bytes: i64::try_from(built.len()).unwrap_or(i64::MAX),
-    });
+    pins.context = Some(crate::context_bundle::bundle_ref(
+        &project.slug,
+        attempt.unit_number,
+        attempt.sequence,
+        Some("decide"),
+        built.len(),
+    ));
     Ok(crate::api_models::JobClaimOut {
         job: crate::api_models::ClaimedJobDocument::Decide(Box::new(
             crate::api_models::ClaimedDecideJob {

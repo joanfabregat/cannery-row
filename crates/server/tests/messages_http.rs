@@ -642,6 +642,7 @@ async fn questions_steering_and_transcripts() -> Result<()> {
     .await?;
     assert_eq!(status, 200, "{value}");
     assert_eq!(value["acknowledged"], json!([note["id"]]), "{value}");
+    assert_eq!(value["already_acknowledged"], json!([]), "{value}");
     let (status, value) = call(
         &app,
         "agent",
@@ -651,7 +652,12 @@ async fn questions_steering_and_transcripts() -> Result<()> {
     )
     .await?;
     assert_eq!(status, 200, "{value}");
-    assert_eq!(value["acknowledged"], json!([]), "{value}");
+    assert_eq!(value["acknowledged"], json!([note["id"]]), "{value}");
+    assert_eq!(
+        value["already_acknowledged"],
+        json!([note["id"]]),
+        "{value}"
+    );
     let (_, beat, _) = send(
         &app,
         "agent",

@@ -8,11 +8,11 @@
 //! registry bundles each one as a compound schema document: every schema it
 //! reaches, directly or not, is embedded under `$defs` with its own `$id`, so
 //! the document validates on its own with any JSON Schema 2020-12 validator.
-use super::{ContractError, ContractViolation, PUBLISHED_SOURCES, formats, schema_errors};
+use super::{ContractError, ContractViolation, formats, schema_errors};
 use crate::front_matter::{self, FrontMatterError, Limits};
 use jsonschema::Validator;
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// A phase whose output documents have a published front matter schema.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -87,17 +87,9 @@ impl PhaseSchemas {
     /// # Errors
     /// Rejects a published schema that is missing, invalid or cannot be bundled.
     pub fn new() -> Result<Self, ContractError> {
-        let sources = PUBLISHED_SOURCES
-            .iter()
-            .map(|(name, source)| {
-                serde_json::from_str(source)
-                    .map(|schema: Value| (*name, schema))
-                    .map_err(|_| ContractError::Schema)
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
         let mut phases = BTreeMap::new();
         for phase in Phase::ALL {
-            let document = bundle(&sources, phase.name())?;
+            let document = super::published::bundled(phase.name())?;
             let validator = formats::options()
                 .build(&document)
                 .map_err(|_| ContractError::Schema)?;
@@ -143,59 +135,6 @@ impl PhaseSchemas {
             Err(PhaseDocumentError::Invalid(violations))
         }
     }
-}
-
-/// The published schema `name` with every schema it references embedded.
-fn bundle(sources: &BTreeMap<&str, Value>, name: &str) -> Result<Value, ContractError> {
-    let mut document = sources.get(name).ok_or(ContractError::Schema)?.clone();
-    let mut embedded = BTreeSet::new();
-    let mut pending = references(&document);
-    while let Some(reference) = pending.pop() {
-        if reference != name && embedded.insert(reference.clone()) {
-            pending.extend(references(
-                sources
-                    .get(reference.as_str())
-                    .ok_or(ContractError::Schema)?,
-            ));
-        }
-    }
-    let definitions = document
-        .as_object_mut()
-        .ok_or(ContractError::Schema)?
-        .entry("$defs")
-        .or_insert_with(|| Value::Object(serde_json::Map::new()))
-        .as_object_mut()
-        .ok_or(ContractError::Schema)?;
-    for reference in embedded {
-        let key = format!("{reference}.schema.json");
-        if definitions.contains_key(&key) {
-            return Err(ContractError::Schema);
-        }
-        definitions.insert(key, sources[reference.as_str()].clone());
-    }
-    Ok(document)
-}
-
-/// The published schemas a schema references, by file name stem.
-fn references(schema: &Value) -> Vec<String> {
-    let mut found = Vec::new();
-    let mut pending = vec![schema];
-    while let Some(value) = pending.pop() {
-        match value {
-            Value::Object(fields) => {
-                if let Some(Value::String(reference)) = fields.get("$ref") {
-                    let resource = reference.split('#').next().unwrap_or_default();
-                    if let Some(stem) = resource.strip_suffix(".schema.json") {
-                        found.push(stem.to_owned());
-                    }
-                }
-                pending.extend(fields.values());
-            }
-            Value::Array(items) => pending.extend(items),
-            _ => {}
-        }
-    }
-    found
 }
 
 #[cfg(test)]
