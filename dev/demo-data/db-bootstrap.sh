@@ -9,7 +9,8 @@
 #
 # Standard input holds the SQL of the short-lived demo sessions, written by
 # dev/seed-demo.sh. Steps: create the demo users, open their sessions, then
-# load each import bundle with `cannery import`.
+# load each import bundle with `cannery import`. dev/bench.sh runs it too,
+# with its own users at /demo/users.sql and no bundle.
 set -euo pipefail
 
 password=$(head -n 1 /db/password)

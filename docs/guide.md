@@ -534,6 +534,51 @@ Imported records carry `origin: imported` and a `source_ref`; their measurements
 
 An attempt may carry its retrospective report, a Markdown file under the bundle's `reports/`: it is shown on the attempt as imported history ("Retrospective report", with its author and date), never as an agent's report or as evidence.
 
+## A local test bench for agents
+
+`dev/bench.sh` sets up a local instance (`dev/local.sh serve`) so you can drive it with real agents, Claude Code or Codex sessions, over MCP through every phase: planning, running a unit, verifying, writing up and deciding, with questions, steering and transcripts. Each agent session acts with exactly one identity, so the bench mints one token per role.
+
+```sh
+dev/local.sh serve                 # in another terminal; leave it running
+dev/bench.sh                       # set up, mint the tokens, print the commands
+dev/bench.sh show                  # print the paths and commands again
+dev/bench.sh revoke                # revoke every token it minted, delete its files
+```
+
+It creates the project `bench` unless it exists (a fictional shop recommender: the science revision and producer of the demo recommender, its brief, and three tracks in planning, so the first thing to do is plan), or uses the project named with `--project` as it is. The fictional Bench Researcher and the users given with `--grant` (default `DEV_ADMIN_EMAILS`, who must have signed in once) become its researchers, so you can follow and answer the agents in the web app. `--days` sets the tokens' lifetime (7 by default); `--decide researcher` creates the project without a decider step. `--help` has the other options.
+
+| Role | Identity | Can | Cannot |
+| --- | --- | --- | --- |
+| `researcher` | The Bench Researcher's personal token; its agent is recorded as the researcher, with the MCP client in `via`. | Revise the brief, write, submit and approve plans, answer and dismiss concerns, answer and escalate questions, steer, claim units, verify attempts it did not run, write units up or skip them, record decisions. | Verify its own run. |
+| `agent` | Service account `bench-agent` (kind `agent`). | Claim and run units: heartbeat, upload, manifest, submit, release; ask questions, acknowledge steering, append its transcript; raise concerns. | Plan or approve, verify its own run, skip a write-up, comment, decide. |
+| `verifier` | With verify performer `agent`, service account `bench-verifier` (kind `agent`); with performer `runner`, the `verifier` account the science revision names. | Claim and complete the verify jobs of attempts it did not run (a `verifier` account: runner verify jobs of its policy revision). | As `agent`. |
+| `documenter` | Service account `bench-documenter` (kind `agent`; there is no documenter kind). | Claim and complete document jobs (write-ups). | As `agent`. |
+| `decider` | Only with decide performer `step`: the `decider` account the science revision names (`bench-decider`). | Claim decide jobs of its step revision and complete them with the decision document. | Any other decision, plan, comment. |
+
+The `verifier` and `documenter` accounts are `agent` accounts, so the server would let them claim units too: the bench keeps the roles apart by giving each session one of them, and a verifier never gets a job of an attempt it ran.
+
+Every token has the `read` and `write` scopes and lives in `$STATE_ROOT/cannery-local/bench/<project>/`, a mode-0700 directory outside the checkout, never printed. Per role it holds:
+
+- `<role>.token`: the token alone, mode 0600;
+- `<role>.env`: `CANNERY_BENCH_<ROLE>_TOKEN=…`, mode 0600;
+- `<role>.mcp.json`: a Claude Code MCP configuration, an `http` server at `/mcp` whose `Authorization` header is `Bearer ${CANNERY_BENCH_<ROLE>_TOKEN}`, so the file holds no secret;
+- `<role>.codex.toml`: the same server for Codex's `config.toml`, with `bearer_token_env_var`;
+
+and `bench.json` records the token ids, for `revoke`. Start one session per role, each from its own working directory:
+
+```sh
+B=$STATE_ROOT/cannery-local/bench/bench
+(set -a && . $B/agent.env && exec claude --strict-mcp-config --mcp-config $B/agent.mcp.json)
+(set -a && . $B/agent.env && exec codex -c 'mcp_servers.cannery_row.url="https://cannery.<DEV_DOMAIN>/mcp"' \
+  -c 'mcp_servers.cannery_row.bearer_token_env_var="CANNERY_BENCH_AGENT_TOKEN"')
+```
+
+The MCP server sends the working protocol ([agents.md](agents.md)) as its instructions. A typical round: the researcher's agent plans a track and submits the plan, a researcher approves it (the researcher's agent or you in the web app), the agent claims and runs a unit, the verifier verifies it, the documenter writes it up and the decider, or a researcher, decides it. Questions, steering notes and the transcript show on the attempt's page while the agent works.
+
+Running `dev/bench.sh` again revokes the previous tokens and mints new ones. `dev/bench.sh revoke` revokes every token the bench minted, through a short admin session as the setup does, and deletes the directory. As `dev/seed-demo.sh` does, the bench writes two fictional users (`dev/bench-users.sql`, an `.invalid` issuer nobody can sign in with) and sessions of at most an hour straight to the managed database, because tokens are minted only from a browser session; it signs those sessions out when it ends.
+
+The bench covers agent-mode tracks only: driving workflow-mode tracks with a runner (an experimenter token, the runner's verify and decide kinds) comes later.
+
 ## Checklist
 
 From an empty CR to the first decided unit:
