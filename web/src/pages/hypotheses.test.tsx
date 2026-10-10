@@ -16,7 +16,7 @@ import {
 import { json, project, renderApp, signedIn } from "@/test/render";
 
 const ACCEPTED =
-  "We tried “Shorter prompts”: the evaluation passed every check, and a researcher accepted it because “The gain holds on every split.”";
+  "We tried “Shorter prompts”: the verification passed every check, and a researcher accepted it because “The gain holds on every split.”";
 
 function listCalls(requests: Request[]) {
   return requests
@@ -96,7 +96,7 @@ describe("a hypothesis page", () => {
     expect(within(outcome).getByText("Halved the system prompt")).toBeInTheDocument();
     expect(
       within(outcome).getByText(
-        "The evaluation passed every check: Accuracy held within the margin",
+        "The verification passed every check: Accuracy held within the margin",
       ),
     ).toBeInTheDocument();
     expect(within(outcome).getByText(/Accepted by a researcher on/)).toBeInTheDocument();
@@ -107,14 +107,14 @@ describe("a hypothesis page", () => {
     signedIn({}, hypothesisApi(h, { attempts, reports }));
     renderApp("/hypotheses/12");
     await screen.findByTestId("outcome-sentence");
-    for (const name of ["Attempts", "Assessment", "Decisions", "Comments"]) {
+    for (const name of ["Attempts", "Verification", "Decisions", "Comments"]) {
       expect(screen.getByRole("heading", { level: 2, name })).toBeInTheDocument();
     }
     expect(screen.getByRole("link", { name: /#12\.1/ })).toHaveAttribute(
       "href",
       "/hypotheses/12/attempts/1",
     );
-    const evidence = screen.getByRole("region", { name: "Test" });
+    const evidence = screen.getByRole("region", { name: "Measurements" });
     expect(within(evidence).getAllByText("Verified").length).toBeGreaterThan(0);
     expect(within(evidence).getAllByText("Reported by agent").length).toBeGreaterThan(0);
     const decisions = screen.getByRole("region", { name: "Decisions" });
@@ -127,9 +127,9 @@ describe("a hypothesis page", () => {
       state: "failed",
       failures: [
         {
-          stage: "tester",
+          stage: "verify",
           code: "timeout",
-          reason: "The tester ran out of time",
+          reason: "The verifier ran out of time",
           details: {},
           created_at: "2026-03-04T10:00:00Z",
           requeued: false,
@@ -151,7 +151,7 @@ describe("a hypothesis page", () => {
       "We tried “Shorter prompts”, but the work could not produce a result; a researcher closed it as failed because “The dataset is gone.”",
     );
     expect(
-      screen.getByText("Attempt #12.1 failed: The tester ran out of time"),
+      screen.getByText("Attempt #12.1 failed: The verifier ran out of time"),
     ).toBeInTheDocument();
   });
 
@@ -240,7 +240,7 @@ describe("a viewer finds an outcome and its reason in three clicks", () => {
           ),
         ...hypothesisApi(h, {
           attempts: [attempt({ number: 7, ref: "#7.1", state: "rejected" })],
-          reports: { 1: report({ evaluation: null }) },
+          reports: { 1: report({ verification: null }) },
         }),
       },
     );

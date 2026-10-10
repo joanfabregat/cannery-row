@@ -189,7 +189,6 @@ fn view(output: &Output, science: &Science<'_>) -> Result<NodeId, ScienceError> 
     let facets = science.hypothesis_facets()?;
     let candidate = science.code_repositories("candidate")?;
     let trusted = science.code_repositories("trusted")?;
-    let legacy = science.legacy_problem()?;
     Ok(output.object(vec![
         (
             "revision",
@@ -236,17 +235,7 @@ fn view(output: &Output, science: &Science<'_>) -> Result<NodeId, ScienceError> 
             ),
         ),
         ("limits", output.raw(document, science.limits, true)),
-        ("tester", output.raw(document, science.tester, true)),
-        (
-            "evaluator",
-            output.raw(document, science.evaluator(), false),
-        ),
-        (
-            "legacy_problem",
-            legacy
-                .as_ref()
-                .map_or_else(|| output.push(Node::Null), |s| output.text(s)),
-        ),
+        ("verify", output.raw(document, science.verify, true)),
         ("hypothesis_facets", output.sorted_texts(facets)),
         ("candidate_repositories", output.sorted_texts(candidate)),
         ("trusted_repositories", output.sorted_texts(trusted)),

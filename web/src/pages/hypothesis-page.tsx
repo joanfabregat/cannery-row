@@ -5,7 +5,7 @@ import { useAttempt, useAttempts, useHypothesis, useReport, useRevisions } from 
 import type { Attempt, Hypothesis, Link as LinkOut } from "@/api/types";
 import { CommentsSection } from "@/components/comments";
 import { DecisionList } from "@/components/decisions";
-import { AssessmentSection, ReportSection } from "@/components/evidence";
+import { ReportSection, VerificationSection } from "@/components/evidence";
 import { Notice } from "@/components/notice";
 import { OutcomeCard } from "@/components/outcome-card";
 import { ImportedBadge } from "@/components/imported-badge";
@@ -139,7 +139,7 @@ function HypothesisView({ project, number }: { project: Project; number: number 
         {latest !== null && report.data ? (
           <>
             <ReportSection report={report.data} />
-            <AssessmentSection project={slug} report={report.data} />
+            <VerificationSection project={slug} report={report.data} />
           </>
         ) : latest !== null && report.isError ? (
           <LoadError error={report.error} retry={report.refetch} />

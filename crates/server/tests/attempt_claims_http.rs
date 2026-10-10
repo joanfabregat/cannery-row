@@ -156,7 +156,7 @@ async fn call(app: &Router, r: &Value) -> Result<(u16, Option<String>, Value, St
                 if [
                     "agent",
                     "experimenter",
-                    "tester",
+                    "verifier",
                     "foreign-agent",
                     "agent-readonly"
                 ]

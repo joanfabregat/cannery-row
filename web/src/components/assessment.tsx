@@ -25,8 +25,8 @@ import { formatDateTime, formatDelta, formatNumber } from "@/lib/format";
 import { humanize, label } from "@/lib/labels";
 
 /**
- * An evaluator's assessment: its verdict and reason, the checks it ran and
- * what it compared. The rules belong to the evaluator the science revision
+ * A verification's verdict: its reason, the checks the policy ran and
+ * what it compared. The rules belong to the policy the science revision
  * registers; the page names it and its rules version, and never judges a
  * comparison itself beyond saying which side the metric's direction favours.
  */
@@ -42,7 +42,7 @@ export function GatesTable({ gates }: { gates: GateResult[] }) {
   if (gates.length === 0) return null;
   return (
     <Table>
-      <TableCaption className="sr-only">The evaluator's checks</TableCaption>
+      <TableCaption className="sr-only">The policy's checks</TableCaption>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead scope="col">Check</TableHead>
@@ -107,7 +107,7 @@ export function ComparisonsTable({
   if (comparisons.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        The evaluator did not say what it compared this result with.
+        The verification did not say what it compared this result with.
       </p>
     );
   }
@@ -177,7 +177,7 @@ export interface AssessmentProps {
   project: string;
   /** The science revision the attempt pinned: its catalog gives each metric's direction. */
   scienceRevision: number | null;
-  /** The tester's measurements, whose own direction is used when the catalog lacks one. */
+  /** The verified measurements, whose own direction is used when the catalog lacks one. */
   measurements: { metric?: unknown; direction?: unknown }[];
   verdict: string;
   reason: string | null;
@@ -219,7 +219,7 @@ export function Assessment({
       {reason ? <p className="text-sm">{reason}</p> : null}
       {gates.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <Heading className="font-medium">The evaluator's checks</Heading>
+          <Heading className="font-medium">The policy's checks</Heading>
           <GatesTable gates={gates} />
         </div>
       ) : null}

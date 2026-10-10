@@ -14,12 +14,13 @@ import {
 } from "@/lib/execution";
 import { formatDateTime } from "@/lib/format";
 import { label } from "@/lib/labels";
+import { usePeople } from "@/projects/use-people";
 import { usePermissions } from "@/projects/use-permissions";
 
 /**
  * How a track runs its experiments, and how each stage of an attempt ran:
- * the experiment (by an outside agent or a runner's workflow), the test and
- * the evaluation, with the runner that claimed each run and the logs it left.
+ * the experiment (by an outside agent or a runner's workflow) and the
+ * verification, with who claimed each run and the logs it left.
  */
 
 const MODE_WORDS: Record<string, string> = {
@@ -138,18 +139,32 @@ function ExperimentStage({ project, attempt }: { project: string; attempt: Attem
   );
 }
 
+/** Who claimed a verify run: a runner's token, an agent, or a researcher. */
+function Verifier({ job }: { job: Job }) {
+  const people = usePeople();
+  if (job.state === "pending") return <>Not claimed yet</>;
+  if (job.performer === "runner") return <Runner viaClient={job.via_client} />;
+  if (job.claimed_by_user) return <>{people(job.claimed_by_user)}</>;
+  return <>An agent</>;
+}
+
 function JobRun({ project, job }: { project: string; job: Job }) {
   const byStep = jobLogsByStep(job);
   return (
-    <li className="flex flex-col gap-3 rounded-md border p-3">
+    <li
+      aria-label={`Run ${String(job.run_number)}`}
+      className="flex flex-col gap-3 rounded-md border p-3"
+    >
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-medium">Run {job.run_number}</span>
         <StatusChip domain="job" value={job.state} />
         <span className="text-muted-foreground">{label("jobOrigin", job.origin)}</span>
       </div>
       <dl className="grid gap-4 sm:grid-cols-2">
+        <Fact term="Performed by">{label("performer", job.performer)}</Fact>
+        {job.verifier ? <Fact term="Verifier">{job.verifier}</Fact> : null}
         <Fact term="Run by">
-          {job.state === "pending" ? "Not claimed yet" : <Runner viaClient={job.via_client} />}
+          <Verifier job={job} />
         </Fact>
         <Fact term="Finished">{formatDateTime(job.finished_at)}</Fact>
         <Fact term="Steps">{job.steps.map(stepText).join(", ") || "—"}</Fact>
@@ -179,34 +194,6 @@ function JobRun({ project, job }: { project: string; job: Job }) {
   );
 }
 
-function JobStage({
-  project,
-  title,
-  description,
-  jobs,
-  empty,
-}: {
-  project: string;
-  title: string;
-  description: string;
-  jobs: Job[];
-  empty: string;
-}) {
-  return (
-    <SubSection title={title} description={description}>
-      {jobs.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{empty}</p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {jobs.map((job) => (
-            <JobRun key={job.id} project={project} job={job} />
-          ))}
-        </ul>
-      )}
-    </SubSection>
-  );
-}
-
 /** Each stage of an attempt, who or what ran it, and the logs it left. */
 export function AttemptExecution({
   project,
@@ -221,29 +208,30 @@ export function AttemptExecution({
   return (
     <Section
       title="How it ran"
-      description="Each stage, what ran it and the logs it left: the experiment, then the test and the evaluation."
+      description="Each stage, what ran it and the logs it left: the experiment, then the verification."
     >
       <div className="flex flex-col gap-4">
         <ExperimentStage project={project} attempt={attempt} />
         <QueryView query={jobs}>
-          {(page) => (
-            <>
-              <JobStage
-                project={project}
-                title="Test runs"
-                description="The tester's runs: each re-runs the result and measures it."
-                jobs={page.items.filter((j) => j.stage === "tester")}
-                empty="No test run yet."
-              />
-              <JobStage
-                project={project}
-                title="Evaluation runs"
-                description="The evaluator's runs: each applies the project's rules to the tested values."
-                jobs={page.items.filter((j) => j.stage === "evaluator")}
-                empty="No evaluation run yet."
-              />
-            </>
-          )}
+          {(page) => {
+            const runs = page.items.filter((j) => j.phase === "verify");
+            return (
+              <SubSection
+                title="Verify runs"
+                description="Each re-runs the result, measures it and applies the project's policy. A runner, an agent or a researcher who did not run the attempt performs it."
+              >
+                {runs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No verify run yet.</p>
+                ) : (
+                  <ul className="flex flex-col gap-3">
+                    {runs.map((job) => (
+                      <JobRun key={job.id} project={project} job={job} />
+                    ))}
+                  </ul>
+                )}
+              </SubSection>
+            );
+          }}
         </QueryView>
       </div>
     </Section>

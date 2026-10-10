@@ -72,7 +72,7 @@ export interface StepLogs {
 }
 
 /**
- * A test or evaluation run's logs by step, in the order of the run's steps.
+ * A verify run's logs by step, in the order of the run's steps.
  * A run's outputs live at `<output_prefix><step>/<role>/<file>`.
  */
 export function jobLogsByStep(job: Job): StepLogs[] {

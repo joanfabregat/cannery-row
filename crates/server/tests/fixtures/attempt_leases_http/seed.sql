@@ -2,11 +2,11 @@
 UPDATE attempts SET lease_token_hash=sha256(convert_to('cr_lease_fixture','UTF8')) WHERE id='00000000-0000-0000-0000-000000002001';
 INSERT INTO service_accounts(id,project_id,kind,name,created_by) VALUES
 ('00000000-0000-0000-0000-000000000022','00000000-0000-0000-0000-000000000010','experimenter','fixture-experimenter','00000000-0000-0000-0000-000000000001'),
-('00000000-0000-0000-0000-000000000023','00000000-0000-0000-0000-000000000010','tester','fixture-tester','00000000-0000-0000-0000-000000000001'),
-('00000000-0000-0000-0000-000000000024','00000000-0000-0000-0000-000000000010','evaluator','fixture-evaluator','00000000-0000-0000-0000-000000000001');
+('00000000-0000-0000-0000-000000000023','00000000-0000-0000-0000-000000000010','verifier','fixture-verifier','00000000-0000-0000-0000-000000000001'),
+('00000000-0000-0000-0000-000000000024','00000000-0000-0000-0000-000000000010','verifier','fixture-second-verifier','00000000-0000-0000-0000-000000000001');
 INSERT INTO api_tokens(token_hash,display_prefix,kind,service_account_id,name,scopes,expires_at)
 SELECT sha256(convert_to('cr_svc_track_http_'||role,'UTF8')),'cr_svc_fixture','service',('00000000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid,role,ARRAY['read','write'],now()+interval '1 day'
-FROM (VALUES(22,'experimenter'),(23,'tester'),(24,'evaluator')) AS u(i,role);
+FROM (VALUES(22,'experimenter'),(23,'verifier'),(24,'second-verifier')) AS u(i,role);
 UPDATE search_documents SET updated_at='2001-01-01Z';
 -- Recovery fault controls affect only this fixture's existing attempt.
 CREATE TABLE fixture_lease_fault(phase text);

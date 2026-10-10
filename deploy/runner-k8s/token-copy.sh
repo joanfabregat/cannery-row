@@ -16,7 +16,7 @@ copy_private() {
     mv -f "$temporary" "$destination" 2>/dev/null
 }
 refresh() {
-    copy_private /secret/token /run/cannery/tester.token
+    copy_private /secret/token /run/cannery/verifier.token
     copy_private /identity/token /run/cannery/kubernetes.token
     copy_private /identity/ca.crt /run/cannery/kubernetes-ca.crt
 }

@@ -1,8 +1,6 @@
 //! Authored UTF-8 configuration loading and sanitized failures.
 use cannery_runner::{
-    config::{
-        self, ErrorKind, EvaluationPolicy, NativePathResolver, PolicyLoadError, PolicyLoader,
-    },
+    config::{self, ErrorKind, NativePathResolver, PolicyLoadError, PolicyLoader, VerifyPolicy},
     launcher::PosixPath,
 };
 use serde_json::json;
@@ -17,7 +15,7 @@ use std::{
 
 struct Policies(Cell<usize>);
 impl PolicyLoader for Policies {
-    fn load(&self, _: &PosixPath) -> Result<EvaluationPolicy, PolicyLoadError> {
+    fn load(&self, _: &PosixPath) -> Result<VerifyPolicy, PolicyLoadError> {
         self.0.set(self.0.get() + 1);
         Err(PolicyLoadError::Configuration)
     }
@@ -38,13 +36,13 @@ fn utf8_files_load_and_invalid_text_is_refused_before_policy_loading() -> Result
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     )));
     fs::create_dir(&directory.0)?;
-    let token = directory.0.join("tester.token");
-    fs::write(&token, b"public-synthetic-tester")?;
+    let token = directory.0.join("experimenter.token");
+    fs::write(&token, b"public-synthetic-experimenter")?;
     fs::set_permissions(&token, fs::Permissions::from_mode(0o600))?;
     let path = directory.0.join("config.json");
     let policies = Policies(Cell::new(0));
     let valid = serde_json::to_vec(
-        &json!({"api_url":"http://localhost:9010", "project":"fixture", "launcher":{"type":"local"}, "kinds":[{"kind":"test","name":"fixture","token_file":"tester.token"}]}),
+        &json!({"api_url":"http://localhost:9010", "project":"fixture", "launcher":{"type":"local"}, "kinds":[{"kind":"experiment","name":"fixture","token_file":"experimenter.token"}]}),
     )?;
     fs::write(&path, &valid)?;
     let loaded = config::load_config_file(&path, &policies, &NativePathResolver, 128)?;

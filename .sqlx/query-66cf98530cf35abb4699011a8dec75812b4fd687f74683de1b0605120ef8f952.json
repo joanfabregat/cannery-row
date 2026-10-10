@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.id::text AS \"id!\", e.front_matter::text AS \"front_matter!\", m.id::text AS \"manifest!\", m.sha256 AS \"manifest_sha256!\"\n           FROM phase_outputs e JOIN manifests m ON m.id = e.manifest_id\n           WHERE e.attempt_id = ($1::text)::uuid AND e.stage = 'agent' AND e.status = 'completed'\n           ORDER BY e.revision DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "front_matter!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "manifest!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "manifest_sha256!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      false
+    ]
+  },
+  "hash": "66cf98530cf35abb4699011a8dec75812b4fd687f74683de1b0605120ef8f952"
+}

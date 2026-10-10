@@ -1,0 +1,168 @@
+{
+  "reason": "/verifier",
+  "document": {
+    "schema_version": "0.2",
+    "job_id": "verify-job-id",
+    "phase": "verify",
+    "attempt_id": "attempt-id",
+    "performer": "agent",
+    "verifier": {
+      "id": "cannery-verifier",
+      "revision": "policy-r1"
+    },
+    "track": "dense-hybrid",
+    "parameters": {},
+    "science_revision": "science-revision",
+    "inputs": {
+      "manifest": {
+        "ref": "manifest-id",
+        "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "baselines": [],
+      "datasets": [],
+      "run": {
+        "ref": "evidence-id",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "output_prefix": "projects/example/attempts/attempt-id/verify-runs/verify-job-id/",
+    "deadline": "2026-09-29T06:00:00Z",
+    "limits": {
+      "max_output_bytes": 1048576
+    },
+    "lease": {
+      "token": "opaque",
+      "generation": 2,
+      "expires_at": "2026-09-29T00:10:00Z"
+    },
+    "steps": [
+      {
+        "name": "sparse-producer",
+        "revision": 3,
+        "manifest": {
+          "apiVersion": "cannery-row/v1",
+          "kind": "Step",
+          "metadata": {
+            "name": "sparse-producer"
+          },
+          "spec": {
+            "role": "producer",
+            "container": {
+              "image": "registry.example/pilchards/sparse-producer@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "command": [
+                "/app/produce"
+              ],
+              "args": [],
+              "env": [
+                {
+                  "name": "BATCH_SIZE",
+                  "value": "64"
+                }
+              ],
+              "resources": {
+                "limits": {
+                  "cpu": "8",
+                  "memory": "32Gi",
+                  "nvidia.com/gpu": "1"
+                }
+              }
+            },
+            "activeDeadlineSeconds": 14400,
+            "network": "none",
+            "sandbox": "Declared sandbox and capability policy for candidate code.",
+            "inputs": {
+              "artifacts": [
+                {
+                  "name": "candidate_checkpoint",
+                  "from": "attempt",
+                  "path": "/cr/inputs/candidate_checkpoint"
+                },
+                {
+                  "name": "queries",
+                  "from": "dataset",
+                  "path": "/cr/inputs/queries"
+                }
+              ]
+            },
+            "outputs": {
+              "artifacts": [
+                {
+                  "name": "run",
+                  "interface": "ranked-run/v1",
+                  "path": "/cr/outputs/run"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "scorer",
+        "revision": "science-revision",
+        "manifest": {
+          "apiVersion": "cannery-row/v1",
+          "kind": "Step",
+          "metadata": {
+            "name": "scorer"
+          },
+          "spec": {
+            "role": "scorer",
+            "container": {
+              "image": "registry.example:5000/pilchards/scorer@sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+              "command": [
+                "/app/score"
+              ],
+              "resources": {
+                "requests": {
+                  "cpu": "2",
+                  "memory": "4Gi"
+                },
+                "limits": {
+                  "cpu": "4",
+                  "memory": "8Gi"
+                }
+              }
+            },
+            "activeDeadlineSeconds": 3600,
+            "network": "none",
+            "sandbox": "Runs no candidate code; read-only root filesystem.",
+            "inputs": {
+              "artifacts": [
+                {
+                  "name": "run",
+                  "from": "step",
+                  "interface": "ranked-run/v1",
+                  "path": "/cr/inputs/run"
+                },
+                {
+                  "name": "qrels",
+                  "from": "dataset",
+                  "path": "/cr/inputs/qrels"
+                },
+                {
+                  "name": "claimed_sheet",
+                  "from": "attempt",
+                  "path": "/cr/inputs/claimed_sheet"
+                }
+              ]
+            },
+            "outputs": {
+              "artifacts": [
+                {
+                  "name": "evidence",
+                  "interface": "cr-evidence/v0.2",
+                  "path": "/cr/outputs/evidence"
+                },
+                {
+                  "name": "per_query_results",
+                  "interface": "per-query-results/v1",
+                  "path": "/cr/outputs/per_query_results"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

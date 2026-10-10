@@ -1,4 +1,4 @@
-//! Comparison integrity shared by evaluator workers and publication controllers.
+//! Comparison integrity shared by verifiers and the completion controller.
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
@@ -41,22 +41,22 @@ fn decimal(value: &Value) -> Option<(num_bigint::BigInt, i64)> {
 }
 
 /// Validate registered metric slices and citations against verified measurements.
-/// The caller first validates the assessment's published JSON schema.
+/// The caller first validates the report against its published JSON schema.
 /// # Errors
-/// Rejects unregistered/duplicate slices and incorrect or ambiguous tester citations.
+/// Rejects unregistered/duplicate slices and incorrect or ambiguous citations of verified measurements.
 #[allow(
     clippy::too_many_lines,
     reason = "Keep ordered comparison checks together"
 )]
-pub fn check(science: &Value, assessment: &Value, tested: &Value) -> Result<(), ComparisonError> {
+pub fn check(science: &Value, report: &Value, verified: &Value) -> Result<(), ComparisonError> {
     let mut seen = BTreeSet::new();
-    for (index, comparison) in assessment["comparisons"]
+    for (index, comparison) in report["comparisons"]
         .as_array()
         .into_iter()
         .flatten()
         .enumerate()
     {
-        let path = format!("/evidence/assessment/comparisons/{index}");
+        let path = format!("/comparisons/{index}");
         let metric = array(science, "metrics")?
             .iter()
             .find(|metric| metric["key"] == comparison["metric"])
@@ -108,7 +108,7 @@ pub fn check(science: &Value, assessment: &Value, tested: &Value) -> Result<(), 
         if comparison["source"] != "tester" {
             continue;
         }
-        let mut cited = tested["measurements"]
+        let mut cited = verified["measurements"]
             .as_array()
             .into_iter()
             .flatten()
@@ -129,13 +129,13 @@ pub fn check(science: &Value, assessment: &Value, tested: &Value) -> Result<(), 
         let expected = cited.next().ok_or_else(|| {
             invalid(
                 &format!("{path}/source"),
-                "source tester requires exactly one verified measurement",
+                "source tester requires exactly one verified measurement in the report",
             )
         })?;
         if cited.next().is_some() {
             return Err(invalid(
                 &format!("{path}/source"),
-                "source tester requires exactly one verified measurement",
+                "source tester requires exactly one verified measurement in the report",
             ));
         }
         if decimal(&expected["value"]).is_none()
@@ -143,7 +143,7 @@ pub fn check(science: &Value, assessment: &Value, tested: &Value) -> Result<(), 
         {
             return Err(invalid(
                 &format!("{path}/value"),
-                "does not match the verified tester value",
+                "does not match the verified measurement",
             ));
         }
     }

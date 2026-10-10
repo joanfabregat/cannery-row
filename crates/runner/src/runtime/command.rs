@@ -1,5 +1,11 @@
 //! Runner CLI is independent of the installation/server database settings.
-use super::{RuntimeError, backend::LocalBackend, http::ApiClient, worker::Tester};
+use super::{
+    RuntimeError,
+    backend::LocalBackend,
+    http::ApiClient,
+    verify::{AppliedPolicy, Verifier},
+    worker::Resources,
+};
 use crate::{
     config::{self, ProcessConfig},
     launcher::PosixPath,
@@ -34,6 +40,9 @@ pub struct RunnerArgs {
     pub unisolated_local: bool,
     #[arg(long)]
     pub token_file: Option<PathBuf>,
+    /// The verifier's policy: a stock configuration or a policy step document.
+    #[arg(long)]
+    pub policy: Option<PathBuf>,
     #[arg(long)]
     pub api_url: Option<String>,
     #[arg(long)]
@@ -122,6 +131,7 @@ impl RunnerArgs {
         self.launcher.is_some()
             || self.unisolated_local
             || self.token_file.is_some()
+            || self.policy.is_some()
             || self.api_url.is_some()
             || self.project.is_some()
             || self.data_root.is_some()
@@ -173,7 +183,7 @@ impl RunnerArgs {
                 return Err(RuntimeError::Configuration);
             }
             let loader = crate::policy::FilePolicyLoader {
-                entry_point: crate::cli_depth::PolicyEntryPoint::RunnerEvalKind,
+                entry_point: crate::cli_depth::PolicyEntryPoint::RunnerVerifyKind,
                 repr_nesting_budget: 512,
             };
             return config::load_config_file(
@@ -216,13 +226,24 @@ impl RunnerArgs {
         {
             return Err(RuntimeError::Configuration);
         }
+        // Without a configuration file the runner is one verify kind.
+        let policy = self.policy.ok_or(RuntimeError::Configuration)?;
+        let loader = crate::policy::FilePolicyLoader {
+            entry_point: crate::cli_depth::PolicyEntryPoint::RunnerVerifyKind,
+            repr_nesting_budget: 512,
+        };
+        let policy = config::PolicyLoader::load(
+            &loader,
+            &PosixPath::new(&resolve(&policy)?.to_string_lossy()),
+        )
+        .map_err(|_| RuntimeError::Configuration)?;
         Ok((
             ProcessConfig {
                 api_url: String::from(&api),
                 project: String::from(&project),
                 kinds: vec![config::KindEntry {
-                    name: String::from("test"),
-                    kind: config::KindConfig::Test,
+                    name: String::from("verify"),
+                    kind: config::KindConfig::Verify(policy),
                     token,
                     poll_seconds: poll,
                     concurrency: 1.into(),
@@ -306,46 +327,43 @@ pub async fn run(args: RunnerArgs) -> Result<i32, RuntimeError> {
             {
                 return Err(RuntimeError::Configuration);
             }
-            match &entry.kind {
-                config::KindConfig::Test | config::KindConfig::Experiment => {
-                    config
-                        .data_root
-                        .as_ref()
-                        .ok_or(RuntimeError::Configuration)?;
-                }
-                config::KindConfig::Eval(config::EvaluationPolicy::Stock(document)) => {
-                    crate::policy::parse_policy(
-                        document.clone(),
-                        crate::cli_depth::PolicyEntryPoint::RunnerEvalKind,
-                        256,
-                    )
-                    .map_err(|_| RuntimeError::Configuration)?;
-                }
-                config::KindConfig::Eval(config::EvaluationPolicy::Step { document, .. }) => {
-                    let step = crate::policy::parse_step_policy(
-                        document.clone(),
-                        crate::cli_depth::PolicyEntryPoint::RunnerEvalKind,
-                        256,
-                    )
-                    .map_err(|_| RuntimeError::Configuration)?;
-                    let validator = cannery_core::contracts::ContractValidator::new()
-                        .map_err(|_| RuntimeError::Configuration)?;
-                    if !validator.is_valid(
-                        cannery_core::contracts::ContractKind::StepManifest,
-                        &step.document,
-                    ) {
-                        return Err(RuntimeError::Configuration);
-                    }
-                }
+            config
+                .data_root
+                .as_ref()
+                .ok_or(RuntimeError::Configuration)?;
+            if let config::KindConfig::Verify(policy) = &entry.kind {
+                applied(policy)?;
             }
         }
-        if config.kinds.iter().any(|entry| entry.kind.needs_launcher()) {
-            super::container_command::check(&config, &policy)?;
-            super::provision::CodeProvisioner::check_config(&config)?;
-        }
+        super::container_command::check(&config, &policy)?;
+        super::provision::CodeProvisioner::check_config(&config)?;
         return Ok(0);
     }
     run_config_with_policy(config, once, &policy).await
+}
+/// Parse a verify kind's policy as the worker applies it; a policy step must
+/// also be a valid step manifest.
+fn applied(policy: &config::VerifyPolicy) -> Result<AppliedPolicy, RuntimeError> {
+    let entry_point = crate::cli_depth::PolicyEntryPoint::RunnerVerifyKind;
+    Ok(match policy {
+        config::VerifyPolicy::Stock(document) => AppliedPolicy::Stock(Arc::new(
+            crate::policy::parse_policy(document.clone(), entry_point, 256)
+                .map_err(|_| RuntimeError::Configuration)?,
+        )),
+        config::VerifyPolicy::Step(document) => {
+            let step = crate::policy::parse_step_policy(document.clone(), entry_point, 256)
+                .map_err(|_| RuntimeError::Configuration)?;
+            let validator = cannery_core::contracts::ContractValidator::new()
+                .map_err(|_| RuntimeError::Configuration)?;
+            if !validator.is_valid(
+                cannery_core::contracts::ContractKind::StepManifest,
+                &step.document,
+            ) {
+                return Err(RuntimeError::Configuration);
+            }
+            AppliedPolicy::Step(Arc::new(step))
+        }
+    })
 }
 /// # Errors
 /// Validate all factories before claiming work; installed commands share this path.
@@ -357,16 +375,14 @@ pub async fn run_config(config: ProcessConfig, once: bool) -> Result<i32, Runtim
     )
     .await
 }
-#[allow(clippy::too_many_lines)] // Select shared resources once for all configured worker kinds.
+/// Every kind runs steps: one launcher backend and code provisioner serve them all.
 async fn run_config_with_policy(
     config: ProcessConfig,
     once: bool,
     policy: &super::container_command::BackendPolicy,
 ) -> Result<i32, RuntimeError> {
-    let needs_launcher = config.kinds.iter().any(|entry| entry.kind.needs_launcher());
-    let backend = match (needs_launcher, config.launcher) {
-        (false, _) => Arc::new(super::backend::NoSteps) as Arc<dyn super::backend::Backend>,
-        (true, Some(config::LauncherType::Local)) => Arc::new(LocalBackend::new(
+    let backend = match config.launcher {
+        Some(config::LauncherType::Local) => Arc::new(LocalBackend::new(
             std::env::current_exe()?,
             PathBuf::from("python3"),
             config
@@ -374,24 +390,17 @@ async fn run_config_with_policy(
                 .clone()
                 .ok_or(RuntimeError::Configuration)?,
             true,
-        )?)
-            as Arc<dyn super::backend::Backend>,
-        (true, Some(config::LauncherType::Docker)) => {
-            super::container_command::docker(&config, policy)?
-        }
-        (true, Some(config::LauncherType::Kubernetes)) => {
+        )?) as Arc<dyn super::backend::Backend>,
+        Some(config::LauncherType::Docker) => super::container_command::docker(&config, policy)?,
+        Some(config::LauncherType::Kubernetes) => {
             super::container_command::kubernetes(&config, policy)?
         }
-        _ => return Err(RuntimeError::Configuration),
+        None => return Err(RuntimeError::Configuration),
     };
-    let provisioner = if needs_launcher {
-        Arc::new(super::provision::CodeProvisioner::new(
-            &config,
-            backend.clone(),
-        )?) as Arc<dyn super::worker::Provisioner>
-    } else {
-        Arc::new(super::worker::NoCode) as Arc<dyn super::worker::Provisioner>
-    };
+    let provisioner = Arc::new(super::provision::CodeProvisioner::new(
+        &config,
+        backend.clone(),
+    )?) as Arc<dyn super::worker::Provisioner>;
     let client = ApiClient::new(
         &config
             .api_url
@@ -402,76 +411,37 @@ async fn run_config_with_policy(
         .project
         .as_utf8()
         .ok_or(RuntimeError::Configuration)?;
-    let data_root = config.data_root;
+    let data_root = config.data_root.ok_or(RuntimeError::Configuration)?;
     let work_root = config.work_root.unwrap_or_else(std::env::temp_dir);
     let mut entries = vec![];
-    let mut testers = vec![];
+    let mut workers = vec![];
     for entry in config.kinds {
         entries.push(crate::worker_process::Entry {
             name: entry.name,
             poll_seconds: entry.poll_seconds,
             concurrency: entry.concurrency,
         });
-        let worker: Arc<dyn super::process::RuntimeWorker> = match entry.kind {
-            kind @ (config::KindConfig::Test | config::KindConfig::Experiment) => {
-                let resources = Tester {
-                    client: client.clone(),
-                    token: entry.token,
-                    project: project.clone(),
-                    data_root: data_root.clone().ok_or(RuntimeError::Configuration)?,
-                    work_root: work_root.clone(),
-                    backend: backend.clone(),
-                    provisioner: provisioner.clone(),
-                    validator: Arc::new(super::validation::NativeOutputValidator::runtime_policy()),
-                };
-                if matches!(kind, config::KindConfig::Experiment) {
-                    Arc::new(super::experiment::Experiment::new(resources))
-                } else {
-                    Arc::new(resources)
-                }
+        let resources = Resources {
+            client: client.clone(),
+            token: entry.token,
+            project: project.clone(),
+            data_root: data_root.clone(),
+            work_root: work_root.clone(),
+            backend: backend.clone(),
+            provisioner: provisioner.clone(),
+            validator: Arc::new(super::validation::NativeOutputValidator::runtime_policy()),
+        };
+        let worker: Arc<dyn super::process::RuntimeWorker> = match &entry.kind {
+            config::KindConfig::Experiment => {
+                Arc::new(super::experiment::Experiment::new(resources))
             }
-            config::KindConfig::Eval(config::EvaluationPolicy::Stock(document)) => {
-                Arc::new(super::evaluator::Evaluator {
-                    client: client.clone(),
-                    token: entry.token,
-                    project: project.clone(),
-                    policy: Arc::new(
-                        crate::policy::parse_policy(
-                            document,
-                            crate::cli_depth::PolicyEntryPoint::RunnerEvalKind,
-                            256,
-                        )
-                        .map_err(|_| RuntimeError::Configuration)?,
-                    ),
-                })
-            }
-            config::KindConfig::Eval(config::EvaluationPolicy::Step { document, .. }) => {
-                let step = crate::policy::parse_step_policy(
-                    document,
-                    crate::cli_depth::PolicyEntryPoint::RunnerEvalKind,
-                    256,
-                )
-                .map_err(|_| RuntimeError::Configuration)?;
-                Arc::new(super::policy_evaluator::PolicyEvaluator::new(
-                    Tester {
-                        client: client.clone(),
-                        token: entry.token,
-                        project: project.clone(),
-                        data_root: data_root.clone().unwrap_or_else(|| work_root.clone()),
-                        work_root: work_root.clone(),
-                        backend: backend.clone(),
-                        provisioner: provisioner.clone(),
-                        validator: Arc::new(
-                            super::validation::NativeOutputValidator::runtime_policy(),
-                        ),
-                    },
-                    Arc::new(step),
-                )?)
+            config::KindConfig::Verify(policy) => {
+                Arc::new(Verifier::new(resources, applied(policy)?)?)
             }
         };
-        testers.push(worker);
+        workers.push(worker);
     }
-    super::process::run(entries, testers, backend, provisioner, once).await
+    super::process::run(entries, workers, backend, provisioner, once).await
 }
 
 #[allow(unused_imports)]

@@ -2,7 +2,7 @@
 
 ## Image
 
-`ghcr.io/joanfabregat/cannery-row`, built from `Containerfile.rust` by `.github/workflows/rust-release.yml`. One image serves the API, the MCP endpoint (`/mcp`) and the embedded web app, and runs the runner, the stock evaluator, imports and the migrations. It holds only the static `cannery` binary on a distroless base: no shell, interpreter or package manager. Every pull request builds it and smoke-tests it without pushing ([operations](rust/operations.md#image)).
+`ghcr.io/joanfabregat/cannery-row`, built from `Containerfile.rust` by `.github/workflows/rust-release.yml`. One image serves the API, the MCP endpoint (`/mcp`) and the embedded web app, and runs the runner, the stock policy, imports and the migrations. It holds only the static `cannery` binary on a distroless base: no shell, interpreter or package manager. Every pull request builds it and smoke-tests it without pushing ([operations](rust/operations.md#image)).
 
 Pin a deployment to an image digest (`@sha256:…`), not a moving tag. The release workflow also builds the same binary as a standalone archive for Linux (amd64, arm64, static) and macOS (arm64).
 
@@ -114,14 +114,14 @@ podman run --rm -v ./bundle:/bundle:ro -e CANNERY_DATABASE_URL \
 
 The runner uses the same image with the `runner` command. It refuses a token file that is not a regular file or that grants any permission to group or others, so the file is mode 600 (or 400). The runner does not check the owner, but with those modes only the owner can read the file, so it must be owned by UID 10001, the image's user, as seen inside the container. The data, step and work directories must be readable (work: writable) by that UID too.
 
-With rootful Docker, container UIDs are host UIDs: `chown 10001:10001 tester.token` on the host is enough. With rootless Podman, container UIDs go through your user namespace, and a file owned by host UID 10001 is not UID 10001 inside the container. Either hand the file to UID 10001 inside the namespace with `podman unshare chown 10001:10001 tester.token` (and the same for the directories), as the example below assumes, or keep everything owned by your own user and add `--userns=keep-id:uid=10001,gid=10001`, which maps your UID to 10001 inside the container:
+With rootful Docker, container UIDs are host UIDs: `chown 10001:10001 verifier.token` on the host is enough. With rootless Podman, container UIDs go through your user namespace, and a file owned by host UID 10001 is not UID 10001 inside the container. Either hand the file to UID 10001 inside the namespace with `podman unshare chown 10001:10001 verifier.token` (and the same for the directories), as the example below assumes, or keep everything owned by your own user and add `--userns=keep-id:uid=10001,gid=10001`, which maps your UID to 10001 inside the container:
 
 ```sh
 podman run --rm \
-  -v ./tester.token:/run/secrets/tester.token:ro \
+  -v ./verifier.token:/run/secrets/verifier.token:ro -v ./policy.json:/etc/cannery/policy.json:ro \
   -v /srv/cannery/data:/data/runner:ro -v /srv/cannery/steps:/steps:ro -v /srv/cannery/work:/work \
   ghcr.io/joanfabregat/cannery-row:<tag> runner --unisolated-local \
-  --token-file /run/secrets/tester.token --api-url https://cannery.example.org --project <slug> \
+  --token-file /run/secrets/verifier.token --policy /etc/cannery/policy.json --api-url https://cannery.example.org --project <slug> \
   --data-root /data/runner --step-root /steps --work-root /work
 ```
 
@@ -139,20 +139,19 @@ One runner process can run several **job kinds**, each with its own service-acco
 
 | Kind | Token of a service account of kind | What it does |
 | --- | --- | --- |
-| `test` | `tester`, named like the science revision's `tester.id` | Claims test jobs and runs their steps (producer, scorer, validators) through the launcher. |
-| `eval` | `evaluator`, named like the science revision's `evaluator.id` | Claims the evaluation jobs pinned to its policy's revision and publishes verdicts: the stock gates, in-process, or a [policy step](contracts.md#policy-steps) through the launcher. |
+| `verify` | `verifier`, named like the science revision's `verify.verifier.id` | Claims the verify jobs registered to its account under its policy's revision, runs their steps (producer, validators, scorer) through the launcher, applies the policy (the stock gates, in-process, or a [policy step](contracts.md#policy-steps) through the launcher) and publishes the verification report. |
 | `experiment` | `experimenter` | Claims the hypotheses of [`workflow` tracks](contracts.md#workflow-tracks), runs each one's experiment workflow through the launcher and submits the result as an agent would ([the experiment kind](#the-experiment-kind)). |
 
-The flags above run the `test` kind alone. To run more, or to keep the settings in one place, give a configuration file instead: `cannery runner --config runner.toml` (TOML, or JSON when the name ends in `.json`). It replaces every flag but `--once`; combining them is refused. Relative paths in it resolve against the file's directory. Each key is the flag of the same name without its dashes:
+The flags above run the `verify` kind alone, `--policy` naming its policy file. To run more, or to keep the settings in one place, give a configuration file instead: `cannery runner --config runner.toml` (TOML, or JSON when the name ends in `.json`). It replaces every flag but `--once`; combining them is refused. Relative paths in it resolve against the file's directory. Each key is the flag of the same name without its dashes:
 
 | Key | Flag | Meaning |
 | --- | --- | --- |
 | `api_url` | `--api-url` | Required. Cannery Row base URL. |
 | `project` | `--project` | Required. Project slug. |
-| `data_root` | `--data-root` | `datasets/<id>/<revision>/` and `baselines/<id>/<revision>/`. Required by `test` and `experiment`, and by an `eval` policy step that reads a baseline or dataset. |
+| `data_root` | `--data-root` | `datasets/<id>/<revision>/` and `baselines/<id>/<revision>/`. Required by `verify` and `experiment`. |
 | `work_root` | `--work-root` | Parent of per-job directories. |
 | `cache_root`, `cache_max_bytes` | `--cache-root`, `--cache-max-bytes` | [The code and dependency cache](#the-code-and-dependency-cache), shared by every kind. |
-| `[launcher]` `type` | `--launcher` | `docker`, `kubernetes` or `local`. Required when a kind runs steps (`test`, `experiment`, an `eval` policy step, on any of the three); not started otherwise. |
+| `[launcher]` `type` | `--launcher` | `docker`, `kubernetes` or `local`. Required: both kinds run steps. |
 | `[launcher]` `runner_id` | `--runner-id` | Required by `docker` and `kubernetes`: names and labels this runner's containers or Pods. |
 | `[launcher]` `step_root` | `--step-root` | The local launcher's step root. |
 | `[launcher]` `docker_host`, `docker_user`, `docker_job_root_host`, `docker_pids_limit`, `docker_tmp_size`, `docker_shm_size`, `docker_gpu_mode`, `docker_gpu_devices` | the same, with dashes | The Docker launcher ([options](#other-options)). `docker_gpu_devices` may also be a list of indices (`[0, 1]`; `[]` for none). `docker_job_root_host` is a path on the Docker host, never resolved against the file. |
@@ -164,16 +163,16 @@ Each `[[kinds]]` table has:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `kind` | required | `test`, `eval` or `experiment`. |
-| `token_file` | required | The kind's own token: a regular file of mode 600 (or 400) holding the token of a service account of the matching kind. The runner checks the mode only, not the owner, so the file must belong to the user the runner runs as ([Runner](#runner)). Two kinds of different types never share a token; two `eval` entries may. |
-| `name` | the kind | Labels the entry's log lines (`cannery runner: eval-step: job … completed`); unique. |
+| `kind` | required | `verify` or `experiment`. |
+| `token_file` | required | The kind's own token: a regular file of mode 600 (or 400) holding the token of a service account of the matching kind. The runner checks the mode only, not the owner, so the file must belong to the user the runner runs as ([Runner](#runner)). Two kinds of different types never share a token; two `verify` entries may. |
+| `name` | the kind | Labels the entry's log lines (`cannery runner: verify-step: job … completed`); unique. |
 | `poll_seconds` | `10` | How long the entry waits when no job is queued or a claim failed. |
 | `concurrency` | `1` | How many jobs of this entry run at once, each its own loop. Resource ceilings (`cpu`, `memory`) apply per step, so `n` loops (across every entry) can together ask the host for `n` times a step's ceiling: size the host for the sum, or keep `1`. GPUs are never shared: each GPU step takes its own ([GPUs](#gpus)). |
-| `policy` | required by `eval` | `eval` only: the evaluation policy, a stock configuration (`evaluator.json`) or a policy step document. |
+| `policy` | required by `verify` | `verify` only: the verifier's policy, a stock configuration (`policy.json`) or a policy step file. |
 
 Every kind shares the launcher, the GitHub credential and the cache root, and loops on its own. A kind whose claims fail, or whose jobs crash, is logged and keeps polling; it never stops another. `SIGTERM` (as `podman stop` sends) cancels every running job, kills its step and removes its containers, then exits with code 143. With `--once`, each entry runs at most one job, side by side, prints its outcome (`no job waiting`, `job <id> completed`), and the process exits 1 if any entry's claim or job raised (each entry's outcome is printed first). An invalid file, an unreadable token or a kind that lacks the launcher or data root it needs refuses to start (exit code 2), naming the key (`kinds[1].token_file: …`).
 
-This runs the experiment, test and evaluation stages of a project in one process with the Docker launcher, its evaluator applying the stock gates:
+This runs the experiment and verify stages of a project in one process with the Docker launcher, its verifier applying the stock gates:
 
 ```toml
 # /etc/cannery/runner.toml
@@ -192,13 +191,9 @@ app_key_file = "/run/secrets/github-app.pem"
 app_installation_id = "7654321"
 
 [[kinds]]
-kind = "test"
-token_file = "/run/secrets/tester.token"
-
-[[kinds]]
-kind = "eval"
-token_file = "/run/secrets/evaluator.token"
-policy = "/etc/cannery/evaluator.json"
+kind = "verify"
+token_file = "/run/secrets/verifier.token"
+policy = "/etc/cannery/policy.json"
 
 [[kinds]]
 kind = "experiment"
@@ -207,8 +202,8 @@ token_file = "/run/secrets/experimenter.token"
 
 ```sh
 podman run --rm \
-  -v ./runner.toml:/etc/cannery/runner.toml:ro -v ./evaluator.json:/etc/cannery/evaluator.json:ro \
-  -v ./tester.token:/run/secrets/tester.token:ro -v ./evaluator.token:/run/secrets/evaluator.token:ro \
+  -v ./runner.toml:/etc/cannery/runner.toml:ro -v ./policy.json:/etc/cannery/policy.json:ro \
+  -v ./verifier.token:/run/secrets/verifier.token:ro \
   -v ./experimenter.token:/run/secrets/experimenter.token:ro \
   -v ./github-app.pem:/run/secrets/github-app.pem:ro \
   -v /srv/cannery/data:/data/runner:ro -v /srv/cannery/work:/work \
@@ -216,11 +211,11 @@ podman run --rm \
   ghcr.io/joanfabregat/cannery-row:<tag> runner --config /etc/cannery/runner.toml
 ```
 
-Every file is owned by UID 10001 as the container sees it, as above. On a Container-Optimized OS VM, mount the configuration file and the tokens like the tester token in [the cloud-config below](#cloud-config) and replace the flags with `--config`. To evaluate with a policy step instead of the stock gates, point `policy` at a policy step document ([the contracts](contracts.md#policy-steps) describe it; `examples/fixture/policy-step.json` is one): the step runs through the same launcher, like a test job's steps, and needs a launcher even in a runner that runs only `eval`. To switch policy revisions without stopping evaluation, list two `eval` entries with different `name`s and policies and the same token, then remove the old one once no job of its revision is pending.
+Every file is owned by UID 10001 as the container sees it, as above. On a Container-Optimized OS VM, mount the configuration file and the tokens like the verifier token in [the cloud-config below](#cloud-config) and replace the flags with `--config`. To verify with a policy step instead of the stock gates, point `policy` at a policy step file ([the contracts](contracts.md#policy-steps) describe it; `examples/fixture/policy-step.json` is one): the step runs through the same launcher, after the job's other steps. To switch policy revisions without stopping verification, list two `verify` entries with different `name`s and policies and the same token, then remove the old one once no job of its revision is pending.
 
 ### The experiment kind
 
-The `experiment` kind claims the hypotheses of [`workflow` tracks](contracts.md#workflow-tracks) with an **experimenter** service token, runs each one's experiment workflow, and submits the result as an agent would; the test jobs it leads to are claimed by a `test` kind as usual. It is configured like any kind, as a `[[kinds]]` entry of the configuration file (there is no flag for it: the flags alone run the `test` kind), and reads no option of its own:
+The `experiment` kind claims the hypotheses of [`workflow` tracks](contracts.md#workflow-tracks) with an **experimenter** service token, runs each one's experiment workflow, and submits the result as an agent would; the verify jobs it leads to are claimed by a `verify` kind (or an agent) as usual. It is configured like any kind, as a `[[kinds]]` entry of the configuration file (there is no flag for it: the flags alone run the `verify` kind), and reads no option of its own:
 
 ```toml
 [[kinds]]
@@ -228,7 +223,7 @@ kind = "experiment"
 token_file = "/run/secrets/experimenter.token"
 ```
 
-It needs a launcher and a data root, as a `test` kind does, and runs on any of the three launchers with the same container contract, code and setup handling, interface checks and validators: its steps run exactly as a test job's. Its entry shares the process's launcher, GitHub credential and cache root with the other kinds, so a project with workflow tracks usually runs the three kinds in one process, as in the example above. `concurrency` runs several experiments at once, each in its own loop.
+It needs a launcher and a data root, as a `verify` kind does, and runs on any of the three launchers with the same container contract, code and setup handling, interface checks and validators: its steps run exactly as a verify job's. Its entry shares the process's launcher, GitHub credential and cache root with the other kind, so a project with workflow tracks usually runs both kinds in one process, as in the example above. `concurrency` runs several experiments at once, each in its own loop.
 
 Create an **experimenter** service account in the project for it (`"kind": "experimenter"`, from the admin settings or `POST /api/projects/{slug}/service-accounts`) and give the runner a token of it. Only an experimenter claims hypotheses of `workflow` tracks, and it claims nothing else; it cannot write plans, comment or decide. Its reports of a run's failure are trusted (the failure is retried automatically, then reviewed), so its token must stay with the runner: never hand it to an agent. An attempt it claims shows that account as the claimant and as the author of its run document. Experiment steps are candidate code, so outside fixtures and development use the Docker launcher ([on a Container-Optimized OS VM](#the-runner-on-a-container-optimized-os-vm)) or the Kubernetes one ([on Kubernetes](#the-runner-on-kubernetes)), as for producers. The experiment runner reads the predecessor attempt's artifacts through the API under the attempt's lease, so it needs no storage credential. A runner of the experiment kind that loses its lease stops the step and leaves the attempt to the sweep, which queues the hypothesis again while the science revision's `max_auto_retries` allows; so does an attempt still running past its deadline. A claim that finds only hypotheses of tracks whose workflow cannot run under the current science revision is logged (`workflow_unavailable`, naming the tracks), and the runner keeps polling.
 
@@ -244,7 +239,7 @@ To create the App (an organization's or your own account's):
 1. In GitHub, **Settings → Developer settings → GitHub Apps → New GitHub App**. Name it (say `cannery-runner-<org>`), give any homepage URL, and untick **Webhook → Active**.
 2. Under **Repository permissions**, set **Contents** to **Read-only** (Metadata: Read-only is added by itself). Grant nothing else: no write permission, no organization or account permission.
 3. Under **Where can this GitHub App be installed?**, keep **Only on this account**, then **Create GitHub App**. Note the **App ID** on the next page.
-4. **Private keys → Generate a private key** downloads a `.pem` file: this is the runner's credential. Copy it to the runner's machine, mode 600, owned by the runner's UID (10001 in the image), like the tester token; then delete the download.
+4. **Private keys → Generate a private key** downloads a `.pem` file: this is the runner's credential. Copy it to the runner's machine, mode 600, owned by the runner's UID (10001 in the image), like the verifier token; then delete the download.
 5. **Install App**, choose the account, and **Only select repositories**: the repositories that hold step code. The installation's URL ends with its id (`…/settings/installations/<installation id>`).
 
 Then start the runner with `--github-app-id <App ID> --github-app-key-file <file> --github-app-installation-id <installation id>`. A key that cannot sign refuses to start (exit code 2). An installation that does not cover a step's repository makes GitHub answer as if the repository did not exist, and the job fails with `runner_error`: "GitHub has no commit … or the runner's credential cannot see that repository".
@@ -288,7 +283,7 @@ This section sets up `cannery runner --launcher docker` on a Google Compute Engi
 The runner starts step containers through the Docker socket, `/var/run/docker.sock`, mounted into its own container. **Whoever can use that socket is root on the machine**: it can start a privileged container that mounts the host. The runner is trusted code, but that makes the VM, not the runner's container, the isolation boundary between steps and everything else. So:
 
 - Dedicate the VM to one runner. Run nothing else on it, and do not share its Docker daemon with anything else.
-- Give it only what the runner needs: the tester token, the datasets and baselines of the project it tests, and a work directory. Nothing on it should be worth more than what the tester token can reach.
+- Give it only what the runner needs: the verifier token, its policy file, the datasets and baselines of the project it verifies, and a work directory. Nothing on it should be worth more than what the verifier token can reach.
 - Create it without a service account (`--no-service-account --no-scopes`), so a step that reaches the metadata server finds no credentials. Steps with `network: none` reach nothing; a step that declares egress gets Docker's bridge network, where **the egress allowlist is not enforced** and any destination answers, so the unit below also drops traffic from containers to the metadata server (`169.254.169.254`).
 
 Each step container is still locked down: the runner's own non-root user (UID and GID 10001 in the image), a read-only root filesystem, no capabilities, `no-new-privileges`, a PID limit, memory and CPU limits from its manifest, and only its own job directory mounted (inputs and `job.json` read-only, outputs writable).
@@ -299,7 +294,8 @@ COS keeps `/var` across reboots and resets `/etc` at each boot (the cloud-config
 
 | Path | Mode | Holds |
 | --- | --- | --- |
-| `/var/lib/cannery/tester.token` | `600` | The tester service token (see [Runner](#runner) for the token file's rules). |
+| `/var/lib/cannery/verifier.token` | `600` | The verifier service token (see [Runner](#runner) for the token file's rules). |
+| `/var/lib/cannery/policy.json` | `644` | The verifier's policy file, a stock configuration or a policy step file ([the contracts](contracts.md#verification-policy-and-the-stock-policy)). |
 | `/var/lib/cannery/data/` | `755` | `datasets/<id>/<revision>/` and `baselines/<id>/<revision>/`, as for any runner. |
 | `/var/lib/cannery/work/` | `700` | Per-job directories, created and removed by the runner, and `cache/`, the [code and dependency cache](#the-code-and-dependency-cache). |
 | `/var/lib/cannery/github-app.pem` | `600` | Optional: the [GitHub App's private key](#the-runners-github-credential), for steps whose code is in private repositories. Copy it like the token. |
@@ -307,9 +303,9 @@ COS keeps `/var` across reboots and resets `/etc` at each boot (the cloud-config
 Never put the token in the VM's metadata (`user-data` included): anything on the VM that reaches the metadata server can read it. Copy it over SSH once; it stays on the persistent disk:
 
 ```sh
-gcloud compute scp tester.token cannery-runner-1:~/tester.token --zone <zone>
+gcloud compute scp verifier.token cannery-runner-1:~/verifier.token --zone <zone>
 gcloud compute ssh cannery-runner-1 --zone <zone> -- \
-  'sudo install -D -m 600 -o 10001 -g 10001 ~/tester.token /var/lib/cannery/tester.token && rm ~/tester.token'
+  'sudo install -D -m 600 -o 10001 -g 10001 ~/verifier.token /var/lib/cannery/verifier.token && rm ~/verifier.token'
 ```
 
 Copy the data the same way (or with `gcloud storage cp` from a machine that has access), then `sudo chown -R 10001:10001 /var/lib/cannery/data`.
@@ -351,11 +347,12 @@ write_files:
         --user 10001:10001 --group-add "$$(stat -c %%g /var/run/docker.sock)" \
         --init --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        -v /var/lib/cannery/tester.token:/run/secrets/tester.token:ro \
+        -v /var/lib/cannery/verifier.token:/run/secrets/verifier.token:ro \
+        -v /var/lib/cannery/policy.json:/etc/cannery/policy.json:ro \
         -v /var/lib/cannery/data:/var/lib/cannery/data:ro \
         -v /var/lib/cannery/work:/var/lib/cannery/work \
         ${IMAGE} runner --launcher docker --runner-id %H \
-        --token-file /run/secrets/tester.token \
+        --token-file /run/secrets/verifier.token --policy /etc/cannery/policy.json \
         --api-url https://cannery.example.org --project <slug> \
         --data-root /var/lib/cannery/data --work-root /var/lib/cannery/work'
       ExecStop=/usr/bin/docker stop -t 60 cannery-runner
@@ -472,9 +469,9 @@ A step's Pod runs as `--k8s-step-user` (10001:10001 by default, never root, with
 
 No other permission is needed: no Secrets, no cluster-scoped objects.
 
-### The tester token
+### The verifier token
 
-The runner reads its tester token from a file only its owner can read. Secret files are owned by root, and with `fsGroup` they become group-readable, which the runner refuses, so `runner.yaml` mounts the `cannery-runner-token` Secret only in an init container, which copies it, owner-only, to a memory volume that the runner reads. Create the Secret from a file (`kubectl create secret generic cannery-runner-token --from-file=token=./tester.token`).
+The runner reads its verifier token from a file only its owner can read. Secret files are owned by root, and with `fsGroup` they become group-readable, which the runner refuses, so `runner.yaml` mounts the `cannery-runner-token` Secret only in an init container, which copies it, owner-only, to a memory volume that the runner reads. Create the Secret from a file (`kubectl create secret generic cannery-runner-token --from-file=token=./verifier.token`).
 
 ### Storage
 
@@ -518,7 +515,7 @@ A step's image must be pinned by digest; the launcher refuses a tag. The kubelet
 
 ### With a configuration file
 
-`runner.yaml` runs the `test` kind alone, with flags. To run the `eval` and `experiment` kinds in the same Pod as well ([job kinds](#job-kinds-and-the-configuration-file)), give the runner a configuration file instead: every flag below is a `[launcher]` key of the same name without its dashes (`k8s_namespace`, `k8s_volume_size`…), and an `eval` policy step or an experiment step runs on the same Kubernetes launcher as the test steps, in Pods of its own, with the same isolation. A stock evaluator needs no launcher. The file is not expanded, so it holds the values `runner.yaml` reads from the `cannery-runner` ConfigMap:
+`runner.yaml` runs the `verify` kind alone, with flags. To run the `experiment` kind in the same Pod as well, or several `verify` entries ([job kinds](#job-kinds-and-the-configuration-file)), give the runner a configuration file instead: every flag below is a `[launcher]` key of the same name without its dashes (`k8s_namespace`, `k8s_volume_size`…), and a policy step or an experiment step runs on the same Kubernetes launcher as the verify job's other steps, in Pods of its own, with the same isolation. The file is not expanded, so it holds the values `runner.yaml` reads from the `cannery-runner` ConfigMap:
 
 ```toml
 # /etc/cannery/runner.toml
@@ -537,12 +534,8 @@ k8s_ca_file = "/run/cannery/kubernetes-ca.crt"
 k8s_volume_size = "20Gi"
 
 [[kinds]]
-kind = "test"
-token_file = "/run/cannery/tester.token"
-
-[[kinds]]
-kind = "eval"
-token_file = "/run/cannery/evaluator.token"
+kind = "verify"
+token_file = "/run/cannery/verifier.token"
 policy = "/etc/cannery/policy-step.json"
 
 [[kinds]]
@@ -550,7 +543,7 @@ kind = "experiment"
 token_file = "/run/cannery/experimenter.token"
 ```
 
-To deploy it, put `runner.toml` and the policy file in a ConfigMap mounted read-only at `/etc/cannery`, replace the runner container's `args` with `runner`, `--config`, `/etc/cannery/runner.toml`, `--k8s-namespace-policy-acknowledged`, and extend both credential utilities to copy the evaluator and experimenter tokens owner-only beside the tester token. Config-file launcher settings replace corresponding flags; the operator isolation-policy acknowledgement remains explicit. Each credential is a separate Secret: the evaluator account must match the science revision's `evaluator.id`, and the experimenter account has kind `experimenter`. Restart the runner after rotating its Cannery credentials; the Kubernetes token file is reread dynamically. Each kind's `concurrency` loops run steps side by side: size per-job volumes and `/work` accordingly. Networked steps additionally require the deliberate `--allow-unrestricted-egress` flag.
+To deploy it, put `runner.toml` and the policy file in a ConfigMap mounted read-only at `/etc/cannery`, replace the runner container's `args` with `runner`, `--config`, `/etc/cannery/runner.toml`, `--k8s-namespace-policy-acknowledged`, and extend both credential utilities to copy the experimenter token owner-only beside the verifier token. Config-file launcher settings replace corresponding flags; the operator isolation-policy acknowledgement remains explicit. Each credential is a separate Secret: the verifier account must match the science revision's `verify.verifier.id`, and the experimenter account has kind `experimenter`. Restart the runner after rotating its Cannery credentials; the Kubernetes token file is reread dynamically. Each kind's `concurrency` loops run steps side by side: size per-job volumes and `/work` accordingly. Networked steps additionally require the deliberate `--allow-unrestricted-egress` flag.
 
 ### Options
 
@@ -582,23 +575,16 @@ The launcher works the same on GKE, with these differences:
 - `cannery-steps-egress` blocks the metadata server (`169.254.169.254`) for steps with network; check it once from a `cannery.network: egress` Pod (`wget -T 5 http://169.254.169.254/` must fail). Bind no role and no cloud identity (Workload Identity) to the namespace's `default` ServiceAccount either way.
 - `--k8s-gpu-runtime-class` stays unset (above), and the per-job volume has a minimum size (above).
 
-## The stock evaluator
+## The stock policy
 
-Every science revision registers an evaluator (`evaluator: {id, revision}`), and attempts wait in `evaluating` until it publishes a verdict. The stock evaluator is the runner's `eval` kind under a stock configuration ([job kinds](#job-kinds-and-the-configuration-file)): it claims evaluation jobs for its service account through the HTTP API only (it never opens the database), applies the gates of its configuration file in-process and completes each job with the gate results, the comparisons and a reason. Run it inside a runner, beside the `test` kind, with an `eval` entry whose `policy` is the configuration file; or alone with the `evaluator` command of the same image, a thin wrapper that runs that one kind with the same flags and exit codes, and needs no launcher, data root or Docker socket. Create an evaluator service account in the project whose name is the registered `evaluator.id`, give the configuration file the registered `evaluator.revision`, and pass its token the same way as the runner's (a mode 600 or 400 file owned by UID 10001 inside the container, or `CANNERY_EVALUATOR_TOKEN_FILE`):
+Every science revision says who verifies a run (`verify: {performer, verifier?}`), and attempts wait in `verifying` until a verification report is published. With performer `runner`, the stock policy is the runner's `verify` kind under a stock configuration ([job kinds](#job-kinds-and-the-configuration-file)): the kind claims the verify jobs registered to its service account through the HTTP API only (it never opens the database), runs the producer and the scorer through its launcher, applies the gates of its configuration file in-process and completes each job with the report: the gate results, the comparisons, a reason and the scorer's measurements. Create a verifier service account in the project whose name is the registered `verify.verifier.id`, give the configuration file the registered `verify.verifier.revision`, and pass its token as described in [Runner](#runner).
 
-```sh
-podman run --rm \
-  -v ./evaluator.token:/run/secrets/evaluator.token:ro \
-  -v ./evaluator.json:/etc/cannery/evaluator.json:ro \
-  ghcr.io/joanfabregat/cannery-row:<tag> evaluator \
-  --token-file /run/secrets/evaluator.token --api-url https://cannery.example.org --project <slug> \
-  --config /etc/cannery/evaluator.json
-```
+The `evaluator` command of the same image applies a stock configuration alone, offline: it never claims a job and needs no token, launcher, data root or Docker socket. A verifier that runs its own steps uses it to compute the gates, comparisons, verdict and reason of its report from the scorer's measurements (`cannery evaluator --help` lists its arguments). It refuses an invalid configuration, or a policy step file (exit code 2): a policy step runs through a launcher, so it runs as a `verify` kind of `cannery runner`.
 
-It refuses to start on an unreadable token file or an invalid configuration (exit code 2). `--poll-seconds` sets how long it waits when no job is queued, and `--once` evaluates at most one job, prints its outcome and exits (exit code 1 if the claim or the job raised). `SIGTERM` stops it with exit code 143. It claims only evaluation jobs pinned to its configuration's revision (`evaluator.revision`); jobs of other revisions wait for an evaluator running their own configuration. Should one reach it anyway, it is failed with `policy_mismatch`; evidence that does not match the digests the job pins is failed with `input_verification_failed`. Any other error is reported as an `evaluator_error` failure and follows the rerun rules of the evaluator stage. The configuration format is described in [the contracts](contracts.md#evaluation-policy-and-the-stock-evaluator); `examples/fixture/evaluator.json` is a complete example. `--config` given a policy step document is refused (exit code 2): a policy step runs through a launcher, so it runs as an `eval` kind of `cannery runner`. Changing the gates or baseline values means a new configuration revision and a new science revision registering it. To switch, start an evaluator with the new file (same token) once the new science revision is registered, and stop the old one once no job of the old revision is pending: each only ever receives its own revision's jobs, so running both side by side never fails or reruns a job.
+The configuration format is described in [the contracts](contracts.md#verification-policy-and-the-stock-policy); `examples/fixture/policy.json` is a complete example. A job registered to another verifier or revision that reaches a runner anyway is failed with `policy_mismatch`; a policy step that gives no valid verdict fails the job with the step's failure code (`invalid_step_output` for an invalid verdict), which follows the rerun rules of the verify job. Changing the gates or baseline values means a new configuration revision and a new science revision registering it. To switch, add a `verify` entry with the new file (same token) once the new science revision is registered, and remove the old one once no job of the old revision is pending: each entry only ever receives its own revision's jobs, so running both side by side never fails or reruns a job.
 
-**Policy revisions and stalled evaluations.** Evaluation claims carry the policy revision the evaluator applies: `POST /api/projects/<slug>/jobs/claims` with `{"stage": "evaluator", "revision": "<evaluator.revision>"}` (the MCP `claim_job` tool takes the same `revision`); a claim without it gets a 422. `cannery evaluator` sends it from its configuration. An evaluation job no evaluator has claimed for `CANNERY_LEASES_STALLED_EVALUATION_SECONDS` (an hour by default) shows on the project's attention summary as "evaluation for #N waits for evaluator X revision R". Attempts pinned to a science revision with built-in gates or no evaluator are not tested or left in `evaluating`: they fail into failure review with the code `no_evaluator` (and can only be closed), and the background sweep does the same for any found `evaluating`.
+**Policy revisions and stalled verifications.** A verifier's claims carry the policy revision it applies: `POST /api/projects/<slug>/jobs/claims` with `{"phase": "verify", "revision": "<verify.verifier.revision>"}`; a verifier's claim without it gets a 422. An agent's or a researcher's claim names no revision (`{"phase": "verify"}`). A verify job nobody has claimed for `CANNERY_LEASES_STALLED_VERIFICATION_SECONDS` (an hour by default) shows on the project's attention summary as a stalled verification, naming the hypothesis, the attempt, the performer and, for a runner job, the verifier and revision it waits for. Attempts that were waiting for a test or an evaluation when the installation moved to verify jobs were failed into failure review with the code `superseded`; a researcher's `retry` queues a fresh verify job from the run.
 
-**Output checks.** Step outputs are checked against the interface the science revision registers for them ([the contracts](contracts.md#step-manifests-and-the-container-contract)): files must be non-empty unless the interface allows it and start as their media type says, and the JSON of a `schema` interface is validated against it. The runner fails a job whose outputs do not match, with `invalid_step_output`; run runners of the same release as the server. A self-hosted tester may name the `interface` of each output it uploads to have the API check it (`invalid_content` when it does not match); outputs uploaded without one are stored unchecked, with a null `content_validated`.
+**Output checks.** Step outputs are checked against the interface the science revision registers for them ([the contracts](contracts.md#step-manifests-and-the-container-contract)): files must be non-empty unless the interface allows it and start as their media type says, and the JSON of a `schema` interface is validated against it. The runner fails a job whose outputs do not match, with `invalid_step_output`; run runners of the same release as the server. An agent verifier may name the `interface` of each output it uploads to have the API check it (`invalid_content` when it does not match); outputs uploaded without one are stored unchecked, with a null `content_validated`.
 
-Outputs can fail these checks, for example JSON with `NaN` or `Infinity`, an empty output file, a JSON document over 64 MiB (declare `encoding: jsonl` or `validate: false` in the science revision), or JSON in UTF-16. Such a failure is blamed on the agent only when the API itself refused the producer's output as it was uploaded (the runner offers every failing producer output to the API for that): the attempt then goes straight to failure review with stage `agent`, without the automatic rerun, and a researcher's `retry` requeues the hypothesis. Anything the API holds no evidence for (a validator's rejection, a file over the API's validation cap, a self-hosted tester's report alone) is a tester-side failure: the automatic rerun, then failure review with the reason preserved, where a researcher can retry. Uploads record a refusal and any bytes a failed upload left behind, which the background sweep deletes.
+Outputs can fail these checks, for example JSON with `NaN` or `Infinity`, an empty output file, a JSON document over 64 MiB (declare `encoding: jsonl` or `validate: false` in the science revision), or JSON in UTF-16. Such a failure is blamed on the agent only when the API itself refused the producer's output as it was uploaded (the runner offers every failing producer output to the API for that): the attempt then goes straight to failure review with stage `agent`, without the automatic rerun, and a researcher's `retry` requeues the hypothesis. Anything the API holds no evidence for (a validator's rejection, a file over the API's validation cap, a verifier's report alone) is a verifier-side failure: the automatic rerun, then failure review with the reason preserved, where a researcher can retry. Uploads record a refusal and any bytes a failed upload left behind, which the background sweep deletes.

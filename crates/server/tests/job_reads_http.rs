@@ -71,7 +71,7 @@ async fn call(app: &Router, r: &Value) -> Result<(u16, Option<String>, Value, St
                 "Bearer {}track_http_{role}",
                 if matches!(
                     role,
-                    "agent" | "foreign-agent" | "tester" | "evaluator" | "experimenter"
+                    "agent" | "foreign-agent" | "verifier" | "experimenter"
                 ) {
                     "cr_svc_"
                 } else {
@@ -190,16 +190,6 @@ fn expected(recipe: &Value) -> Result<(Value, Value)> {
                             || native["input"] == json!([{"key":"x","extra":null}])
                     );
                     assert_eq!(response["logs"], native["input"]);
-                }
-                "evidence" => {
-                    assert!(
-                        native["input"] == json!({})
-                            || native["input"]
-                                == serde_json::from_str::<Value>(
-                                    r#"{"wide":123456789012345678901234567890,"x":[1.25]}"#
-                                )?
-                    );
-                    assert_eq!(response["evidence"], native["input"]);
                 }
                 _ => return Err("unknown typed refusal".into()),
             }

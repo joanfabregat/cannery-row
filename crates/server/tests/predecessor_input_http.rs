@@ -172,15 +172,14 @@ async fn call(app: &Router, r: &Value) -> Result<(u16, Option<String>, Value, St
                     role,
                     "agent"
                         | "foreign-agent"
-                        | "tester"
-                        | "evaluator"
+                        | "verifier"
                         | "experimenter"
                         | "another-experimenter"
                         | "experimenter-readonly"
                         | "experimenter-writeonly"
-                        | "another-tester"
-                        | "tester-readonly"
-                        | "tester-writeonly"
+                        | "another-verifier"
+                        | "verifier-readonly"
+                        | "verifier-writeonly"
                 ) {
                     "cr_svc_"
                 } else {

@@ -23,6 +23,10 @@ configMapGenerator:
   - name: cannery-token-copy
     files:
       - token-copy.sh
+  # The verifier's stock policy (README.md); replace the placeholder.
+  - name: cannery-policy
+    files:
+      - policy.json
   - name: cannery-runner
     literals:
       - RUNNER_ID=k8s-1

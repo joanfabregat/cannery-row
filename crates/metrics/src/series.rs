@@ -413,8 +413,7 @@ pub fn series<'a>(
     }
     if mixed {
         warnings.push(
-            "the evaluator verdicts of one point reported different references; it shows none"
-                .into(),
+            "the verification reports of one point gave different references; it shows none".into(),
         );
     }
     Ok((result, warnings))

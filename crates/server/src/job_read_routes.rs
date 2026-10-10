@@ -102,7 +102,7 @@ pub(crate) async fn detail(
     path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/jobs",
     operation_id = "list_attempt_jobs_api_projects__slug__hypotheses__number__attempts__sequence__jobs_get",
     summary = "List Attempt Jobs",
-    description = "The attempt's test and evaluation runs, by stage and run number.",
+    description = "The attempt's verify jobs, by run number.",
     params(("slug" = String, Path),
         ("number" = i64, Path),
         ("sequence" = i64, Path),
@@ -228,12 +228,12 @@ async fn read(
     for row in rows.iter().take(if collection { limit } else { 1 }) {
         let mut attempts =
             cannery_attempts::repo::Repository::new(&mut auth.connection, state.profile.attempts);
-        let evidence = if let Some(id) = row.evidence_id {
+        let verification = if let Some(id) = row.evidence_id {
             attempts
-                .get_evidence_by_id(row.attempt_id, cannery_attempts::model::EvidenceId(id.0))
+                .get_output_by_id(row.attempt_id, cannery_attempts::model::EvidenceId(id.0))
                 .await
                 .map_err(|_| internal(&context))?
-                .map(|v| v.0)
+                .map(|v| (v.0, v.1))
         } else {
             None
         };
@@ -247,7 +247,9 @@ async fn read(
             job_read_wire::job(
                 row,
                 projected,
-                evidence.as_ref(),
+                verification
+                    .as_ref()
+                    .map(|(front, body)| (front, body.as_str())),
                 &artifacts,
                 state.profile.response,
             )

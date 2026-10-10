@@ -87,62 +87,83 @@ describe("Home", () => {
     );
   });
 
-  function stalledAttention(count: number) {
+  function stalledAttention(count: number, performer = "runner") {
     // Two hours and a minute ago: "2 hours".
     const since = new Date(Date.now() - (2 * 60 + 1) * 60_000).toISOString();
+    const runner = performer === "runner";
     return attention({
-      stalled_evaluation_count: count,
-      stalled_evaluations: [
+      stalled_verification_count: count,
+      stalled_verifications: [
         {
           hypothesis: 12,
           hypothesis_ref: "#12",
           title: "Shorter prompts",
           track: "tokenizer",
           attempt_ref: "#12.1",
-          evaluator: "stock",
-          revision: "p2",
+          performer,
+          verifier: runner ? "stock" : null,
+          revision: runner ? "p2" : null,
           waiting_since: since,
-          message: "evaluation for #12 waits for evaluator stock revision p2",
+          message: "verification of #12.1 waits for verifier stock revision p2",
         },
       ],
     });
   }
 
-  it("says in plain words which results wait for the evaluator, and for how long", async () => {
+  /** The paragraph whose whole text is `text`. */
+  function paragraph(text: string) {
+    return (_: string, element: Element | null) =>
+      element?.tagName === "P" && element.textContent === text;
+  }
+
+  it("says in plain words which results wait for verification, and for how long", async () => {
     signedIn({}, { "GET /api/projects/sardines/attention": () => json(stalledAttention(1)) });
     renderApp("/");
-    const stalled = await screen.findByRole("region", { name: "Waiting for the evaluator" });
+    const stalled = await screen.findByRole("region", { name: "Waiting for verification" });
     expect(within(stalled).getByRole("link", { name: "#12.1 Shorter prompts" })).toHaveAttribute(
       "href",
       "/hypotheses/12/attempts/1",
     );
     expect(
       within(stalled).getByText(
-        (_, element) =>
-          element?.tagName === "P" &&
-          element.textContent ===
-            "#12 has been waiting 2 hours for evaluator stock, rules version p2.",
+        paragraph("#12 has been waiting 2 hours for the verifier stock, rules version p2."),
       ),
     ).toBeInTheDocument();
-    expect(within(stalled).getByText(/These results are waiting to be judged/)).toBeInTheDocument();
-    expect(stalled).not.toHaveTextContent(/policy|job/);
+    expect(
+      within(stalled).getByText(/These results are waiting to be verified/),
+    ).toBeInTheDocument();
+    expect(stalled).not.toHaveTextContent(/job/);
+  });
+
+  it("says an agent verify run waits for an agent or a researcher", async () => {
+    signedIn(
+      {},
+      { "GET /api/projects/sardines/attention": () => json(stalledAttention(1, "agent")) },
+    );
+    renderApp("/");
+    const stalled = await screen.findByRole("region", { name: "Waiting for verification" });
+    expect(
+      within(stalled).getByText(
+        paragraph("#12 has been waiting 2 hours for an agent or a researcher who did not run it."),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("says how many wait when it lists only the oldest", async () => {
     signedIn({}, { "GET /api/projects/sardines/attention": () => json(stalledAttention(7)) });
     renderApp("/");
-    const stalled = await screen.findByRole("region", { name: "Waiting for the evaluator" });
+    const stalled = await screen.findByRole("region", { name: "Waiting for verification" });
     expect(
-      within(stalled).getByText(/^7 results are waiting to be judged; here are the oldest\./),
+      within(stalled).getByText(/^7 results are waiting to be verified; here are the oldest\./),
     ).toBeInTheDocument();
   });
 
-  it("shows no stalled evaluations section when every evaluation is picked up", async () => {
+  it("shows no stalled verifications section when every verification is picked up", async () => {
     signedIn({}, { "GET /api/projects/sardines/attention": () => json(attention()) });
     renderApp("/");
     expect(await screen.findByRole("region", { name: "Running now" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("region", { name: "Waiting for the evaluator" }),
+      screen.queryByRole("region", { name: "Waiting for verification" }),
     ).not.toBeInTheDocument();
   });
 });

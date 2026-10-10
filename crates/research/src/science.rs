@@ -462,7 +462,7 @@ pub struct Science<'a> {
     pub interface_specs: Vec<(String, InterfaceSpec)>,
     pub validators: Vec<(String, NodeId)>,
     pub limits: Option<NodeId>,
-    pub tester: Option<NodeId>,
+    pub verify: Option<NodeId>,
     rendering: RenderingContext,
 }
 macro_rules! redacted_debug {($($t:ty),+)=>{$(impl std::fmt::Debug for $t {fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result {f.write_str(concat!(stringify!($t),"([REDACTED])"))}})+};}
@@ -600,7 +600,7 @@ impl<'a> Science<'a> {
             insert(&mut validators, name, id);
         }
         let limits = field(content, &root, "limits", false)?;
-        let tester = field(content, &root, "tester", false)?;
+        let verify = field(content, &root, "verify", false)?;
         Ok(Self {
             revision,
             content,
@@ -613,7 +613,7 @@ impl<'a> Science<'a> {
             interface_specs,
             validators,
             limits,
-            tester,
+            verify,
             rendering,
         })
     }
@@ -653,33 +653,6 @@ impl<'a> Science<'a> {
             })
             .collect::<Result<Vec<_>, _>>()?;
         Ok(unique(repositories))
-    }
-    #[must_use]
-    pub fn evaluator(&self) -> Option<NodeId> {
-        self.content
-            .field(self.content.root(), "evaluator")
-            .filter(|v| matches!(self.content.node(*v), Some(Node::Object(_))))
-    }
-    /// # Errors
-    /// Source integer rendering can fail only when a legacy reason is needed.
-    pub fn legacy_problem(&self) -> Result<Option<String>, ScienceError> {
-        if self.content.field(self.content.root(), "gates").is_none() && self.evaluator().is_some()
-        {
-            return Ok(None);
-        }
-        let mut builder = cannery_core::json::DocumentBuilder::new();
-        let id = builder
-            .push(Node::Integer(self.revision.clone()))
-            .map_err(|_| ScienceError::InvalidNode)?;
-        let document = builder.finish(id).map_err(|_| ScienceError::InvalidNode)?;
-        let revision = text::str_value(&document, id, self.rendering.nesting_budget)?;
-        Ok(Some(append(&[
-            &String::from("science revision "),
-            &revision,
-            &String::from(
-                " uses built-in gates, which moved to the stock evaluator; register a new revision with an evaluator",
-            ),
-        ])?))
     }
     /// # Errors
     /// Missing scorer is a source key failure rather than an invented default.

@@ -12,7 +12,7 @@ JOIN tracks t ON t.id=a.track_id
 JOIN hypothesis_revisions hr ON hr.hypothesis_id=h.id AND hr.revision=a.hypothesis_revision
 LEFT JOIN LATERAL(
  SELECT c.reference_value,c.reference_label,c.reference_kind,c.reference_ref FROM comparisons c
- WHERE c.evidence_id=(SELECT e.id FROM phase_outputs e WHERE e.attempt_id=m.attempt_id AND e.stage='evaluator' AND e.status='completed' ORDER BY e.revision DESC LIMIT 1)
+ WHERE c.evidence_id=(SELECT e.id FROM phase_outputs e WHERE e.attempt_id=m.attempt_id AND e.stage='verification' AND e.status='completed' ORDER BY e.revision DESC LIMIT 1)
  AND c.metric=m.metric AND c.split=m.split AND c.dimensions=m.dimensions LIMIT 1
 )ref ON true
 WHERE m.project_id=$1 AND m.metric=$2

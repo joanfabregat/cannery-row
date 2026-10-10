@@ -1,8 +1,8 @@
 //! Frozen job specifications, claim queue, lease updates and outcomes.
 use cannery_core::{
-    ids::{AttemptId, JobId, ProjectId, ServiceAccountId},
+    ids::{AttemptId, JobId, ProjectId, ServiceAccountId, UserId},
     json::{self, Document},
-    principal::ServicePrincipal,
+    principal::Principal,
     timestamps::Timestamp,
 };
 use num_bigint::BigInt;
@@ -69,7 +69,8 @@ macro_rules! domain {
         }
     };
 }
-domain!(Stage {Tester=>"tester",Evaluator=>"evaluator"});
+domain!(Phase {Verify=>"verify"});
+domain!(Performer {Runner=>"runner",Agent=>"agent"});
 domain!(State {Pending=>"pending",Claimed=>"claimed",Completed=>"completed",Failed=>"failed"});
 domain!(Origin {Submission=>"submission",AutoRetry=>"auto_retry",HumanRetry=>"human_retry"});
 #[derive(Clone, Copy, Debug)]
@@ -136,15 +137,17 @@ pub struct Job {
     pub id: JobId,
     pub project_id: ProjectId,
     pub attempt_id: AttemptId,
-    pub stage: Stage,
+    pub phase: Phase,
+    pub performer: Performer,
     pub run_number: i32,
     pub state: State,
     pub science_revision: i32,
-    pub tester_id: String,
+    pub verifier_id: Option<String>,
     pub spec: Document,
     pub deadline_seconds: i32,
     pub created_at: Timestamp,
     pub claimed_by_service: Option<ServiceAccountId>,
+    pub claimed_by_user: Option<UserId>,
     pub via_channel: Option<String>,
     pub via_client: Option<String>,
     pub lease_generation: i32,
@@ -175,11 +178,12 @@ struct RawJob {
     project_id: ProjectId,
     #[sqlx(rename = "attempt_id!: _")]
     attempt_id: AttemptId,
-    stage: String,
+    phase: String,
+    performer: String,
     run_number: i32,
     state: String,
     science_revision: i32,
-    tester_id: String,
+    verifier_id: Option<String>,
     #[sqlx(rename = "spec!")]
     spec: String,
     deadline_seconds: i32,
@@ -187,6 +191,8 @@ struct RawJob {
     created_at: Timestamp,
     #[sqlx(rename = "claimed_by_service: _")]
     claimed_by_service: Option<ServiceAccountId>,
+    #[sqlx(rename = "claimed_by_user: _")]
+    claimed_by_user: Option<UserId>,
     via_channel: Option<String>,
     via_client: Option<String>,
     lease_generation: i32,
@@ -218,15 +224,17 @@ impl RawJob {
             id: self.id,
             project_id: self.project_id,
             attempt_id: self.attempt_id,
-            stage: Stage::parse(&self.stage)?,
+            phase: Phase::parse(&self.phase)?,
+            performer: Performer::parse(&self.performer)?,
             run_number: self.run_number,
             state: State::parse(&self.state)?,
             science_revision: self.science_revision,
-            tester_id: self.tester_id,
+            verifier_id: self.verifier_id,
             spec: decode(&self.spec, c)?,
             deadline_seconds: self.deadline_seconds,
             created_at: self.created_at,
             claimed_by_service: self.claimed_by_service,
+            claimed_by_user: self.claimed_by_user,
             via_channel: self.via_channel,
             via_client: self.via_client,
             lease_generation: self.lease_generation,
@@ -251,9 +259,11 @@ pub struct NewJob<'a> {
     pub id: JobId,
     pub project_id: ProjectId,
     pub attempt_id: AttemptId,
-    pub stage: Stage,
+    pub phase: Phase,
+    pub performer: Performer,
     pub science_revision: &'a BigInt,
-    pub tester_id: &'a str,
+    /// The registered verifier's service account name; runner jobs only.
+    pub verifier_id: Option<&'a str>,
     pub spec: &'a Document,
     pub deadline_seconds: &'a BigInt,
     pub origin: Origin,
@@ -267,7 +277,9 @@ pub async fn create_job(
     c: JsonContext,
 ) -> Result<Job, JobError> {
     let science = integer(Some(n.science_revision))?;
-    text(n.tester_id)?;
+    if let Some(verifier) = n.verifier_id {
+        text(verifier)?;
+    }
     let spec = JsonbText(encode(n.spec, c)?);
     let deadline = integer(Some(n.deadline_seconds))?;
     sqlx::query_file_as!(
@@ -276,9 +288,10 @@ pub async fn create_job(
         n.id as JobId,
         n.project_id as ProjectId,
         n.attempt_id as AttemptId,
-        n.stage.as_str(),
+        n.phase.as_str(),
         science.as_deref(),
-        n.tester_id,
+        n.performer.as_str(),
+        n.verifier_id,
         spec as _,
         deadline.as_deref(),
         n.origin.as_str(),
@@ -314,14 +327,14 @@ pub async fn get_job(
 pub async fn latest_job(
     conn: &mut PgConnection,
     attempt: AttemptId,
-    stage: Stage,
+    phase: Phase,
     c: JsonContext,
 ) -> Result<Option<Job>, JobError> {
     sqlx::query_file_as!(
         RawJob,
         "src/sql/latest_job.sql",
         attempt as AttemptId,
-        stage.as_str()
+        phase.as_str()
     )
     .fetch_optional(conn)
     .await
@@ -334,12 +347,12 @@ pub async fn latest_job(
 pub async fn automatic_reruns(
     conn: &mut PgConnection,
     attempt: AttemptId,
-    stage: Stage,
+    phase: Phase,
 ) -> Result<i64, JobError> {
     Ok(sqlx::query_file!(
         "src/sql/automatic_reruns.sql",
         attempt as AttemptId,
-        stage.as_str()
+        phase.as_str()
     )
     .fetch_one(conn)
     .await
@@ -386,25 +399,22 @@ pub async fn list_jobs(
     .map(|r| r.decode(c))
     .collect()
 }
+/// The oldest waiting runner job registered to `verifier` under its policy `revision`.
 /// # Errors
 /// Reports sanitized database or source text-adaptation failure.
-pub async fn pick_pending(
+pub async fn pick_pending_runner(
     conn: &mut PgConnection,
     project: ProjectId,
-    stage: Stage,
-    tester: &str,
-    revision: Option<&str>,
+    verifier: &str,
+    revision: &str,
 ) -> Result<Option<JobId>, JobError> {
-    text(tester)?;
-    if let Some(r) = revision {
-        text(r)?;
-    }
+    text(verifier)?;
+    text(revision)?;
     Ok(sqlx::query_file_as!(
         RawPicked,
-        "src/sql/pick_pending.sql",
+        "src/sql/pick_pending_runner.sql",
         project as ProjectId,
-        stage.as_str(),
-        tester,
+        verifier,
         revision
     )
     .fetch_optional(conn)
@@ -412,33 +422,113 @@ pub async fn pick_pending(
     .map_err(|e| JobError::database(&e))?
     .map(|r| r.id))
 }
+/// The service account or the user a claim or a lease belongs to.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Claimant {
+    Service(ServiceAccountId),
+    User(UserId),
+}
+impl Claimant {
+    #[must_use]
+    pub fn of(p: &Principal) -> Self {
+        match p {
+            Principal::Service(s) => Self::Service(s.service_account_id),
+            Principal::User(u) => Self::User(u.user_id),
+        }
+    }
+    const fn service(self) -> Option<ServiceAccountId> {
+        if let Self::Service(id) = self {
+            Some(id)
+        } else {
+            None
+        }
+    }
+    const fn user(self) -> Option<UserId> {
+        if let Self::User(id) = self {
+            Some(id)
+        } else {
+            None
+        }
+    }
+}
+impl Job {
+    /// Who holds (or held) the job's claim.
+    #[must_use]
+    pub fn claimant(&self) -> Option<Claimant> {
+        self.claimed_by_service
+            .map(Claimant::Service)
+            .or(self.claimed_by_user.map(Claimant::User))
+    }
+}
+/// The oldest waiting agent job of an attempt `claimant` did not claim itself.
+/// # Errors
+/// Reports sanitized database failure.
+pub async fn pick_pending_agent(
+    conn: &mut PgConnection,
+    project: ProjectId,
+    claimant: Claimant,
+) -> Result<Option<JobId>, JobError> {
+    Ok(sqlx::query_file_as!(
+        RawPicked,
+        "src/sql/pick_pending_agent.sql",
+        project as ProjectId,
+        claimant.service() as Option<ServiceAccountId>,
+        claimant.user() as Option<UserId>
+    )
+    .fetch_optional(conn)
+    .await
+    .map_err(|e| JobError::database(&e))?
+    .map(|r| r.id))
+}
+/// Waiting agent jobs of attempts `claimant` claimed itself, which it may not verify.
+/// # Errors
+/// Reports sanitized database failure.
+pub async fn own_pending_agent(
+    conn: &mut PgConnection,
+    project: ProjectId,
+    claimant: Claimant,
+) -> Result<i64, JobError> {
+    Ok(sqlx::query_file!(
+        "src/sql/own_pending_agent.sql",
+        project as ProjectId,
+        claimant.service() as Option<ServiceAccountId>,
+        claimant.user() as Option<UserId>
+    )
+    .fetch_one(conn)
+    .await
+    .map_err(|e| JobError::database(&e))?
+    .count)
+}
 /// # Errors
 /// Missing/nonpending rows are invariants; route-level lease checks are separate.
 pub async fn claim_job(
     conn: &mut PgConnection,
     id: JobId,
-    p: &ServicePrincipal,
+    p: &Principal,
     hash: &[u8],
     ttl: &BigInt,
     c: JsonContext,
 ) -> Result<Job, JobError> {
-    if let Some(s) = &p.via.client {
+    let via = p.via();
+    if let Some(s) = &via.client {
         text(s)?;
     }
     let ttl = crate::integer::PgInteger::new(ttl)?;
-    let channel = match p.via.channel {
+    let channel = match via.channel {
         cannery_core::principal::Channel::Ui => "ui",
         cannery_core::principal::Channel::Api => "api",
         cannery_core::principal::Channel::Mcp => "mcp",
         cannery_core::principal::Channel::Cli => "cli",
         cannery_core::principal::Channel::System => "system",
     };
+    let claimant = Claimant::of(p);
     sqlx::query_file_as!(
         RawJob,
         "src/sql/claim_job.sql",
-        p.service_account_id as ServiceAccountId,
+        claimant.service() as Option<ServiceAccountId>,
+        claimant.user() as Option<UserId>,
         channel,
-        p.via.client.as_deref(),
+        via.client.as_deref(),
         hash,
         ttl as _,
         id as JobId

@@ -1,7 +1,7 @@
-//! Test/experiment lease renewal decisions, after the HTTP adapter classifies a reply.
+//! Verify/experiment lease renewal decisions, after the HTTP adapter classifies a reply.
 //!
 //! The caller must preserve source response parsing, cancellation and timestamp
-//! conversion order. This state is not the stock evaluator's heartbeat policy.
+//! conversion order. This state is not the verifier's heartbeat policy.
 
 /// Source renewal attempt result. `Renewed` is constructed only after decoding
 /// `lease_expires_at` and converting it onto the process monotonic clock.

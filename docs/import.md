@@ -71,7 +71,7 @@ A `source` is one token without spaces: a document location `<path>:<line>[-<lin
 
 ## policies/&lt;id&gt;.yaml
 
-The evaluator policies the historical verdicts were reached under. They are recorded as written and never run; the live evaluator keeps its own policy.
+The policies the historical verdicts were reached under. They are recorded as written and never run; the live verifier keeps its own policy.
 
 | Field | Required | Meaning |
 | --- | --- | --- |
@@ -127,10 +127,10 @@ Hypotheses get the project's next numbers in import order: within one import, by
 | `source_revision` | no | The code revision the run used. |
 | `config` | no | The configuration it ran with (a path). |
 | `status` | yes | `completed` or `failed`. |
-| `failure` | when failed | `{stage?, code, reason}`: `stage` is `agent` (the run itself, the default), `tester` (its scoring) or `evaluator`; `code` is snake case. |
+| `failure` | when failed | `{stage?, code, reason}`: `stage` is `agent` (the run itself, the default) or `verify` (its scoring or judging); `code` is snake case. |
 | `artifacts` | no | Objects outside the store: `{role, uri, sha256, size, media_type?}`. The URI has no fragment. They are referenced, never copied. |
 | `measurements` | no | The run's values (below). |
-| `verdict` | no | The historical evaluator verdict (below). A failed attempt has none. |
+| `verdict` | no | The historical verdict (below). A failed attempt has none. |
 | `report` | no | The run's report, a Markdown file of the bundle (below). |
 | `source` | no | Where the run is recorded; by default the attempt's place in the bundle. |
 | `notes` | no | Shown as the attempt's notes. |
@@ -169,7 +169,7 @@ report:
 | `split` | yes | One of the metric's splits. |
 | `dimensions` | no | A slice: each name and value registered for the metric. At most one measurement per metric, split and slice in an attempt. |
 | `value` or `missing_reason` | one of them | The value, or why there is none. |
-| `control_value`, `uncertainty`, `sample_count` | no | As in a live tester record: `uncertainty` is `{method, lower, upper}`. |
+| `control_value`, `uncertainty`, `sample_count` | no | As in a live verification report: `uncertainty` is `{method, lower, upper}`. |
 | `authority` | yes | `imported_artifact` or `imported_transcribed`. |
 | `source` | yes | Where the value was read (see below). |
 
@@ -185,7 +185,7 @@ Prefer `imported_artifact` whenever the artifact exists. Both authorities are sh
 | `policy` | yes | A policy of the bundle (or imported earlier). |
 | `result` | yes | `pass`, `fail` or `inconclusive`. A `pass` needs every gate to pass. |
 | `gates` | yes | `[{id, result, detail?}]`: each gate is a gate of the policy; `result` is `pass`, `fail` or `unknown`. |
-| `comparisons` | no | What the verdict compared, in the shape of a live evaluator's comparisons. A `source: tester` comparison must cite one of the attempt's measurements (same metric, split and slice) with the same value. |
+| `comparisons` | no | What the verdict compared, in the shape of a live verification report's comparisons. A `source: tester` comparison must cite one of the attempt's measurements (same metric, split and slice) with the same value. |
 | `reason` | yes | |
 | `evaluated_at` | no | When; not before the attempt's end, which is the default. |
 | `source` | yes | Where the verdict is recorded. |
@@ -222,7 +222,7 @@ The decided attempt takes the outcome as its state. Any other attempt ends `fail
 - Revision 1 of a hypothesis without a `document` holds only what the history states: the title, the claim as the question and the relations by number. The history's own fields are on the hypothesis's `imported`, never in a revision.
 - Imported attempts and revisions pin the science revision current at import.
 - The project's `created_by` user is recorded as the author of imported hypotheses and the claimant of imported attempts; `via` is the `cli` channel with client `cannery import`.
-- Measurements and verdicts are stored as tester and evaluator records with no producer (shown as produced by `import`). An imported record whose measurement names any other authority is refused by the database.
+- The measurements and the verdict of an attempt are stored as one verification record with no producer (shown as produced by `import`). An imported record whose measurement names any other authority is refused by the database.
 - An imported artifact is stored with backend `external`, its URI, size and SHA-256. Its `verified_at` is when the import recorded the reference: Cannery Row never had the bytes. Downloading it answers `409 conflict` with the URI.
 - Historical policies are kept as documents (`historical_policies`), immutable and never run.
 
@@ -230,8 +230,8 @@ The decided attempt takes the outcome as its state. Any other attempt ends `fail
 
 - Hypotheses, attempts, review cases, decisions, artifacts and reports carry `origin` and `source_ref`; hypotheses carry `external_id`; hypotheses and attempts carry `imported` (the history's own fields, above). Comparisons, search hits and the attention summary's pending reviews, recent outcomes and recent failures carry `origin`.
 - The reports list (`GET /api/projects/{slug}/reports`) lists run documents. An imported attempt has none, so it is not listed there, even with a retrospective report; read it through the attempts of its hypothesis, its report, search or the results views.
-- The report of an imported attempt (`GET …/attempts/{sequence}/report`) has no claimed measurements, the imported measurements as the tester section (each with its `source`), the verdict as the evaluation, and `author.kind: import`. Its `report` is the history's report when the bundle gives one: `kind`, `author`, `written_at` (a date or an instant, as the bundle gave it), `body_markdown`, `origin: imported` and `source_ref` (its path in the bundle); otherwise it is empty.
-- `GET /api/projects/{slug}/metrics/query` returns tester-verified values by default; `authority=imported` returns both imported authorities (or name one), each row with its `authority` and `source_ref`. A dashboard view takes `authority=imported` the same way. Failed attempts are counted per origin.
+- The report of an imported attempt (`GET …/attempts/{sequence}/report`) has no claimed measurements, the imported measurements and the verdict as its verification (each measurement with its `source`), and `author.kind: import`. Its `report` is the history's report when the bundle gives one: `kind`, `author`, `written_at` (a date or an instant, as the bundle gave it), `body_markdown`, `origin: imported` and `source_ref` (its path in the bundle); otherwise it is empty.
+- `GET /api/projects/{slug}/metrics/query` returns verified values by default; `authority=imported` returns both imported authorities (or name one), each row with its `authority` and `source_ref`. A dashboard view takes `authority=imported` the same way. Failed attempts are counted per origin.
 - `GET /api/projects/{slug}/comparisons` (and the `query_comparisons` MCP tool) returns live comparisons by default, like the metrics; `origin=imported` returns the imported verdicts' comparisons at their historical dates, and `origin=all` both.
 - The web app shows an "Imported" badge on hypotheses (in the list too), attempts, reports, decisions and the attention rows, with the source written out on detail pages; an imported attempt's report is shown on its page as "Retrospective report", rendered as Markdown with its author and date; it shows "Imported" in place of the author or claimant of an imported record, labels each imported measurement with its authority, and shows the imported history on request next to each result view.
 - Audit events of an import use the actions `import.project_created`, `import.membership`, `import.science_registered`, `import.policy`, `import.track`, `import.hypothesis` and `import.completed`, with the system actor through the `cli` channel, dated when the import ran, and the bundle's SHA-256 in `new_state`.
@@ -249,7 +249,7 @@ The bundle's SHA-256 is the digest of its canonical JSON, so the same content in
 
 ## What cannot be imported
 
-- Live-only records: run documents, agent reports (a run's report is imported as history, see [Reports](#reports)), manifests, test or evaluation jobs, leases, uploads, comments.
+- Live-only records: run documents, agent reports (a run's report is imported as history, see [Reports](#reports)), manifests, verify jobs, leases, uploads, comments.
 - Decisions other than the four outcomes above: `retry`, and corrections that supersede a decision.
 - Hypotheses `queued`, `active` or `cancelled` (live hypotheses come from track plans), and attempts in progress.
 - Measurements with a live authority, or of a metric, split or slice the science revision does not register.

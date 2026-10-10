@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM jobs j WHERE \n        j.project_id = $1 AND j.phase = 'verify' AND j.state = 'pending'\n        AND j.created_at < now() - make_interval(secs => $2)\n    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e47d1d63eab36d54787226b0147f2650bc5ceda9a3f23d7bc999a1528d5c659f"
+}

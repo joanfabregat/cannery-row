@@ -24,9 +24,7 @@ describe("plain-language labels", () => {
     const attempt = [
       "claimed",
       "running",
-      "submitted",
-      "testing",
-      "evaluating",
+      "verifying",
       "awaiting_human_review",
       "promoted",
       "rejected",

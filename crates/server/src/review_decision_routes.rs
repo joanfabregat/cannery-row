@@ -22,8 +22,8 @@ use cannery_core::{
     audit::{self, Attribution, Record},
     contracts::{ContractKind, ContractValidator},
     errors::{DomainError, ErrorCode},
-    ids::{JobId, ProjectId, ReviewCaseId},
-    json::{self, Document, Node},
+    ids::{ProjectId, ReviewCaseId},
+    json::{Document, Node},
     principal::{Principal, Role, UserPrincipal},
 };
 use cannery_hypotheses::repo::{
@@ -50,6 +50,8 @@ pub struct ReviewDecisionContext {
     pub science_rendering: cannery_research::science::RenderingContext,
     pub jobs: jobs::JsonContext,
     pub audit_encoding_budget: usize,
+    /// Builds the fresh verify job of a retried verification.
+    pub lifecycle: Arc<crate::job_lifecycle::Context>,
 }
 
 #[cfg(test)]
@@ -154,6 +156,12 @@ impl IntoResponse for Failure {
 }
 fn failure(v: impl IntoResponse) -> Failure {
     Failure(Box::new(v.into_response()))
+}
+/// A verify job's construction fails with the job lifecycle's responses.
+impl From<crate::attempt_lease_routes::Failure> for Failure {
+    fn from(v: crate::attempt_lease_routes::Failure) -> Self {
+        failure(v)
+    }
 }
 fn internal(r: &RequestContext, op: &'static str) -> Failure {
     failure(r.internal(op))
@@ -475,7 +483,7 @@ async fn result(
         return Err(domain(
             ErrorCode::StaleRevision,
             format!(
-                "this case is about evaluator record revision {}; decide on it",
+                "this case is about verification report revision {}; decide on it",
                 case.subject_revision
             ),
         ));
@@ -492,8 +500,7 @@ async fn result(
         return Err(internal(r, "review verdict type"));
     };
     let verdict = d
-        .field(d.root(), "assessment")
-        .and_then(|v| d.field(v, "verdict"))
+        .field(d.root(), "verdict")
         .ok_or_else(|| internal(r, "review verdict lookup"))?;
     let verdict = cannery_core::text::str_value(&d, verdict, s.science_rendering.nesting_budget)
         .map_err(|_| internal(r, "review verdict repr"))?
@@ -502,7 +509,7 @@ async fn result(
     if input.action == DecisionAction::Promote && verdict != "pass" {
         return Err(violation(
             "/action",
-            &format!("promotion requires an evaluator pass; this verdict is {verdict}"),
+            &format!("promotion requires a pass verdict; this verdict is {verdict}"),
         ));
     }
     if attempt.state.as_str() != expected || case.hypothesis_state.as_str() != expected {
@@ -538,156 +545,53 @@ async fn result(
 }
 #[allow(
     clippy::too_many_arguments,
-    clippy::too_many_lines,
-    clippy::many_single_char_names,
     reason = "Retain pinned-job construction and audit order with explicit contexts"
 )]
+/// A researcher's retry of a failed verification: a fresh verify job from the attempt's run
+/// record, under the science revision the attempt pinned.
 async fn rerun(
     c: &mut PgConnection,
     principal: &Principal,
     attempt: &Attempt,
-    stage: Stage,
+    overhead: &BigInt,
     reason: &str,
     key: Option<&str>,
     s: &ReviewDecisionContext,
     r: &RequestContext,
 ) -> Result<(), Failure> {
-    let science = cannery_research::config_repo::get_revision(
-        c,
-        attempt.project_id,
-        cannery_research::config_repo::Kind::Science,
-        Some(&BigInt::from(attempt.science_revision)),
-        s.config,
-    )
-    .await
-    .map_err(|_| internal(r, "review science"))?
-    .ok_or_else(|| internal(r, "review science invariant"))?;
-    let loaded = cannery_research::science::Science::new(
-        BigInt::from(science.revision),
-        &science.content,
-        s.science_rendering,
-    )
-    .map_err(|_| internal(r, "review science construction"))?;
-    if loaded
-        .legacy_problem()
-        .map_err(|_| internal(r, "review legacy science"))?
-        .is_some()
-    {
-        return Err(domain(
-            ErrorCode::Conflict,
-            format!(
-                "science revision {} has no evaluator; built-in gates moved to the stock evaluator: this attempt cannot be retried, only closed",
-                science.revision
-            ),
-        ));
-    }
-    let job_stage = if stage == Stage::Tester {
-        jobs::Stage::Tester
-    } else {
-        jobs::Stage::Evaluator
-    };
-    let previous = jobs::latest_job(c, attempt.id, job_stage, s.jobs)
-        .await
-        .map_err(|_| internal(r, "review previous job"))?
+    let run = crate::job_lifecycle::run_inputs(c, attempt, &s.lifecycle, r)
+        .await?
         .ok_or_else(|| {
             domain(
                 ErrorCode::Conflict,
-                format!("the attempt has no {} run to retry", stage.as_str()),
+                "the attempt has no run record to verify; it can only be closed",
             )
         })?;
-    let to = if stage == Stage::Tester {
-        "testing"
-    } else {
-        "evaluating"
-    };
+    let previous = jobs::latest_job(c, attempt.id, jobs::Phase::Verify, s.jobs)
+        .await
+        .map_err(|_| internal(r, "review previous job"))?;
     Repository::new(c, s.reads.attempts)
-        .reopen_attempt(attempt.id, to)
+        .reopen_attempt(attempt.id, "verifying")
         .await
         .map_err(|_| internal(r, "review reopen"))?;
-    let id = JobId(uuid::Uuid::new_v4());
-    // Source rerun changes only output_prefix in the existing lossless specification.
-    let prefix = format!(
-        "projects/{}/attempts/{}/{}/{}/",
-        previous.project_id,
-        previous.attempt_id,
-        if stage == Stage::Tester {
-            "test-runs"
-        } else {
-            "evaluation-runs"
-        },
-        id
-    );
-    let spec =
-        replace_prefix(&previous.spec, &prefix).map_err(|_| internal(r, "review job prefix"))?;
-    let job = jobs::create_job(
+    let job = crate::job_lifecycle::create_verify_job(
         c,
-        jobs::NewJob {
-            id,
-            project_id: previous.project_id,
-            attempt_id: previous.attempt_id,
-            stage: previous.stage,
-            science_revision: &BigInt::from(previous.science_revision),
-            tester_id: &previous.tester_id,
-            spec: &spec,
-            deadline_seconds: &BigInt::from(previous.deadline_seconds),
-            origin: jobs::Origin::HumanRetry,
-            previous_run_id: Some(previous.id),
-        },
-        s.jobs,
-    )
-    .await
-    .map_err(|_| internal(r, "review rerun"))?;
-    let mut steps = vec![];
-    if let Some(v) = job.spec.field(job.spec.root(), "steps") {
-        let Some(Node::Array(v)) = job.spec.node(v) else {
-            return Err(internal(r, "review job audit steps"));
-        };
-        for v in v {
-            let name = job
-                .spec
-                .field(*v, "name")
-                .ok_or_else(|| internal(r, "review job audit name"))?;
-            let revision = job
-                .spec
-                .field(*v, "revision")
-                .ok_or_else(|| internal(r, "review job audit revision"))?;
-            steps.push(serde_json::json!({"name":subtree(&job.spec,name,s.audit_encoding_budget).map_err(|_|internal(r,"review step name"))?,"revision":subtree(&job.spec,revision,s.audit_encoding_budget).map_err(|_|internal(r,"review step revision"))?}));
-        }
-    }
-    event(c,principal,attempt.project_id,Audit{action:"job.created",subject_type:"job",id:job.id.to_string(),prior:None,new:serde_json::json!({"state":job.state.as_str(),"stage":job.stage.as_str(),"run_number":job.run_number,"attempt_id":job.attempt_id.to_string(),"service":job.tester_id,"origin":job.origin.as_str(),"previous_run_id":job.previous_run_id.map(|v|v.to_string()),"steps":steps}),reason:None,key:None},r).await?;
-    event(c,principal,attempt.project_id,Audit{action:"attempt.retried",subject_type:"attempt",id:attempt.id.to_string(),prior:Some(serde_json::json!({"state":attempt.state.as_str()})),new:serde_json::json!({"state":to,"job_id":job.id.to_string(),"run_number":job.run_number}),reason:Some(reason),key},r).await?;
-    Ok(())
-}
-fn subtree(
-    d: &Document,
-    id: json::NodeId,
-    budget: usize,
-) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-    let text = json::encode_ascii_pretty_node(d, id, budget)?;
-    Ok(serde_json::from_str(&text)?)
-}
-fn replace_prefix(d: &Document, prefix: &str) -> Result<Document, json::BuildError> {
-    let Some(Node::Object(fields)) = d.node(d.root()) else {
-        return Err(json::BuildError::InvalidNode);
-    };
-    let mut builder = json::DocumentBuilder::new();
-    let replacement = builder.push(Node::String(String::from(prefix)))?;
-    let mut copied = Vec::with_capacity(fields.len() + 1);
-    let mut replaced = false;
-    for (name, value) in fields {
-        let value = if name.equals_utf8("output_prefix") {
-            replaced = true;
-            replacement
+        attempt,
+        &run,
+        overhead,
+        if previous.is_some() {
+            jobs::Origin::HumanRetry
         } else {
-            builder.import(d, *value)?
-        };
-        copied.push((name.clone(), value));
-    }
-    if !replaced {
-        copied.push((String::from("output_prefix"), replacement));
-    }
-    let root = builder.push(Node::Object(copied))?;
-    builder.finish(root)
+            jobs::Origin::Submission
+        },
+        previous.map(|job| job.id),
+        &s.lifecycle,
+        r,
+    )
+    .await?;
+    crate::job_lifecycle::record_job_created(c, principal, attempt, &job, &s.lifecycle, r).await?;
+    event(c,principal,attempt.project_id,Audit{action:"attempt.retried",subject_type:"attempt",id:attempt.id.to_string(),prior:Some(serde_json::json!({"state":attempt.state.as_str()})),new:serde_json::json!({"state":"verifying","job_id":job.id.to_string(),"run_number":job.run_number}),reason:Some(reason),key},r).await?;
+    Ok(())
 }
 #[allow(
     clippy::too_many_arguments,
@@ -702,6 +606,7 @@ async fn failure_case(
     peek: repo::Case,
     input: &Input<'_>,
     key: Option<&str>,
+    overhead: &BigInt,
     s: &ReviewDecisionContext,
     r: &RequestContext,
 ) -> Result<(Decision, bool), Failure> {
@@ -783,7 +688,7 @@ async fn failure_case(
     } else if found.stage == Stage::Agent {
         "queued"
     } else {
-        rerun(c, principal, &attempt, found.stage, &reason, key, s, r).await?;
+        rerun(c, principal, &attempt, overhead, &reason, key, s, r).await?;
         "active"
     };
     hypotheses::set_state(
@@ -965,6 +870,7 @@ pub(crate) async fn decide(
                     peek,
                     &input,
                     key.as_deref(),
+                    s.app.settings.leases.job_overhead_seconds.as_bigint(),
                     &s.context,
                     &r,
                 )

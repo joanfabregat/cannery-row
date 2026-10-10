@@ -204,12 +204,11 @@ async fn call(app: &Router, r: &Value) -> Result<(u16, Option<String>, Value, St
                     role,
                     "agent"
                         | "foreign-agent"
-                        | "tester"
-                        | "evaluator"
+                        | "verifier"
                         | "experimenter"
-                        | "another-tester"
-                        | "tester-readonly"
-                        | "tester-writeonly"
+                        | "other-verifier"
+                        | "verifier-readonly"
+                        | "verifier-writeonly"
                 ) {
                     "cr_svc_"
                 } else {
@@ -227,7 +226,7 @@ async fn call(app: &Router, r: &Value) -> Result<(u16, Option<String>, Value, St
         }
     } else if r["lease"].is_null() {
         req = req
-            .header("X-Lease-Token", "fixture-input-held-tester")
+            .header("X-Lease-Token", "fixture-input-held-verifier")
             .header("X-Lease-Generation", "9");
     }
     let response = app
@@ -374,8 +373,8 @@ async fn job_inputs_match_production() -> Result<()> {
     let object_request = || {
         Request::builder()
             .uri("/api/projects/matrix/jobs/00000000-0000-0000-0000-000000006006/inputs/object?key=inputs/data")
-            .header("authorization", "Bearer cr_svc_track_http_tester")
-            .header("X-Lease-Token", "fixture-input-held-tester")
+            .header("authorization", "Bearer cr_svc_track_http_verifier")
+            .header("X-Lease-Token", "fixture-input-held-verifier")
             .header("X-Lease-Generation", "9")
             .body(Body::empty())
     };
@@ -478,10 +477,8 @@ async fn job_inputs_match_production() -> Result<()> {
             if r["native_typed_wire"] == true {
                 let bytes = wire_bytes(&wire)?;
                 let path = r["path"].as_str().ok_or("path")?;
-                if path.ends_with("/claimed-sheet") {
-                    typed_wire::<cannery_server::api_models::EvidenceEnvelopeRequest>(&bytes)?;
-                } else if path.ends_with("/evidence") {
-                    typed_wire::<Vec<cannery_server::api_models::EvidenceEnvelopeRequest>>(&bytes)?;
+                if path.ends_with("/run") {
+                    typed_wire::<cannery_server::api_models::ClaimedResult>(&bytes)?;
                 } else {
                     assert!(path.ends_with("/manifest"));
                     typed_wire::<cannery_server::api_models::ArtifactManifestRequest>(&bytes)?;
@@ -511,10 +508,10 @@ async fn job_inputs_match_production() -> Result<()> {
     assert_eq!(
         counts,
         BTreeMap::from([
-            ("header-integer", 16),
-            ("invalid-id", 4),
-            ("uuid-reference", 34),
-            ("evidence-envelope", 4),
+            ("header-integer", 12),
+            ("invalid-id", 3),
+            ("uuid-reference", 17),
+            ("run-envelope", 2),
             ("manifest-envelope", 7),
             ("object-size-integer", 2),
             ("object-media-type", 2)
@@ -556,7 +553,7 @@ async fn assert_native_refusal(
     headers: &Value,
 ) -> Result<()> {
     assert_eq!(r["method"], "GET");
-    assert_eq!(r["role"], "tester");
+    assert_eq!(r["role"], "verifier");
     assert_eq!(allow, None);
     let profile = r["native_error"].as_str().ok_or("native profile")?;
     let bytes = wire_bytes(wire)?;
@@ -613,26 +610,16 @@ async fn assert_native_refusal(
             )
             .fetch_one(pool)
             .await?;
-            let reference = spec["inputs"]["claimed_sheet"]["ref"]
-                .as_str()
-                .ok_or("reference")?;
-            assert_eq!(spec["inputs"]["evidence"][0]["ref"], reference);
+            let reference = spec["inputs"]["run"]["ref"].as_str().ok_or("reference")?;
             assert!(uuid::Uuid::parse_str(reference).is_err());
         }
-        "evidence-envelope" => {
-            assert!(
-                r["name"]
-                    .as_str()
-                    .ok_or("name")?
-                    .starts_with("recovered-evidence-")
-            );
+        "run-envelope" => {
+            assert_eq!(r["name"], "recovered-record-run");
             let content: Value = sqlx::query_scalar("SELECT front_matter FROM phase_outputs WHERE id='00000000-0000-0000-0000-000000003008'").fetch_one(pool).await?;
             assert!(content.is_object());
             assert!(
-                serde_json::from_value::<cannery_server::api_models::EvidenceEnvelopeRequest>(
-                    content
-                )
-                .is_err()
+                serde_json::from_value::<cannery_server::api_models::ClaimedResult>(content)
+                    .is_err()
             );
         }
         "manifest-envelope" | "object-size-integer" | "object-media-type" => {

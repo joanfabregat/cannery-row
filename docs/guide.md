@@ -5,8 +5,8 @@ This is the guide to read first. It tells an agent or an engineer what to build 
 | Reference | Holds |
 | --- | --- |
 | [spec.md](spec.md) | The system: roles, lifecycle, failure classes, trust rules. |
-| [contracts.md](contracts.md) | Every document: tracks, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock evaluator and policy steps. |
-| [deploy.md](deploy.md) | The image, settings, object storage, the runner, its launchers and the stock evaluator. |
+| [contracts.md](contracts.md) | Every document: tracks, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock policy and policy steps. |
+| [deploy.md](deploy.md) | The image, settings, object storage, the runner, its launchers and the stock policy. |
 | [import.md](import.md) | Importing a research history kept elsewhere. |
 | [deploy/runner-k8s/README.md](../deploy/runner-k8s/README.md) | The runner's Kubernetes manifests. |
 
@@ -19,22 +19,22 @@ One installation hosts several **projects**, each fully separate: its own member
 ```text
 project
 ├── brief (revisioned): goal, domain, constraints, conventions; every attempt pins a revision
-├── science revision (immutable, versioned): metrics, datasets, interfaces, scorer, evaluator, limits…
+├── science revision (immutable, versioned): metrics, datasets, interfaces, scorer, verifier, limits…
 ├── producers and experiment steps (registered step manifests, each revision immutable)
 └── track (agent or workflow mode; planning → active once its first plan is approved)
     ├── plan (revisioned): approach + units, each a hypothesis with its brief and context
     └── hypothesis  #12          (plan approval) → queued → active → … → decided
-        └── attempt  #12.1       claimed under a lease, then three stages:
-            1. experiment  → candidate artifacts + run document           (agent, or runner's experiment kind)
-            2. test        → evidence: tester-verified measurements        (runner's test kind)
-            3. eval        → verdict: pass | fail | inconclusive            (runner's eval kind)
+        └── attempt  #12.1       claimed under a lease, then two stages:
+            1. experiment  → candidate artifacts + run document              (agent, or runner's experiment kind)
+            2. verify      → verification report: verified measurements,     (runner's verify kind, or an agent
+                             verdict pass | fail | inconclusive               or researcher who did not run it)
             then a human decision: promote | reject | inconclusive
 ```
 
 - The **brief** is the project's context, written once by a researcher: what the project is for, the domain, the constraints, the resources and the conventions. Every claim names the revision it runs under, and the attempt keeps it.
 - A **hypothesis** is a unit of an approved track plan. A researcher writes the plan (often with an agent) and approves it with a reason; each unit becomes a `queued` hypothesis. Nothing runs before that, and CR never invents or recycles hypotheses.
 - An **attempt** is one execution of a hypothesis. It is created by a **claim**, which returns a lease token; every write on the attempt needs the current token and generation. One attempt at a time per hypothesis.
-- The three stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **run document**: front matter with the claims (`agent_claim`, never trusted) and Markdown run notes. The **test** re-runs and grades the frozen submission with trusted code and publishes `tester_verified` evidence. The **eval** applies the project's policy to that evidence and gives a verdict with a reason. A **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
+- The stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **run document**: front matter with the claims (`agent_claim`, never trusted) and Markdown run notes. The **verify** job checks the frozen submission, independently of whoever ran it, and writes a **verification report**: the verified measurements (`tester_verified`), the discrepancies, and the policy's verdict with a reason. A **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
 - A track's **mode** says only who runs the experiment stage: an outside agent (`agent`, the default) or a CR runner (`workflow`). From the submission on, both modes are identical.
 
 Who holds which token, and what it may do:
@@ -43,12 +43,11 @@ Who holds which token, and what it may do:
 | --- | --- | --- | --- |
 | User, `viewer` | Personal token, or the web session | Read the project, reports, metrics, verdicts, decisions; search. | Download artifacts other than `report_asset`. |
 | User, `member` | same | Viewer rights, plus comment and download artifacts. | Plan or decide. |
-| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, and record every human decision. | Claim in `workflow` mode. |
+| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, claim and complete agent verify jobs of attempts it did not run, and record every human decision. | Claim in `workflow` mode; verify its own run. |
 | User, installation admin | same | Create projects, grant memberships, register science and dashboard revisions, producers and experiment steps, create service accounts and their tokens. Admin is not a project role: an admin also needs a membership to act as a researcher. | |
-| Service account `agent` | Service token | Claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; read the project. | Claim in `workflow` mode, comment, decide. |
+| Service account `agent` | Service token | Claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; claim and complete agent verify jobs of attempts it did not run; read the project. | Claim in `workflow` mode, verify its own run, comment, decide. |
 | Service account `experimenter` | Service token, held by a runner only | Claim in `workflow` mode only, heartbeat, upload, submit, read the predecessor attempt's artifacts, release with a failure `code`, `step` and `logs` (trusted). | Plan, comment, decide, claim in `agent` mode. |
-| Service account `tester` | Service token, named like the science revision's `tester.id` | Claim test jobs, read their inputs, upload outputs, complete or fail them. | Anything on attempts or decisions. |
-| Service account `evaluator` | Service token, named like the science revision's `evaluator.id` | Claim evaluation jobs of its policy revision, complete or fail them; read the project. | Decide. |
+| Service account `verifier` | Service token, named like the science revision's `verify.verifier.id` | Claim runner verify jobs of its policy revision, read their inputs, upload outputs, complete or fail them; read the project. | Anything on attempts or decisions. |
 
 A claimed job also returns a **job lease token**, which can only read that job's inputs and write under its output prefix. Personal and service tokens are created only from a signed-in browser session (`forbidden` otherwise), so an installation needs OIDC login configured ([deploy.md](deploy.md#configuration)) before anyone can mint a token. Every token carries the scopes `read` and/or `write`; writes need `write`. Service accounts act only in their own project.
 
@@ -58,8 +57,8 @@ A claimed job also returns a **job lease token**, which can only read that job's
 | --- | --- |
 | Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; write and review plans; decide results and failures; read everything; comment; search. |
 | REST (`/api/…`) | Everything, and the only way to register science and dashboard revisions (`POST /api/projects/{slug}/config/science`), producers (`…/producers`) and experiment steps (`…/experiment-steps`). Authenticate with `Authorization: Bearer <token>`. `GET /api/me` shows who a token is. |
-| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `check_plan`, `submit_plan`, `review_plan`), `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
-| CLI (`cannery`) | `migrate`, `serve`, `db` (dump, restore, upgrade), `runner`, `evaluator` (the stock evaluator alone), `import`, `openapi`. |
+| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, the verify job tools (`claim_job`, `heartbeat_job`, `get_job_input`, `create_job_upload`, `complete_job`, `fail_job`, `get_job`, `list_attempt_jobs`), and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `check_plan`, `submit_plan`, `review_plan`), `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
+| CLI (`cannery`) | `migrate`, `serve`, `db` (dump, restore, upgrade), `runner`, `evaluator` (the stock policy alone, offline), `import`, `openapi`. |
 
 Every error answer has the shape `{"error": {"code", "message", "details"}}`; `details` holds JSON Pointers into the request. See [Troubleshooting](#troubleshooting).
 
@@ -99,7 +98,7 @@ jq -n --rawfile document brief.md '{document: $document, expected_revision: 0}' 
     -H 'Content-Type: application/json' -d @-
 ```
 
-Each save is a new revision; send the current revision as `expected_revision` (`0` for the first). Agents read it with `GET $API/brief` or MCP `get_brief`, and every claim answer carries `brief` (`revision`, `sha256`, `ref`), the revision the attempt runs under; its test and evaluation jobs get the same one.
+Each save is a new revision; send the current revision as `expected_revision` (`0` for the first). Agents read it with `GET $API/brief` or MCP `get_brief`, and every claim answer carries `brief` (`revision`, `sha256`, `ref`), the revision the attempt runs under; its verify jobs get the same one.
 
 ### The science revision
 
@@ -108,32 +107,33 @@ The science revision is the project's rules, as one immutable JSON document (`sc
 | Field | What to put there |
 | --- | --- |
 | `schema_version` | `"0.2"`. |
-| `tester` | `{"id", "revision"?}`: the tester service account's name. The runner's `test` kind claims only jobs registered to its account's name. |
+| `verify` | Who verifies a submitted run: `{"performer": "runner", "verifier": {"id", "revision"}}`, the verifier service account's name and the policy revision its reports must name (the runner's `verify` kind claims only jobs registered to its account's name under its revision), or `{"performer": "agent"}`, an agent or a researcher who did not run the attempt. Required. See [Verify stage](#verify-stage). |
 | `hypothesis_fields` | A JSON Schema for a hypothesis's `project_fields`. In a `workflow` track these are the experiment's **parameters** (learning rate, seed, model size); plan units are validated against it. |
 | `metrics` | The metric registry: each `{key, unit, direction, aggregation, dimensions, splits, required_slices}`. Only registered metrics, splits and dimension values can be reported, charted or compared. |
 | `datasets` | Each `{id, revision, held_out_labels, description?}`. Mark evaluation labels `held_out_labels: true` (see [the held-out labels rule](#the-held-out-labels-rule)). CR stores no dataset bytes: the runner reads them from its data root, `datasets/<id>/<revision>/`. |
-| `baselines` | Controls, each `{id, revision, description?}`: immutable references a step can take as input (`from: baseline`, from `baselines/<id>/<revision>/`) and a hypothesis can name as its `control`. Their values live in the evaluator's configuration, not here. |
+| `baselines` | Controls, each `{id, revision, description?}`: immutable references a step can take as input (`from: baseline`, from `baselines/<id>/<revision>/`) and a hypothesis can name as its `control`. Their values live in the verifier's policy, not here. |
 | `interfaces` | The formats steps exchange, `{name, version, schema | format, media_type?, encoding?, max_bytes?, allow_empty?, magic?, validate?, validator?}` ([contracts](contracts.md#step-manifests-and-the-container-contract)). Every step output naming an interface is checked against it. |
 | `validators` | Optional `role: validator` step manifests that an interface names in `validator`. |
 | `scorer` | The project's one scorer step manifest (`role: scorer`), shared by every track so metrics are computed identically. |
 | `default_producer` | `{name, revision}` of the producer a track without its own binding uses. Register it right after the revision. |
 | `code_repositories` | `{"candidate": [...], "trusted": [...]}`: the GitHub repositories (`owner/name`) steps may run code from, per trust class. A class not listed runs no repository code. |
-| `evaluator` | `{id, revision}`: the evaluator service account's name and the policy revision its verdicts must report. Required. |
-| `required_artifact_roles` | `{"attempt": [...], "tester": [...]}`: roles a submission's manifest and a tester's output manifest must include. |
-| `limits` | `resource_ceilings` (per step; a step may only ask for a resource that has a ceiling, so list `nvidia.com/gpu` for GPU steps), `max_deadline_seconds` (every step's and setup's deadline must fit it; also an evaluation job's deadline, one hour when unset), `report_max_bytes` (at most 1 MiB), `max_output_bytes`. |
-| `max_auto_retries` | Automatic reruns of a failed stage (and requeues of a failed runner-driven experiment) before a human failure review. Default 1. |
+| `required_artifact_roles` | `{"attempt": [...], "verify": [...]}`: roles a submission's manifest and a verify job's output manifest must include. |
+| `limits` | `resource_ceilings` (per step; a step may only ask for a resource that has a ceiling, so list `nvidia.com/gpu` for GPU steps), `max_deadline_seconds` (every step's and setup's deadline must fit it; also the time a runner verify job keeps for its policy and the whole deadline of an agent verify job, one hour when unset), `report_max_bytes` (the body of a run document or a verification report, at most 1 MiB), `max_output_bytes`. |
+| `max_auto_retries` | Automatic reruns of a failed verify job (and requeues of a failed runner-driven experiment) before a human failure review. Default 1. |
 | `retention`, `result_extensions` | Optional. |
 
 The registration checks the scorer and validators against the rest of the revision (interfaces, datasets, ceilings, repositories). The dashboard revision (`POST …/config/dashboard`, [contracts](contracts.md#project-configuration-and-dashboard-contract)) is optional and separate: without one the web app derives views from the metric registry.
 
-### The evaluator and its policy
+### The verifier and its policy
 
-Every science revision names an evaluator; CR applies no policy itself. Decide which one before registering the revision ([Eval stage](#eval-stage)):
+Every science revision says who verifies a run; CR applies no policy itself. Decide before registering the revision ([Verify stage](#verify-stage)):
 
-- the **stock evaluator**: a configuration file of declarative gates, such as `examples/fixture/evaluator.json`, whose `evaluator.revision` equals the science revision's `evaluator.revision`. It holds the baseline values the gates compare against;
-- a **policy step**: a trusted step that computes the verdict, for paired bootstraps, significance tests or anything the gates cannot express.
+- `runner`: a CR runner holding a `verifier` service account runs the producer and the scorer again and applies a policy file it holds:
+  - the **stock policy**: a configuration file of declarative gates, such as `examples/fixture/policy.json`, whose `verifier` equals the science revision's `verify.verifier`. It holds the baseline values the gates compare against;
+  - a **policy step**: a trusted step that computes the verdict, for paired bootstraps, significance tests or anything the gates cannot express.
+- `agent`: an agent or a researcher who did not run the attempt verifies it by hand or with its own tools and writes the report, applying the policy the project agreed on.
 
-Either way the policy file lives with the runner, not in CR: changing the policy means a new policy revision and a new science revision registering it.
+With a runner, the policy file lives with the runner, not in CR: changing the policy means a new policy revision and a new science revision registering it.
 
 ### Tracks
 
@@ -174,10 +174,9 @@ Create one service account per identity in the project's admin settings (or `POS
 
 | Kind | Name | Token goes to |
 | --- | --- | --- |
-| `tester` | The science revision's `tester.id` (`cannery-runner` in the fixture). | The runner's `test` kind. |
-| `evaluator` | The science revision's `evaluator.id` (`stock-evaluator` in the fixture). | The runner's `eval` kind (or `cannery evaluator`). |
+| `verifier` | The science revision's `verify.verifier.id` (`cannery-runner` in the fixture). | The runner's `verify` kind. Only with performer `runner`. |
 | `experimenter` | Any. | The runner's `experiment` kind, only for `workflow` tracks. Never to an agent: its failure reports are trusted. |
-| `agent` | Any, one per agent if you want them told apart. | An outside agent working `agent` tracks. A researcher working through an agent may use a personal token instead; the agent then shows in `via`. |
+| `agent` | Any, one per agent if you want them told apart. | An outside agent working `agent` tracks, or verifying with performer `agent`. A researcher working through an agent may use a personal token instead; the agent then shows in `via`. |
 
 Give each token `read` and `write`. A runner reads each token from its own file, with no permission for group or others (for example `600` or `400`).
 
@@ -187,7 +186,7 @@ A step is one container run described by a **step manifest**, like a GitHub Acti
 
 | Field (under `spec`) | Meaning |
 | --- | --- |
-| `role` | `producer`, `scorer`, `validator`, `experiment` or `evaluator`. |
+| `role` | `producer`, `scorer`, `validator`, `experiment` or `policy`. |
 | `container` | `image` (pinned by digest, `…@sha256:<64 hex>`; a tag is refused), `command`, `args`, `env` (no secrets, no `NVIDIA_*`), `resources.limits` (within the ceilings). |
 | `activeDeadlineSeconds` | The step's deadline, counted from its start (not the image pull). |
 | `network` | `none`, or `{"egress": ["host:port", …]}`. The allowlist is not enforced by the Docker or Kubernetes launcher yet: declared egress reaches any outside destination. |
@@ -202,7 +201,7 @@ A step is one container run described by a **step manifest**, like a GitHub Acti
 | Class | Roles | Code from | Sees held-out labels |
 | --- | --- | --- | --- |
 | `candidate` | `producer`, `experiment` | `code_repositories.candidate` | Never. |
-| `trusted` | `scorer`, `validator`, `evaluator` | `code_repositories.trusted` | The scorer and a policy step may. |
+| `trusted` | `scorer`, `validator`, `policy` | `code_repositories.trusted` | The scorer and a policy step may. |
 
 A candidate step's setup cache never serves a trusted step, even with the same image and lockfile. The runner can narrow the repositories further with `--github-allowed-repos` ([Running the runner](#running-the-runner)).
 
@@ -223,7 +222,7 @@ An **interface** check applies to every output that names one: presence, non-emp
 
 ### The held-out labels rule
 
-A dataset marked `held_out_labels: true` reaches only trusted judges: the scorer and an evaluator policy step. A producer or experiment step that declares one as input is refused at registration (`validation_failed`), when a track binds or names it, at claim, and again by the runner before the step runs (`held_out_labels_to_producer`, `held_out_labels_to_experiment`). An experiment step's `job.json` never lists one. The local launcher does not enforce this (its steps can read the whole data root), which is why it is for trusted fixture code only.
+A dataset marked `held_out_labels: true` reaches only trusted judges: the scorer and a policy step. A producer or experiment step that declares one as input is refused at registration (`validation_failed`), when a track binds or names it, at claim, and again by the runner before the step runs (`held_out_labels_to_producer`, `held_out_labels_to_experiment`). An experiment step's `job.json` never lists one. The local launcher does not enforce this (its steps can read the whole data root), which is why it is for trusted fixture code only.
 
 ### The setup cache
 
@@ -297,7 +296,7 @@ model.save(root / "outputs" / "checkpoint" / "model.safetensors")
     + "---\n"
     + f"# Fine-tune with lr={params['learning_rate']}\n\n"
     + "Base checkpoint, train split train-r3, 3 epochs. Loss plateaued after epoch 2; "
-    + "the test stage will measure retrieval quality. One seed.\n"
+    + "the verify job will measure retrieval quality. One seed.\n"
 )
 ```
 
@@ -369,7 +368,7 @@ An outside agent (a Codex or Claude Code session) runs the experiment itself, th
 3. **Heartbeat** `POST …/hypotheses/{number}/attempts/{sequence}/heartbeat` at least every `heartbeat_seconds` (a third of the lease TTL, `leases.ttl_seconds`, 900 seconds by default).
 4. **Upload** each file: `POST …/attempts/{sequence}/uploads` with `{role, name, size_bytes, sha256, media_type}`, then send the bytes as the grant says (a `PUT upload_url`, or the `direct` presigned requests and `POST finish_url`; [the protocol](contracts.md#uploads-and-downloads)). The role is what the track's producer reads (`from: attempt`), plus every role in `required_artifact_roles.attempt`.
 5. **Post the manifest** of the verified uploads (`POST …/manifest`, MCP `post_manifest`), which answers `{ref, sha256}`.
-6. **Submit** the run document (`POST …/submission` with `{"document": "…"}` and an `Idempotency-Key`, MCP `submit_attempt`): Markdown with YAML front matter holding the `claims` (`agent_claim`), `provenance` and the manifest reference, and the run notes as the body ([run documents](contracts.md#run-documents)). The attempt is frozen and the test job is queued.
+6. **Submit** the run document (`POST …/submission` with `{"document": "…"}` and an `Idempotency-Key`, MCP `submit_attempt`): Markdown with YAML front matter holding the `claims` (`agent_claim`), `provenance` and the manifest reference, and the run notes as the body ([run documents](contracts.md#run-documents)). The attempt is frozen, moves to `verifying`, and its verify job is queued.
 
 A document the API rejects fails the attempt at once (`invalid_submission`) and opens a failure review: validate the front matter against `run.schema.json` before submitting (`GET /api/schemas/run` serves it as one self-contained schema, no token needed). A run that failed is not submitted: front matter with a `status` is refused (422) and the attempt is left as it was. To give up, or to report a failed run, `POST …/release` with a `reason` (MCP `release_attempt`): the attempt fails with `released` and a failure review case opens. An agent has no attempt deadline, only the lease.
 
@@ -394,46 +393,52 @@ A runner's `experiment` kind runs the experiment with an experimenter token. Set
 | An upload the API refused or could not verify, or a run document it rejected | `upload_verification_failed` or `invalid_submission`: the candidate's failure, review case at once. | The same: these are blamed on the candidate in both modes. |
 | The runner gets `SIGTERM` | | It cancels the run, removes its containers, reports nothing and exits 143; the lease expires and the sweep requeues the hypothesis. |
 
-## Test stage
+## Verify stage
 
-Submission queues a test job. The runner's `test` kind claims it with the tester token and runs a chain of steps:
+Submission moves the attempt to `verifying` and queues one verify job ([verify jobs](contracts.md#verify-jobs)). Its performer comes from the pinned science revision's `verify`. Either way, the job's inputs are the run document's front matter (`GET …/jobs/{id}/inputs/run`, staged as `claimed.json`), the run's verified artifacts (`inputs/manifest`, `inputs/object`), and, with the claim, the unit, the brief and the plan; the run notes are not an input. It completes with one **verification report** ([contracts](contracts.md#verification-reports)): Markdown whose front matter holds `verdict` (`pass`, `fail` or `inconclusive`), `reason`, `policy_revision`, `gates` (each `pass`, `fail` or `unknown`), `measurements` (each `authority: "tester_verified"`, finite values, registered metric, split and dimensions, a `missing_reason` instead of a value when it could not be measured), `discrepancies` with the claims, optional `comparisons`, and `provenance` (`source_revision`, `science_revision`, `dataset_revision`, `control_revision` when the hypothesis names a control), and whose optional body holds what the verifier observed (schema: `GET /api/schemas/verification`). A required slice `{dimension: value}` is covered only by a measurement whose `dimensions` are exactly that pair.
 
-1. the track's **producer** (candidate code, the only step of the test that executes the candidate): it reads the submission's artifacts (`from: attempt`) and datasets that are not held-out labels, and writes an intermediate output naming an interface, for example ranked results or predictions per example;
+CR checks the report: the schema, the pinned provenance, the metric registry and required slices, that a `pass` reports every gate as passed, that every comparison cites the report's own verified measurements, that a runner's report comes from the registered verifier under the registered revision, and the output manifest against `required_artifact_roles.verify`. It then indexes the verified measurements and comparisons and opens a result review case: every completed verification, whatever its verdict, leaves the attempt awaiting a human decision.
+
+### With the runner
+
+The runner's `verify` kind claims the job with the verifier token, naming its policy revision (`{"phase": "verify", "revision": …}`), and runs a chain of steps:
+
+1. the track's **producer** (candidate code, the only step of the job that executes the candidate): it reads the submission's artifacts (`from: attempt`) and datasets that are not held-out labels, and writes an intermediate output naming an interface, for example ranked results or predictions per example;
 2. any **validator** that output's interface names;
-3. the project's **scorer** (trusted): it reads the producer's output (`from: step`, the same interface), the held-out labels (`from: dataset`) and the frozen `claimed_sheet` (`from: attempt`, the run document's front matter, staged as `claimed.json`), and writes `evidence`, the tester evidence envelope (`cr-evidence/v0.2`), plus outputs such as `per_query_results`.
+3. the project's **scorer** (trusted): it reads the producer's output (`from: step`, the same interface), the held-out labels (`from: dataset`) and the frozen `claimed_sheet` (`from: attempt`, the run document's front matter, staged as `claimed.json`), and writes `evidence` (`cr-evidence/v0.2`: the report's `provenance`, `measurements`, `discrepancies` and, as `observations`, its body), plus outputs such as `per_query_results`;
+4. the **policy**: the stock gates in the runner process, or a policy step through the launcher. It gives the verdict, the gates, the comparisons and the reason.
 
-Register producers with `POST /api/projects/{slug}/producers`; each registration of a name is its next immutable revision, so a new producer for a new track never mints a science revision. The scorer lives in the science revision so every track is scored the same way. A self-hosted tester can implement the job API instead of the runner ([test and evaluation jobs](contracts.md#test-and-evaluation-jobs)).
+The runner composes the report, checks it as the API would and completes the job with it and a manifest of every step's outputs and logs.
 
-The **evidence envelope** ([contracts](contracts.md#evidence-envelope)) has `stage: "tester"`, `provenance` (`source_revision`, `tester_revision`, `dataset_revision`, `control_revision` when the hypothesis names a control, `science_revision`), `measurements` (each `authority: "tester_verified"`, finite values, registered metric, split and dimensions, a `missing_reason` instead of a value when it could not be measured), `discrepancies` with the claims, and `artifact_roles`. A required slice `{dimension: value}` is covered only by a measurement whose `dimensions` are exactly that pair. CR validates the envelope and the output manifest, then queues the evaluation job.
-
-The job's deadline is the sum of its steps' deadlines (setups and validators included) plus `leases.job_overhead_seconds`. A failure of the test (a step exits non-zero, a deadline, a validator rejection, an invalid scorer output) is an infrastructure failure of the stage: it reruns on the same frozen submission while `max_auto_retries` allows, then opens a failure review. The exception is a producer output the API itself refused against its interface (`invalid_step_output`): that is the candidate's failure, reviewed at once, without a rerun.
-
-## Eval stage
-
-The runner's `eval` kind claims evaluation jobs pinned to its policy's revision, with the evaluator token, and completes each with a verdict (`pass`, `fail` or `inconclusive`), each gate's result (`pass`, `fail`, `unknown`), optional comparisons, and a reason. CR checks only that the verdict comes from the registered evaluator under the registered revision and that a `pass` reports every gate as passed. Every completed evaluation, whatever its verdict, leaves the attempt awaiting a human decision.
-
-An evaluation job pins the hypothesis's `parameters` when it is created (the `project_fields` of the revision the attempt pinned, `{}` without any), so a later revision never changes what a run or rerun sees: a policy step reads them from `/cr/job.json` ([contracts](contracts.md#policy-steps)) and the stock evaluator ignores them.
+Register producers with `POST /api/projects/{slug}/producers`; each registration of a name is its next immutable revision, so a new producer for a new track never mints a science revision. The scorer lives in the science revision so every track is scored the same way.
 
 | | Stock gates | Policy step |
 | --- | --- | --- |
-| `policy` file | A stock configuration: `{schema_version, evaluator {id, revision}, gates, baselines, default_control?}` (`examples/fixture/evaluator.json`, [contracts](contracts.md#evaluation-policy-and-the-stock-evaluator)). | A policy step document: exactly `{schema_version, evaluator {id, revision}, step}` (`examples/fixture/policy-step.json`, [contracts](contracts.md#policy-steps)). |
-| Runs | In the runner process; no launcher, no data root. | Through the launcher, as a trusted step: `role: evaluator`, `network: none` for the step (its setup may have network), exactly one output named `verdict`, no `from: step` input, `code.repo` in `code_repositories.trusted`. It may read the tester's evidence (`evidence`), its output manifest (`manifest`), any tester output role, datasets (held-out labels included) and baselines. |
+| `policy` file | A stock configuration: `{schema_version, verifier {id, revision}, gates, baselines, default_control?}` (`examples/fixture/policy.json`, [contracts](contracts.md#verification-policy-and-the-stock-policy)). | A policy step file: exactly `{schema_version, verifier {id, revision}, step}` (`examples/fixture/policy-step.json`, [contracts](contracts.md#policy-steps)). |
+| Runs | In the runner process, after the scorer. | Through the launcher, after the scorer, as a trusted step: `role: policy`, `network: none` for the step (its setup may have network), exactly one output named `verdict`, no `from: attempt` input, `code.repo` in `code_repositories.trusted`. It may read the producer's and the scorer's outputs (`from: step`, the scorer's `evidence` as `cr-evidence/v0.2`), datasets (held-out labels included) and baselines. |
 | Writes | The gate results it computes. | One JSON file in `/cr/outputs/verdict/`, at most 1 MiB, with exactly `gates`, `comparisons` (optional), `verdict` and `reason`. |
-| Alone | `cannery evaluator --config evaluator.json`. | Only as an `eval` kind of `cannery runner`. |
+| Alone | `cannery evaluator --config policy.json`, offline, for a verifier that runs its own steps. | Only as a `verify` kind of `cannery runner`. |
 
-Failures of the eval stage follow the rerun rules, then a failure review:
+The job pins the hypothesis's `parameters` when it is created (the `project_fields` of the revision the attempt pinned, `{}` without any), so a later revision never changes what a run or rerun sees: a policy step reads them from `/cr/job.json` ([contracts](contracts.md#policy-steps)) and the stock gates ignore them.
 
-- `policy_mismatch`: the job is pinned to another evaluator id or revision than the policy file's. The claim hands out only the evaluator's own revision, so this signals a misconfiguration;
-- `input_verification_failed`: evidence or the manifest does not match the digests the job pins;
-- `evaluator_error`: anything else, a step that exits non-zero, runs out of time or memory, writes no verdict or an invalid one, or does not fit the science revision or the job's deadline. The reason starts with the underlying code (`step_failed: …`, `deadline_exceeded: …`).
+**The deadline budget.** A runner job's deadline is the sum of its steps' deadlines (setups and validators included) plus `leases.job_overhead_seconds` plus the science revision's `limits.max_deadline_seconds` (one hour when unset) for the policy. A policy step's setup deadline (when it has a setup) plus its `activeDeadlineSeconds` plus the 30 seconds the runner keeps to upload and report must fit that allowance, or the step never starts and the job fails with `deadline_exceeded`.
 
-**The deadline budget.** An evaluation job's deadline is the science revision's `limits.max_deadline_seconds` (one hour when unset). A policy step's setup deadline (when it has a setup) plus its `activeDeadlineSeconds` plus the 30 seconds the runner keeps to upload and report must fit it, or the step never starts and the job fails with `evaluator_error`.
+To switch policy revisions without stopping verification, register the new science revision, run a second `verify` entry with its own `name` and the new policy (the same token), and remove the old entry once no job of the old revision is pending.
 
-To switch policy revisions without stopping evaluation, register the new science revision, run a second `eval` entry with its own `name` and the new policy (the same token), and remove the old entry once no job of the old revision is pending.
+### With an agent
+
+With `{"performer": "agent"}`, an `agent` service account or a researcher claims the job (`POST /api/projects/{slug}/jobs/claims` with `{"phase": "verify"}`, MCP `claim_job`), never one of an attempt it ran itself, and follows [the agent's steps](agents.md#verify): read the inputs, check the claims against the artifacts, heartbeat, upload any outputs (`create_job_upload`), and complete with the report (`complete_job`). An invalid report is refused (422) with the details and the job keeps its lease, so the agent can correct it. The job's deadline is the science revision's `limits.max_deadline_seconds`.
+
+### Failures
+
+A failure of the verify job (a step exits non-zero, a deadline, a validator rejection, an invalid scorer output, a policy that gives no valid verdict, an invalid report from a runner, a lost lease) is an infrastructure failure: the job reruns on the same frozen submission while `max_auto_retries` allows, from the failed step, reusing the verified outputs of the steps before it; then a failure review opens. The exception is a producer output the API itself refused against its interface (`invalid_step_output`): that is the candidate's failure, reviewed at once, without a rerun. A researcher's `retry` on a verify failure queues a fresh verify job from the run.
+
+- `policy_mismatch`: the job names another verifier id or revision than the policy file's. The claim hands out only the verifier's own revision, so this signals a misconfiguration;
+- a policy step that fails reports the codes of any step, with the policy step named: `step_failed` or `setup_failed` when it exits non-zero or runs out of memory, `deadline_exceeded` when it runs out of time, `missing_output` when it writes no verdict, and `invalid_step_output` when its verdict is invalid. A policy step that does not fit the science revision's allowance fails with `deadline_exceeded` before any step runs, and its reason gives the step's and the allowance's seconds.
 
 ## Running the runner
 
-`cannery runner --config runner.toml` runs every kind a project needs in one process ([job kinds](deploy.md#job-kinds-and-the-configuration-file)). The flags alone run only the `test` kind; `--config` replaces every flag but `--once`. A complete file, with the Docker launcher:
+`cannery runner --config runner.toml` runs every kind a project needs in one process ([job kinds](deploy.md#job-kinds-and-the-configuration-file)). The flags alone run only the `verify` kind; `--config` replaces every flag but `--once`. A complete file, with the Docker launcher:
 
 ```toml
 api_url = "https://cannery.example.org"
@@ -459,20 +464,16 @@ kind = "experiment"
 token_file = "/run/secrets/experimenter.token"
 
 [[kinds]]
-kind = "test"
-token_file = "/run/secrets/tester.token"
-concurrency = 2                         # two test jobs at once; size the host for the sum
-
-[[kinds]]
-kind = "eval"
-token_file = "/run/secrets/evaluator.token"
-policy = "/etc/cannery/policy-step.json"   # or a stock configuration such as evaluator.json
+kind = "verify"
+token_file = "/run/secrets/verifier.token"
+policy = "/etc/cannery/policy-step.json"   # or a stock configuration such as policy.json
+concurrency = 2                         # two verify jobs at once; size the host for the sum
 poll_seconds = 30
 ```
 
-- **One token file per kind.** Each is a regular file with no permission for group or others (for example `600` or `400`); the runner checks the mode, not the owner, so the file must belong to the user the runner runs as (UID 10001 in the image). It refuses a file that grants group or others any permission, and one token given to kinds of different types. Two `eval` entries may share one.
+- **One token file per kind.** Each is a regular file with no permission for group or others (for example `600` or `400`); the runner checks the mode, not the owner, so the file must belong to the user the runner runs as (UID 10001 in the image). It refuses a file that grants group or others any permission, and one token given to kinds of different types. Two `verify` entries may share one.
 - `concurrency` (default 1) runs that many loops of the entry; resource ceilings apply per step, so several loops add up. `poll_seconds` (default 10) is the wait when nothing is queued or a claim failed.
-- A kind that runs steps (`test`, `experiment`, an `eval` policy step) needs `[launcher]`; `test` and `experiment` need `data_root`, and so does a policy step that reads a dataset or baseline.
+- Both kinds run steps, so both need `[launcher]` and `data_root`.
 - An invalid file, an unreadable token or a missing launcher or data root refuses to start with exit code 2, naming the key (`kinds[1].token_file: …`).
 - `--once` runs at most one job per entry, prints each outcome (`no job waiting`, `job <id> completed`) and exits 1 if any claim or job raised. `SIGTERM` cancels running jobs, removes their containers or Pods and exits 143; the cancelled jobs are not reported and are claimed again once their lease expires.
 
@@ -484,9 +485,9 @@ poll_seconds = 30
 | Untrusted candidate code on one dedicated machine, including GPUs on a single VM. | `docker`: one container per step, non-root, read-only root filesystem, no capabilities, `network: none` enforced. Whoever reaches the Docker socket is root on the host, so the VM is the isolation boundary. | [deploy.md](deploy.md#the-runner-on-a-container-optimized-os-vm) |
 | GPU steps on a COS VM. | `docker` with `docker_gpu_mode = "cos"` (`--docker-gpu-mode cos`) and `--docker-gpu-devices 0,1`: each GPU is lent to one step at a time; a step waits for free GPUs before its deadline starts. | [deploy.md](deploy.md#gpus) |
 | Untrusted code in a Kubernetes cluster, scaled or shared GPU pools. | `kubernetes`: one Pod per step on a per-job volume, Pod Security `restricted`, NetworkPolicy deny-all for `network: none`. Needs Kubernetes 1.30+, a StorageClass and enforced NetworkPolicy. | [deploy.md](deploy.md#the-runner-on-kubernetes), [deploy/runner-k8s/](../deploy/runner-k8s/README.md) |
-| Only the stock evaluator. | None: `cannery evaluator`, or an `eval` kind with a stock configuration. | [deploy.md](deploy.md#the-stock-evaluator) |
+| Only the stock policy, offline, for a verifier that runs its own steps. | None: `cannery evaluator`. | [deploy.md](deploy.md#the-stock-policy) |
 
-The shipped Kubernetes manifests run the `test` kind with flags; to run all three kinds there, mount a configuration file and copy each token as its init container does ([with a configuration file](deploy.md#with-a-configuration-file)).
+The shipped Kubernetes manifests run the `verify` kind with flags; to run both kinds there, mount a configuration file and copy each token as its init container does ([with a configuration file](deploy.md#with-a-configuration-file)).
 
 ### GitHub code access
 
@@ -510,17 +511,17 @@ From an empty CR to the first decided hypothesis:
 
 1. Deploy the image with OIDC and a bootstrap admin, run `migrate`, sign in. [deploy.md](deploy.md#configuration)
 2. Create the project with its first track, grant `researcher` to the people who approve and decide (yourself included), and write the brief. [Setting up a project](#setting-up-a-project), [The brief](#the-brief)
-3. Write the scorer, its interfaces and validators; choose the evaluator (stock gates or policy step) and write its policy file. [Steps](#steps), [Eval stage](#eval-stage)
+3. Write the scorer, its interfaces and validators; choose who verifies (a runner with stock gates or a policy step, or an agent) and, for a runner, write its policy file. [Steps](#steps), [Verify stage](#verify-stage)
 4. Register the science revision. [The science revision](#the-science-revision)
-5. Register the producers (the default first) and, for workflow tracks, the experiment steps. [Test stage](#test-stage), [Workflow mode](#workflow-mode)
+5. Register the producers (the default first) and, for workflow tracks, the experiment steps. [Verify stage](#verify-stage), [Workflow mode](#workflow-mode)
 6. Create the other tracks, each with its mode. [Tracks](#tracks)
-7. Create the tester, evaluator and, for workflow tracks, experimenter service accounts, named as the science revision says, and an agent account for agent tracks; mint their tokens in the web app. [Service accounts and tokens](#service-accounts-and-tokens)
+7. Create the verifier and, for workflow tracks, experimenter service accounts, named as the science revision says, and an agent account for agent tracks or agent verification; mint their tokens in the web app. [Service accounts and tokens](#service-accounts-and-tokens)
 8. Put the datasets and baselines in the runner's data root at `datasets/<id>/<revision>/` and `baselines/<id>/<revision>/`. [deploy.md](deploy.md#runner)
 9. Write `runner.toml`, choose the launcher, give it the GitHub credential, start `cannery runner --config runner.toml` and check it with `--once`. [Running the runner](#running-the-runner)
 10. Optionally import the history. [Importing history](#importing-history)
 11. Plan each track and approve the plan. [Planning a track](#planning-a-track), [Agent mode](#agent-mode)
 12. Run the experiment: an agent claims and submits, or the experiment kind does. [Experiment stage](#experiment-stage)
-13. Watch the test and evaluation jobs (`GET …/attempts/{sequence}/jobs`, the web app's attempt page).
+13. Watch the verify job (`GET …/attempts/{sequence}/jobs`, the web app's attempt page).
 14. A researcher reviews the result case (`GET /api/projects/{slug}/review-cases`, then `POST …/review-cases/{case_id}/decisions` with `review_case_id`, `evidence_revision`, `action` and `reason`, or the web app) and records `promote`, `reject` or `inconclusive`.
 
 ## Troubleshooting
@@ -530,7 +531,7 @@ From an empty CR to the first decided hypothesis:
 | `nothing_to_claim` (409) | Hypothesis claim | No queued hypothesis in an active track of the caller's mode. | Check a plan was approved, the track is `active`, and the identity matches the mode (agents claim `agent` tracks, experimenters `workflow` tracks). The runner just keeps polling. |
 | `workflow_unavailable` (409) | Hypothesis claim, `workflow` mode | Queued hypotheses wait only in workflow tracks that no longer fit the current science revision; `details` names each track and why. | Fix the track (`PATCH` its workflow or producer) or register a science revision it fits. |
 | `forbidden` (403) | Any | The identity cannot do this: an agent claiming `workflow`, an experimenter claiming `agent`, a token created without a browser session, a missing role, a missing `write` scope. | Use the identity the [token table](#the-model-in-one-screen) gives. |
-| `conflict` (409) | Job claim, track, claim | No job waits for this tester or evaluator name (or policy revision), or a genuine conflict (track paused or switched during a claim, a control a step cannot stage). | For jobs: the service account's name must equal the science revision's `tester.id` or `evaluator.id`, and the policy file's revision its `evaluator.revision`. |
+| `conflict` (409) | Job claim, track, claim | No verify job waits for this verifier name and policy revision, only jobs of attempts the caller ran itself wait (an agent or researcher never verifies its own run), or a genuine conflict (track paused or switched during a claim, a control a step cannot stage). | For a runner: the service account's name must equal the science revision's `verify.verifier.id`, and the policy file's revision its `verify.verifier.revision`. For an agent: let another identity verify the attempts it ran. |
 | `stale_lease` (409) | Attempt or job calls | The lease token or generation is not current, it expired, or a runner-driven attempt passed its deadline. | Stop working on it. In agent mode the attempt fails for review; in workflow mode it is requeued. |
 | `stale_revision` (409) | Track or plan changes | `expected_revision` is not the current one. | Read the record again and retry. |
 | `validation_failed` (422) | Any document | A field breaks a schema or a rule; `details` gives JSON Pointers. A producer or experiment manifest declaring a held-out labels dataset is refused here. | Fix the document. |
@@ -542,9 +543,9 @@ From an empty CR to the first decided hypothesis:
 | `deadline_exceeded` | Runner failure, sweep | A step, setup or attempt passed its deadline. | Raise `activeDeadlineSeconds` (within `max_deadline_seconds`), or make the step faster. |
 | `runner_error` | Runner failure | The runner could not run the step: GitHub has no such commit or the credential cannot see it, an image cannot be pulled, a Pod stayed Pending, too many GPUs asked, a second runner on the same cache root. | Read the reason; fix the commit, image, credential or capacity. A bad commit fails every rerun: register a new manifest revision. |
 | `invalid_code`, `code_not_allowed` | Runner failure | An unsafe archive or a missing `code.path` or key file; a repository outside `--github-allowed-repos`. | Fix the manifest or the runner's allowlist. |
-| `evaluator_error`, `policy_mismatch` | Evaluation failure | See [Eval stage](#eval-stage). | Read the reason and the policy step's `step_log`. |
+| `policy_mismatch` | Verify failure | The job names another verifier id or policy revision than the runner's policy. See [Failures](#failures). | Align the runner's policy with the science revision's `verify.verifier`. |
 | `invalid_submission` | Submission | The run document was rejected; the attempt failed and awaits review. | Validate the front matter before submitting; a researcher `retry` requeues. |
 | `upload_expired` (409) | Upload | The upload grant expired before its bytes were finished. | Request a new grant. |
-| `invalid_content` (422) | Job upload | A job output named against an interface does not match it. | The tester reports `invalid_step_output` for the step. |
+| `invalid_content` (422) | Job upload | A job output named against an interface does not match it. | The verifier reports `invalid_step_output` for the step. |
 | `store_unavailable` (503) | Upload, download | The object store failed; nothing changed. | Retry after a pause, a bounded number of times (the runner tries 4 times). |
-| `no_evaluator` | Attempt failure | The pinned science revision has no evaluator (built-in gates). | Close it; register a science revision with an `evaluator`. |
+| `superseded` | Attempt failure | The attempt was waiting for a test or an evaluation when the installation moved to verify jobs. | A researcher's `retry` queues a fresh verify job from the run. |

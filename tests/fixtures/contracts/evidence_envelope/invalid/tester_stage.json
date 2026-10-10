@@ -1,0 +1,52 @@
+{
+  "reason": "/stage",
+  "document": {
+    "schema_version": "0.2",
+    "attempt_id": "attempt-id",
+    "stage": "tester",
+    "status": "completed",
+    "producer": {
+      "kind": "agent",
+      "id": "codex-session-17"
+    },
+    "started_at": "2026-09-28T20:00:00Z",
+    "finished_at": "2026-09-28T23:30:00-07:00",
+    "provenance": {
+      "source_revision": "4f2a9c1",
+      "science_revision": "science-revision",
+      "seed": 0
+    },
+    "measurements": [
+      {
+        "metric": "ndcg_at_10",
+        "value": 0.47,
+        "authority": "agent_claim",
+        "unit": "ratio",
+        "direction": "higher",
+        "split": "dev",
+        "dimensions": {
+          "language": "fr"
+        },
+        "sample_count": 80
+      }
+    ],
+    "artifact_roles": [
+      "candidate_checkpoint"
+    ],
+    "manifest": {
+      "ref": "input-manifest-id",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "report": {
+      "what_was_tried": "Pruned the vocabulary to 30k terms and retrained the sparse head.",
+      "configuration": "Code 4f2a9c1; data queries-2026-09; initialization base-camp-r1. Inherited: tokenizer. Changed: vocabulary size.",
+      "observations": "Training converged after 3 epochs.",
+      "findings": "Dev nDCG@10 improved on French queries.",
+      "limitations": "Only French queries were evaluated locally.",
+      "next_question": "Does the gain survive on the fresh held-out split?",
+      "elapsed_seconds": 12600,
+      "body_markdown": "# Compact sparse\n\nFull report."
+    },
+    "extensions": {}
+  }
+}

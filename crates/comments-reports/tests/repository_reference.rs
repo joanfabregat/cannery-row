@@ -407,7 +407,7 @@ async fn repository_reference() -> Result<(), Box<dyn Error>> {
             .keys()
             .map(|stage| stage.as_str())
             .collect::<Vec<_>>(),
-        ["agent", "evaluator", "tester"]
+        ["agent", "verification"]
     );
     compare_storage(&mut conn, &reference).await?;
     Ok(())
@@ -577,10 +577,10 @@ async fn compare_json_profiles(reference: &Value) -> Result<(), Box<dyn Error>> 
             let stage = if name == "list_reports" {
                 "agent"
             } else {
-                "evaluator"
+                "verification"
             };
             conn.execute("BEGIN").await?;
-            sqlx::query("INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,revision,front_matter,sha256,producer_user,via_channel,created_at) VALUES($1,$2,$3,$4,'completed',4,$5::jsonb,$6,$7,'cli','2024-01-02Z')").bind(uid(9000)).bind(uid(2)).bind(uid(200)).bind(stage).bind(&stored_document).bind("0".repeat(64)).bind(if stage=="agent"{Some(uid(1))}else{None}).execute(&mut conn).await?;
+            sqlx::query("INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,revision,front_matter,sha256,producer_user,via_channel,created_at) VALUES($1,$2,$3,$4,'completed',$8,$5::jsonb,$6,$7,'cli','2024-01-02Z')").bind(uid(9000)).bind(uid(2)).bind(uid(200)).bind(stage).bind(&stored_document).bind("0".repeat(64)).bind(if stage=="agent"{Some(uid(1))}else{None}).bind(if stage=="agent"{4_i32}else{5}).execute(&mut conn).await?;
             let result = if name == "list_reports" {
                 reports::list_reports(
                     &mut conn,
@@ -596,7 +596,7 @@ async fn compare_json_profiles(reference: &Value) -> Result<(), Box<dyn Error>> 
             } else {
                 reports::latest_evidence(&mut conn, AttemptId(uid(200)), context)
                     .await
-                    .map(|mut rows| rows.remove(&reports::Stage::Evaluator).unwrap().content)
+                    .map(|mut rows| rows.remove(&reports::Stage::Verification).unwrap().content)
             };
             match result {
                 Ok(doc) => {

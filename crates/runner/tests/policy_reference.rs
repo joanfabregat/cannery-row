@@ -10,7 +10,7 @@ use std::{error::Error, sync::Arc};
 type Result<T = ()> = std::result::Result<T, Box<dyn Error>>;
 fn stock() -> Result<Value> {
     Ok(serde_json::from_str(include_str!(
-        "../../../examples/fixture/evaluator.json"
+        "../../../examples/fixture/policy.json"
     ))?)
 }
 fn step() -> Result<Value> {
@@ -32,20 +32,19 @@ fn parse(value: &Value, caller: PolicyEntryPoint) -> Result<Policy> {
 fn application_stock_and_step_policies_load_at_both_entry_points() -> Result {
     for caller in [
         PolicyEntryPoint::Evaluator,
-        PolicyEntryPoint::RunnerEvalKind,
+        PolicyEntryPoint::RunnerVerifyKind,
     ] {
         let Policy::Stock(policy) = parse(&stock()?, caller)? else {
             return Err("wrong stock policy kind".into());
         };
-        assert_eq!(policy.evaluator_id, "stock-evaluator");
+        assert_eq!(policy.verifier_id, "cannery-runner");
         assert_eq!(policy.revision, "fixture-policy-1");
         assert!(policy.default_control.is_some());
         let Policy::Step(policy) = parse(&step()?, caller)? else {
             return Err("wrong step policy kind".into());
         };
-        assert_eq!(policy.evaluator_id, "stock-evaluator");
+        assert_eq!(policy.verifier_id, "cannery-runner");
         assert_eq!(policy.name, "fixture-policy");
-        assert!(!policy.needs_data_root);
     }
     Ok(())
 }
@@ -54,15 +53,17 @@ fn application_stock_and_step_policies_load_at_both_entry_points() -> Result {
 fn step_envelope_and_manifest_refuse_invalid_application_shapes() -> Result {
     for caller in [
         PolicyEntryPoint::Evaluator,
-        PolicyEntryPoint::RunnerEvalKind,
+        PolicyEntryPoint::RunnerVerifyKind,
     ] {
         for (pointer, value) in [
             ("/schema_version", json!("0.1")),
-            ("/evaluator", json!({"id":"stock-evaluator"})),
-            ("/evaluator/revision", json!("has spaces")),
+            ("/verifier", json!({"id":"cannery-runner"})),
+            ("/verifier/revision", json!("has spaces")),
+            ("/step/spec/role", json!("evaluator")),
             ("/step", Value::Null),
             ("/step/spec/role", json!("producer")),
-            ("/step/spec/inputs/artifacts/0/from", json!("dataset")),
+            ("/step/spec/inputs/artifacts/0/from", json!("attempt")),
+            ("/step/spec/outputs/artifacts/0/name", json!("assessment")),
         ] {
             let mut value_document = step()?;
             *value_document
@@ -137,7 +138,7 @@ fn policy_validation_refuses_documents_beyond_native_depth() -> Result {
     let document = Arc::new(builder.finish(root)?);
     for caller in [
         PolicyEntryPoint::Evaluator,
-        PolicyEntryPoint::RunnerEvalKind,
+        PolicyEntryPoint::RunnerVerifyKind,
     ] {
         let error = policy::parse_policy(Arc::clone(&document), caller, JSON_CONTAINERS)
             .err()
@@ -173,7 +174,7 @@ fn filesystem_loader_preserves_dispatch_and_refuses_invalid_json() -> Result {
         .to_owned();
     let position = PosixPath::new(&path_text);
     let loader = FilePolicyLoader {
-        entry_point: PolicyEntryPoint::RunnerEvalKind,
+        entry_point: PolicyEntryPoint::RunnerVerifyKind,
         repr_nesting_budget: JSON_CONTAINERS,
     };
     assert!(loader.load_policy(&position).is_err());

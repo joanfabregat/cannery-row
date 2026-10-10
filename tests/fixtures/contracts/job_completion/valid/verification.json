@@ -1,0 +1,33 @@
+{
+  "schema_version": "0.2",
+  "job_id": "verify-job-id",
+  "document": "---\nverdict: \"pass\"\nreason: \"Pass: all 1 gates pass on verified measurements.\"\npolicy_revision: \"policy-r1\"\ngates: [{\"id\":\"primary-beats-control\",\"result\":\"pass\",\"detail\":\"ndcg_at_10 on fresh-held-out: uncertainty.lower 0.41 - control 0.40 = 0.01 > 0\"}]\nmeasurements: [{\"metric\":\"ndcg_at_10\",\"value\":0.44,\"authority\":\"tester_verified\",\"unit\":\"ratio\",\"direction\":\"higher\",\"split\":\"fresh-held-out\",\"dimensions\":{},\"sample_count\":100,\"control_value\":0.40,\"uncertainty\":{\"method\":\"cluster-bootstrap\",\"lower\":0.41,\"upper\":0.47}},{\"metric\":\"ndcg_at_10\",\"value\":0.43,\"authority\":\"tester_verified\",\"unit\":\"ratio\",\"direction\":\"higher\",\"split\":\"fresh-held-out\",\"dimensions\":{\"language\":\"fr\"}},{\"metric\":\"ndcg_at_10\",\"missing_reason\":\"No English queries in this dataset revision.\",\"authority\":\"tester_verified\",\"unit\":\"ratio\",\"direction\":\"higher\",\"split\":\"fresh-held-out\",\"dimensions\":{\"language\":\"en\"}}]\ndiscrepancies: [{\"metric\":\"ndcg_at_10\",\"split\":\"fresh-held-out\",\"dimensions\":{\"language\":\"fr\"},\"claimed_value\":0.45,\"verified_value\":0.43,\"description\":\"The run claimed 0.45 on French queries; the verifier measured 0.43.\"}]\ncomparisons: [{\"metric\":\"ndcg_at_10\",\"split\":\"fresh-held-out\",\"dimensions\":{},\"value\":0.44,\"source\":\"tester\",\"reference\":{\"value\":0.40,\"label\":\"base-camp base-camp-r1\",\"kind\":\"baseline\",\"ref\":\"base-camp\"}},{\"metric\":\"ndcg_at_10\",\"split\":\"fresh-held-out\",\"dimensions\":{\"language\":\"fr\"},\"value\":0.43,\"source\":\"tester\",\"reference\":{\"value\":0.45,\"label\":\"Best promoted attempt\",\"kind\":\"promoted_attempt\",\"ref\":\"#12.3\"}}]\nprovenance: {\"source_revision\":\"4f2a9c1\",\"science_revision\":\"3\",\"dataset_revision\":\"qrels-2026-09\",\"control_revision\":\"base-camp-r1\",\"seed\":1}\nartifact_roles: [\"per_query_results\",\"step_log\"]\nextensions: {\"gpu_seconds\":3400}\n---\n\nThe scorer completed with no missing query rows. French queries scored 0.43, below the 0.45 the run claimed.\n",
+  "manifest": {
+    "schema_version": "0.2",
+    "attempt_id": "attempt-id",
+    "objects": [
+      {
+        "role": "per_query_results",
+        "storage": {
+          "backend": "local",
+          "bucket": "fixtures",
+          "key": "projects/pilchards/attempts/attempt-id/verify-runs/verify-job-id/scorer/per_query_results/results.jsonl"
+        },
+        "size_bytes": 2048,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "media_type": "application/jsonl"
+      },
+      {
+        "role": "step_log",
+        "storage": {
+          "backend": "local",
+          "bucket": "fixtures",
+          "key": "projects/pilchards/attempts/attempt-id/verify-runs/verify-job-id/logs/scorer.log"
+        },
+        "size_bytes": 512,
+        "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "media_type": "text/plain"
+      }
+    ]
+  }
+}

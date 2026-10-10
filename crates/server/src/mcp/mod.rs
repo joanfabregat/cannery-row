@@ -26,7 +26,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
-const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses (units), the plans that define them, their attempts, independent testing and evaluation, and human decisions. Read the project brief (get_brief, or the brief resource) and search before working. To plan a track: read the brief and the track, and when re-planning the plan and the done and in-flight units (get_plan, list_units, get_unit); refine the idea with the researcher; check references and outside material with search and the read tools; list edge cases and risks into the approach and unit briefs; define units with their acceptance and the context each needs (start_plan_revision, set_plan_approach, add_unit, set_alignment); then check_plan and submit_plan; a researcher approves. To run a unit: claim, read the context bundle the claim names (the context resource), heartbeat, upload, record the manifest and submit the run document under the lease you were given: front matter with the claims, provenance and verified manifest (GET /api/schemas/run), run notes as the body. A run that failed releases the attempt with a failure report instead. Actor and via are taken from your token; plans and decisions need a person with the researcher role.";
+const INSTRUCTIONS: &str = "Cannery Row manages research hypotheses (units), the plans that define them, their attempts, independent verification, and human decisions. Read the project brief (get_brief, or the brief resource) and search before working. To plan a track: read the brief and the track, and when re-planning the plan and the done and in-flight units (get_plan, list_units, get_unit); refine the idea with the researcher; check references and outside material with search and the read tools; list edge cases and risks into the approach and unit briefs; define units with their acceptance and the context each needs (start_plan_revision, set_plan_approach, add_unit, set_alignment); then check_plan and submit_plan; a researcher approves. To run a unit: claim, read the context bundle the claim names (the context resource), heartbeat, upload, record the manifest and submit the run document under the lease you were given: front matter with the claims, provenance and verified manifest (GET /api/schemas/run), run notes as the body. A run that failed releases the attempt with a failure report instead. Verify: a submitted run is verified before a researcher decides on it. When the science revision's verify performer is agent, an agent service account or a researcher who did not run the attempt verifies it; a claim never hands out a job of an attempt you ran yourself. Claim a verify job (claim_job with {\"phase\": \"verify\"}); the answer names the job, the attempt, the brief, the plan and the context bundle, which holds the unit. Read the inputs (get_job_input): run, the run document's front matter with its claims and provenance, and manifest, the run's verified artifacts (download them with object). The run notes are not an input: judge the claims against the artifacts, not the narrative. Heartbeat (heartbeat_job) and upload what you produce (create_job_upload). Complete the job (complete_job) with the verification report: front matter with the verdict (pass, fail or inconclusive), reason, policy revision, gates, verified measurements, discrepancies, comparisons and provenance (GET /api/schemas/verification), and your observations as an optional body. A pass needs every gate passed, and a comparison cites a measurement of the same report. An invalid report is refused with the details and the lease is kept: correct it and complete again. A valid one moves the attempt to human review. If you cannot verify, fail the job (fail_job) with a reason. Actor and via are taken from your token; plans and decisions need a person with the researcher role.";
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartupError {
@@ -751,13 +751,19 @@ mod tests {
         assert_eq!(edit.method, axum::http::Method::PUT);
         let input = build(
             "get_job_input",
-            json!({"project":"matrix","job_id":"uuid","input":"claimed_sheet","lease_token":"x","lease_generation":1}),
+            json!({"project":"matrix","job_id":"uuid","input":"run","lease_token":"x","lease_generation":1}),
         );
         assert_eq!(
             input.uri.path(),
-            "/api/projects/matrix/jobs/uuid/inputs/claimed-sheet"
+            "/api/projects/matrix/jobs/uuid/inputs/run"
         );
         assert_eq!(input.body, [] as [u8; 0]);
+        let claim = build("claim_job", json!({"project":"matrix","phase":"verify"}));
+        assert_eq!(claim.uri, "/api/projects/matrix/jobs/claims");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&claim.body).expect("body"),
+            json!({"phase":"verify"})
+        );
     }
     #[test]
     fn origins_and_result_limits_are_explicit() {

@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", j.performer AS \"performer!\", j.verifier_id AS \"verifier?\", j.spec -> 'verifier' ->> 'revision' AS \"revision?\", j.created_at AS \"waiting_since!: _\" FROM jobs j\n            JOIN attempts a ON a.id = j.attempt_id\n            JOIN hypotheses h ON h.id = a.hypothesis_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE \n        j.project_id = $1 AND j.phase = 'verify' AND j.state = 'pending'\n        AND j.created_at < now() - make_interval(secs => $2)\n    \n            ORDER BY j.created_at, j.id\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hypothesis_number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "hypothesis_title!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "track_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "attempt_sequence!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "performer!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "verifier?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "revision?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "waiting_since!: _",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "18115d62b6056b4ec83b60f776343d29618e35bdf77bc2258ec9f25d7405d6b6"
+}

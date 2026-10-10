@@ -45,10 +45,7 @@ fn observe(case: &Value) -> Result<Option<Document>, ScienceError> {
             texts(job_baselines::predecessor_roles(&input, RENDERING)?, true).map(Some)
         }
         Some("pinned_control") => job_baselines::pinned_control(&input, RENDERING),
-        Some("parameters") => job_baselines::pinned_parameters(
-            &String::from(case["stage"].as_str().ok_or(ScienceError::Type)?),
-            &input,
-        ),
+        Some("parameters") => job_baselines::pinned_parameters(&input),
         operation => {
             let registry = decode("science_json")?;
             let science = Science::new(BigInt::from(1), &registry, RENDERING)?;
@@ -170,7 +167,7 @@ fn baselines_preserve_source_decisions_with_native_scalar_projections()
             }
         }
     }
-    assert_eq!(cases.len(), 493);
+    assert_eq!(cases.len(), 465);
     Ok(())
 }
 

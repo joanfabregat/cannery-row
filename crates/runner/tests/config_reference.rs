@@ -1,7 +1,10 @@
 //! Authored configuration, backend, policy, path and credential contracts.
 use cannery_runner::{
     cli_depth::{JSON_CONTAINERS, PolicyEntryPoint},
-    config::{self, ErrorKind, KindConfig, LauncherType, NativePathResolver, ProcessConfig},
+    config::{
+        self, ErrorKind, JobKind, KindConfig, LauncherType, NativePathResolver, ProcessConfig,
+        VerifyPolicy,
+    },
     credentials::TokenFileError,
     policy::FilePolicyLoader,
 };
@@ -28,15 +31,15 @@ impl Directory {
             fs::create_dir(directory.0.join(name))?;
         }
         for (name, value) in [
-            ("test.token", "synthetic-test-credential"),
-            ("eval.token", "synthetic-eval-credential"),
+            ("verify.token", "synthetic-verify-credential"),
+            ("experiment.token", "synthetic-experiment-credential"),
         ] {
             fs::write(directory.0.join(name), value)?;
             fs::set_permissions(directory.0.join(name), fs::Permissions::from_mode(0o600))?;
         }
         fs::write(
             directory.0.join("stock.json"),
-            include_bytes!("../../../examples/fixture/evaluator.json"),
+            include_bytes!("../../../examples/fixture/policy.json"),
         )?;
         fs::write(
             directory.0.join("step.json"),
@@ -53,7 +56,7 @@ impl Directory {
         Ok(config::load_config_file(
             path,
             &FilePolicyLoader {
-                entry_point: PolicyEntryPoint::RunnerEvalKind,
+                entry_point: PolicyEntryPoint::RunnerVerifyKind,
                 repr_nesting_budget: JSON_CONTAINERS,
             },
             &NativePathResolver,
@@ -67,7 +70,7 @@ impl Drop for Directory {
     }
 }
 fn base() -> Value {
-    json!({"api_url":"http://localhost:9010", "project":"fixture", "kinds":[{"kind":"test", "name":"fixture-test", "token_file":"test.token"}], "launcher":{"type":"local"}})
+    json!({"api_url":"http://localhost:9010", "project":"fixture", "kinds":[{"kind":"verify", "name":"fixture-verify", "token_file":"verify.token", "policy":"stock.json"}], "launcher":{"type":"local"}})
 }
 
 #[test]
@@ -97,7 +100,7 @@ fn ordinary_json_and_toml_configurations_load_with_defaults_and_relative_paths()
     let path = directory.0.join("config.toml");
     fs::write(
         &path,
-        "api_url = 'http://localhost:9010'\nproject = 'fixture'\n[launcher]\ntype = 'local'\n[[kinds]]\nkind = 'test'\nname = 'fixture-test'\ntoken_file = 'test.token'\npoll_seconds = 0.5\nconcurrency = 2\n",
+        "api_url = 'http://localhost:9010'\nproject = 'fixture'\n[launcher]\ntype = 'local'\n[[kinds]]\nkind = 'verify'\nname = 'fixture-verify'\ntoken_file = 'verify.token'\npolicy = 'stock.json'\npoll_seconds = 0.5\nconcurrency = 2\n",
     )?;
     let loaded = Directory::read(&path)?;
     assert_eq!(loaded.kinds[0].concurrency.to_string(), "2");
@@ -125,14 +128,14 @@ fn docker_kubernetes_and_github_settings_keep_supported_application_fields() -> 
             .as_deref(),
         Some("100")
     );
-    value["launcher"] = json!({"type":"kubernetes", "k8s_namespace":"fixture", "k8s_token_file":"test.token", "k8s_storage_class":"standard", "k8s_volume_size":"1Gi", "k8s_scheduling_timeout":15, "k8s_max_output_files":100, "k8s_exec_idle_timeout":5});
-    value["github"] = json!({"token_file":"eval.token", "app_id":123, "app_installation_id":"456", "api_url":"https://api.github.com", "allowed_repos":["owner/project"]});
+    value["launcher"] = json!({"type":"kubernetes", "k8s_namespace":"fixture", "k8s_token_file":"verify.token", "k8s_storage_class":"standard", "k8s_volume_size":"1Gi", "k8s_scheduling_timeout":15, "k8s_max_output_files":100, "k8s_exec_idle_timeout":5});
+    value["github"] = json!({"token_file":"experiment.token", "app_id":123, "app_installation_id":"456", "api_url":"https://api.github.com", "allowed_repos":["owner/project"]});
     let loaded = directory.load(&value)?;
     assert_eq!(loaded.launcher, Some(LauncherType::Kubernetes));
     assert_eq!(loaded.kubernetes.k8s_namespace.as_deref(), Some("fixture"));
     assert_eq!(
         loaded.kubernetes.k8s_token_file,
-        Some(directory.0.join("test.token"))
+        Some(directory.0.join("verify.token"))
     );
     assert_eq!(loaded.github.app_id.as_deref(), Some("123"));
     assert_eq!(loaded.github.app_installation_id.as_deref(), Some("456"));
@@ -144,22 +147,48 @@ fn docker_kubernetes_and_github_settings_keep_supported_application_fields() -> 
 }
 
 #[test]
-fn valid_worker_and_policy_kinds_retain_launcher_and_data_requirements() -> Result {
+fn verify_kinds_load_stock_and_step_policies_and_experiments_need_none() -> Result {
     let directory = Directory::new()?;
-    for (policy, needs_launcher) in [("stock.json", false), ("step.json", true)] {
+    for (policy, step) in [("stock.json", false), ("step.json", true)] {
         let mut value = base();
-        value["kinds"] =
-            json!([{"kind":"eval", "name":"policy", "token_file":"eval.token", "policy":policy}]);
+        value["kinds"][0]["policy"] = json!(policy);
         let loaded = directory.load(&value)?;
-        assert!(matches!(loaded.kinds[0].kind, KindConfig::Eval(_)));
-        assert_eq!(loaded.kinds[0].kind.needs_launcher(), needs_launcher);
-        assert!(!loaded.kinds[0].kind.needs_data_root());
+        assert!(match &loaded.kinds[0].kind {
+            KindConfig::Verify(VerifyPolicy::Stock(_)) => !step,
+            KindConfig::Verify(VerifyPolicy::Step(_)) => step,
+            KindConfig::Experiment => false,
+        });
+        assert_eq!(loaded.kinds[0].kind.job_kind(), JobKind::Verify);
     }
     let mut value = base();
-    value["kinds"][0]["kind"] = json!("experiment");
+    value["kinds"] =
+        json!([{"kind":"experiment", "name":"experiment", "token_file":"experiment.token"}]);
     let loaded = directory.load(&value)?;
-    assert!(loaded.kinds[0].kind.needs_launcher());
-    assert!(loaded.kinds[0].kind.needs_data_root());
+    assert!(matches!(loaded.kinds[0].kind, KindConfig::Experiment));
+    let mut value = base();
+    value["kinds"][0]["policy"] = Value::Null;
+    assert_eq!(
+        directory
+            .load(&value)
+            .err()
+            .ok_or("verify kind without a policy accepted")?
+            .downcast_ref::<config::ConfigError>()
+            .ok_or("config error")?
+            .kind,
+        ErrorKind::Policy
+    );
+    let mut value = base();
+    value["kinds"] = json!([{"kind":"experiment", "name":"experiment", "token_file":"experiment.token", "policy":"stock.json"}]);
+    assert_eq!(
+        directory
+            .load(&value)
+            .err()
+            .ok_or("experiment policy accepted")?
+            .downcast_ref::<config::ConfigError>()
+            .ok_or("config error")?
+            .kind,
+        ErrorKind::Unknown
+    );
     Ok(())
 }
 
@@ -170,6 +199,8 @@ fn configuration_refuses_invalid_constraints_without_exposing_credential_values(
         ("/project", json!(false), ErrorKind::Text),
         ("/kinds", json!([]), ErrorKind::Kind),
         ("/kinds/0/kind", json!("unknown"), ErrorKind::Kind),
+        ("/kinds/0/kind", json!("test"), ErrorKind::Kind),
+        ("/kinds/0/kind", json!("eval"), ErrorKind::Kind),
         ("/kinds/0/name", json!("has spaces"), ErrorKind::Name),
         ("/kinds/0/concurrency", json!(0), ErrorKind::Integer),
         ("/kinds/0/concurrency", json!(true), ErrorKind::Integer),
@@ -191,7 +222,7 @@ fn configuration_refuses_invalid_constraints_without_exposing_credential_values(
             .downcast_ref::<config::ConfigError>()
             .ok_or("wrong config error type")?;
         assert_eq!(error.kind, expected, "{pointer}");
-        assert!(!format!("{error:?} {error}").contains("synthetic-test-credential"));
+        assert!(!format!("{error:?} {error}").contains("synthetic-verify-credential"));
     }
     for (field, value, expected) in [
         ("docker_gpu_devices", json!("١"), ErrorKind::GpuSyntax),
@@ -235,10 +266,13 @@ fn configuration_refuses_invalid_constraints_without_exposing_credential_values(
 fn credential_permissions_kind_separation_and_redaction_are_enforced() -> Result {
     let directory = Directory::new()?;
     let loaded = directory.load(&base())?;
-    assert_eq!(loaded.kinds[0].token.expose(), "synthetic-test-credential");
-    assert!(!format!("{loaded:?} {:?}", loaded.kinds[0]).contains("synthetic-test-credential"));
+    assert_eq!(
+        loaded.kinds[0].token.expose(),
+        "synthetic-verify-credential"
+    );
+    assert!(!format!("{loaded:?} {:?}", loaded.kinds[0]).contains("synthetic-verify-credential"));
     let mut document = base();
-    document["kinds"] = json!([document["kinds"][0].clone(), {"kind":"experiment", "name":"experiment", "token_file":"test.token"}]);
+    document["kinds"] = json!([document["kinds"][0].clone(), {"kind":"experiment", "name":"experiment", "token_file":"verify.token"}]);
     assert_eq!(
         directory
             .load(&document)
@@ -250,7 +284,7 @@ fn credential_permissions_kind_separation_and_redaction_are_enforced() -> Result
         ErrorKind::SharedToken
     );
     fs::set_permissions(
-        directory.0.join("test.token"),
+        directory.0.join("verify.token"),
         fs::Permissions::from_mode(0o644),
     )?;
     assert_eq!(
@@ -264,10 +298,10 @@ fn credential_permissions_kind_separation_and_redaction_are_enforced() -> Result
         ErrorKind::Token(TokenFileError::Permissions)
     );
     fs::set_permissions(
-        directory.0.join("test.token"),
+        directory.0.join("verify.token"),
         fs::Permissions::from_mode(0o600),
     )?;
-    fs::write(directory.0.join("test.token"), b"\xff")?;
+    fs::write(directory.0.join("verify.token"), b"\xff")?;
     assert_eq!(
         directory
             .load(&base())

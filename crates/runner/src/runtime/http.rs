@@ -399,9 +399,10 @@ pub async fn read_json(mut response: Response) -> Result<Value, RuntimeError> {
     cannery_core::json::decode(&bytes, 128).map_err(|_| RuntimeError::Contract)?;
     serde_json::from_slice(&bytes).map_err(|_| RuntimeError::Contract)
 }
-/// Build the protocol completion manifest, never including lease/API credentials.
+/// Build a verify job's completion: the verification report and the job's
+/// output manifest, never including lease/API credentials.
 #[must_use]
-pub fn completion(job: &Value, evidence: &Value, objects: &[Value]) -> Value {
-    json!({"schema_version":"0.2", "job_id":job["job_id"], "evidence":evidence,
+pub fn completion(job: &Value, document: &str, objects: &[Value]) -> Value {
+    json!({"schema_version":"0.2", "job_id":job["job_id"], "document":document,
         "manifest":{"schema_version":"0.2", "attempt_id":job["attempt_id"], "objects":objects}})
 }

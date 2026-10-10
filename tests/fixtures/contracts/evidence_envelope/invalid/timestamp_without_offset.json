@@ -3,73 +3,50 @@
   "document": {
     "schema_version": "0.2",
     "attempt_id": "attempt-id",
-    "stage": "tester",
+    "stage": "agent",
     "status": "completed",
     "producer": {
-      "kind": "service",
-      "id": "tester-identity"
+      "kind": "agent",
+      "id": "codex-session-17"
     },
-    "started_at": "2026-09-29T00:00:00Z",
+    "started_at": "2026-09-28T20:00:00Z",
     "finished_at": "2026-09-29T01:00:00",
     "provenance": {
-      "source_revision": "git-commit-or-content-digest",
-      "tester_revision": "immutable-tester-digest",
-      "dataset_revision": "immutable-dataset-id",
-      "control_revision": "immutable-control-id",
+      "source_revision": "4f2a9c1",
       "science_revision": "science-revision",
-      "seed": 1
+      "seed": 0
     },
-    "observations": "Full test completed with no missing query rows.",
     "measurements": [
       {
         "metric": "ndcg_at_10",
-        "value": 0.42,
-        "authority": "tester_verified",
+        "value": 0.47,
+        "authority": "agent_claim",
         "unit": "ratio",
         "direction": "higher",
-        "split": "dev",
-        "dimensions": {
-          "language": "fr",
-          "task": "retrieval"
-        },
-        "sample_count": 100,
-        "control_value": 0.40,
-        "uncertainty": {
-          "method": "cluster-bootstrap",
-          "lower": 0.39,
-          "upper": 0.45
-        }
-      },
-      {
-        "metric": "ndcg_at_10",
-        "missing_reason": "No English queries in this dataset revision.",
-        "authority": "tester_verified",
-        "unit": "ratio",
-        "direction": "higher",
-        "split": "dev",
-        "dimensions": {
-          "language": "en"
-        }
-      }
-    ],
-    "discrepancies": [
-      {
-        "metric": "ndcg_at_10",
         "split": "dev",
         "dimensions": {
           "language": "fr"
         },
-        "claimed_value": 0.47,
-        "verified_value": 0.42,
-        "description": "Claimed value computed on a filtered query set."
+        "sample_count": 80
       }
     ],
     "artifact_roles": [
-      "raw_results",
-      "test_log"
+      "candidate_checkpoint"
     ],
-    "extensions": {
-      "gpu_seconds": 3400
-    }
+    "manifest": {
+      "ref": "input-manifest-id",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "report": {
+      "what_was_tried": "Pruned the vocabulary to 30k terms and retrained the sparse head.",
+      "configuration": "Code 4f2a9c1; data queries-2026-09; initialization base-camp-r1. Inherited: tokenizer. Changed: vocabulary size.",
+      "observations": "Training converged after 3 epochs.",
+      "findings": "Dev nDCG@10 improved on French queries.",
+      "limitations": "Only French queries were evaluated locally.",
+      "next_question": "Does the gain survive on the fresh held-out split?",
+      "elapsed_seconds": 12600,
+      "body_markdown": "# Compact sparse\n\nFull report."
+    },
+    "extensions": {}
   }
 }

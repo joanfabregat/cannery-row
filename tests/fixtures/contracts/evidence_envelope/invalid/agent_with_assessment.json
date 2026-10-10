@@ -1,5 +1,5 @@
 {
-  "reason": "/assessment",
+  "reason": "'assessment' was unexpected",
   "document": {
     "schema_version": "0.2",
     "attempt_id": "attempt-id",

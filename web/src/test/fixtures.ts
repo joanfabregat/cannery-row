@@ -172,33 +172,7 @@ export function report(overrides: Partial<Schemas["ReportOut"]> = {}): Schemas["
     ],
     submitted_at: "2026-03-03T10:00:00Z",
     author: { kind: "service", id: "codex" },
-    tester: {
-      status: "accepted",
-      observations: null,
-      discrepancies: [],
-      measurements: [
-        {
-          metric: "accuracy",
-          value: 0.91,
-          authority: "tester_verified",
-          unit: "ratio",
-          direction: "higher",
-          split: "test",
-          control_value: 0.9,
-        },
-      ],
-      published_at: "2026-03-03T12:00:00Z",
-    },
-    evaluation: {
-      status: "accepted",
-      verdict: "pass",
-      reason: "Accuracy held within the margin",
-      policy_revision: "1",
-      gates: [],
-      comparisons: [],
-      producer: { kind: "service", id: "judge" },
-      published_at: "2026-03-04T10:00:00Z",
-    },
+    verification: verification(),
     decisions: [],
     assets: [],
     ...overrides,
@@ -223,7 +197,7 @@ export function reviewCase(overrides: Partial<ReviewCase> = {}): ReviewCase {
     origin: "live",
     source_ref: null,
     failure: null,
-    evaluation: evaluation(),
+    verification: verificationDocument(),
     decisions: [],
     ...overrides,
   };
@@ -297,8 +271,8 @@ export function attention(
     running: [],
     recent_outcomes: [],
     recent_failures: [],
-    stalled_evaluation_count: 0,
-    stalled_evaluations: [],
+    stalled_verification_count: 0,
+    stalled_verifications: [],
     ...overrides,
   };
 }
@@ -346,31 +320,32 @@ export function artifact(
 
 const ATTEMPT_PREFIX = "projects/p1/attempts/a1";
 
-/** A finished test run of two steps, claimed by a runner, with a log per step. */
+/** A finished verify run of two steps, claimed by a runner, with a log per step. */
 export function job(overrides: Partial<Schemas["JobOut"]> = {}): Schemas["JobOut"] {
   const id = overrides.id ?? uuid();
-  const stage = overrides.stage ?? "tester";
-  const prefix = `${ATTEMPT_PREFIX}/${stage === "tester" ? "test" : "eval"}-runs/${id}/`;
+  const prefix = `${ATTEMPT_PREFIX}/verify-runs/${id}/`;
   return {
     id,
     attempt_id: uuid(),
-    stage,
+    phase: "verify",
+    performer: "runner",
     run_number: 1,
     origin: "submission",
     previous_run_id: null,
     state: "completed",
     science_revision: 1,
-    tester: "cannery-runner",
+    verifier: "cannery-runner",
     track: "tokenizer",
     steps: [
       { name: "overlap-producer", revision: 1 },
       { name: "fixture-scorer", revision: "1" },
     ],
-    parameters: stage === "tester" ? null : {},
+    parameters: {},
     output_prefix: prefix,
     created_at: "2026-03-03T10:00:00Z",
     claimed_at: "2026-03-03T10:01:00Z",
     claimed_by: uuid(),
+    claimed_by_user: null,
     via_client: "token:gke-runner",
     deadline: "2026-03-03T11:01:00Z",
     finished_at: "2026-03-03T10:20:00Z",
@@ -380,7 +355,7 @@ export function job(overrides: Partial<Schemas["JobOut"]> = {}): Schemas["JobOut
     error_code: null,
     error_reason: null,
     logs: [],
-    evidence: null,
+    verification: null,
     outputs: [
       artifact(`${prefix}overlap-producer/step_log/overlap-producer.log`),
       artifact(`${prefix}overlap-producer/run/run.json`, { role: "run" }),
@@ -407,7 +382,7 @@ export function hypothesisApi(
     reports?: Record<number, Schemas["ReportOut"]>;
     comments?: Schemas["CommentOut"][];
     members?: Schemas["MemberOut"][];
-    /** Each attempt's test and evaluation runs, by sequence. */
+    /** Each attempt's verify runs, by sequence. */
     jobs?: Record<number, Schemas["JobOut"][]>;
     project?: string;
   } = {},
@@ -483,32 +458,56 @@ export function dashboardView(
     ...overrides,
   };
 }
-export function evaluation(
-  overrides: Partial<Schemas["EvidenceEnvelopeRequest"]> = {},
-): Schemas["EvidenceEnvelopeRequest"] {
+/** A verified measurement of accuracy on the test split. */
+export function verifiedMeasurement(
+  overrides: Partial<Schemas["ReadMeasurement"]> = {},
+): Schemas["ReadMeasurement"] {
   return {
-    schema_version: "0.2",
-    attempt_id: "00000000-0000-4000-8000-000000000012",
-    stage: "evaluator",
-    status: "completed",
-    producer: { kind: "service", id: "judge" },
-    started_at: "2026-03-04T09:00:00Z",
-    finished_at: "2026-03-04T10:00:00Z",
-    provenance: { source_revision: "1", science_revision: "1" },
-    assessment: assessment(),
+    metric: "accuracy",
+    value: 0.91,
+    authority: "tester_verified",
+    unit: "ratio",
+    direction: "higher",
+    split: "test",
     ...overrides,
   };
 }
 
-export function assessment(
-  overrides: Partial<Schemas["RequestEvidenceEnvelopeAssessment"]> = {},
-): Schemas["RequestEvidenceEnvelopeAssessment"] {
+/** An attempt's verification report as its report read gives it: a passing verdict. */
+export function verification(
+  overrides: Partial<Schemas["VerificationReport"]> = {},
+): Schemas["VerificationReport"] {
   return {
-    policy_revision: "1",
+    status: "completed",
     verdict: "pass",
-    reason: "Accuracy held",
-    gates: [{ id: "accuracy_gate", result: "pass" }],
-    evidence: [{ ref: "verified_evidence", sha256: "0".repeat(64) }],
+    reason: "Accuracy held within the margin",
+    policy_revision: "1",
+    gates: [],
+    comparisons: [],
+    measurements: [verifiedMeasurement({ control_value: 0.9 })],
+    discrepancies: [],
+    body_markdown: null,
+    producer: { kind: "service", id: "judge" },
+    published_at: "2026-03-04T10:00:00Z",
     ...overrides,
+  };
+}
+
+/** A verification report as stored: its front matter and its Markdown body. */
+export function verificationDocument(
+  frontMatter: Record<string, unknown> = {},
+  body = "",
+): Schemas["VerificationDocument"] {
+  return {
+    front_matter: {
+      verdict: "pass",
+      reason: "Accuracy held",
+      policy_revision: "1",
+      gates: [{ id: "accuracy_gate", result: "pass" }],
+      measurements: [verifiedMeasurement()],
+      provenance: { source_revision: "1", science_revision: "1" },
+      ...frontMatter,
+    },
+    body_markdown: body,
   };
 }

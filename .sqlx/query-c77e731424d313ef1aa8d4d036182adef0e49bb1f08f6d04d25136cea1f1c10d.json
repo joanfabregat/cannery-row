@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM jobs\n            WHERE attempt_id = $1 AND phase = $2 AND origin = 'auto_retry'\n              AND run_number > (\n                  SELECT coalesce(max(run_number), 0) FROM jobs\n                  WHERE attempt_id = $1 AND phase = $2 AND origin <> 'auto_retry')\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c77e731424d313ef1aa8d4d036182adef0e49bb1f08f6d04d25136cea1f1c10d"
+}

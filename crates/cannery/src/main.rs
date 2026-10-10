@@ -39,7 +39,7 @@ struct Arguments {
 enum Command {
     /// Claim and execute jobs with a dedicated runner credential.
     Runner(Box<cannery_runner::runtime::command::RunnerArgs>),
-    /// Apply a stock evaluation policy using a dedicated evaluator credential.
+    /// Apply a stock policy to a scorer's evidence offline and print the verdict.
     Evaluator(cannery_runner::runtime::evaluator_command::EvaluatorArgs),
     /// Apply pending database migrations.
     Migrate,
@@ -101,7 +101,7 @@ async fn regular_main() -> ExitCode {
             };
         }
         Command::Evaluator(arguments) => {
-            return match cannery_runner::runtime::evaluator_command::run(arguments).await {
+            return match cannery_runner::runtime::evaluator_command::run(arguments) {
                 Ok(status) => ExitCode::from(u8::try_from(status).unwrap_or(1)),
                 Err(error) => {
                     eprintln!("cannery evaluator: {error}");

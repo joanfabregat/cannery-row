@@ -163,8 +163,7 @@ fn all_thirty_nine_projections_and_contract_writes_are_asserted() {
             continue;
         }
         let kind = match case["kind"].as_str().unwrap() {
-            "tester" => JobKind::Tester,
-            "evaluator" => JobKind::Evaluator,
+            "verify" => JobKind::Verify,
             "experiment" => JobKind::Experiment,
             _ => panic!("unknown kind"),
         };
@@ -249,7 +248,7 @@ fn all_thirty_nine_projections_and_contract_writes_are_asserted() {
             assert_eq!(json!(actual.ends_with(b"\n")), expected["trailing_newline"]);
         }
     }
-    assert_eq!((written, failed), (21, 13));
+    assert_eq!((written, failed), (20, 14));
 }
 #[test]
 fn raw_container_rendering_errors_are_sanitized() {
@@ -272,7 +271,7 @@ fn rendering_failure_precedes_file_truncation_and_output_creation() {
     let claim = document(case["claim"]["json"].as_str().unwrap());
     let step = document(case["step"]["json"].as_str().unwrap());
     let context = JobContext {
-        kind: JobKind::Tester,
+        kind: JobKind::Verify,
         claim: &claim,
         step: &step,
         metrics: None,

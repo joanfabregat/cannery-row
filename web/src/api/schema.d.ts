@@ -217,7 +217,7 @@ export interface paths {
         /**
          * Attention
          * @description Pending reviews, running work, recent outcomes and failures of the project,
-         *     and evaluation jobs no evaluator has claimed for too long.
+         *     and verify jobs nobody has claimed for too long.
          */
         get: operations["attention_api_projects__slug__attention_get"];
         put?: never;
@@ -699,7 +699,7 @@ export interface paths {
         };
         /**
          * List Attempt Jobs
-         * @description The attempt's test and evaluation runs, by stage and run number.
+         * @description The attempt's verify jobs, by run number.
          */
         get: operations["list_attempt_jobs_api_projects__slug__hypotheses__number__attempts__sequence__jobs_get"];
         put?: never;
@@ -896,12 +896,13 @@ export interface paths {
         put?: never;
         /**
          * Claim Job
-         * @description Claim the oldest waiting job of the caller's stage registered to its name.
+         * @description Claim the oldest waiting verify job the caller may verify.
          *
-         *     A tester claims test jobs and an evaluator evaluation jobs, each only the
-         *     jobs its project's science revision registers under its account name. An
-         *     evaluator names the policy revision it applies and receives only jobs
-         *     pinned to it, so evaluators of two revisions can run side by side.
+         *     A verifier service account names the policy revision it applies and claims
+         *     only the runner jobs its project's science revision registers under its
+         *     account name and that revision. An agent service account or a researcher
+         *     names no revision and claims agent jobs, never one of an attempt it ran
+         *     itself.
          *
          *     Replaying an ``Idempotency-Key`` while its claim still holds the lease
          *     reissues the lease token under the next lease generation (the first
@@ -943,17 +944,15 @@ export interface paths {
         put?: never;
         /**
          * Complete Job
-         * @description Publish the job's evidence envelope with the manifest of its outputs.
+         * @description Publish the verification report with the manifest of the job's outputs.
          *
-         *     A test job completes with tester evidence and a manifest; the attempt
-         *     moves on to ``evaluating`` and waits for its evaluation job
-         *     (:mod:`cannery_row.evaluation.flow`). An evaluation job completes with the
-         *     evaluator's record (the
-         *     manifest is optional); the attempt then awaits human review in a
-         *     ``result`` case. Repeating a completion returns the completed job
-         *     without publishing again. An invalid completion from the lease holder is
-         *     an infrastructure failure of the job's stage: it reruns or fails the
-         *     attempt for human review.
+         *     The report is Markdown with YAML front matter (``verification.schema.json``)
+         *     and an optional body. The attempt then awaits human review in a ``result``
+         *     case. Repeating a completion returns the completed job without publishing
+         *     again. An invalid report from a runner is an infrastructure failure of the
+         *     job: it reruns from the failed step or fails the attempt for human review.
+         *     An invalid report from an agent or a researcher is refused and the lease
+         *     is kept, so it can be corrected and sent again.
          */
         post: operations["complete_job_api_projects__slug__jobs__job_id__completion_post"];
         delete?: never;
@@ -975,14 +974,14 @@ export interface paths {
          * Fail Job
          * @description Report that the job failed: never with metrics, always with a reason.
          *
-         *     The stage runs again automatically while reruns remain; then the attempt
-         *     fails with a failure of the job's stage and a review case opens. An
-         *     evaluator crash is such a failure, never a `fail` or `inconclusive` verdict.
-         *     An `invalid_step_output` naming a producer step is the agent's failure
-         *     (the attempt fails at once for review, with no rerun) only when the API
-         *     itself refused one of that step's outputs in this job, against the
+         *     The job runs again automatically, from the failed step, while reruns
+         *     remain; then the attempt fails with a ``verify`` failure and a review case
+         *     opens. A policy crash is such a failure, never a `fail` or `inconclusive`
+         *     verdict. An `invalid_step_output` naming a producer step is the agent's
+         *     failure (the attempt fails at once for review, with no rerun) only when
+         *     the API itself refused one of that step's outputs in this job, against the
          *     interface the step declares for it (see `PUT /api/job-uploads/{id}`).
-         *     Otherwise, whatever the report says, it is the tester's failure.
+         *     Otherwise, whatever the report says, it is the verifier's failure.
          */
         post: operations["fail_job_api_projects__slug__jobs__job_id__failure_post"];
         delete?: never;
@@ -1008,46 +1007,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{slug}/jobs/{job_id}/inputs/claimed-sheet": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Claimed Sheet
-         * @description The front matter of the frozen run document the job tests: the claims, provenance and manifest (test jobs only).
-         */
-        get: operations["claimed_sheet_api_projects__slug__jobs__job_id__inputs_claimed_sheet_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/jobs/{job_id}/inputs/evidence": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Input Evidence
-         * @description The tester-verified evidence records an evaluation job assesses, in its input order.
-         */
-        get: operations["input_evidence_api_projects__slug__jobs__job_id__inputs_evidence_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/projects/{slug}/jobs/{job_id}/inputs/manifest": {
         parameters: {
             query?: never;
@@ -1057,8 +1016,7 @@ export interface paths {
         };
         /**
          * Input Manifest
-         * @description The verified artifact manifest the job reads: the submission's for a test job,
-         *     the tested outputs' for an evaluation job.
+         * @description The verified artifact manifest of the run the job verifies.
          */
         get: operations["input_manifest_api_projects__slug__jobs__job_id__inputs_manifest_get"];
         put?: never;
@@ -1078,7 +1036,8 @@ export interface paths {
         };
         /**
          * Input Object
-         * @description Stream one object listed in the job's input manifest; nothing else is readable.
+         * @description Stream one object listed in the job's input manifest, or one output of an earlier
+         *     run the job resumes from (``resume.outputs``); nothing else is readable.
          *
          *     With an object store that presigns, the answer is a redirect (302) to a
          *     short-lived presigned GET instead: follow it without this request's
@@ -1088,6 +1047,26 @@ export interface paths {
          *     artifact (another size or generation), is ``not_found``.
          */
         get: operations["input_object_api_projects__slug__jobs__job_id__inputs_object_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/jobs/{job_id}/inputs/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Input Run
+         * @description The front matter of the frozen run document the job verifies: the run's claims, provenance and manifest. The run notes are not an input.
+         */
+        get: operations["input_run_api_projects__slug__jobs__job_id__inputs_run_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2092,7 +2071,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        AttemptState: "claimed" | "running" | "submitted" | "testing" | "evaluating" | "awaiting_human_review" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled" | "unreviewed";
+        AttemptState: "claimed" | "running" | "verifying" | "awaiting_human_review" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled" | "unreviewed";
         AttentionFailure: {
             attempt_ref: string;
             code: string;
@@ -2119,8 +2098,8 @@ export interface components {
             /** Format: int64 */
             running_count: number;
             /** Format: int64 */
-            stalled_evaluation_count: number;
-            stalled_evaluations: components["schemas"]["AttentionStalledEvaluation"][];
+            stalled_verification_count: number;
+            stalled_verifications: components["schemas"]["AttentionStalledVerification"][];
         };
         AttentionOutcome: {
             action: string;
@@ -2167,16 +2146,17 @@ export interface components {
             title: string;
             track: string;
         };
-        AttentionStalledEvaluation: {
+        AttentionStalledVerification: {
             attempt_ref: string;
-            evaluator: string;
             /** Format: int64 */
             hypothesis: number;
             hypothesis_ref: string;
             message: string;
-            revision: string;
+            performer: string;
+            revision: string | null;
             title: string;
             track: string;
+            verifier: string | null;
             /** Format: date-time */
             waiting_since: string;
         };
@@ -2287,27 +2267,29 @@ export interface components {
             control?: components["schemas"]["ClaimedJobPinnedRef"] | null;
             /** Format: date-time */
             deadline: string;
-            evaluator?: components["schemas"]["ClaimedJobService"] | null;
             inputs: components["schemas"]["ClaimedJobInputs"];
             job_id: string;
             lease: components["schemas"]["ClaimedJobLease"];
             limits: components["schemas"]["ClaimedJobLimits"];
             output_prefix: string;
             /** @description Frozen project fields can contain scalar legacy values. */
-            parameters?: unknown;
+            parameters: unknown;
+            performer: components["schemas"]["ClaimedJobPerformer"];
+            phase: components["schemas"]["ClaimedJobPhase"];
+            resume?: components["schemas"]["ClaimedJobResume"] | null;
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             science_revision: string;
-            stage: components["schemas"]["CompletionEvidenceStage"];
-            steps?: components["schemas"]["ClaimedJobStep"][] | null;
-            tester?: components["schemas"]["ClaimedJobService"] | null;
+            steps: components["schemas"]["ClaimedJobStep"][];
             track: string;
+            verifier?: components["schemas"]["ClaimedJobService"] | null;
         };
         ClaimedJobInputs: {
             baselines: components["schemas"]["ClaimedJobPinnedRef"][];
-            claimed_sheet?: components["schemas"]["RequestCommonContentRef"] | null;
             datasets: components["schemas"]["ClaimedJobPinnedRef"][];
-            evidence?: components["schemas"]["RequestCommonContentRef"][] | null;
-            manifest?: components["schemas"]["RequestCommonContentRef"] | null;
+            /** @description The run's artifact manifest, read at `inputs/manifest`. */
+            manifest: components["schemas"]["RequestCommonContentRef"];
+            /** @description The run front matter, read at `inputs/run`. */
+            run: components["schemas"]["RequestCommonContentRef"];
         };
         ClaimedJobLease: {
             /** Format: date-time */
@@ -2320,9 +2302,28 @@ export interface components {
             /** Format: int64 */
             max_output_bytes: number;
         };
+        /** @enum {string} */
+        ClaimedJobPerformer: "runner" | "agent";
+        /** @enum {string} */
+        ClaimedJobPhase: "verify";
         ClaimedJobPinnedRef: {
             id: string;
             revision: string;
+        };
+        /** @description Where an automatic rerun starts, and the earlier steps' outputs it reuses. */
+        ClaimedJobResume: {
+            from_step: string;
+            outputs: components["schemas"]["ClaimedJobResumeOutput"][];
+        };
+        ClaimedJobResumeOutput: {
+            interface?: string | null;
+            key: string;
+            media_type: string;
+            name: string;
+            sha256: string;
+            /** Format: int64 */
+            size_bytes: number;
+            step: string;
         };
         ClaimedJobService: {
             id: string;
@@ -2337,7 +2338,7 @@ export interface components {
          * @description What an attempt claimed: a run document's front matter, or a claimed result
          *     sheet submitted before run documents.
          */
-        ClaimedResult: components["schemas"]["RunFrontMatter"] | components["schemas"]["ReadEvidenceEnvelope"];
+        ClaimedResult: components["schemas"]["RunFrontMatter"] | components["schemas"]["EvidenceEnvelopeRequest"];
         /** @description Resolved workflow with pinned manifests, inputs and the prior attempt. */
         ClaimedWorkflow: {
             attempt_id: string;
@@ -2437,31 +2438,7 @@ export interface components {
             value: number;
             verdict: components["schemas"]["Verdict"];
         };
-        CompletionEvidenceEnvelopeRequest: {
-            artifact_roles?: string[];
-            assessment?: components["schemas"]["RequestEvidenceEnvelopeAssessment"];
-            attempt_id: string;
-            discrepancies?: components["schemas"]["RequestEvidenceEnvelopeDiscrepancy"][];
-            extensions?: {
-                [key: string]: unknown;
-            };
-            /** Format: date-time */
-            finished_at: string;
-            manifest?: components["schemas"]["RequestCommonContentRef"];
-            measurements?: components["schemas"]["RequestEvidenceEnvelopeMeasurement"][];
-            observations?: string;
-            producer: components["schemas"]["EvidenceEnvelopeRequestProducer"];
-            provenance: components["schemas"]["EvidenceEnvelopeRequestProvenance"];
-            report?: components["schemas"]["RequestEvidenceEnvelopeReport"];
-            schema_version: components["schemas"]["RequestCommonSchemaVersion"];
-            stage: components["schemas"]["CompletionEvidenceStage"];
-            /** Format: date-time */
-            started_at: string;
-            status: components["schemas"]["EvidenceEnvelopeRequestStatus"];
-        };
-        /** @enum {string} */
-        CompletionEvidenceStage: "tester" | "evaluator";
-        ConfigDocument: components["schemas"]["ConfigRevisionRequest"] | components["schemas"]["LegacyScienceRevision"];
+        ConfigDocument: components["schemas"]["ConfigRevisionRequest"];
         ConfigOut: {
             content: components["schemas"]["ConfigDocument"];
             /** Format: date-time */
@@ -2572,21 +2549,8 @@ export interface components {
         ErrorResponse: {
             error: components["schemas"]["ErrorDetail"];
         };
-        EvaluatorReport: {
-            comparisons: components["schemas"]["RequestEvidenceEnvelopeComparison"][];
-            gates: components["schemas"]["RequestEvidenceEnvelopeAssessmentGatesItem"][];
-            policy_revision: string | null;
-            producer: components["schemas"]["Producer"];
-            /** Format: date-time */
-            published_at: string;
-            reason: string | null;
-            source_ref?: string | null;
-            status: string;
-            verdict: string | null;
-        };
         EvidenceEnvelopeRequest: {
             artifact_roles?: string[];
-            assessment?: components["schemas"]["RequestEvidenceEnvelopeAssessment"];
             attempt_id: string;
             discrepancies?: components["schemas"]["RequestEvidenceEnvelopeDiscrepancy"][];
             extensions?: {
@@ -2594,12 +2558,12 @@ export interface components {
             };
             /** Format: date-time */
             finished_at: string;
-            manifest?: components["schemas"]["RequestCommonContentRef"];
+            manifest: components["schemas"]["RequestCommonContentRef"];
             measurements?: components["schemas"]["RequestEvidenceEnvelopeMeasurement"][];
             observations?: string;
             producer: components["schemas"]["EvidenceEnvelopeRequestProducer"];
             provenance: components["schemas"]["EvidenceEnvelopeRequestProvenance"];
-            report?: components["schemas"]["RequestEvidenceEnvelopeReport"];
+            report: components["schemas"]["RequestEvidenceEnvelopeReport"];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             stage: components["schemas"]["EvidenceEnvelopeRequestStage"];
             /** Format: date-time */
@@ -2611,7 +2575,7 @@ export interface components {
             kind: components["schemas"]["EvidenceEnvelopeRequestProducerKind"];
         };
         /** @enum {string} */
-        EvidenceEnvelopeRequestProducerKind: "agent" | "service" | "builtin";
+        EvidenceEnvelopeRequestProducerKind: "agent";
         EvidenceEnvelopeRequestProvenance: {
             control_revision?: string;
             dataset_revision?: string;
@@ -2619,18 +2583,11 @@ export interface components {
             /** Format: int64 */
             seed?: number;
             source_revision: string;
-            tester_revision?: string;
         };
         /** @enum {string} */
-        EvidenceEnvelopeRequestStage: "agent" | "tester" | "evaluator";
+        EvidenceEnvelopeRequestStage: "agent";
         /** @enum {string} */
         EvidenceEnvelopeRequestStatus: "completed" | "failed";
-        /** @enum {string} */
-        GateComparison: "control";
-        /** @enum {string} */
-        GateOperator: ">" | ">=" | "<" | "<=";
-        /** @enum {string} */
-        GateStatistic: "value" | "uncertainty.lower" | "uncertainty.upper";
         HTTPValidationError: {
             detail?: components["schemas"]["ValidationError"][] | null;
         } & {
@@ -2773,33 +2730,6 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
-        ImportedEvidenceEnvelope: {
-            assessment?: components["schemas"]["RequestEvidenceEnvelopeAssessment"];
-            attempt_id: string;
-            /** Format: date-time */
-            finished_at: string;
-            measurements?: components["schemas"]["ReadMeasurement"][];
-            observations?: string;
-            producer: components["schemas"]["ImportedEvidenceProducer"];
-            provenance: components["schemas"]["ImportedEvidenceProvenance"];
-            schema_version: components["schemas"]["RequestCommonSchemaVersion"];
-            stage: components["schemas"]["EvidenceEnvelopeRequestStage"];
-            /** Format: date-time */
-            started_at: string;
-            status: components["schemas"]["EvidenceEnvelopeRequestStatus"];
-        };
-        ImportedEvidenceProducer: {
-            id: components["schemas"]["ImportedEvidenceProducerId"];
-            kind: components["schemas"]["ImportedEvidenceProducerKind"];
-        };
-        /** @enum {string} */
-        ImportedEvidenceProducerId: "cannery-import";
-        /** @enum {string} */
-        ImportedEvidenceProducerKind: "import";
-        ImportedEvidenceProvenance: {
-            science_revision: string;
-            source_revision?: string;
-        };
         ImportedReportDocument: {
             author: string;
             body_markdown: string;
@@ -2837,11 +2767,13 @@ export interface components {
             plan?: components["schemas"]["PlanRef"] | null;
         };
         JobClaimRequest: {
+            /** @description The phase to claim a job of; only `verify` today. */
+            phase?: string | null;
             revision?: string | null;
-            stage?: string | null;
         };
         JobCompletionRequest: {
-            evidence: components["schemas"]["CompletionEvidenceEnvelopeRequest"];
+            /** @description The verification report: Markdown with YAML front matter. */
+            document: string;
             job_id: string;
             manifest?: components["schemas"]["ArtifactManifestRequest"];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
@@ -2873,8 +2805,16 @@ export interface components {
             attempt_id: string;
             /** Format: date-time */
             claimed_at: string | null;
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description The service account that claimed the job.
+             */
             claimed_by: string | null;
+            /**
+             * Format: uuid
+             * @description The researcher who claimed the job.
+             */
+            claimed_by_user: string | null;
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -2882,7 +2822,6 @@ export interface components {
             error_code: string | null;
             error_reason: string | null;
             error_step: string | null;
-            evidence: components["schemas"]["ReadEvidenceEnvelope"] | null;
             /** Format: date-time */
             finished_at: string | null;
             /** Format: uuid */
@@ -2897,18 +2836,25 @@ export interface components {
             outputs: components["schemas"]["ArtifactOut"][];
             parameters: {
                 [key: string]: unknown;
-            } | null;
+            };
+            /**
+             * @description `runner` (a verifier service account runs it) or `agent` (an agent
+             *     service account or a researcher who did not run the attempt).
+             */
+            performer: string;
+            phase: string;
             /** Format: uuid */
             previous_run_id: string | null;
             /** Format: int64 */
             run_number: number;
             /** Format: int64 */
             science_revision: number;
-            stage: string;
             state: string;
             steps: components["schemas"]["StepRef"][];
-            tester: string;
             track: string;
+            verification: components["schemas"]["VerificationDocument"] | null;
+            /** @description The verifier service account registered to run a runner job. */
+            verifier: string | null;
             via_client: string | null;
         };
         JobUploadRequest: {
@@ -2932,30 +2878,6 @@ export interface components {
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             title: string;
             track: string;
-        };
-        LegacyScienceRevision: {
-            baselines: components["schemas"]["ScienceRevisionRequestBaselinesItem"][];
-            code_repositories?: components["schemas"]["ScienceRevisionRequestCodeRepositories"];
-            datasets: components["schemas"]["ScienceRevisionRequestDatasetsItem"][];
-            default_producer: components["schemas"]["RequestCommonProducerRef"];
-            gates?: components["schemas"]["RequestCommonGate"][];
-            hypothesis_fields?: {
-                [key: string]: unknown;
-            };
-            interfaces: components["schemas"]["InterfaceRequest"][];
-            limits: components["schemas"]["ScienceRevisionRequestLimits"];
-            /** Format: int64 */
-            max_auto_retries?: number;
-            metrics: components["schemas"]["RequestScienceRevisionMetric"][];
-            required_artifact_roles: components["schemas"]["ScienceRevisionRequestRequiredArtifactRoles"];
-            result_extensions?: {
-                [key: string]: unknown;
-            };
-            retention?: components["schemas"]["ScienceRevisionRequestRetentionItem"][];
-            schema_version: components["schemas"]["RequestCommonSchemaVersion"];
-            scorer: components["schemas"]["StepManifestRequest"];
-            tester: components["schemas"]["ScienceRevisionRequestTester"];
-            validators?: components["schemas"]["StepManifestRequest"][];
         };
         LinkOut: {
             kind: string;
@@ -3368,7 +3290,6 @@ export interface components {
             slug: string;
             title: string;
         };
-        ReadEvidenceEnvelope: components["schemas"]["EvidenceEnvelopeRequest"] | components["schemas"]["ImportedEvidenceEnvelope"];
         /** @description Evidence reads include provenance that historical import records preserve. */
         ReadMeasurement: {
             authority: components["schemas"]["ReadMeasurementAuthority"];
@@ -3416,7 +3337,6 @@ export interface components {
             author: components["schemas"]["Producer"];
             claimed_measurements: components["schemas"]["ReadMeasurement"][];
             decisions: components["schemas"]["DecisionOut"][];
-            evaluation: components["schemas"]["EvaluatorReport"] | null;
             /** Format: int64 */
             hypothesis: number;
             hypothesis_title: string;
@@ -3430,8 +3350,8 @@ export interface components {
             status: string;
             /** Format: date-time */
             submitted_at: string;
-            tester: components["schemas"]["TesterReport"] | null;
             track: string;
+            verification: components["schemas"]["VerificationReport"] | null;
         };
         ReportSummary: {
             attempt_ref: string;
@@ -3470,17 +3390,6 @@ export interface components {
             ref: string;
             sha256: string;
         };
-        RequestCommonGate: {
-            compare: components["schemas"]["GateComparison"];
-            id: string;
-            metric: string;
-            /** Format: double */
-            min_delta: number;
-            op: components["schemas"]["GateOperator"];
-            per_dimension?: string;
-            split: string;
-            statistic: components["schemas"]["GateStatistic"];
-        };
         RequestCommonProducerRef: {
             name: string;
             /** Format: int64 */
@@ -3503,23 +3412,6 @@ export interface components {
         };
         /** @enum {string} */
         RequestDashboardViewsViewChart: "line" | "scatter" | "bar" | "table";
-        RequestEvidenceEnvelopeAssessment: {
-            comparisons?: components["schemas"]["RequestEvidenceEnvelopeComparison"][];
-            evidence: components["schemas"]["RequestCommonContentRef"][];
-            gates: components["schemas"]["RequestEvidenceEnvelopeAssessmentGatesItem"][];
-            policy_revision: string;
-            reason: string;
-            verdict: components["schemas"]["RequestEvidenceEnvelopeAssessmentVerdict"];
-        };
-        RequestEvidenceEnvelopeAssessmentGatesItem: {
-            detail?: string;
-            id: string;
-            result: components["schemas"]["RequestEvidenceEnvelopeAssessmentGatesItemResult"];
-        };
-        /** @enum {string} */
-        RequestEvidenceEnvelopeAssessmentGatesItemResult: "pass" | "fail" | "unknown";
-        /** @enum {string} */
-        RequestEvidenceEnvelopeAssessmentVerdict: "pass" | "fail" | "inconclusive";
         RequestEvidenceEnvelopeComparison: {
             dimensions: {
                 [key: string]: string;
@@ -3678,7 +3570,6 @@ export interface components {
             code_repositories?: components["schemas"]["ScienceRevisionRequestCodeRepositories"];
             datasets: components["schemas"]["ScienceRevisionRequestDatasetsItem"][];
             default_producer: components["schemas"]["RequestCommonProducerRef"];
-            evaluator: components["schemas"]["ScienceRevisionRequestEvaluator"];
             hypothesis_fields?: {
                 [key: string]: unknown;
             };
@@ -3694,8 +3585,8 @@ export interface components {
             retention?: components["schemas"]["ScienceRevisionRequestRetentionItem"][];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             scorer: components["schemas"]["StepManifestRequest"];
-            tester: components["schemas"]["ScienceRevisionRequestTester"];
             validators?: components["schemas"]["StepManifestRequest"][];
+            verify: components["schemas"]["ScienceRevisionRequestVerify"];
         };
         ScienceRevisionRequestBaselinesItem: {
             description?: string;
@@ -3712,10 +3603,6 @@ export interface components {
             id: string;
             revision: string;
         };
-        ScienceRevisionRequestEvaluator: {
-            id: string;
-            revision: string;
-        };
         ScienceRevisionRequestLimits: {
             /** Format: int64 */
             max_deadline_seconds?: number;
@@ -3729,17 +3616,29 @@ export interface components {
         };
         ScienceRevisionRequestRequiredArtifactRoles: {
             attempt: string[];
-            tester: string[];
+            verify: string[];
         };
         ScienceRevisionRequestRetentionItem: {
             /** Format: int64 */
             days: number;
             role: string;
         };
-        ScienceRevisionRequestTester: {
+        /** @description The verifier service account and the policy revision it applies. */
+        ScienceRevisionRequestVerifier: {
             id: string;
-            revision?: string;
+            revision: string;
         };
+        /**
+         * @description How a science revision's attempts are verified: by a registered verifier
+         *     service account running `cannery runner`, or by an agent or a researcher
+         *     who did not run the attempt.
+         */
+        ScienceRevisionRequestVerify: {
+            performer: components["schemas"]["ScienceRevisionRequestVerifyPerformer"];
+            verifier?: components["schemas"]["ScienceRevisionRequestVerifier"];
+        };
+        /** @enum {string} */
+        ScienceRevisionRequestVerifyPerformer: "runner" | "agent";
         /** @enum {string} */
         ScopeName: "read" | "write";
         SearchHit: {
@@ -3817,7 +3716,7 @@ export interface components {
             project: string;
         };
         /** @enum {string} */
-        ServiceKind: "agent" | "experimenter" | "tester" | "evaluator";
+        ServiceKind: "agent" | "experimenter" | "verifier";
         StepManifestRequest: {
             apiVersion: components["schemas"]["StepManifestRequestApiVersion"];
             kind: components["schemas"]["StepManifestRequestKind"];
@@ -3888,7 +3787,7 @@ export interface components {
             path: string;
         };
         /** @enum {string} */
-        StepManifestRequestSpecRole: "producer" | "scorer" | "validator" | "experiment" | "evaluator";
+        StepManifestRequestSpecRole: "producer" | "scorer" | "validator" | "experiment" | "policy";
         StepManifestRequestSpecSetup: {
             /** Format: int64 */
             activeDeadlineSeconds?: number;
@@ -3909,15 +3808,6 @@ export interface components {
             backend: string;
             bucket: string;
             key: string;
-        };
-        TesterReport: {
-            discrepancies: components["schemas"]["RequestEvidenceEnvelopeDiscrepancy"][];
-            measurements: components["schemas"]["ReadMeasurement"][];
-            observations: string | null;
-            /** Format: date-time */
-            published_at: string;
-            source_ref?: string | null;
-            status: string;
         };
         TokenCreate: {
             /** Format: int64 */
@@ -4184,6 +4074,37 @@ export interface components {
         ValidationErrorLocItemValue: string | number;
         /** @enum {string} */
         Verdict: "pass" | "fail" | "inconclusive";
+        /** @description A published verification report: its front matter and its Markdown body. */
+        VerificationDocument: {
+            body_markdown: string;
+            front_matter: {
+                [key: string]: unknown;
+            };
+        };
+        /** @description One gate of a verification report. */
+        VerificationGate: {
+            detail?: string;
+            id: string;
+            result: components["schemas"]["VerificationGateResult"];
+        };
+        /** @enum {string} */
+        VerificationGateResult: "pass" | "fail" | "unknown";
+        VerificationReport: {
+            /** @description The report's Markdown body; null when it has none. */
+            body_markdown: string | null;
+            comparisons: components["schemas"]["RequestEvidenceEnvelopeComparison"][];
+            discrepancies: components["schemas"]["RequestEvidenceEnvelopeDiscrepancy"][];
+            gates: components["schemas"]["VerificationGate"][];
+            measurements: components["schemas"]["ReadMeasurement"][];
+            policy_revision: string | null;
+            producer: components["schemas"]["Producer"];
+            /** Format: date-time */
+            published_at: string;
+            reason: string | null;
+            source_ref?: string | null;
+            status: string;
+            verdict: string | null;
+        };
         ViewMetric: components["schemas"]["RequestScienceRevisionMetric"] | components["schemas"]["UnregisteredMetric"];
         ViewOut: {
             aggregation: string | null;
@@ -4240,7 +4161,6 @@ export interface components {
             attempt_ref: string | null;
             attempt_state: string | null;
             decisions: components["schemas"]["DecisionOut"][];
-            evaluation: components["schemas"]["ReadEvidenceEnvelope"] | null;
             failure: components["schemas"]["cannery_row__reviews__routes__FailureOut"] | null;
             /** Format: int64 */
             hypothesis: number;
@@ -4258,9 +4178,10 @@ export interface components {
             state: string;
             /** Format: int64 */
             subject_revision: number;
+            verification: components["schemas"]["VerificationDocument"] | null;
         };
         /** @enum {string} */
-        cannery_row__search__routes__Kind: "track" | "hypothesis" | "attempt" | "report" | "tester_observation" | "evaluator_reason" | "decision_reason" | "comment";
+        cannery_row__search__routes__Kind: "track" | "hypothesis" | "attempt" | "report" | "verification" | "decision_reason" | "comment";
     };
     responses: never;
     parameters: never;
@@ -9350,202 +9271,6 @@ export interface operations {
             };
         };
     };
-    claimed_sheet_api_projects__slug__jobs__job_id__inputs_claimed_sheet_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-            };
-            path: {
-                slug: string;
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClaimedResult"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    input_evidence_api_projects__slug__jobs__job_id__inputs_evidence_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-            };
-            path: {
-                slug: string;
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceEnvelopeRequest"][];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     input_manifest_api_projects__slug__jobs__job_id__inputs_manifest_get: {
         parameters: {
             query?: never;
@@ -9676,6 +9401,104 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    input_run_api_projects__slug__jobs__job_id__inputs_run_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+            };
+            path: {
+                slug: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaimedResult"];
+                };
             };
             /** @description Invalid request */
             400: {

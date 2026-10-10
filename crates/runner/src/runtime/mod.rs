@@ -2,15 +2,14 @@
 pub mod backend;
 pub mod command;
 pub mod container_command;
-pub mod evaluator;
 pub mod evaluator_command;
 pub mod experiment;
 pub mod github;
 pub mod http;
-pub mod policy_evaluator;
 pub mod process;
 pub mod provision;
 pub mod validation;
+pub mod verify;
 pub mod worker;
 
 use std::{future::Future, pin::Pin};

@@ -1,4 +1,4 @@
-//! Source deadlines shared by experiment workflows and test/evaluation jobs.
+//! Source deadlines shared by experiment workflows and verify jobs.
 use crate::{
     science::{self, RenderingContext, Science, ScienceError, Value},
     steps::{self, Side},

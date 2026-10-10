@@ -11,6 +11,7 @@ import {
   report,
   review,
   token,
+  verification,
 } from "@/test/fixtures";
 
 import {
@@ -45,24 +46,13 @@ describe("the outcome sentence", () => {
     const summary = summarizeOutcome(
       h,
       attempt(),
-      report({
-        evaluation: {
-          status: "accepted",
-          verdict: "fail",
-          reason: null,
-          policy_revision: "1",
-          gates: [],
-          comparisons: [],
-          producer: { kind: "service", id: "judge" },
-          published_at: "2026-03-04T10:00:00Z",
-        },
-      }),
+      report({ verification: verification({ verdict: "fail", reason: null }) }),
     );
     expect(summary.sentence).toBe(
-      "We tried “Shorter prompts”: the evaluation did not pass its checks, and a researcher rejected it because “Too slow!”",
+      "We tried “Shorter prompts”: the verification did not pass its checks, and a researcher rejected it because “Too slow!”",
     );
     expect(summary.tried).toBe("Halved the system prompt");
-    expect(summary.happened).toBe("The evaluation did not pass its checks.");
+    expect(summary.happened).toBe("The verification did not pass its checks.");
     expect(summary.why).toBe("Too slow!");
   });
 
@@ -163,7 +153,7 @@ describe("hypotheses without a control", () => {
   });
 });
 
-describe("evaluator comparisons", () => {
+describe("verification comparisons", () => {
   it("read the comparisons of a record, skipping malformed entries", () => {
     expect(
       asComparisons([
@@ -206,9 +196,9 @@ describe("evaluator comparisons", () => {
     expect(asComparisons([entry])[0]?.dimensions).toEqual({});
   });
 
-  it("name the evaluator that judged and its rules version", () => {
-    expect(judgedBy({ kind: "service", id: "stock-evaluator" }, "p2")).toBe(
-      "Judged by stock-evaluator (rules version p2)",
+  it("name the verifier that judged and its rules version", () => {
+    expect(judgedBy({ kind: "service", id: "stock-verifier" }, "p2")).toBe(
+      "Judged by stock-verifier (rules version p2)",
     );
     expect(judgedBy({ kind: "builtin", id: "builtin-evaluator" }, "1")).toBe(
       "Judged by Cannery Row's former built-in checks (rules version 1)",
@@ -346,10 +336,13 @@ describe("the outcome sentence after a failure was tried again", () => {
     );
   });
 
-  it("names the failure when a stage is run again on the same attempt", () => {
+  it("names the failure when the verification is run again on the same attempt", () => {
     const summary = summarizeOutcome(
       hypothesis({ state: "active", reviews: [retried] }),
-      attempt({ state: "testing", failures: [{ ...failure, stage: "tester", reason: "Timeout" }] }),
+      attempt({
+        state: "verifying",
+        failures: [{ ...failure, stage: "verify", reason: "Timeout" }],
+      }),
       null,
     );
     expect(summary.sentence).toMatch(
@@ -584,8 +577,8 @@ describe("chart rows", () => {
       expect(chartReferences(chartRows(none, ["a"]), ["a"], ["red"])).toEqual([]);
     });
 
-    it("notes the results evaluated before references were reported", () => {
-      expect(noReferenceNote(stepped)).toMatch(/^No reference for results evaluated before .+\.$/);
+    it("notes the results verified before references were reported", () => {
+      expect(noReferenceNote(stepped)).toMatch(/^No reference for results verified before .+\.$/);
       expect(noReferenceNote(stepped)).toContain(xText("2026-03-05T10:00:00Z"));
       const series = stepped.series[0];
       if (series === undefined) throw new Error("fixture series missing");
@@ -617,7 +610,7 @@ describe("chart rows", () => {
         ],
       };
       expect(noReferenceNote(gap)).toBe(
-        "1 of 2 results have no reference: their evaluation reported none for this slice.",
+        "1 of 2 results have no reference: their verification reported none for this slice.",
       );
     });
   });

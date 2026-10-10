@@ -59,7 +59,7 @@
       "additionalProperties": false
     },
     "policy": {
-      "description": "policies/<id>.yaml: a historical evaluator policy, recorded as written and never run.",
+      "description": "policies/<id>.yaml: a historical policy, recorded as written and never run.",
       "type": "object",
       "properties": {
         "id": {"$ref": "common.schema.json#/$defs/slug"},
@@ -192,8 +192,8 @@
           "type": "object",
           "properties": {
             "stage": {
-              "description": "Who failed: the run itself (`agent`, the default), its scoring (`tester`) or its evaluation (`evaluator`).",
-              "enum": ["agent", "tester", "evaluator"]
+              "description": "Who failed: the run itself (`agent`, the default) or its verification (`verify`).",
+              "enum": ["agent", "verify"]
             },
             "code": {"$ref": "common.schema.json#/$defs/name"},
             "reason": {"$ref": "common.schema.json#/$defs/text"}
@@ -293,7 +293,7 @@
       "additionalProperties": false
     },
     "verdict": {
-      "description": "The historical evaluator verdict on the attempt, under a policy of the bundle.",
+      "description": "The historical verdict on the attempt, under a policy of the bundle.",
       "type": "object",
       "properties": {
         "policy": {"$ref": "common.schema.json#/$defs/slug"},
@@ -313,7 +313,7 @@
           }
         },
         "comparisons": {
-          "description": "What the verdict compared, as on a live evaluator record; `source: tester` cites one of the attempt's measurements.",
+          "description": "What the verdict compared, as in a live verification report; `source: tester` cites one of the attempt's measurements.",
           "type": "array",
           "items": {"$ref": "evidence_envelope.schema.json#/$defs/comparison"}
         },

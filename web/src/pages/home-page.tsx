@@ -42,7 +42,7 @@ function Attention({ project }: { project: Project }) {
           <BriefCard project={project.slug} />
           {isResearcher ? <ReviewQueue data={data} /> : null}
           <RecentOutcomes data={data} />
-          <StalledEvaluations data={data} />
+          <StalledVerifications data={data} />
           <RunningWork data={data} />
           <RecentFailures data={data} />
         </div>
@@ -105,7 +105,7 @@ function ReviewQueue({ data }: { data: Attention }) {
               </Link>
               <p className="text-sm text-muted-foreground">
                 {r.kind === "result"
-                  ? `Attempt ${r.attempt_ref ?? ""}: the evaluation ${VERDICT_WORDS[r.verdict ?? ""] ?? "finished"}.`
+                  ? `Attempt ${r.attempt_ref ?? ""}: the verification ${VERDICT_WORDS[r.verdict ?? ""] ?? "finished"}.`
                   : `Attempt ${r.attempt_ref ?? ""} failed${r.failure_reason ? `: ${excerpt(r.failure_reason, 120)}` : "."}`}{" "}
                 Waiting since {formatDateTime(r.opened_at)}.
               </p>
@@ -218,19 +218,29 @@ function RecentFailures({ data }: { data: Attention }) {
   );
 }
 
-function StalledEvaluations({ data }: { data: Attention }) {
-  if (data.stalled_evaluations.length === 0) return null;
+/** Who a stalled verification waits for, in words. */
+function waitsFor(s: Attention["stalled_verifications"][number]): string {
+  if (s.performer === "runner" && s.verifier) {
+    return s.revision
+      ? `the verifier ${s.verifier}, rules version ${s.revision}`
+      : `the verifier ${s.verifier}`;
+  }
+  return "an agent or a researcher who did not run it";
+}
+
+function StalledVerifications({ data }: { data: Attention }) {
+  if (data.stalled_verifications.length === 0) return null;
   return (
     <Section
-      title="Waiting for the evaluator"
+      title="Waiting for verification"
       description={`${
-        data.stalled_evaluation_count > data.stalled_evaluations.length
-          ? `${String(data.stalled_evaluation_count)} results are waiting to be judged; here are the oldest. `
-          : "These results are waiting to be judged. "
-      }Check that the project's evaluator is running, with the rules version the project names.`}
+        data.stalled_verification_count > data.stalled_verifications.length
+          ? `${String(data.stalled_verification_count)} results are waiting to be verified; here are the oldest. `
+          : "These results are waiting to be verified. "
+      }Check that the project's verifier is running with the rules version the project names, or that an agent or a researcher picks them up.`}
     >
       <ul className="flex flex-col divide-y">
-        {data.stalled_evaluations.map((s) => (
+        {data.stalled_verifications.map((s) => (
           <li key={s.attempt_ref} className="flex flex-col gap-1 py-3">
             <Link
               to={attemptPath(s.hypothesis, s.attempt_ref.split(".").at(-1) ?? "1")}
@@ -243,7 +253,7 @@ function StalledEvaluations({ data }: { data: Attention }) {
               <time dateTime={s.waiting_since} title={formatDateTime(s.waiting_since)}>
                 {formatWaited(s.waiting_since)}
               </time>{" "}
-              for evaluator {s.evaluator}, rules version {s.revision}.
+              for {waitsFor(s)}.
             </p>
           </li>
         ))}

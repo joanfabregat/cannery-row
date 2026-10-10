@@ -174,7 +174,7 @@ pub struct LeaseSettings {
     pub ttl_seconds: SettingsInt,
     pub job_ttl_seconds: SettingsInt,
     pub job_overhead_seconds: SettingsInt,
-    pub stalled_evaluation_seconds: SettingsInt,
+    pub stalled_verification_seconds: SettingsInt,
 }
 
 #[derive(Clone)]

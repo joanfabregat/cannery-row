@@ -10,13 +10,13 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0%20%2F%20Apache--2.0-022b3b" alt="License: AGPL-3.0-only, contracts Apache-2.0"></a>
 </p>
 
-Cannery Row is a research workbench for experiment-driven work, such as AI and NLP research. Researchers and agents plan research tracks; a researcher approves each plan, and its units become the hypotheses that run. An outside agent, or a registered workflow run by the Cannery Row runner, performs the experiment and submits its artifacts and a run document: its claims and provenance as front matter, its run notes as the body. Independent testers re-run and grade the submission, an evaluator applies the project's policy and gives a verdict, and a researcher records the final decision with a reason. Cannery Row keeps the whole history (hypotheses, attempts, evidence, verdicts, decisions, comments) and serves it through its own web app (dashboard, review, comments and search), a REST API and an MCP server. One installation hosts several projects; the core knows nothing about any one project's metrics, datasets or code.
+Cannery Row is a research workbench for experiment-driven work, such as AI and NLP research. Researchers and agents plan research tracks; a researcher approves each plan, and its units become the hypotheses that run. An outside agent, or a registered workflow run by the Cannery Row runner, performs the experiment and submits its artifacts and a run document: its claims and provenance as front matter, its run notes as the body. A verifier who did not run it, a runner or another agent or researcher, checks the submission, applies the project's policy and writes a verification report with a verdict, and a researcher records the final decision with a reason. Cannery Row keeps the whole history (hypotheses, attempts, evidence, verdicts, decisions, comments) and serves it through its own web app (dashboard, review, comments and search), a REST API and an MCP server. One installation hosts several projects; the core knows nothing about any one project's metrics, datasets or code.
 
-Cannery Row does not invent hypotheses or run an autonomous research planner, and the API process never executes project or candidate code: testers and evaluators pull their work and run it in containers.
+Cannery Row does not invent hypotheses or run an autonomous research planner, and the API process never executes project or candidate code: verifiers pull their work, and the runner runs it in containers.
 
 ## Status
 
-Cannery Row is pre-1.0 and under active development. The API, the MCP server, the runner, the stock evaluator, the web app and the managed database work and are tested, but the contracts and settings can still change between releases.
+Cannery Row is pre-1.0 and under active development. The API, the MCP server, the runner, the stock policy, the web app and the managed database work and are tested, but the contracts and settings can still change between releases.
 
 ## Quick start
 
@@ -53,8 +53,8 @@ Sign-in to the web app uses any standard OIDC provider (`[auth]` in `settings.to
 | [docs/guide.md](docs/guide.md) | Integrating a research project, from an empty installation to the first decided hypothesis. |
 | [docs/agents.md](docs/agents.md) | Working as an agent: planning a track, and reading an attempt's context. |
 | [docs/spec.md](docs/spec.md) | The system: roles, lifecycle, failure classes, trust rules. |
-| [docs/contracts.md](docs/contracts.md) | Every document: tracks, track plans, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock evaluator and policy steps. The JSON Schemas are in [`contracts/schemas/`](contracts/schemas). |
-| [docs/deploy.md](docs/deploy.md) | The image, settings, object storage, the managed database, the runner, its launchers and the stock evaluator. |
+| [docs/contracts.md](docs/contracts.md) | Every document: tracks, track plans, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock policy and policy steps. The JSON Schemas are in [`contracts/schemas/`](contracts/schemas). |
+| [docs/deploy.md](docs/deploy.md) | The image, settings, object storage, the managed database, the runner, its launchers and the stock policy. |
 | [docs/import.md](docs/import.md) | Importing a research history kept elsewhere. |
 | [deploy/runner-k8s/](deploy/runner-k8s/README.md) | The runner's Kubernetes manifests. |
 | [docs/rust/architecture.md](docs/rust/architecture.md) | The Cargo workspace, its crates and how a request moves through them. |
@@ -75,7 +75,7 @@ The scripts in `dev/` run every build and dependency command in containers, thro
 | `dev/web-fetch.sh` | Installs the web app's npm dependencies from the lockfile with install scripts disabled, then audits them (network, writable npm cache, nothing executed). |
 | `dev/web-check.sh` | Web app install scripts (`npm rebuild`), lint, type check, tests, generated-types check and production build, offline. Run it after every `dev/web-fetch.sh`. |
 | `dev/web.sh` | Vite dev server with hot reload at `https://cannery.<DEV_DOMAIN>`, proxying `/api`, `/auth` and `/mcp` to an API at `CANNERY_API_URL`, so the app, the OIDC callback and the session cookie share one origin. Needs `dev/web-fetch.sh`, then `dev/web-check.sh` once. |
-| `dev/seed-demo.sh` | Loads three fictional demo projects (`dev/demo-data`: sentiment classification, a recommender, a demand forecast with an imported history) into the running `dev/local.sh serve` instance, so the web app has every screen populated: tracks in each state, plans and their reviews, running, submitted, tested and evaluated attempts, verdicts, decisions, failure reviews, comments, metrics and search content. It creates demo users and short-lived sessions in the managed database, imports the bundle with `cannery import`, and drives the rest through the REST API. `--help` has the details. |
+| `dev/seed-demo.sh` | Loads three fictional demo projects (`dev/demo-data`: sentiment classification, a recommender, a demand forecast with an imported history) into the running `dev/local.sh serve` instance, so the web app has every screen populated: tracks in each state, plans and their reviews, running, verifying and verified attempts, verdicts, decisions, failure reviews, comments, metrics and search content. It creates demo users and short-lived sessions in the managed database, imports the bundle with `cannery import`, and drives the rest through the REST API. `--help` has the details. |
 | `dev/openapi.sh` | Regenerates `web/openapi.json` from the server's handlers and DTOs, and the typed client in `web/src/api/schema.d.ts`. Run it after changing an API model or route. |
 | `dev/build-postgres-bundle.sh` | Builds the PostgreSQL bundle for the `bundled-postgres` feature: fetches and checks the pinned source and build tools, then runs `dev/postgres-bundle-build.sh` offline in a pinned build image. |
 | `dev/postgres-bundle-build.sh` | The inner bundle build, run in the build container on Linux (and by CI), or directly on macOS. |

@@ -1,4 +1,4 @@
-//! A claimant submits its run document: the attempt freezes and testing is
+//! A claimant submits its run document: the attempt freezes and its verify job is
 //! queued in one transaction.
 use crate::{
     AppState,
@@ -283,7 +283,7 @@ async fn failed(
 }
 #[allow(
     clippy::too_many_lines,
-    reason = "The lease, the run document, the testing queue and the audit commit as one submission"
+    reason = "The lease, the run document, the verify queue and the audit commit as one submission"
 )]
 #[utoipa::path(
     post,
@@ -507,7 +507,7 @@ fn response(
 )]
 #[allow(
     clippy::too_many_lines,
-    reason = "The run, mentions, freeze, testing queue and audit share one caller transaction"
+    reason = "The run, mentions, freeze, verify queue and audit share one caller transaction"
 )]
 async fn record_run(
     c: &mut PgConnection,
@@ -522,7 +522,7 @@ async fn record_run(
 ) -> Result<(), Failure> {
     let profile = &state.profile;
     let manifest = &run.manifest;
-    // The tester reads the front matter alone; its job pins that digest.
+    // The verifier reads the front matter alone; its job pins that digest.
     let claimed_sha = canonical_sha256(&run.front_matter, profile.nesting_budget)
         .map_err(|_| internal(request, "submission claims hash"))?;
     let evidence = Repository::new(c, profile.lifecycle.attempts)
@@ -565,33 +565,27 @@ async fn record_run(
     .await
     .map_err(|_| internal(request, "submission mentions"))?;
     Repository::new(c, profile.lifecycle.attempts)
-        .end_lease(attempt.id, "submitted")
+        .end_lease(attempt.id, "verifying")
         .await
         .map_err(|_| internal(request, "submission freeze"))?;
-    let blocked =
-        job_lifecycle::no_evaluator_reason(c, attempt, &profile.lifecycle, request).await?;
-    let job = if blocked.is_none() {
-        let job = job_lifecycle::create_test_job(
-            c,
-            attempt,
-            evidence.0,
-            &claimed_sha,
-            manifest,
-            state.app.settings.leases.job_overhead_seconds.as_bigint(),
-            &profile.lifecycle,
-            request,
-        )
-        .await?;
-        Repository::new(c, profile.lifecycle.attempts)
-            .move_attempt(attempt.id, "submitted", "testing")
-            .await
-            .map_err(|_| internal(request, "submission testing transition"))?;
-        Some(job)
-    } else {
-        None
-    };
+    let job = job_lifecycle::create_verify_job(
+        c,
+        attempt,
+        &job_lifecycle::RunInputs {
+            run: evidence.0,
+            run_sha256: claimed_sha,
+            manifest: manifest.id.0,
+            manifest_sha256: manifest.sha256.clone(),
+        },
+        state.app.settings.leases.job_overhead_seconds.as_bigint(),
+        cannery_jobs::repo::Origin::Submission,
+        None,
+        &profile.lifecycle,
+        request,
+    )
+    .await?;
     let prior = json!({"state":attempt.state.as_str()});
-    let new = json!({"state":if job.is_some() { "testing" } else { "submitted" },"manifest_sha256":manifest.sha256,"run_sha256":document_sha,"job_id":job.as_ref().map(|job|job.id.0.to_string())});
+    let new = json!({"state":"verifying","manifest_sha256":manifest.sha256,"run_sha256":document_sha,"job_id":job.id.0.to_string()});
     audit::record(
         c,
         Attribution::Principal(principal),
@@ -608,27 +602,8 @@ async fn record_run(
     )
     .await
     .map_err(|_| internal(request, "submission audit"))?;
-    if let Some(job) = job {
-        job_lifecycle::record_job_created(c, principal, attempt, &job, &profile.lifecycle, request)
-            .await?;
-    }
-    if let Some(reason) = blocked {
-        let submitted = Repository::new(c, profile.lifecycle.attempts)
-            .get_attempt_by_id(attempt.id, false)
-            .await
-            .map_err(|_| internal(request, "blocked submitted attempt"))?
-            .ok_or_else(|| internal(request, "blocked submitted attempt missing"))?;
-        job_lifecycle::fail_without_evaluator(
-            c,
-            principal,
-            &submitted,
-            cannery_jobs::repo::Stage::Tester,
-            &reason,
-            &profile.lifecycle,
-            request,
-        )
+    job_lifecycle::record_job_created(c, principal, attempt, &job, &profile.lifecycle, request)
         .await?;
-    }
     Ok(())
 }
 

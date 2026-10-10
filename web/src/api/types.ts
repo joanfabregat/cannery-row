@@ -17,8 +17,7 @@ export type Artifact = Schemas["ArtifactOut"];
 export type Job = Schemas["JobOut"];
 
 export type Report = Schemas["ReportOut"];
-export type TesterReport = Schemas["TesterReport"];
-export type EvaluatorReport = Schemas["EvaluatorReport"];
+export type Verification = Schemas["VerificationReport"];
 
 export type ReviewCase = Schemas["cannery_row__reviews__routes__ReviewCaseOut"];
 
@@ -54,7 +53,7 @@ export type ProjectOut = Schemas["ProjectOut"];
 export type Brief = Schemas["BriefOut"];
 export type BriefRevision = Schemas["BriefRevisionOut"];
 
-/** A measurement row of an evidence envelope (claimed or verified). */
+/** A measurement row of a run (claimed) or of a verification report (verified). */
 export interface Measurement {
   metric: string;
   value?: number;
@@ -71,7 +70,7 @@ export interface Measurement {
   source?: string;
 }
 
-/** A tester finding that the claims disagree with the verified evidence. */
+/** A verifier finding that the claims disagree with the verified measurements. */
 export interface Discrepancy {
   metric?: string;
   split?: string;
@@ -81,7 +80,7 @@ export interface Discrepancy {
   description: string;
 }
 
-/** One check of an evaluator verdict, as the evaluator reported it. */
+/** One check of a verification verdict, as the verification report states it. */
 export interface GateResult {
   id: string;
   result: string;

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/science_revision.schema.json",
   "title": "Science revision",
-  "description": "Immutable project science configuration pinned by every attempt. Secrets and live credentials are never embedded. Cannery Row keeps the metric registry and the registered evaluator, which owns what a good result is. Cross-references (datasets and baselines in manifests) are checked by the service.",
+  "description": "Immutable project science configuration pinned by every attempt. Secrets and live credentials are never embedded. Cannery Row keeps the metric registry and who verifies a run; the verifier's policy owns what a good result is. Cross-references (datasets and baselines in manifests) are checked by the service.",
   "type": "object",
   "properties": {
     "schema_version": {"$ref": "common.schema.json#/$defs/schema_version"},
@@ -11,18 +11,30 @@
       "$ref": "common.schema.json#/$defs/json_schema"
     },
     "result_extensions": {
-      "description": "Project JSON Schema for evidence extensions.",
+      "description": "Project JSON Schema for extensions of run documents and verification reports.",
       "$ref": "common.schema.json#/$defs/json_schema"
     },
-    "tester": {
-      "description": "Registered tester identity; a self-hosted tester also pins its implementation revision.",
+    "verify": {
+      "description": "Who verifies a submitted run. `runner`: the registered verifier service account runs the producer and the scorer again and applies its policy (`cannery runner`). `agent`: an agent service account or a researcher who did not run the attempt verifies it and writes the report.",
       "type": "object",
       "properties": {
-        "id": {"$ref": "common.schema.json#/$defs/identifier"},
-        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+        "performer": {"enum": ["runner", "agent"]},
+        "verifier": {
+          "description": "The registered verifier: the verifier service account name and the policy revision its reports must name.",
+          "type": "object",
+          "properties": {
+            "id": {"$ref": "common.schema.json#/$defs/identifier"},
+            "revision": {"$ref": "common.schema.json#/$defs/identifier"}
+          },
+          "required": ["id", "revision"],
+          "additionalProperties": false
+        }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["performer"],
+      "additionalProperties": false,
+      "if": {"properties": {"performer": {"const": "runner"}}, "required": ["performer"]},
+      "then": {"required": ["verifier"]},
+      "else": {"properties": {"verifier": {"not": {}}}}
     },
     "metrics": {
       "description": "Metric registry.",
@@ -38,7 +50,7 @@
           "id": {"$ref": "common.schema.json#/$defs/slug"},
           "revision": {"$ref": "common.schema.json#/$defs/identifier"},
           "held_out_labels": {
-            "description": "True when the dataset holds labels only trusted steps that judge (the scorer, an evaluator policy step) may receive; a producer or experiment step never does.",
+            "description": "True when the dataset holds labels only trusted steps that judge (the scorer, a policy step) may receive; a producer or experiment step never does.",
             "type": "boolean"
           },
           "description": {"$ref": "common.schema.json#/$defs/text"}
@@ -48,7 +60,7 @@
       }
     },
     "baselines": {
-      "description": "Immutable baseline data references that steps may take as input (`from: baseline`). Baseline values belong to the evaluator's own configuration.",
+      "description": "Immutable baseline data references that steps may take as input (`from: baseline`). Baseline values belong to the verifier's policy.",
       "type": "array",
       "items": {
         "type": "object",
@@ -84,7 +96,7 @@
     },
     "default_producer": {"$ref": "common.schema.json#/$defs/producer_ref"},
     "code_repositories": {
-      "description": "GitHub repositories (owner/name, any case) whose code steps may run (a step manifest's code.repo), per trust class: candidate for producer and experiment steps, trusted for the scorer, validators and evaluators. A class not listed runs no code from any repository.",
+      "description": "GitHub repositories (owner/name, any case) whose code steps may run (a step manifest's code.repo), per trust class: candidate for producer and experiment steps, trusted for the scorer, validators and policy steps. A class not listed runs no code from any repository.",
       "type": "object",
       "properties": {
         "candidate": {
@@ -100,16 +112,6 @@
       },
       "additionalProperties": false
     },
-    "evaluator": {
-      "description": "The registered evaluator: the evaluator service account name and the policy revision its verdicts must report. It owns promotion thresholds and baseline values.",
-      "type": "object",
-      "properties": {
-        "id": {"$ref": "common.schema.json#/$defs/identifier"},
-        "revision": {"$ref": "common.schema.json#/$defs/identifier"}
-      },
-      "required": ["id", "revision"],
-      "additionalProperties": false
-    },
     "required_artifact_roles": {
       "type": "object",
       "properties": {
@@ -119,14 +121,14 @@
           "uniqueItems": true,
           "items": {"$ref": "common.schema.json#/$defs/name"}
         },
-        "tester": {
-          "description": "Roles a tester's output manifest must include.",
+        "verify": {
+          "description": "Roles a verify job's output manifest must include.",
           "type": "array",
           "uniqueItems": true,
           "items": {"$ref": "common.schema.json#/$defs/name"}
         }
       },
-      "required": ["attempt", "tester"],
+      "required": ["attempt", "verify"],
       "additionalProperties": false
     },
     "retention": {
@@ -149,9 +151,13 @@
           "description": "Per-step resource limit ceilings.",
           "$ref": "common.schema.json#/$defs/resource_map"
         },
-        "max_deadline_seconds": {"type": "integer", "minimum": 1},
+        "max_deadline_seconds": {
+          "description": "Seconds a verify job may take beyond its steps (its policy); an agent verify job's whole deadline. Defaults to 3600.",
+          "type": "integer",
+          "minimum": 1
+        },
         "report_max_bytes": {
-          "description": "Cap on a report's body_markdown, in bytes; at most 1 MiB.",
+          "description": "Cap on the body of a run document or a verification report, in bytes; at most 1 MiB.",
           "type": "integer",
           "minimum": 1,
           "maximum": 1048576
@@ -162,7 +168,7 @@
       "additionalProperties": false
     },
     "max_auto_retries": {
-      "description": "Automatic reruns of a failed test or evaluation stage.",
+      "description": "Automatic reruns of a failed verify job.",
       "type": "integer",
       "minimum": 0,
       "default": 1
@@ -170,7 +176,7 @@
   },
   "required": [
     "schema_version",
-    "tester",
+    "verify",
     "metrics",
     "datasets",
     "baselines",
@@ -178,8 +184,7 @@
     "scorer",
     "default_producer",
     "required_artifact_roles",
-    "limits",
-    "evaluator"
+    "limits"
   ],
   "additionalProperties": false,
   "$defs": {

@@ -1,6 +1,6 @@
 # The runner, with the Kubernetes launcher: each step in its own Pod, in this
 # namespace. Configure it through the cannery-runner ConfigMap
-# (kustomization.yaml); the tester token comes from the cannery-runner-token
+# (kustomization.yaml); the verifier token comes from the cannery-runner-token
 # Secret, which you create (README.md). One replica per runner id, replaced
 # with Recreate: a new runner deletes the Pods and volumes its id left behind,
 # so two runners of one id must never overlap.
@@ -60,7 +60,9 @@ spec:
             - --runner-id
             - $(RUNNER_ID)
             - --token-file
-            - /run/cannery/tester.token
+            - /run/cannery/verifier.token
+            - --policy
+            - /etc/cannery/policy.json
             - --api-url
             - $(API_URL)
             - --project
@@ -96,6 +98,7 @@ spec:
             limits: {memory: 2Gi}
           volumeMounts:
             - {name: token, mountPath: /run/cannery, readOnly: true}
+            - {name: policy, mountPath: /etc/cannery, readOnly: true}
             - {name: data, mountPath: /data/runner, readOnly: true}
             - {name: work, mountPath: /work}
             - {name: tmp, mountPath: /tmp}
@@ -117,6 +120,8 @@ spec:
       volumes:
         - name: token-script
           configMap: {name: cannery-token-copy, defaultMode: 0444}
+        - name: policy
+          configMap: {name: cannery-policy, defaultMode: 0444}
         - name: kubernetes-identity
           projected:
             defaultMode: 0440

@@ -100,8 +100,7 @@ pub(crate) fn service_out(account: &ServiceAccount, project: &str) -> ServiceAcc
     let kind = match account.kind {
         cannery_core::principal::ServiceKind::Agent => "agent",
         cannery_core::principal::ServiceKind::Experimenter => "experimenter",
-        cannery_core::principal::ServiceKind::Tester => "tester",
-        cannery_core::principal::ServiceKind::Evaluator => "evaluator",
+        cannery_core::principal::ServiceKind::Verifier => "verifier",
     };
     ServiceAccountOut {
         id: account.id.to_string(),
@@ -478,9 +477,8 @@ fn service_account_create_body(body: &DecodedBody) -> Result<ServiceAccountCreat
             crate::api_models::ServiceKind::Experimenter => {
                 cannery_core::principal::ServiceKind::Experimenter
             }
-            crate::api_models::ServiceKind::Tester => cannery_core::principal::ServiceKind::Tester,
-            crate::api_models::ServiceKind::Evaluator => {
-                cannery_core::principal::ServiceKind::Evaluator
+            crate::api_models::ServiceKind::Verifier => {
+                cannery_core::principal::ServiceKind::Verifier
             }
         },
     })

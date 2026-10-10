@@ -362,15 +362,7 @@ async fn call(
 ) -> Result<(u16, Value, Value, Vec<u8>)> {
     let mut req = Request::builder().uri(path).method(method);
     if role != "none" {
-        let prefix = if [
-            "agent",
-            "foreign-agent",
-            "tester",
-            "evaluator",
-            "experimenter",
-        ]
-        .contains(&role)
-        {
+        let prefix = if ["agent", "foreign-agent", "verifier", "experimenter"].contains(&role) {
             "cr_svc_"
         } else {
             "cr_pat_"

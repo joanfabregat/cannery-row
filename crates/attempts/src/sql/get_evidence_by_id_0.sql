@@ -1,1 +1,1 @@
-SELECT front_matter AS "content!: JsonbText", sha256 AS "sha256!" FROM phase_outputs WHERE attempt_id = $1 AND id = $2
+SELECT front_matter AS "content!: JsonbText", sha256 AS "sha256!", body AS "body!" FROM phase_outputs WHERE attempt_id = $1 AND id = $2

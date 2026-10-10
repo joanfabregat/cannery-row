@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2",
-  "tester": {"id": "demo-tester", "revision": "forecast-tester-r1"},
+  "verify": {"performer": "runner", "verifier": {"id": "demo-verifier", "revision": "forecast-policy-1"}},
   "hypothesis_fields": {
     "type": "object",
     "properties": {
@@ -97,8 +97,7 @@
     }
   },
   "default_producer": {"name": "forecast-producer", "revision": 1},
-  "evaluator": {"id": "demo-evaluator", "revision": "forecast-policy-1"},
-  "required_artifact_roles": {"attempt": ["candidate"], "tester": ["evidence", "step_log"]},
+  "required_artifact_roles": {"attempt": ["candidate"], "verify": ["evidence", "step_log"]},
   "limits": {
     "resource_ceilings": {"cpu": "4", "memory": "8Gi"},
     "max_deadline_seconds": 3600,

@@ -89,8 +89,7 @@ impl TryFrom<DbService> for ServiceAccount {
         let kind = match row.kind.as_str() {
             "agent" => ServiceKind::Agent,
             "experimenter" => ServiceKind::Experimenter,
-            "tester" => ServiceKind::Tester,
-            "evaluator" => ServiceKind::Evaluator,
+            "verifier" => ServiceKind::Verifier,
             _ => return Err(IdentityError::CorruptData("service kind")),
         };
         Ok(Self {
@@ -109,8 +108,7 @@ fn service_kind(kind: ServiceKind) -> &'static str {
     match kind {
         ServiceKind::Agent => "agent",
         ServiceKind::Experimenter => "experimenter",
-        ServiceKind::Tester => "tester",
-        ServiceKind::Evaluator => "evaluator",
+        ServiceKind::Verifier => "verifier",
     }
 }
 

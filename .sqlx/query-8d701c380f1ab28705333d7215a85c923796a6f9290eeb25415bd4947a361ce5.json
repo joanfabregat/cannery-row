@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM jobs JOIN attempts a ON a.id = jobs.attempt_id\n            WHERE jobs.project_id = $1 AND jobs.phase = 'verify' AND jobs.state = 'pending'\n              AND jobs.performer = 'agent' AND a.state <> 'cancelled'\n              AND (a.claimed_by_service = $2::uuid OR a.claimed_by_user = $3::uuid)\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8d701c380f1ab28705333d7215a85c923796a6f9290eeb25415bd4947a361ce5"
+}

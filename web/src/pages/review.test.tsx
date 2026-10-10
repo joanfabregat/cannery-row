@@ -3,20 +3,19 @@ import { screen, waitFor, within } from "@testing-library/react";
 import type { Schemas } from "@/api/client";
 
 import {
-  evaluation,
-  assessment,
   attempt,
   hypothesis,
   hypothesisApi,
   report,
   review,
   reviewCase,
+  verificationDocument,
 } from "@/test/fixtures";
 import { json, project, renderApp, signedIn } from "@/test/render";
 
 const CASE_ID = "00000000-0000-4000-8000-00000000cafe";
 
-function awaitingResult(verdict: Schemas["RequestEvidenceEnvelopeAssessmentVerdict"]) {
+function awaitingResult(verdict: Schemas["Verdict"]) {
   const h = hypothesis({
     state: "awaiting_human_review",
     reviews: [review({ id: CASE_ID, kind: "result", state: "pending", subject_revision: 3 })],
@@ -30,13 +29,11 @@ function awaitingResult(verdict: Schemas["RequestEvidenceEnvelopeAssessmentVerdi
       json(
         reviewCase({
           id: CASE_ID,
-          evaluation: evaluation({
-            assessment: assessment({
-              verdict,
-              gates: [
-                { id: "accuracy_gate", result: verdict === "inconclusive" ? "unknown" : verdict },
-              ],
-            }),
+          verification: verificationDocument({
+            verdict,
+            gates: [
+              { id: "accuracy_gate", result: verdict === "inconclusive" ? "unknown" : verdict },
+            ],
           }),
         }),
       ),
@@ -134,11 +131,11 @@ describe("reviewing a failure", () => {
             reviewCase({
               id: CASE_ID,
               kind: "failure",
-              evaluation: null,
+              verification: null,
               failure: {
-                stage: "tester",
+                stage: "verify",
                 code: "timeout",
-                reason: "The tester ran out of time",
+                reason: "The verifier ran out of time",
                 details: {},
                 log_refs: [],
                 created_at: "2026-03-04T10:00:00Z",
@@ -150,7 +147,7 @@ describe("reviewing a failure", () => {
     renderApp("/hypotheses/12/review");
     expect(await screen.findByRole("button", { name: "Try again" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Close as failed" })).toBeDisabled();
-    expect(screen.getAllByText(/The tester ran out of time/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/The verifier ran out of time/).length).toBeGreaterThan(0);
   });
 });
 
@@ -193,11 +190,11 @@ describe("a decision retried after a network error", () => {
           reviewCase({
             id: CASE_ID,
             kind: "failure",
-            evaluation: null,
+            verification: null,
             failure: {
-              stage: "tester",
+              stage: "verify",
               code: "timeout",
-              reason: "The tester ran out of time",
+              reason: "The verifier ran out of time",
               details: {},
               log_refs: [],
               created_at: "2026-03-04T10:00:00Z",

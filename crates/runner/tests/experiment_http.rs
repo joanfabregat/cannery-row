@@ -8,7 +8,7 @@ use cannery_runner::{
         backend::LocalBackend,
         experiment::Experiment,
         http::ApiClient,
-        worker::{NoCode, OutputValidator, Tester},
+        worker::{NoCode, OutputValidator, Resources},
     },
 };
 use serde_json::{Value, json};
@@ -109,7 +109,6 @@ fn installed_experiment_command_runs_claimed_workflow() -> Result<(), Error> {
 }
 #[derive(Clone, Copy, Debug)]
 enum Case {
-    TesterSuccess,
     PinnedInputs,
     SubmissionRetry,
     Success,
@@ -153,23 +152,6 @@ fn step(name: &str, script: &str, output: &str, inputs: &Value) -> Value {
     json!({"name":name,"revision":1,"manifest":{"apiVersion":"cannery-row/v1","kind":"Step","metadata":{"name":name},"spec":{"role":"experiment","container":{"image":format!("fixture.invalid/step@sha256:{}", "a".repeat(64)),"command":["/bin/sh","-c",script],"env":[],"resources":{"limits":{}}},"activeDeadlineSeconds":120,"network":"none","sandbox":"trusted fixture","inputs":{"artifacts":inputs},"outputs":{"artifacts":[{"name":output,"path":format!("/cr/outputs/{output}")}]}}}})
 }
 fn claim(case: Case) -> Value {
-    if matches!(case, Case::TesterSuccess) {
-        let mut claim = claim(Case::Success);
-        let mut job = claim["workflow"].take();
-        job["job_id"] = json!(ID);
-        job["attempt_id"] = json!(ID);
-        job["tester"] = json!({"name":"fixture","revision":1});
-        job["lease"] = json!({"token":claim["lease_token"],"generation":1,"expires_at":claim["lease_expires_at"]});
-        job["steps"][0]["manifest"]["spec"]["role"] = json!("scorer");
-        job["steps"][0]["manifest"]["spec"]["outputs"]["artifacts"][0] =
-            json!({"name":"evidence","path":"/cr/outputs/evidence"});
-        job["steps"][0]["manifest"]["spec"]["container"]["command"] = json!([
-            "/bin/sh",
-            "-c",
-            "printf '{}' > \"$CR_ROOT/outputs/evidence/evidence.json\""
-        ]);
-        return json!({"job":job,"attempt_ref":"h1/a1","heartbeat_seconds":60});
-    }
     let script = match case {
         Case::StepFailed => "echo observed-failure; exit 7",
         Case::Invalid => "printf '[]' > \"$CR_ROOT/outputs/run/run.md\"",
@@ -406,7 +388,6 @@ impl OutputValidator for Validator {
 async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
     let binary = PathBuf::from(std::env::var("CANNERY_NATIVE_CLI")?).canonicalize()?;
     for case in [
-        Case::TesterSuccess,
         Case::PinnedInputs,
         Case::SubmissionRetry,
         Case::Success,
@@ -452,7 +433,7 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
             steps,
             true,
         )?);
-        let resources = Tester {
+        let resources = Resources {
             client: ApiClient::new(&peer.root)?,
             token: Secret::new("synthetic-experimenter".into()),
             project: "fixture".into(),
@@ -476,15 +457,11 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
         } else {
             None
         };
-        let result = if matches!(case, Case::TesterSuccess) {
-            tokio::time::timeout(Duration::from_secs(8), resources.run_once(cancel)).await?
-        } else {
-            tokio::time::timeout(
-                Duration::from_secs(8),
-                Experiment::new(resources).run_once(cancel),
-            )
-            .await?
-        };
+        let result = tokio::time::timeout(
+            Duration::from_secs(8),
+            Experiment::new(resources).run_once(cancel),
+        )
+        .await?;
         if let Some(trigger) = trigger {
             trigger.await?;
         }
@@ -493,11 +470,7 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
             Case::Conflict => assert_eq!(result.err(), Some(RuntimeError::Http(409))),
             Case::Cancel => assert_eq!(result.err(), Some(RuntimeError::Cancelled)),
             Case::LeaseLost => assert_eq!(result?.ok_or("result missing")?.state, "abandoned"),
-            Case::TesterSuccess
-            | Case::Success
-            | Case::Predecessor
-            | Case::PinnedInputs
-            | Case::SubmissionRetry => {
+            Case::Success | Case::Predecessor | Case::PinnedInputs | Case::SubmissionRetry => {
                 assert_eq!(result?.ok_or("result missing")?.state, "testing");
             }
             _ => assert_eq!(result?.ok_or("result missing")?.state, "failed", "{case:?}"),
@@ -516,14 +489,7 @@ async fn experiment_http_and_owned_process_lifecycle() -> Result<(), Error> {
             );
             assert!(!requests.iter().any(|r| r.path.starts_with("/cap/")));
         }
-        assert_eq!(
-            requests[0].body,
-            if matches!(case, Case::TesterSuccess) {
-                json!({"stage":"tester"})
-            } else {
-                json!({"mode":"workflow"})
-            }
-        );
+        assert_eq!(requests[0].body, json!({"mode":"workflow"}));
         for request in requests.iter().filter(|r| !r.path.starts_with("/cap/")) {
             assert_eq!(
                 request.headers.get("authorization").map(String::as_str),

@@ -21,7 +21,7 @@ import { formatDateTime, formatDelta, formatHistoryDate, formatNumber } from "@/
 import { humanize, label } from "@/lib/labels";
 
 /**
- * An attempt's report and its assessment (the test and the evaluation), shared by the
+ * An attempt's report and its verification, shared by the
  * hypothesis page (its latest attempt) and the attempt page. Verified
  * measurements come first; the agent's own numbers are labelled "Reported by
  * agent" and never mixed with them.
@@ -103,17 +103,17 @@ export function MeasurementsTable({
 }) {
   const rows = compareRows(verified, claimed);
   if (rows.length === 0) return <EmptyState>No measurement was recorded.</EmptyState>;
-  // Without a control named, the tester reports none: no empty column.
+  // Without a control named, the verifier reports none: no empty column.
   const controls = rows.some((row) => typeof row.verified?.control_value === "number");
-  // An imported history's values carry their own authority, never the tester's.
+  // An imported history's values carry their own authority, never the verifier's.
   const imported = verified.some((m) => m.authority !== "tester_verified");
   const claims = !imported || claimed.length > 0;
   return (
     <Table>
       <TableCaption>
         {imported
-          ? "Imported values come from the history this project was imported from: they were not measured by this project's tester. Each says whether it was read from a run file or copied from a document."
-          : "Verified values were measured by the tester. Values reported by the agent are its own claims and are never used to evaluate the attempt."}
+          ? "Imported values come from the history this project was imported from: they were not measured by this project's verifier. Each says whether it was read from a run file or copied from a document."
+          : "Verified values were measured by the verifier. Values reported by the agent are its own claims and are never used to judge the attempt."}
       </TableCaption>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
@@ -178,7 +178,7 @@ export function MeasurementsTable({
 
 function Discrepancies({ items }: { items: Discrepancy[] }) {
   if (items.length === 0) {
-    return <p className="text-sm">The tester found no disagreement with the agent's claims.</p>;
+    return <p className="text-sm">The verifier found no disagreement with the agent's claims.</p>;
   }
   return (
     <ul className="flex flex-col gap-2">
@@ -198,85 +198,95 @@ function Discrepancies({ items }: { items: Discrepancy[] }) {
   );
 }
 
-/** The tester's record: what it measured when it re-ran the result. */
-function TestRecord({ report }: { report: Report }) {
-  const verified = asList<Measurement>(report.tester?.measurements);
+/** The verifier's measurements, set against what the agent reported, and its findings. */
+function Measured({ report }: { report: Report }) {
+  const verification = report.verification;
+  const verified = asList<Measurement>(verification?.measurements);
   const claimed = asList<Measurement>(report.claimed_measurements);
   const imported = report.origin === "imported";
   return (
     <div className="flex flex-col gap-5">
-      {report.tester === null && !imported ? (
-        <p className="text-sm text-muted-foreground">
-          The tester has not published its measurements yet.
-        </p>
-      ) : null}
       <MeasurementsTable verified={verified} claimed={claimed} />
-      {report.tester && !imported ? (
+      {verification && !imported ? (
         <div className="flex flex-col gap-2">
           <h4 className="font-medium">Disagreements</h4>
-          <Discrepancies items={asList<Discrepancy>(report.tester.discrepancies)} />
+          <Discrepancies items={asList<Discrepancy>(verification.discrepancies)} />
         </div>
       ) : null}
-      {report.tester?.observations ? (
+      {verification?.body_markdown?.trim() ? (
         <div className="flex flex-col gap-2">
-          <h4 className="font-medium">{imported ? "Notes" : "Tester observations"}</h4>
-          <Markdown>{report.tester.observations}</Markdown>
+          <h4 className="font-medium">{imported ? "Notes" : "Verifier notes"}</h4>
+          <Markdown>{verification.body_markdown}</Markdown>
         </div>
       ) : null}
     </div>
   );
 }
 
-/** The evaluator's record: its verdict under the project's rules. */
-function EvaluationRecord({ project, report }: { project: string; report: Report }) {
-  const evaluation = report.evaluation;
-  if (evaluation === null) {
-    return <p className="text-sm text-muted-foreground">The evaluation has not finished yet.</p>;
+/** The verdict the verification reached under the project's policy. */
+function Verdict({ project, report }: { project: string; report: Report }) {
+  const verification = report.verification;
+  if (verification?.verdict == null) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {report.origin === "imported"
+          ? "The imported history recorded no verdict for this attempt."
+          : "The verification has not reached a verdict."}
+      </p>
+    );
   }
   return (
     <Assessment
       project={project}
       scienceRevision={report.science_revision}
-      measurements={asList<Measurement>(report.tester?.measurements)}
-      verdict={evaluation.verdict ?? "unknown"}
-      reason={evaluation.reason}
-      judged={judgedBy(evaluation.producer, evaluation.policy_revision)}
-      at={evaluation.published_at}
-      gates={asList<GateResult>(evaluation.gates)}
-      comparisons={asComparisons(evaluation.comparisons)}
+      measurements={asList<Measurement>(verification.measurements)}
+      verdict={verification.verdict}
+      reason={verification.reason}
+      judged={judgedBy(verification.producer, verification.policy_revision)}
+      at={verification.published_at}
+      gates={asList<GateResult>(verification.gates)}
+      comparisons={asComparisons(verification.comparisons)}
       headingLevel="h4"
     />
   );
 }
 
 /**
- * The test and the evaluation under one heading, each still its own record
- * in its own frame: the tester's measurements first, then the evaluator's
- * verdict on them.
+ * The verification report: one record of what the verify job measured when
+ * it re-ran the result, and its verdict under the project's policy.
  */
-export function AssessmentSection({ project, report }: { project: string; report: Report }) {
+export function VerificationSection({ project, report }: { project: string; report: Report }) {
   const imported = report.origin === "imported";
+  if (report.verification === null && !imported) {
+    return (
+      <Section title="Verification">
+        <p className="text-sm text-muted-foreground">
+          The verification has not published its report yet.
+        </p>
+      </Section>
+    );
+  }
   return (
     <Section
-      title="Assessment"
-      description="Two separate records: the test, then the evaluation. Neither is the final decision: a researcher decides."
+      title="Verification"
+      description="One report: what was measured when the result was re-run, and the verdict under the project's policy. It is not the final decision: a researcher decides."
     >
       <div className="flex flex-col gap-4">
         <SubSection
-          title="Test"
+          title="Measurements"
           description={
             imported
               ? "The values the imported history recorded for this attempt."
-              : "What the tester measured when it re-ran the result, compared with what the agent reported."
+              : "What the verifier measured when it re-ran the result, compared with what the agent reported."
           }
         >
-          <TestRecord report={report} />
+          <Measured report={report} />
         </SubSection>
         <SubSection
-          title="Evaluation"
-          description="The evaluator registered for this project applies its own rules to the tested values."
+          title="Verdict"
+          description="The verifier applies the project's policy to the verified values."
         >
-          <EvaluationRecord project={project} report={report} />
+          <Verdict project={project} report={report} />
         </SubSection>
       </div>
     </Section>

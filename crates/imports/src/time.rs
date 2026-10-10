@@ -1,5 +1,5 @@
 use crate::{Error, Result};
-use chrono::{DateTime, FixedOffset, NaiveDate, SecondsFormat, Timelike, Utc};
+use chrono::{DateTime, FixedOffset, NaiveDate, Timelike, Utc};
 
 fn instant(value: &str) -> Result<DateTime<FixedOffset>> {
     let parsed = DateTime::parse_from_rfc3339(value).map_err(|_| Error::CorruptData)?;
@@ -24,17 +24,6 @@ fn offset_stored(value: &str, floor: DateTime<FixedOffset>) -> Result<DateTime<F
         when
     })
 }
-fn evidence_time(value: DateTime<FixedOffset>) -> String {
-    value.to_rfc3339_opts(
-        if value.timestamp_subsec_micros() == 0 {
-            SecondsFormat::Secs
-        } else {
-            SecondsFormat::Micros
-        },
-        false,
-    )
-}
-
 pub(crate) fn moment(value: &str) -> Result<DateTime<Utc>> {
     if value.len() == 10 {
         let day = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| Error::CorruptData)?;
@@ -66,9 +55,6 @@ pub(crate) struct AttemptTimes {
     pub started: DateTime<Utc>,
     pub finished: Option<DateTime<Utc>>,
     pub evaluated: DateTime<Utc>,
-    pub started_text: String,
-    pub ended_text: String,
-    pub evaluated_text: String,
 }
 impl AttemptTimes {
     pub fn ended(&self) -> DateTime<Utc> {
@@ -95,9 +81,6 @@ pub(crate) fn attempts(content: &serde_json::Value) -> Result<Vec<AttemptTimes>>
                 started: started.with_timezone(&Utc),
                 finished: finished.map(|value| value.with_timezone(&Utc)),
                 evaluated: evaluated.with_timezone(&Utc),
-                started_text: evidence_time(started),
-                ended_text: evidence_time(ended),
-                evaluated_text: evidence_time(evaluated),
             })
         })
         .collect()
@@ -135,33 +118,29 @@ mod tests {
             moment("2025-02-05T01:00:00.0000009+01:00")?,
             moment("2025-02-05")?
         );
-        assert_eq!(times[0].started_text, "2025-02-05T00:00:00+00:00");
         assert_eq!(times[0].started, moment("2025-02-05")?);
-        assert_eq!(times[0].ended_text, "2025-02-05T01:00:00.123456+01:00");
-        assert_eq!(times[0].evaluated_text, times[0].ended_text);
+        assert_eq!(times[0].ended(), moment("2025-02-05T00:00:00.123456Z")?);
         assert_eq!(times[0].evaluated, moment("2025-02-05T00:00:00.123456Z")?);
         Ok(())
     }
 
     #[test]
-    fn evidence_preserves_original_offsets_and_microsecond_precision() -> crate::Result<()> {
+    fn instants_keep_microsecond_precision() -> crate::Result<()> {
         let times = attempts(&json!({"created_at":"2025-02-04","attempts":[
             {"started_at":"2025-02-04T09:30:00+01:00","finished_at":"2025-02-04T10:05:00+01:00","verdict":{"evaluated_at":"2025-02-04"}},
             {"started_at":"2025-02-05T09:30:00.1-07:00","finished_at":"2025-02-05T18:45:00.001+02:00","verdict":{"evaluated_at":"2025-02-05T18:46:00.123456+02:00"}}
         ]}))?;
-        assert_eq!(times[0].started_text, "2025-02-04T09:30:00+01:00");
-        assert_eq!(times[0].ended_text, "2025-02-04T10:05:00+01:00");
-        assert_eq!(times[0].evaluated_text, "2025-02-04T10:05:00+01:00");
         assert_eq!(times[0].started, moment("2025-02-04T08:30:00Z")?);
+        assert_eq!(times[0].ended(), moment("2025-02-04T09:05:00Z")?);
         assert_eq!(times[0].evaluated, moment("2025-02-04T09:05:00Z")?);
-        assert_eq!(times[1].started_text, "2025-02-05T09:30:00.100000-07:00");
-        assert_eq!(times[1].ended_text, "2025-02-05T18:45:00.001000+02:00");
-        assert_eq!(times[1].evaluated_text, "2025-02-05T18:46:00.123456+02:00");
+        assert_eq!(times[1].started, moment("2025-02-05T16:30:00.1Z")?);
+        assert_eq!(times[1].ended(), moment("2025-02-05T16:45:00.001Z")?);
+        assert_eq!(times[1].evaluated, moment("2025-02-05T16:46:00.123456Z")?);
         Ok(())
     }
 
     #[test]
-    fn date_floors_retain_selected_offsets_and_equal_dates_use_midnight_utc() -> crate::Result<()> {
+    fn date_floors_and_equal_dates_use_the_earlier_instant() -> crate::Result<()> {
         let times = attempts(
             &json!({"created_at":"2025-02-04T09:30:00.123456+01:00","attempts":[
                 {"started_at":"2025-02-04","finished_at":"2025-02-04","verdict":{"evaluated_at":"2025-02-04"}},
@@ -169,17 +148,14 @@ mod tests {
                 {"started_at":"2025-02-06T02:00:00-07:00"}
             ]}),
         )?;
-        for text in [
-            &times[0].started_text,
-            &times[0].ended_text,
-            &times[0].evaluated_text,
-        ] {
-            assert_eq!(text, "2025-02-04T09:30:00.123456+01:00");
-        }
-        assert_eq!(times[1].ended_text, "2025-02-05T00:00:00+00:00");
-        assert_eq!(times[1].evaluated_text, times[1].ended_text);
-        assert_eq!(times[2].ended_text, times[2].started_text);
-        assert_eq!(times[2].evaluated_text, times[2].started_text);
+        let created = moment("2025-02-04T08:30:00.123456Z")?;
+        assert_eq!(times[0].started, created);
+        assert_eq!(times[0].ended(), created);
+        assert_eq!(times[0].evaluated, created);
+        assert_eq!(times[1].ended(), moment("2025-02-05")?);
+        assert_eq!(times[1].evaluated, times[1].ended());
+        assert_eq!(times[2].ended(), times[2].started);
+        assert_eq!(times[2].evaluated, times[2].started);
         assert!(times[2].finished.is_none());
         Ok(())
     }

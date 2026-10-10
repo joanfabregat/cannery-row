@@ -8,12 +8,12 @@ use axum::{
     body::{Body, to_bytes},
     http::Request,
 };
-use cannery_core::settings::load_settings;
+use cannery_core::{
+    contracts::phases::{Phase, PhaseSchemas},
+    settings::load_settings,
+};
 use cannery_server::{
-    api_models::{
-        AttentionOut, ReadEvidenceEnvelope, ReviewCasePage,
-        cannery_row__reviews__routes__ReviewCaseOut,
-    },
+    api_models::{AttentionOut, ReviewCasePage, cannery_row__reviews__routes__ReviewCaseOut},
     application_with_review_attention_context,
     review_attention_routes::ReviewAttentionContext,
     review_attention_wire::ResponseContext,
@@ -30,7 +30,7 @@ fn fixture() -> Result<Value> {
     ))?)
 }
 #[test]
-fn stalled_evaluation_interval_requires_nonnegative_checked_seconds() {
+fn stalled_verification_interval_requires_nonnegative_checked_seconds() {
     for seconds in ["-1", "9223372036854775808"] {
         assert!(
             load_settings(
@@ -38,7 +38,7 @@ fn stalled_evaluation_interval_requires_nonnegative_checked_seconds() {
                 &BTreeMap::from([
                     ("CANNERY_DATABASE_URL".into(), "unused".into()),
                     (
-                        "CANNERY_LEASES_STALLED_EVALUATION_SECONDS".into(),
+                        "CANNERY_LEASES_STALLED_VERIFICATION_SECONDS".into(),
                         seconds.into()
                     )
                 ])
@@ -54,7 +54,7 @@ fn stalled_evaluation_interval_requires_nonnegative_checked_seconds() {
                 &BTreeMap::from([
                     ("CANNERY_DATABASE_URL".into(), "unused".into()),
                     (
-                        "CANNERY_LEASES_STALLED_EVALUATION_SECONDS".into(),
+                        "CANNERY_LEASES_STALLED_VERIFICATION_SECONDS".into(),
                         seconds.into()
                     )
                 ])
@@ -250,21 +250,21 @@ fn assert_recovery(r: &Value, status: u16, output: &Value) -> Result<()> {
         ) => {
             assert_eq!(
                 status, 500,
-                "corrupt failure map/log item or non-object evaluation"
+                "corrupt failure map/log item or non-object verification"
             );
             assert_eq!(output, &Value::Null);
         }
         Some("00000000-0000-0000-0000-000000000309") => {
             assert_eq!(status, 200);
             assert_eq!(
-                output["evaluation"],
+                output["verification"],
                 Value::Null,
-                "absent evaluation remains readable"
+                "absent verification remains readable"
             );
         }
         Some("00000000-0000-0000-0000-000000000312") => {
             assert_eq!(status, 200);
-            let fields = &output["evaluation"]["extensions"]["project_fields"];
+            let fields = &output["verification"]["front_matter"]["extensions"]["project_fields"];
             assert_eq!(fields["large"].to_string(), "9".repeat(501));
             assert_eq!(fields["float"].as_f64(), Some(1e-7));
             assert_eq!(fields["unicode"], "é😀");
@@ -300,13 +300,19 @@ async fn review_attention_match_production() -> Result<()> {
     sqlx::raw_sql(include_str!("fixtures/review_attention_http/seed.sql"))
         .execute(&state.pool)
         .await?;
-    let documents: Vec<String> =
-        sqlx::query_scalar("SELECT front_matter::text FROM phase_outputs ORDER BY id")
-            .fetch_all(&state.pool)
-            .await?;
-    assert_eq!(documents.len(), 6);
+    let documents: Vec<Value> = sqlx::query_scalar(
+        "SELECT front_matter FROM phase_outputs WHERE stage='verification' ORDER BY id",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+    assert_eq!(documents.len(), 5);
+    let phases = PhaseSchemas::new()?;
     for document in documents {
-        serde_json::from_str::<ReadEvidenceEnvelope>(&document)?;
+        assert_eq!(
+            phases.violations(Phase::Verification, &document),
+            [],
+            "seeded verification reports satisfy the phase schema"
+        );
     }
     let f = fixture()?;
     assert_eq!(
@@ -332,7 +338,7 @@ async fn review_attention_match_production() -> Result<()> {
                 &BTreeMap::from([
                     ("CANNERY_DATABASE_URL".into(), url.clone()),
                     (
-                        "CANNERY_LEASES_STALLED_EVALUATION_SECONDS".into(),
+                        "CANNERY_LEASES_STALLED_VERIFICATION_SECONDS".into(),
                         seconds.into(),
                     ),
                 ]),

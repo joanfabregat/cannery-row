@@ -1,14 +1,16 @@
 """Fixture scorer shared by every track: mean reciprocal rank per language.
 
 It reads the producer's ranked run, the held-out relevance labels and the
-front matter of the frozen run document (``claimed.json``), and writes the
-tester evidence envelope plus per-query results. It never runs candidate code. ``FIXTURE_EXTENSIONS``, a
-JSON object in its environment, becomes the evidence's ``extensions``.
+front matter of the frozen run document (``claimed.json``), and writes its
+evidence (provenance, verified measurements, discrepancies, observations)
+plus per-query results. The runner composes the verification report from
+the evidence and the policy's verdict. It never runs candidate code.
+``FIXTURE_EXTENSIONS``, a JSON object in its environment, becomes the
+evidence's ``extensions``.
 """
 
 import json
 import os
-from datetime import UTC, datetime
 from typing import Any
 
 from fixture_step import job, read_json, root, write_json
@@ -19,14 +21,10 @@ METRIC = {"metric": "mrr", "unit": "ratio", "direction": "higher", "split": "dev
 # immutable revision of the control the job pins (none when the hypothesis
 # names no control). The scorer resolves the control by its identity rather
 # than re-running it; an unknown revision leaves ``control_value`` out. It is
-# informational: the stock evaluator's configuration (../evaluator.json)
+# informational: the stock policy configuration (../policy.json)
 # holds the same values and makes a slice unknown if a reported value here
 # disagrees.
 CONTROL_MRR = {"fixture-r1": {"en": 0.75, "fr": 0.5, "all": 0.625}}
-
-
-def now() -> str:
-    return datetime.now(UTC).isoformat()
 
 
 def reciprocal_rank(ranking: list[str], relevant: set[str]) -> float:
@@ -65,7 +63,6 @@ def discrepancies(
 
 
 def main() -> None:
-    started = now()
     base = root()
     details = job()
     run = read_json(base / "inputs" / "run" / "run.json")["queries"]
@@ -115,16 +112,8 @@ def main() -> None:
         d["revision"] for d in details["inputs"]["datasets"] if d["name"] == "qrels"
     )
     evidence = {
-        "schema_version": "0.2",
-        "attempt_id": details["attempt_id"],
-        "stage": "tester",
-        "status": "completed",
-        "producer": {"kind": "service", "id": details["tester"]["id"]},
-        "started_at": started,
-        "finished_at": now(),
         "provenance": {
             "source_revision": claimed["provenance"]["source_revision"],
-            "tester_revision": details["tester"]["revision"],
             "dataset_revision": qrels_revision,
             "science_revision": details["science_revision"],
             "seed": 0,

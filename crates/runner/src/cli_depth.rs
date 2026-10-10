@@ -9,7 +9,7 @@ pub const JSON_CONTAINERS: usize = 128;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PolicyEntryPoint {
     Evaluator,
-    RunnerEvalKind,
+    RunnerVerifyKind,
 }
 impl PolicyEntryPoint {
     /// Maximum edges from document root accepted by native validation.

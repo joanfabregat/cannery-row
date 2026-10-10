@@ -96,7 +96,7 @@ pub struct PointOut<'a> {
 macro_rules! redacted {($($t:ty),+) => {$(impl std::fmt::Debug for $t {fn fmt(&self,f:&mut std::fmt::Formatter<'_>)->std::fmt::Result{f.write_str("MetricProjection([redacted])")}})+};}
 redacted!(Reference<'_>, Uncertainty<'_>, PointOut<'_>);
 
-/// Complete evaluator reference, independently of whether an overlay is requested.
+/// Complete verification reference, independently of whether an overlay is requested.
 /// # Errors
 /// Rejects an unknown reference kind exactly when all three required fields exist.
 pub fn reference(point: &Point) -> Result<Option<Reference<'_>>, Error> {
@@ -115,7 +115,7 @@ pub fn reference(point: &Point) -> Result<Option<Reference<'_>>, Error> {
         reference: point.reference_ref.as_deref(),
     }))
 }
-/// Use the evaluator's reference rather than the tester's informational control value.
+/// Use the verification report's reference rather than the measurement's informational control value.
 /// # Errors
 /// Reference validation occurs even when no baseline was requested, as in the source.
 pub fn overlay<'a>(

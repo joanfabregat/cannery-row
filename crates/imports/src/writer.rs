@@ -311,26 +311,25 @@ impl Writer<'_> {
         self.plan.reports += 1;
         Ok(())
     }
-    async fn evidence(
+    async fn verification(
         &mut self,
         attempt: AttemptId,
-        stage: &str,
-        content: &Value,
+        front_matter: &Value,
+        body: &str,
         created: DateTime<Utc>,
         source: &str,
-    ) -> Result<(EvidenceId, String)> {
-        let digest = canonical_sha256(content);
-        let id=EvidenceId(sqlx::query_scalar!(
-            "INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,sha256,via_channel,via_client,created_at,origin,source_ref) VALUES($1,$2,$3,'completed',1,$4,$5,'cli','cannery import',$6,'imported',$7) RETURNING id AS \"id: uuid::Uuid\"",
+    ) -> Result<EvidenceId> {
+        let digest = canonical_sha256(&json!({"front_matter":front_matter,"body":body}));
+        Ok(EvidenceId(sqlx::query_scalar!(
+            "INSERT INTO phase_outputs(project_id,attempt_id,stage,status,revision,front_matter,body,sha256,via_channel,via_client,created_at,origin,source_ref) VALUES($1,$2,'verification','completed',1,$3,$4,$5,'cli','cannery import',$6,'imported',$7) RETURNING id AS \"id: uuid::Uuid\"",
             self.project.0 as _,
             attempt.0 as _,
-            stage,
-            Json(content) as _,
+            Json(front_matter) as _,
+            body,
             digest,
             created as _,
             source,
-        ).fetch_one(&mut *self.connection).await?);
-        Ok((id, digest))
+        ).fetch_one(&mut *self.connection).await?))
     }
     #[allow(clippy::too_many_arguments, clippy::too_many_lines)] // One historical run owns its related immutable records.
     async fn attempt_records(
@@ -377,70 +376,46 @@ impl Writer<'_> {
         if let Some(revision) = value.get("source_revision") {
             provenance["source_revision"] = revision.clone();
         }
-        let base = json!({"schema_version":"0.2","attempt_id":attempt.to_string(),"status":"completed","producer":{"kind":"import","id":"cannery-import"},"provenance":provenance});
         let measurements = items(value, "measurements");
-        let tester = if measurements.is_empty() {
+        if measurements.is_empty() {
             self.gap("attempts without a measurement");
-            None
-        } else {
-            let mut content = base.clone();
-            content["stage"] = json!("tester");
-            content["started_at"] = json!(times.started_text);
-            content["finished_at"] = json!(times.ended_text);
-            content["measurements"] = json!(
-                measurements
-                    .iter()
-                    .map(|measurement| {
-                        let metric = items(self.science, "metrics")
-                            .iter()
-                            .find(|metric| metric["key"] == measurement["metric"])
-                            .ok_or(Error::CorruptData)?;
-                        let mut stored = semantic::provenance(
-                            measurement,
-                            &[
-                                "metric",
-                                "value",
-                                "missing_reason",
-                                "authority",
-                                "split",
-                                "sample_count",
-                                "control_value",
-                                "uncertainty",
-                                "source",
-                            ],
-                        );
-                        stored["unit"] = metric["unit"].clone();
-                        stored["direction"] = metric["direction"].clone();
-                        stored["dimensions"] = measurement
-                            .get("dimensions")
-                            .cloned()
-                            .unwrap_or_else(|| json!({}));
-                        Ok(stored)
-                    })
-                    .collect::<Result<Vec<_>>>()?
+        }
+        let mut stored = Vec::new();
+        for measurement in measurements {
+            let metric = items(self.science, "metrics")
+                .iter()
+                .find(|metric| metric["key"] == measurement["metric"])
+                .ok_or(Error::CorruptData)?;
+            let mut kept = semantic::provenance(
+                measurement,
+                &[
+                    "metric",
+                    "value",
+                    "missing_reason",
+                    "authority",
+                    "split",
+                    "sample_count",
+                    "control_value",
+                    "uncertainty",
+                    "source",
+                ],
             );
-            observations(&mut content, value);
-            for measurement in measurements {
-                *self
-                    .plan
-                    .by_authority
-                    .entry(text(measurement, "authority")?.into())
-                    .or_default() += 1;
-                if measurement.get("missing_reason").is_some() {
-                    self.gap("measurements with a missing value");
-                }
+            kept["unit"] = metric["unit"].clone();
+            kept["direction"] = metric["direction"].clone();
+            kept["dimensions"] = measurement
+                .get("dimensions")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            stored.push(kept);
+            *self
+                .plan
+                .by_authority
+                .entry(text(measurement, "authority")?.into())
+                .or_default() += 1;
+            if measurement.get("missing_reason").is_some() {
+                self.gap("measurements with a missing value");
             }
-            Some(
-                self.evidence(
-                    attempt,
-                    "tester",
-                    &content,
-                    times.ended(),
-                    &format!("{path}/measurements"),
-                )
-                .await?,
-            )
-        };
+        }
         let failure = if value["status"] == "failed" {
             let failure = &value["failure"];
             Some(FailureId(sqlx::query_scalar!(
@@ -455,39 +430,35 @@ impl Writer<'_> {
             None
         };
         let verdict = value.get("verdict");
-        let evaluator = if let Some(verdict) = verdict {
-            let policy = text(verdict, "policy")?;
-            let policy_revision = text(
-                self.policies.get(policy).ok_or(Error::CorruptData)?,
-                "revision",
-            )?;
-            let cited = tester
-                .as_ref()
-                .map(|(id, sha)| json!({"ref":id.0.to_string(),"sha256":sha}));
-            let mut assessment = json!({"policy_revision":format!("{policy}@{policy_revision}"),"gates":verdict["gates"],"evidence":cited.into_iter().collect::<Vec<_>>(),"verdict":verdict["result"],"reason":verdict["reason"]});
-            if let Some(comparisons) = verdict.get("comparisons") {
-                assessment["comparisons"] = comparisons.clone();
-            }
-            let mut content = base;
-            content["stage"] = json!("evaluator");
-            content["started_at"] = json!(times.evaluated_text);
-            content["finished_at"] = json!(times.evaluated_text);
-            content["assessment"] = assessment;
+        if verdict.is_none() && value["status"] == "completed" {
+            self.gap("completed attempts without a verdict");
+        }
+        // One verification report holds the historical verdict and the measurements it rests on.
+        let verification = if verdict.is_some() || !stored.is_empty() {
+            let mut front_matter = json!({"measurements":stored,"provenance":provenance});
+            let (created, source) = if let Some(verdict) = verdict {
+                let policy = text(verdict, "policy")?;
+                let policy_revision = text(
+                    self.policies.get(policy).ok_or(Error::CorruptData)?,
+                    "revision",
+                )?;
+                front_matter["verdict"] = verdict["result"].clone();
+                front_matter["reason"] = verdict["reason"].clone();
+                front_matter["policy_revision"] = json!(format!("{policy}@{policy_revision}"));
+                front_matter["gates"] = verdict["gates"].clone();
+                if let Some(comparisons) = verdict.get("comparisons") {
+                    front_matter["comparisons"] = comparisons.clone();
+                }
+                (times.evaluated, String::from(text(verdict, "source")?))
+            } else {
+                (times.ended(), format!("{path}/measurements"))
+            };
+            let body = notes(value);
             Some(
-                self.evidence(
-                    attempt,
-                    "evaluator",
-                    &content,
-                    times.evaluated,
-                    text(verdict, "source")?,
-                )
-                .await?
-                .0,
+                self.verification(attempt, &front_matter, body, created, &source)
+                    .await?,
             )
         } else {
-            if value["status"] == "completed" {
-                self.gap("completed attempts without a verdict");
-            }
             None
         };
         if state == "awaiting_human_review" {
@@ -498,7 +469,7 @@ impl Writer<'_> {
                 opened: times.evaluated,
                 resolved: None,
                 decision: None,
-                evidence: evaluator,
+                evidence: verification.filter(|_| verdict.is_some()),
                 failure: None,
                 source: text(verdict.ok_or(Error::CorruptData)?, "source")?,
             })
@@ -516,7 +487,7 @@ impl Writer<'_> {
                 },
                 resolved: decided,
                 decision: Some(decision),
-                evidence: evaluator,
+                evidence: verification.filter(|_| verdict.is_some()),
                 failure,
                 source: text(decision, "source")?,
             })
@@ -580,35 +551,29 @@ struct Case<'a> {
     source: &'a str,
 }
 
-fn observations(content: &mut Value, attempt: &Value) {
-    if let Some(notes) = attempt
-        .get("notes")
-        .and_then(Value::as_str)
-        .filter(|notes| !notes.is_empty())
-    {
-        content["observations"] = json!(notes);
-    }
+/// The attempt's notes become the verification report's body, exactly as written.
+fn notes(attempt: &Value) -> &str {
+    attempt.get("notes").and_then(Value::as_str).unwrap_or("")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::observations;
+    use super::notes;
     use crate::canonical_sha256;
     use serde_json::json;
 
     #[test]
-    fn empty_notes_preserve_evidence_bytes_and_digest_but_whitespace_is_retained() {
-        let original = json!({"stage":"tester","measurements":[{"value":0.71}]});
-        let digest = canonical_sha256(&original);
-        for attempt in [json!({}), json!({"notes":""})] {
-            let mut content = original.clone();
-            observations(&mut content, &attempt);
-            assert_eq!(content, original);
-            assert_eq!(canonical_sha256(&content), digest);
-        }
-        let mut content = original;
-        observations(&mut content, &json!({"notes":" \n"}));
-        assert_eq!(content["observations"], " \n");
-        assert_ne!(canonical_sha256(&content), digest);
+    fn notes_are_the_body_and_count_in_the_digest_but_whitespace_is_retained() {
+        let front_matter = json!({"measurements":[{"value":0.71}]});
+        let digest =
+            |body: &str| canonical_sha256(&json!({"front_matter":front_matter,"body":body}));
+        assert_eq!(notes(&json!({})), "");
+        assert_eq!(notes(&json!({"notes":""})), "");
+        assert_eq!(
+            digest(notes(&json!({}))),
+            digest(notes(&json!({"notes":""})))
+        );
+        assert_eq!(notes(&json!({"notes":" \n"})), " \n");
+        assert_ne!(digest(" \n"), digest(""));
     }
 }

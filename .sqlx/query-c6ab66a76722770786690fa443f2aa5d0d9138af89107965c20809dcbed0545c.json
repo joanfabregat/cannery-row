@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT front_matter AS \"content!: JsonbText\", sha256 AS \"sha256!\", body AS \"body!\" FROM phase_outputs WHERE attempt_id = $1 AND id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "content!: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 1,
+        "name": "sha256!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "body!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c6ab66a76722770786690fa443f2aa5d0d9138af89107965c20809dcbed0545c"
+}

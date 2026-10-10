@@ -6,15 +6,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// The three source session projections.
+/// The two session projections: a verify job's steps (producer, scorer,
+/// validators and the policy step) and an experiment's workflow steps.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum JobKind {
-    Tester,
-    Evaluator,
+    Verify,
     Experiment,
 }
 
 /// Borrowed public claim and selected step; no transport credentials are projected.
+/// `metrics`, the science revision's metric registry, is projected for a policy step only.
 /// `nesting_budget` is explicit and has not been calibrated against the final runner entry point.
 pub struct JobContext<'a> {
     pub kind: JobKind,
@@ -112,10 +113,6 @@ impl<'a> Value<'a> {
     fn render(self) -> Result<String, JobError> {
         json::encode_ascii_pretty_node(self.doc, self.id, self.budget)
             .map_err(|_| JobError::Encoding)
-    }
-    fn default(self, key: &str, fallback: &str) -> Result<String, JobError> {
-        self.optional(key)?
-            .map_or_else(|| Ok(fallback.to_owned()), Self::render)
     }
     fn text(self) -> Result<String, JobError> {
         use cannery_core::text::{self, RenderError};
@@ -253,17 +250,10 @@ pub fn project(context: &JobContext<'_>) -> Result<Document, JobError> {
         add("attempt_id", job.get("attempt_id")?.render()?);
         add("attempt_ref", claim.get("attempt_ref")?.render()?);
     }
-    add(
-        "track",
-        if context.kind == JobKind::Evaluator {
-            job.default("track", "null")?
-        } else {
-            job.get("track")?.render()?
-        },
-    );
+    add("track", job.get("track")?.render()?);
     add("science_revision", job.get("science_revision")?.render()?);
     match context.kind {
-        JobKind::Tester => {
+        JobKind::Verify => {
             let producer = job
                 .get("steps")?
                 .array()?
@@ -271,9 +261,8 @@ pub fn project(context: &JobContext<'_>) -> Result<Document, JobError> {
                 .copied()
                 .ok_or(JobError::WrongType)?;
             add("producer", fields(producer, &["name", "revision"])?);
-            add("tester", job.get("tester")?.render()?);
+            add("verifier", job.get("verifier")?.render()?);
         }
-        JobKind::Evaluator => add("evaluator", job.get("evaluator")?.render()?),
         JobKind::Experiment => {
             let workflow = job
                 .get("steps")?
@@ -285,22 +274,9 @@ pub fn project(context: &JobContext<'_>) -> Result<Document, JobError> {
         }
     }
     add("step", step.get("name")?.render()?);
-    add(
-        "role",
-        if context.kind == JobKind::Evaluator {
-            "\"evaluator\"".to_owned()
-        } else {
-            manifest.get("spec")?.get("role")?.render()?
-        },
-    );
-    if experiment {
-        add("parameters", job.get("parameters")?.render()?);
-    }
+    add("role", manifest.get("spec")?.get("role")?.render()?);
+    add("parameters", job.get("parameters")?.render()?);
     let mut projected_inputs = Vec::new();
-    if context.kind == JobKind::Evaluator {
-        projected_inputs.push(("evidence".to_owned(), inputs.get("evidence")?.render()?));
-        projected_inputs.push(("manifest".to_owned(), inputs.get("manifest")?.render()?));
-    }
     projected_inputs.push(("datasets".to_owned(), declared));
     projected_inputs.push(("baselines".to_owned(), inputs.get("baselines")?.render()?));
     if experiment {
@@ -315,14 +291,10 @@ pub fn project(context: &JobContext<'_>) -> Result<Document, JobError> {
     if let Some(control) = job.optional("control")? {
         add("control", control.render()?);
     }
-    if context.kind == JobKind::Evaluator {
-        add("parameters", job.default("parameters", "{}")?);
+    if let Some(metrics) = context.metrics {
         add(
             "metrics",
-            context.metrics.map_or_else(
-                || Ok("[]".to_owned()),
-                |metrics| Value::root(metrics, context.nesting_budget).render(),
-            )?,
+            Value::root(metrics, context.nesting_budget).render()?,
         );
     }
     add("manifest", manifest.render()?);

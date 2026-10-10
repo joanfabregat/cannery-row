@@ -1,4 +1,4 @@
-//! Tester pipeline: pinned inputs, sequential steps, integrity checks and uploads.
+//! Step sessions: pinned inputs, sequential steps, integrity checks and uploads.
 use super::{
     FutureResult, RuntimeError,
     backend::Backend,
@@ -25,6 +25,10 @@ use tokio::io::AsyncReadExt;
 
 /// The experiment output the last step writes: the run document `run.md`.
 const RUN_OUTPUT: &str = "run";
+/// The scorer output a verification report is composed from.
+const EVIDENCE_OUTPUT: &str = "evidence";
+/// The policy step's only output.
+const VERDICT_OUTPUT: &str = "verdict";
 /// The built-in interface of the run document.
 pub(crate) const RUN_INTERFACE: &str = "cr-run/v0.2";
 
@@ -89,7 +93,9 @@ impl Provisioner for NoCode {
         Box::pin(async { Ok(None) })
     }
 }
-pub struct Tester {
+/// The resources a step session borrows: API client and credential, roots,
+/// launch backend, code provisioner and output validator.
+pub struct Resources {
     pub client: ApiClient,
     pub token: Secret,
     pub project: String,
@@ -103,254 +109,6 @@ pub struct Tester {
 pub struct JobResult {
     pub job_id: String,
     pub state: String,
-}
-impl super::process::RuntimeWorker for Tester {
-    fn run_once(&self, cancel: CancellationEvent) -> FutureResult<'_, Option<JobResult>> {
-        Box::pin(Tester::run_once(self, cancel))
-    }
-    fn close(&self) -> FutureResult<'_, ()> {
-        Box::pin(async { Ok(()) })
-    }
-}
-impl Tester {
-    /// # Errors
-    /// Claims exactly one job; 409 means idle. All other failures are explicit.
-    #[allow(clippy::too_many_lines)] // One authoritative lease/heartbeat/cleanup scope.
-    pub async fn run_once(
-        &self,
-        cancel: CancellationEvent,
-    ) -> Result<Option<JobResult>, RuntimeError> {
-        let api = format!("/api/projects/{}", self.project);
-        let claimed = http::cancelled(&cancel, RuntimeError::Cancelled, async {
-            let response = self
-                .client
-                .request(
-                    Method::POST,
-                    &format!("{api}/jobs/claims"),
-                    &self.token,
-                    None,
-                    Some(&json!({"stage":"tester"})),
-                )
-                .await?;
-            if response.status().as_u16() == 409 {
-                return Ok(None);
-            }
-            if response.status().as_u16() != 201 {
-                return Err(RuntimeError::Http(response.status().as_u16()));
-            }
-            Ok(Some(http::read_json(response).await?))
-        })
-        .await?;
-        let Some(claim) = claimed else {
-            return Ok(None);
-        };
-        let job = claim.get("job").ok_or(RuntimeError::Contract)?;
-        let id = string(job, "job_id")?.to_owned();
-        uuid::Uuid::parse_str(&id).map_err(|_| RuntimeError::Contract)?;
-        let lease = LeaseHeaders {
-            token: Secret::new(string(&job["lease"], "token")?.to_owned()),
-            generation: job["lease"]["generation"].to_string(),
-            idempotency: None,
-        };
-        let base = format!("{api}/jobs/{id}");
-        let heartbeat = positive(&claim["heartbeat_seconds"])?;
-        let initial_expiry = instant(string(&job["lease"], "expires_at")?)?;
-        let work = self.work_root.join(format!("cr-job-{}", random_name()?));
-        tokio::fs::create_dir_all(&self.work_root).await?;
-        tokio::fs::create_dir(&work).await?;
-        let lost = CancellationEvent::new();
-        let done = CancellationEvent::new();
-        let _done_guard = DoneGuard(done.clone());
-        let renew_client = self.client.clone();
-        let renew_token = Secret::new(self.token.expose().to_owned());
-        let renew_lease = LeaseHeaders {
-            token: Secret::new(lease.token.expose().to_owned()),
-            generation: lease.generation.clone(),
-            idempotency: None,
-        };
-        let renew_base = base.clone();
-        let renew_lost = lost.clone();
-        let renew_done = done.clone();
-        let renewal = tokio::spawn(async move {
-            heartbeat_loop(
-                renew_client,
-                renew_token,
-                renew_lease,
-                renew_base,
-                heartbeat,
-                initial_expiry,
-                renew_lost,
-                renew_done,
-            )
-            .await;
-        });
-        let combined = lost.clone();
-        let shutdown = cancel.clone();
-        let forwarding_done = done.clone();
-        let forwarding = tokio::spawn(async move {
-            tokio::select! { () = shutdown.wait() => combined.set(), () = forwarding_done.wait() => {} }
-        });
-        let mut session = Session {
-            mode: SessionMode::Tester,
-            worker: self,
-            claim: &claim,
-            job,
-            api: &api,
-            base: &base,
-            lease: &lease,
-            work: &work,
-            cancel: lost.clone(),
-            objects: vec![],
-            produced: BTreeMap::new(),
-            failure_step: None,
-            failure_logs: vec![],
-        };
-        let result = session.run_steps().await;
-        let delivery = async {
-            if cancel.is_set() {
-                Err(RuntimeError::Cancelled)
-            } else if lost.is_set() {
-                Ok("abandoned".to_owned())
-            } else {
-                match result {
-                    Ok(evidence) => {
-                        let complete_lease = LeaseHeaders {
-                            token: Secret::new(lease.token.expose().to_owned()),
-                            generation: lease.generation.clone(),
-                            idempotency: Some(format!("complete-{id}-{}", lease.generation)),
-                        };
-                        let completion = self
-                            .client
-                            .request(
-                                Method::POST,
-                                &format!("{base}/completion"),
-                                &self.token,
-                                Some(&complete_lease),
-                                Some(&http::completion(job, &evidence, &session.objects)),
-                            )
-                            .await;
-                        let completed = match completion {
-                            Ok(response) => outcome_state(response, true).await,
-                            Err(error) => Err(error),
-                        };
-                        match completed {
-                            Ok(state) => Ok(state),
-                            Err(error) => {
-                                self.report_failure(
-                                    &base,
-                                    &lease,
-                                    &id,
-                                    error,
-                                    session.failure_step.as_deref(),
-                                    &session.failure_logs,
-                                )
-                                .await
-                            }
-                        }
-                    }
-                    Err(error) => {
-                        self.report_failure(
-                            &base,
-                            &lease,
-                            &id,
-                            error,
-                            session.failure_step.as_deref(),
-                            &session.failure_logs,
-                        )
-                        .await
-                    }
-                }
-            }
-        };
-        let state = tokio::select! {
-            biased;
-            () = lost.wait() => Ok("abandoned".to_owned()),
-            state = delivery => state,
-        };
-        done.set();
-        let _ = renewal.await;
-        let _ = forwarding.await;
-        // Backend teardown always precedes removing directories it may still mount.
-        self.backend.release_job(&id).await?;
-        let owned_work = work.clone();
-        tokio::task::spawn_blocking(move || crate::removal::remove_tree(&owned_work))
-            .await
-            .map_err(|_| RuntimeError::Filesystem)?;
-        if cancel.is_set() {
-            return Err(RuntimeError::Cancelled);
-        }
-        Ok(Some(JobResult {
-            job_id: id,
-            state: state?,
-        }))
-    }
-    async fn report_failure(
-        &self,
-        base: &str,
-        lease: &LeaseHeaders,
-        id: &str,
-        error: RuntimeError,
-        step: Option<&str>,
-        logs: &[Value],
-    ) -> Result<String, RuntimeError> {
-        let code = match error {
-            RuntimeError::Integrity => "input_verification_failed",
-            RuntimeError::StepFailed => "step_failed",
-            RuntimeError::SetupFailed => "setup_failed",
-            RuntimeError::CodeNotAllowed => "code_not_allowed",
-            RuntimeError::InvalidCode => "invalid_code",
-            RuntimeError::DeadlineExceeded => "deadline_exceeded",
-            RuntimeError::InvalidStepOutput => "invalid_step_output",
-            RuntimeError::InvalidOutput => "invalid_output",
-            RuntimeError::UploadExpired => "upload_expired",
-            RuntimeError::DurablyFailed => return Ok("failed".to_owned()),
-            RuntimeError::MissingOutput => "missing_output",
-            RuntimeError::LostLease => return Ok("abandoned".to_owned()),
-            _ => "runner_error",
-        };
-        let mut report = json!({"schema_version":"0.2", "job_id":id,"error_code":code,"reason":error.to_string(),"logs":logs});
-        if let Some(step) = step {
-            report["step"] = json!(step);
-        }
-        let mut response = self
-            .client
-            .request(
-                Method::POST,
-                &format!("{base}/failure"),
-                &self.token,
-                Some(lease),
-                Some(&report),
-            )
-            .await;
-        if (step.is_some() || !logs.is_empty())
-            && response
-                .as_ref()
-                .is_ok_and(|reply| reply.status().as_u16() == 422)
-        {
-            // Invalid log/step references must not suppress the failure itself.
-            report["logs"] = json!([]);
-            report
-                .as_object_mut()
-                .ok_or(RuntimeError::Contract)?
-                .remove("step");
-            response = self
-                .client
-                .request(
-                    Method::POST,
-                    &format!("{base}/failure"),
-                    &self.token,
-                    Some(lease),
-                    Some(&report),
-                )
-                .await;
-        }
-        match response {
-            Ok(response) => outcome_state(response, false)
-                .await
-                .or(Ok("unreported".to_owned())),
-            Err(_) => Ok("unreported".to_owned()),
-        }
-    }
 }
 pub(crate) struct DoneGuard(pub(crate) CancellationEvent);
 impl Drop for DoneGuard {
@@ -375,32 +133,17 @@ pub(crate) async fn outcome_state(
     }
     Ok(string(&body, "state")?.to_owned())
 }
-pub(crate) struct EvaluatorInputs {
-    pub science: Value,
-    pub evidence: Value,
-    pub manifest: Value,
-    pub metrics: Value,
-}
-#[derive(Clone, Copy)]
-enum SessionMode<'a> {
-    Tester,
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum SessionMode {
+    /// A verify job's producer and scorer.
+    Verify,
+    /// A verify job's policy step, after its producer and scorer.
+    Policy,
     Experiment,
-    Evaluator(&'a EvaluatorInputs),
-}
-impl SessionMode<'_> {
-    fn is_experiment(self) -> bool {
-        matches!(self, Self::Experiment)
-    }
-    fn is_evaluator(self) -> bool {
-        matches!(self, Self::Evaluator(_))
-    }
-    fn owns_transfers(self) -> bool {
-        !matches!(self, Self::Tester)
-    }
 }
 pub(crate) struct Session<'a> {
-    mode: SessionMode<'a>,
-    worker: &'a Tester,
+    mode: SessionMode,
+    worker: &'a Resources,
     claim: &'a Value,
     job: &'a Value,
     api: &'a str,
@@ -408,8 +151,12 @@ pub(crate) struct Session<'a> {
     lease: &'a LeaseHeaders,
     work: &'a Path,
     cancel: CancellationEvent,
+    science: Option<Value>,
+    metrics: Option<Value>,
     objects: Vec<Value>,
+    resumed: Vec<Value>,
     produced: BTreeMap<String, Produced>,
+    evidence_step: Option<String>,
     failure_step: Option<String>,
     failure_logs: Vec<Value>,
 }
@@ -420,8 +167,9 @@ struct Produced {
 }
 impl Session<'_> {
     #[allow(clippy::too_many_arguments)] // Borrow the single session's explicit resources and lease.
-    pub(crate) fn experiment<'a>(
-        worker: &'a Tester,
+    fn new<'a>(
+        mode: SessionMode,
+        worker: &'a Resources,
         claim: &'a Value,
         job: &'a Value,
         api: &'a str,
@@ -431,7 +179,7 @@ impl Session<'_> {
         cancel: CancellationEvent,
     ) -> Session<'a> {
         Session {
-            mode: SessionMode::Experiment,
+            mode,
             worker,
             claim,
             job,
@@ -440,18 +188,19 @@ impl Session<'_> {
             lease,
             work,
             cancel,
+            science: None,
+            metrics: None,
             objects: vec![],
+            resumed: vec![],
             produced: BTreeMap::new(),
+            evidence_step: None,
             failure_step: None,
             failure_logs: vec![],
         }
     }
-    pub(crate) fn objects(&self) -> &[Value] {
-        &self.objects
-    }
-    #[allow(clippy::too_many_arguments)] // Borrow one session, its lease and verified evaluator inputs.
-    pub(crate) fn evaluator<'a>(
-        worker: &'a Tester,
+    #[allow(clippy::too_many_arguments)] // Borrow the single session's explicit resources and lease.
+    pub(crate) fn experiment<'a>(
+        worker: &'a Resources,
         claim: &'a Value,
         job: &'a Value,
         api: &'a str,
@@ -459,11 +208,75 @@ impl Session<'_> {
         lease: &'a LeaseHeaders,
         work: &'a Path,
         cancel: CancellationEvent,
-        inputs: &'a EvaluatorInputs,
     ) -> Session<'a> {
-        let mut session = Self::experiment(worker, claim, job, api, base, lease, work, cancel);
-        session.mode = SessionMode::Evaluator(inputs);
-        session
+        Session::new(
+            SessionMode::Experiment,
+            worker,
+            claim,
+            job,
+            api,
+            base,
+            lease,
+            work,
+            cancel,
+        )
+    }
+    #[allow(clippy::too_many_arguments)] // Borrow the single session's explicit resources and lease.
+    pub(crate) fn verify<'a>(
+        worker: &'a Resources,
+        claim: &'a Value,
+        job: &'a Value,
+        api: &'a str,
+        base: &'a str,
+        lease: &'a LeaseHeaders,
+        work: &'a Path,
+        cancel: CancellationEvent,
+    ) -> Session<'a> {
+        Session::new(
+            SessionMode::Verify,
+            worker,
+            claim,
+            job,
+            api,
+            base,
+            lease,
+            work,
+            cancel,
+        )
+    }
+    pub(crate) fn objects(&self) -> &[Value] {
+        &self.objects
+    }
+    /// The verify job's output manifest objects: what this job uploaded, then
+    /// the verified outputs it resumed from an earlier run of the job, stored
+    /// where this job's own uploads are.
+    pub(crate) fn manifest_objects(&self) -> Result<Vec<Value>, RuntimeError> {
+        let mut objects = self.objects.clone();
+        if self.resumed.is_empty() {
+            return Ok(objects);
+        }
+        let mut storage = objects
+            .first()
+            .map(|object| object["storage"].clone())
+            .filter(Value::is_object)
+            .ok_or(RuntimeError::Contract)?;
+        if let Some(fields) = storage.as_object_mut() {
+            fields.remove("generation");
+        }
+        for output in &self.resumed {
+            let mut stored = storage.clone();
+            stored["key"] = output["key"].clone();
+            objects.push(json!({"role":output["name"],"storage":stored,"size_bytes":output["size_bytes"],"sha256":output["sha256"],"media_type":output["media_type"]}));
+        }
+        Ok(objects)
+    }
+    /// The step whose output a report or run document failed on.
+    pub(crate) fn blame(&mut self, step: Option<String>) {
+        self.failure_step = step;
+    }
+    /// The scorer, whose `evidence` output the report is composed from.
+    pub(crate) fn evidence_step(&self) -> Option<String> {
+        self.evidence_step.clone()
     }
     pub(crate) async fn upload_policy(
         &mut self,
@@ -482,19 +295,15 @@ impl Session<'_> {
         Ok(())
     }
     fn metrics(&self) -> Result<Option<json::Document>, RuntimeError> {
-        match self.mode {
-            SessionMode::Evaluator(inputs) => Ok(Some(document(&inputs.metrics)?)),
-            _ => Ok(None),
-        }
+        self.metrics.as_ref().map(document).transpose()
     }
     pub(crate) fn failure(&self) -> (Option<&str>, &[Value]) {
         (self.failure_step.as_deref(), &self.failure_logs)
     }
     fn job_kind(&self) -> crate::job::JobKind {
         match self.mode {
-            SessionMode::Tester => crate::job::JobKind::Tester,
+            SessionMode::Verify | SessionMode::Policy => crate::job::JobKind::Verify,
             SessionMode::Experiment => crate::job::JobKind::Experiment,
-            SessionMode::Evaluator(_) => crate::job::JobKind::Evaluator,
         }
     }
     async fn get_json(
@@ -675,19 +484,65 @@ impl Session<'_> {
         }
         Ok(())
     }
-    #[allow(clippy::too_many_lines)] // Preserve sequential validate-all-before-upload order.
-    pub(crate) async fn run_steps(&mut self) -> Result<Value, RuntimeError> {
+    /// The pinned science revision's content, read once per session.
+    pub(crate) async fn science(&mut self) -> Result<Value, RuntimeError> {
+        if let Some(science) = &self.science {
+            return Ok(science.clone());
+        }
         let revision = science_revision(&self.job["science_revision"])?;
-        let science = if let SessionMode::Evaluator(inputs) = self.mode {
-            inputs.science.clone()
-        } else {
-            self.get_json(&format!("{}/config/science/{}", self.api, revision), None)
-                .await?
-        };
-        let science = &science["content"];
+        let science = self
+            .get_json(&format!("{}/config/science/{revision}", self.api), None)
+            .await?;
+        if science["revision"]
+            .as_u64()
+            .is_some_and(|served| served != revision)
+        {
+            return Err(RuntimeError::Integrity);
+        }
+        let content = science
+            .get("content")
+            .cloned()
+            .ok_or(RuntimeError::Contract)?;
+        self.science = Some(content.clone());
+        Ok(content)
+    }
+    /// Run the job's steps in order. A verify job resumed after an
+    /// infrastructure failure stages the verified outputs of the steps before
+    /// `resume.from_step` instead of running them again.
+    /// Returns the scorer's evidence (verify) or the run document (experiment).
+    pub(crate) async fn run_steps(&mut self) -> Result<Value, RuntimeError> {
+        let steps = array(self.job, "steps")?.clone();
+        self.run_list(&steps, 0).await
+    }
+    /// Run the policy step after the producer and the scorer, with their
+    /// outputs and the science revision's metric registry. Returns its verdict.
+    pub(crate) async fn run_policy(&mut self, step: &Value) -> Result<Value, RuntimeError> {
+        let science = self.science().await?;
+        self.metrics = Some(science.get("metrics").cloned().unwrap_or_else(|| json!([])));
+        self.mode = SessionMode::Policy;
+        let offset = array(self.job, "steps")?.len();
+        self.run_list(std::slice::from_ref(step), offset).await
+    }
+    fn resume_position(&self, steps: &[Value]) -> Result<usize, RuntimeError> {
+        let resume = &self.job["resume"];
+        if self.mode != SessionMode::Verify || resume.is_null() {
+            return Ok(0);
+        }
+        let from = string(resume, "from_step")?;
+        Ok(steps
+            .iter()
+            .position(|step| step["name"] == from)
+            .unwrap_or(steps.len()))
+    }
+    #[allow(clippy::too_many_lines)] // Preserve sequential validate-all-before-upload order.
+    async fn run_list(&mut self, steps: &[Value], offset: usize) -> Result<Value, RuntimeError> {
+        let science = self.science().await?;
+        let science = &science;
         let deadline = instant(string(self.job, "deadline")?)?;
+        let resume_from = self.resume_position(steps)?;
         let mut evidence = None;
-        for (index, step) in array(self.job, "steps")?.iter().enumerate() {
+        for (position, step) in steps.iter().enumerate() {
+            let index = offset + position;
             if self.cancel.is_set() {
                 return Err(RuntimeError::LostLease);
             }
@@ -700,14 +555,18 @@ impl Session<'_> {
             let manifest = &step["manifest"];
             let spec = &manifest["spec"];
             let role = string(spec, "role")?;
-            if if self.mode.is_evaluator() {
-                role != "evaluator"
-            } else if self.mode.is_experiment() {
-                role != "experiment"
-            } else {
-                !["producer", "scorer"].contains(&role)
+            if match self.mode {
+                SessionMode::Verify => !["producer", "scorer"].contains(&role),
+                SessionMode::Policy => role != "policy",
+                SessionMode::Experiment => role != "experiment",
             } {
                 return Err(RuntimeError::Contract);
+            }
+            if position < resume_from {
+                if let Some(path) = self.resume_step(index, step).await? {
+                    evidence = Some(path);
+                }
+                continue;
             }
             let root = self.work.join(format!("{index}-{name}"));
             tokio::fs::create_dir(&root).await?;
@@ -813,7 +672,7 @@ impl Session<'_> {
                     let checked = self.worker.validator.check(interface, science, path).await;
                     if let Err(error) = checked {
                         // A refused producer upload is the API's authoritative
-                        // evidence for blaming the agent rather than a tester.
+                        // evidence for blaming the agent rather than the verifier.
                         if role == "producer" && error == RuntimeError::InvalidStepOutput {
                             let output_name = string(output, "name")?;
                             let _ = self
@@ -832,7 +691,7 @@ impl Session<'_> {
                     self.run_validator(index, step, interface, science, &local)
                         .await?;
                 }
-                if self.mode.is_evaluator()
+                if self.mode == SessionMode::Policy
                     && output["name"] == "verdict"
                     && (files.len() != 1
                         || !files[0]
@@ -841,7 +700,7 @@ impl Session<'_> {
                             .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
                         || tokio::fs::metadata(&files[0].0).await?.len() > 1024 * 1024)
                 {
-                    return Err(RuntimeError::InvalidOutput);
+                    return Err(RuntimeError::InvalidStepOutput);
                 }
                 checked.push((output, local, files));
             }
@@ -849,7 +708,7 @@ impl Session<'_> {
                 let output_name = string(output, "name")?;
                 let mut digests = BTreeMap::new();
                 for (path, relative) in files {
-                    if self.mode.is_experiment() && output_name == RUN_OUTPUT {
+                    if self.mode == SessionMode::Experiment && output_name == RUN_OUTPUT {
                         digests.insert(relative, http::digest(&path).await?);
                         continue;
                     }
@@ -871,10 +730,15 @@ impl Session<'_> {
                         ),
                     );
                 }
-                if (role == "scorer" && output_name == "evidence")
-                    || (self.mode.is_experiment() && output_name == RUN_OUTPUT)
-                    || (self.mode.is_evaluator() && output_name == "verdict")
+                if (self.mode == SessionMode::Verify
+                    && role == "scorer"
+                    && output_name == EVIDENCE_OUTPUT)
+                    || (self.mode == SessionMode::Experiment && output_name == RUN_OUTPUT)
+                    || (self.mode == SessionMode::Policy && output_name == VERDICT_OUTPUT)
                 {
+                    if self.mode == SessionMode::Verify {
+                        self.evidence_step = Some(name.to_owned());
+                    }
                     evidence = Some(local.clone());
                 }
                 self.produced.insert(
@@ -887,62 +751,54 @@ impl Session<'_> {
                 );
             }
         }
-        let evidence = evidence.ok_or(if self.mode.is_experiment() {
+        self.finish(evidence).await
+    }
+    /// Read the single file of the session's result output, checked against
+    /// the bytes the API accepted.
+    async fn finish(&mut self, evidence: Option<PathBuf>) -> Result<Value, RuntimeError> {
+        let experiment = self.mode == SessionMode::Experiment;
+        if self.mode == SessionMode::Verify {
+            self.failure_step.clone_from(&self.evidence_step);
+        }
+        let evidence = evidence.ok_or(if experiment {
             RuntimeError::MissingOutput
         } else {
             RuntimeError::Contract
         })?;
-        if self.mode.owns_transfers() {
-            ensure_unlinked(self.work, &evidence).await?;
-        }
+        ensure_unlinked(self.work, &evidence).await?;
         let files = inspect_output(&evidence).await?;
-        if files.len() != 1 {
-            return Err(if self.mode.is_experiment() {
-                RuntimeError::InvalidStepOutput
-            } else {
-                RuntimeError::Contract
-            });
+        if files.len() != 1
+            || !files[0].0.extension().is_some_and(|extension| {
+                extension.eq_ignore_ascii_case(if experiment { "md" } else { "json" })
+            })
+        {
+            return Err(RuntimeError::InvalidStepOutput);
         }
-        if self.mode.owns_transfers() {
-            if !files[0].0.extension().is_some_and(|extension| {
-                extension.eq_ignore_ascii_case(if self.mode.is_experiment() {
-                    "md"
-                } else {
-                    "json"
-                })
-            }) {
-                return Err(RuntimeError::InvalidStepOutput);
-            }
-            let produced = self
-                .produced
-                .get(if self.mode.is_evaluator() {
-                    "verdict"
-                } else {
-                    RUN_OUTPUT
-                })
-                .ok_or(RuntimeError::Contract)?;
-            for (path, relative) in &files {
-                if produced.digests.get(relative) != Some(&http::digest(path).await?) {
-                    return Err(RuntimeError::Integrity);
-                }
+        let produced = self
+            .produced
+            .get(match self.mode {
+                SessionMode::Verify => EVIDENCE_OUTPUT,
+                SessionMode::Policy => VERDICT_OUTPUT,
+                SessionMode::Experiment => RUN_OUTPUT,
+            })
+            .ok_or(RuntimeError::Contract)?;
+        for (path, relative) in &files {
+            if produced.digests.get(relative) != Some(&http::digest(path).await?) {
+                return Err(RuntimeError::Integrity);
             }
         }
         let file = tokio::fs::File::open(&files[0].0).await?;
         let mut bytes = Vec::new();
-        let limit = if self.mode.is_evaluator() || self.mode.is_experiment() {
-            1024 * 1024
-        } else {
+        let limit = if self.mode == SessionMode::Verify {
             16 * 1024 * 1024
+        } else {
+            1024 * 1024
         };
         file.take(limit + 1).read_to_end(&mut bytes).await?;
-        if u64::try_from(bytes.len()).map_err(|_| RuntimeError::InvalidOutput)? > limit {
-            return Err(if self.mode.is_experiment() {
-                RuntimeError::InvalidStepOutput
-            } else {
-                RuntimeError::InvalidOutput
-            });
+        if u64::try_from(bytes.len()).map_err(|_| RuntimeError::InvalidStepOutput)? > limit {
+            return Err(RuntimeError::InvalidStepOutput);
         }
-        if self.mode.is_experiment() {
+        if experiment {
             // The run document: front matter and notes, submitted by the session.
             let text = String::from_utf8(bytes).map_err(|_| RuntimeError::InvalidStepOutput)?;
             let document = front_matter::parse(&text, front_matter::Limits::default())
@@ -952,11 +808,102 @@ impl Session<'_> {
                 "body": document.body,
             }));
         }
-        let invalid = RuntimeError::InvalidOutput;
+        let invalid = RuntimeError::InvalidStepOutput;
         json::decode(&bytes, 128).map_err(|_| invalid)?;
-        let evidence: Value = serde_json::from_slice(&bytes).map_err(|_| invalid)?;
-        if !evidence.is_object() {
+        let value: Value = serde_json::from_slice(&bytes).map_err(|_| invalid)?;
+        if !value.is_object() {
             return Err(invalid);
+        }
+        Ok(value)
+    }
+    /// Stage the outputs an earlier run of this verify job verified for a step
+    /// before `resume.from_step`, downloaded under this job's lease and
+    /// checked against their recorded size and SHA-256. Returns the scorer's
+    /// evidence path.
+    async fn resume_step(
+        &mut self,
+        index: usize,
+        step: &Value,
+    ) -> Result<Option<PathBuf>, RuntimeError> {
+        let name = string(step, "name")?;
+        let spec = &step["manifest"]["spec"];
+        let role = string(spec, "role")?;
+        let root = self.work.join(format!("{index}-{name}"));
+        tokio::fs::create_dir(&root).await?;
+        let resumed = array(&self.job["resume"], "outputs")?.clone();
+        let mut evidence = None;
+        for output in array(&spec["outputs"], "artifacts")? {
+            let output_name = string(output, "name")?;
+            let declared = string(output, "path")?;
+            let local = confined(&root, declared)?;
+            let directory = Path::new(declared).components().count() == 4;
+            let objects: Vec<&Value> = resumed
+                .iter()
+                .filter(|object| object["step"] == name && object["name"] == output_name)
+                .collect();
+            if objects.is_empty() || (!directory && objects.len() != 1) {
+                return Err(RuntimeError::Contract);
+            }
+            let marker = format!("/{name}/{output_name}/");
+            let mut digests = BTreeMap::new();
+            for object in objects {
+                let key = string(object, "key")?;
+                let relative = key
+                    .find(&marker)
+                    .map(|at| &key[at + marker.len()..])
+                    .filter(|relative| {
+                        !relative
+                            .split('/')
+                            .any(|part| part.is_empty() || part == "." || part == "..")
+                    })
+                    .ok_or(RuntimeError::Contract)?;
+                let destination = if directory {
+                    local.join(relative)
+                } else if local.file_name().and_then(|file| file.to_str()) == Some(relative) {
+                    local.clone()
+                } else {
+                    return Err(RuntimeError::Contract);
+                };
+                if let Some(parent) = destination.parent() {
+                    tokio::fs::create_dir_all(parent).await?;
+                }
+                let size = object["size_bytes"]
+                    .as_u64()
+                    .ok_or(RuntimeError::Contract)?;
+                let hash = string(object, "sha256")?;
+                self.worker
+                    .client
+                    .download(
+                        &format!("{}/inputs/object", self.base),
+                        key,
+                        &self.worker.token,
+                        self.lease,
+                        &destination,
+                        size,
+                        &self.cancel,
+                    )
+                    .await?;
+                if http::digest(&destination).await? != (size, hash.to_owned()) {
+                    return Err(RuntimeError::Integrity);
+                }
+                if self.cancel.is_set() {
+                    return Err(RuntimeError::LostLease);
+                }
+                digests.insert(relative.to_owned(), (size, hash.to_owned()));
+                self.resumed.push(object.clone());
+            }
+            if role == "scorer" && output_name == EVIDENCE_OUTPUT {
+                self.evidence_step = Some(name.to_owned());
+                evidence = Some(local.clone());
+            }
+            self.produced.insert(
+                output_name.to_owned(),
+                Produced {
+                    path: local,
+                    output_root: root.join("outputs"),
+                    digests,
+                },
+            );
         }
         Ok(evidence)
     }
@@ -977,7 +924,8 @@ impl Session<'_> {
                     if !slug(identifier) {
                         return Err(RuntimeError::Contract);
                     }
-                    if !self.mode.is_evaluator()
+                    // Only the scorer and the policy may read held-out labels.
+                    if self.mode != SessionMode::Policy
                         && string(spec, "role")? != "scorer"
                         && array(science, "datasets")?.iter().any(|dataset| {
                             dataset["id"] == identifier && dataset["held_out_labels"] == true
@@ -1008,20 +956,10 @@ impl Session<'_> {
                     }
                     copy_input(source, target).await?;
                 }
-                "attempt"
-                    if self.mode.is_evaluator() && ["evidence", "manifest"].contains(&name) =>
-                {
-                    let SessionMode::Evaluator(inputs) = self.mode else {
-                        return Err(RuntimeError::Contract);
-                    };
-                    let (file, value) = if name == "evidence" {
-                        ("evidence.json", &inputs.evidence["staged"])
-                    } else {
-                        ("manifest.json", &inputs.manifest)
-                    };
-                    tokio::fs::write(target.join(file), serde_json::to_vec_pretty(value)?).await?;
+                "attempt" if self.mode == SessionMode::Policy => {
+                    return Err(RuntimeError::Contract);
                 }
-                "attempt" if self.mode.is_experiment() => {
+                "attempt" if self.mode == SessionMode::Experiment => {
                     if name == "claimed_sheet" {
                         return Err(RuntimeError::Contract);
                     }
@@ -1065,30 +1003,25 @@ impl Session<'_> {
                         }
                     }
                 }
+                // The front matter of the frozen run document, never its notes.
                 "attempt" if name == "claimed_sheet" => {
-                    let sheet = self
-                        .get_json(
-                            &format!("{}/inputs/claimed-sheet", self.base),
-                            Some(self.lease),
-                        )
+                    let run = self
+                        .get_json(&format!("{}/inputs/run", self.base), Some(self.lease))
                         .await?;
-                    let expected = string(&self.job["inputs"]["claimed_sheet"], "sha256")?;
-                    if canonical_digest(&sheet)? != expected {
+                    let expected = string(&self.job["inputs"]["run"], "sha256")?;
+                    if canonical_digest(&run)? != expected {
                         return Err(RuntimeError::Integrity);
                     }
                     tokio::fs::write(
                         target.join("claimed.json"),
-                        serde_json::to_vec_pretty(&sheet)?,
+                        serde_json::to_vec_pretty(&run)?,
                     )
                     .await?;
                 }
                 "attempt" => {
-                    let manifest = if let SessionMode::Evaluator(inputs) = self.mode {
-                        inputs.manifest.clone()
-                    } else {
-                        self.get_json(&format!("{}/inputs/manifest", self.base), Some(self.lease))
-                            .await?
-                    };
+                    let manifest = self
+                        .get_json(&format!("{}/inputs/manifest", self.base), Some(self.lease))
+                        .await?;
                     if canonical_digest(&manifest)?
                         != string(&self.job["inputs"]["manifest"], "sha256")?
                     {
@@ -1156,14 +1089,14 @@ impl Session<'_> {
         }
         let (size, hash) = http::digest(file).await?;
         let mut body = json!({"role":role,"path":path,"size_bytes":size,"sha256":hash,"media_type":media_type(file)});
-        if self.mode.is_experiment() {
+        if self.mode == SessionMode::Experiment {
             let relative = path.splitn(3, '/').nth(2).ok_or(RuntimeError::Contract)?;
             if relative.contains('/') {
                 return Err(RuntimeError::Contract);
             }
             body = json!({"role":role,"name":relative,"size_bytes":size,"sha256":hash,"media_type":media_type(file)});
         }
-        if let Some(interface) = interface.filter(|_| !self.mode.is_experiment()) {
+        if let Some(interface) = interface.filter(|_| self.mode != SessionMode::Experiment) {
             body["interface"] = json!(interface);
         }
         let transfer = async {
@@ -1210,7 +1143,7 @@ impl Session<'_> {
         if artifact["size_bytes"].as_u64() != Some(size) || artifact["sha256"] != hash {
             return Err(RuntimeError::Integrity);
         }
-        if self.mode.owns_transfers() && artifact["role"] != role {
+        if artifact["role"] != role {
             return Err(RuntimeError::Integrity);
         }
         self.objects.push(json!({"role":artifact["role"],"storage":artifact["storage"],"size_bytes":artifact["size_bytes"],"sha256":artifact["sha256"],"media_type":artifact["media_type"]}));

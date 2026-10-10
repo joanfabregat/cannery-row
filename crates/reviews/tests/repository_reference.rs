@@ -145,10 +145,10 @@ async fn operation(c: &mut PgConnection, r: &Value, clock: Timestamp) -> Result<
         "stalled" => {
             let seconds = integer(r, "seconds", 600)?;
             let (total, rows) =
-                stalled_evaluations(c, project, limit.as_ref(), seconds.as_ref()).await?;
+                stalled_verifications(c, project, limit.as_ref(), seconds.as_ref()).await?;
             Ok(json!([
                 total,
-                many(&rows, |v| canon_stalledevaluation(v, clock))?
+                many(&rows, |v| canon_stalledverification(v, clock))?
             ]))
         }
         _ => Err("unknown recipe".into()),

@@ -1,4 +1,4 @@
-//! Pure stock-evaluator decisions. Callers validate policy/evidence schemas separately.
+//! Pure stock policy decisions. Callers validate policy/evidence schemas separately.
 use cannery_core::{
     json::{self, Document, DocumentBuilder, Node, NodeId},
     text,

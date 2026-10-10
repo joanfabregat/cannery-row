@@ -44,9 +44,7 @@ const hypothesisState = {
 const attemptState = {
   claimed: s("Started", "info", "progress"),
   running: s("Running", "info", "progress"),
-  submitted: s("Submitted", "info", "waiting"),
-  testing: s("Testing", "info", "progress"),
-  evaluating: s("Evaluating", "info", "progress"),
+  verifying: s("Verifying", "info", "progress"),
   awaiting_human_review: s("Needs review", "attention", "review"),
   promoted: s("Accepted", "success", "success"),
   rejected: s("Rejected", "danger", "failure"),
@@ -68,7 +66,7 @@ const trackState = {
 const authority = {
   agent_claim: s("Reported by agent", "neutral", "claimed"),
   tester_verified: s("Verified", "success", "verified"),
-  // An imported history's values: never measured by this project's tester.
+  // An imported history's values: never measured by this project's verifier.
   imported_artifact: s("Imported from a run file", "info", "imported"),
   imported_transcribed: s("Imported from a document", "attention", "imported"),
 };
@@ -180,16 +178,14 @@ export const labels = {
   /** Who produced a piece of evidence, or where a failure happened. */
   stage: {
     agent: "Experiment",
-    tester: "Testing",
-    evaluator: "Evaluation",
+    verify: "Verification",
   },
   searchKind: {
     track: "Track",
     hypothesis: "Hypothesis",
     attempt: "Attempt",
     report: "Report",
-    tester_observation: "Tester observation",
-    evaluator_reason: "Evaluator reason",
+    verification: "Verification report",
     decision_reason: "Decision reason",
     comment: "Comment",
   },
@@ -199,7 +195,7 @@ export const labels = {
     track: "Track",
     hypothesis_state: "Hypothesis status",
     attempt_state: "Attempt status",
-    verdict: "Evaluator verdict",
+    verdict: "Verification verdict",
     decision: "Decision",
     actor: "Person or agent",
   },
@@ -210,8 +206,7 @@ export const labels = {
   serviceKind: {
     agent: "Agent",
     experimenter: "Experimenter (workflow runner)",
-    tester: "Tester",
-    evaluator: "Evaluator",
+    verifier: "Verifier (verify runner)",
   },
   /** What a re-plan does with a unit already done or in flight. */
   alignment: {
@@ -228,7 +223,7 @@ export const labels = {
     higher: "Higher is better",
     lower: "Lower is better",
   },
-  /** What an evaluator compared a value against. */
+  /** What a verification compared a value against. */
   referenceKind: {
     paper: "Paper",
     benchmark: "Benchmark",
@@ -239,8 +234,8 @@ export const labels = {
   },
   /** Where a compared value came from. */
   comparisonSource: {
-    tester: "Verified by the tester",
-    evaluator: "Computed by the evaluator",
+    tester: "Measured by the verifier",
+    evaluator: "Computed by the policy",
   },
   artifactRole: {
     report_asset: "Report image",
@@ -255,7 +250,12 @@ export const labels = {
     agent: "Agent",
     workflow: "Workflow",
   },
-  /** Why a test or evaluation run exists. */
+  /** Who performs a verify run. */
+  performer: {
+    runner: "A verify runner",
+    agent: "An agent or a researcher",
+  },
+  /** Why a verify run exists. */
   jobOrigin: {
     submission: "First run",
     auto_retry: "Automatic rerun",

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/gates.schema.json",
-  "title": "Stock evaluator gates",
-  "description": "The gate grammar of the stock evaluator (`cannery evaluator`), evaluated against tester-verified measurements. No expressions, scripts or queries. Cannery Row itself evaluates no gate.",
+  "title": "Stock policy gates",
+  "description": "The gate grammar of the stock policy (`cannery evaluator`), evaluated against verified measurements. No expressions, scripts or queries. Cannery Row itself evaluates no gate.",
   "type": "object",
   "properties": {
     "gates": {

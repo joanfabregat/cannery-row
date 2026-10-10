@@ -1,12 +1,12 @@
 {
   "schema_version": "0.2",
-  "evaluator": {"id": "stock-evaluator", "revision": "fixture-policy-step-1"},
+  "verifier": {"id": "cannery-runner", "revision": "fixture-policy-step-1"},
   "step": {
     "apiVersion": "cannery-row/v1",
     "kind": "Step",
     "metadata": {"name": "fixture-policy"},
     "spec": {
-      "role": "evaluator",
+      "role": "policy",
       "container": {
         "image": "fixture.invalid/cannery-row/fixture-policy@sha256:c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
         "command": ["python3", "policy_step.py"],
@@ -17,9 +17,8 @@
       "sandbox": "Fixture only: the local launcher does not isolate the step.",
       "inputs": {
         "artifacts": [
-          {"name": "evidence", "from": "attempt", "path": "/cr/inputs/evidence"},
-          {"name": "manifest", "from": "attempt", "path": "/cr/inputs/manifest"},
-          {"name": "per_query_results", "from": "attempt", "path": "/cr/inputs/per_query_results"}
+          {"name": "evidence", "from": "step", "interface": "cr-evidence/v0.2", "path": "/cr/inputs/evidence"},
+          {"name": "per_query_results", "from": "step", "interface": "per-query-results/v1", "path": "/cr/inputs/per_query_results"}
         ]
       },
       "outputs": {"artifacts": [{"name": "verdict", "path": "/cr/outputs/verdict"}]}

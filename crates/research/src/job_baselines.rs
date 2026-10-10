@@ -51,13 +51,6 @@ fn copy(document: &Document, root: NodeId) -> Result<Document, ScienceError> {
         .map_err(|_| ScienceError::InvalidNode)?;
     builder.finish(root).map_err(|_| ScienceError::InvalidNode)
 }
-fn empty_object() -> Result<Document, ScienceError> {
-    let mut builder = DocumentBuilder::new();
-    let root = builder
-        .push(Node::Object(vec![]))
-        .map_err(|_| ScienceError::InvalidNode)?;
-    builder.finish(root).map_err(|_| ScienceError::InvalidNode)
-}
 fn input_ids(
     document: &Document,
     manifests: &[Value],
@@ -315,20 +308,13 @@ pub fn pinned_control(
         .map_err(|_| ScienceError::InvalidNode)
         .map(Some)
 }
-/// An evaluator's pinned parameters, including explicit null/scalar legacy values.
+/// A job's pinned hypothesis parameters, including explicit null/scalar legacy values.
 /// # Errors
-/// Only evaluator jobs consume the spec mapping; test jobs return immediately.
-pub fn pinned_parameters(
-    stage: &String,
-    spec: &Document,
-) -> Result<Option<Document>, ScienceError> {
-    if !stage.equals_utf8("evaluator") {
-        return Ok(None);
-    }
-    science::field(spec, &Value::Node(spec.root()), "parameters", false)?.map_or_else(
-        || empty_object().map(Some),
-        |root| copy(spec, root).map(Some),
-    )
+/// A spec without parameters (a job created before verify jobs pinned them) has none.
+pub fn pinned_parameters(spec: &Document) -> Result<Option<Document>, ScienceError> {
+    science::field(spec, &Value::Node(spec.root()), "parameters", false)?
+        .map(|root| copy(spec, root))
+        .transpose()
 }
 
 #[allow(unused_imports)]

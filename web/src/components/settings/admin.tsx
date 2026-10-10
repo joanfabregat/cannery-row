@@ -534,7 +534,7 @@ function ServiceAccountsSection({ project, canWrite }: { project: string; canWri
   return (
     <Section
       title="Service accounts"
-      description="Agents, testers and evaluators that work in this project with their own tokens."
+      description="Agents, experimenters and verifiers that work in this project with their own tokens."
       actions={
         canWrite ? <NewServiceAccountDialog project={project} onCreated={refresh} /> : undefined
       }
@@ -653,7 +653,7 @@ function NewServiceAccountDialog({
   onCreated: () => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<"agent" | "experimenter" | "tester" | "evaluator">("agent");
+  const [kind, setKind] = useState<"agent" | "experimenter" | "verifier">("agent");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const ids = { kind: useId(), name: useId(), description: useId(), hint: useId() };
@@ -687,8 +687,8 @@ function NewServiceAccountDialog({
       <DialogContent>
         <DialogTitle>New service account</DialogTitle>
         <DialogDescription>
-          An agent plans and tries hypotheses; a tester measures submissions; an evaluator judges
-          them. None of them can record a human decision.
+          An agent plans and tries hypotheses; an experimenter runs a workflow; a verifier re-runs
+          results and applies the project's policy. None of them can record a human decision.
         </DialogDescription>
         <form
           className="flex flex-col gap-4"
@@ -705,10 +705,10 @@ function NewServiceAccountDialog({
               id={ids.kind}
               value={kind}
               onChange={(event) => {
-                setKind(event.target.value as "agent" | "experimenter" | "tester" | "evaluator");
+                setKind(event.target.value as "agent" | "experimenter" | "verifier");
               }}
             >
-              {(["agent", "experimenter", "tester", "evaluator"] as const).map((k) => (
+              {(["agent", "experimenter", "verifier"] as const).map((k) => (
                 <option key={k} value={k}>
                   {label("serviceKind", k)}
                 </option>

@@ -2,14 +2,16 @@
   "reason": "/output_prefix",
   "document": {
     "schema_version": "0.2",
-    "job_id": "test-run-id",
-    "stage": "tester",
+    "job_id": "verify-job-id",
+    "phase": "verify",
     "attempt_id": "attempt-id",
-    "tester": {
-      "id": "tester-identity",
-      "revision": "runner-0.1.0"
+    "performer": "runner",
+    "verifier": {
+      "id": "cannery-verifier",
+      "revision": "policy-r1"
     },
     "track": "compact-sparse",
+    "parameters": {},
     "steps": [
       {
         "name": "sparse-producer",
@@ -141,7 +143,7 @@
     ],
     "science_revision": "science-revision",
     "inputs": {
-      "claimed_sheet": {
+      "run": {
         "ref": "evidence-id",
         "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },

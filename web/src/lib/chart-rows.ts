@@ -9,7 +9,7 @@ export interface ChartRow {
 
 /**
  * The column of a series' reference values: the reference each point's own
- * evaluator verdict reported, so each series has its own.
+ * verification reported, so each series has its own.
  */
 export function referenceColumn(series: string): string {
   return `${series} reference`;
@@ -157,9 +157,9 @@ export function chartReferences(
 
 /**
  * The note under a chart whose view overlays a reference but some measured
- * points have none. Points evaluated before the evaluator reported
+ * points have none. Points verified before verifications reported
  * comparisons carry none, and nothing is backfilled: "No reference for
- * results evaluated before 4 Mar 2026." when every such point comes before
+ * results verified before 4 Mar 2026." when every such point comes before
  * the first one with a reference (on a date axis), else a count.
  */
 export function noReferenceNote(data: ViewData): string | null {
@@ -169,13 +169,13 @@ export function noReferenceNote(data: ViewData): string | null {
   if (missing.length === 0) return null;
   const referenced = points.filter((p) => p.control_value !== null);
   if (referenced.length === 0) {
-    return "No reference for these results: they were evaluated before the evaluator reported what it compared, or it reported nothing for them.";
+    return "No reference for these results: they were verified before the verification reported what it compared, or it reported nothing for them.";
   }
   const time = (x: unknown) => (typeof x === "string" && DATE.test(x) ? Date.parse(x) : NaN);
   const firstReferenced = Math.min(...referenced.map((p) => time(p.x)));
   if (Number.isFinite(firstReferenced) && missing.every((p) => time(p.x) < firstReferenced)) {
     const first = referenced.find((p) => time(p.x) === firstReferenced);
-    return `No reference for results evaluated before ${xText(first?.x)}.`;
+    return `No reference for results verified before ${xText(first?.x)}.`;
   }
-  return `${String(missing.length)} of ${String(points.length)} results have no reference: their evaluation reported none for this slice.`;
+  return `${String(missing.length)} of ${String(points.length)} results have no reference: their verification reported none for this slice.`;
 }

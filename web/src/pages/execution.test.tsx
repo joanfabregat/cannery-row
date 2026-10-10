@@ -9,6 +9,7 @@ import {
   page,
   report,
   track,
+  verification,
 } from "@/test/fixtures";
 import { json, project, renderApp, signedIn } from "@/test/render";
 
@@ -54,7 +55,10 @@ describe("a track's execution mode", () => {
 
 const EXPERIMENT_LOG = "projects/p1/attempts/a1/step_log/fixture-experiment.log";
 
-/** A runner-driven attempt with a log of its experiment, a test run and an evaluation run. */
+/**
+ * A runner-driven attempt with a log of its experiment, a verify run that
+ * failed and the rerun a researcher's agent performed.
+ */
 function workflowAttempt() {
   const experimentLog = artifact(EXPERIMENT_LOG);
   const a = attempt({
@@ -66,33 +70,34 @@ function workflowAttempt() {
       artifact("projects/p1/attempts/a1/candidate/c.json", { role: "candidate" }),
     ],
   });
-  const tester = job();
-  const evaluator = job({
-    stage: "evaluator",
-    tester: "stock-evaluator",
-    via_client: "token:eval-runner",
-    steps: [{ name: "stock-policy", revision: "p2" }],
+  const verifier = job();
+  const rerun = job({
+    run_number: 2,
+    origin: "human_retry",
+    performer: "agent",
+    verifier: null,
+    via_client: "mcp",
     outputs: [],
   });
-  const evaluatorLog = artifact(`${evaluator.output_prefix}stock-policy/step_log/stock-policy.log`);
+  const rerunLog = artifact(`${rerun.output_prefix}fixture-scorer/step_log/scorer-rerun.log`);
   return {
     a,
     experimentLog,
-    tester,
-    evaluator: { ...evaluator, outputs: [evaluatorLog] },
-    evaluatorLog,
+    verifier,
+    rerun: { ...rerun, outputs: [rerunLog] },
+    rerunLog,
   };
 }
 
 describe("how an attempt ran", () => {
-  it("names the runner of each stage and links each step's logs", async () => {
-    const { a, experimentLog, tester, evaluator, evaluatorLog } = workflowAttempt();
+  it("names who performed each verify run and links each step's logs", async () => {
+    const { a, experimentLog, verifier, rerun, rerunLog } = workflowAttempt();
     signedIn(
       {},
       hypothesisApi(hypothesis(), {
         attempts: [a],
         reports: { 1: report() },
-        jobs: { 1: [tester, evaluator] },
+        jobs: { 1: [verifier, rerun] },
       }),
     );
     renderApp("/hypotheses/12/attempts/1");
@@ -109,25 +114,30 @@ describe("how an attempt ran", () => {
     // Only logs: the candidate is a file, listed under Files.
     expect(within(experiment).queryByRole("link", { name: "c.json" })).not.toBeInTheDocument();
 
-    const test = await within(ran).findByRole("region", { name: "Test runs" });
-    expect(test).toHaveTextContent("Run 1");
-    expect(test).toHaveTextContent("The runner holding token gke-runner");
-    expect(test).toHaveTextContent("Step overlap-producer");
-    expect(test).toHaveTextContent("Step fixture-scorer");
-    const [first] = tester.outputs;
-    expect(within(test).getByRole("link", { name: "overlap-producer.log" })).toHaveAttribute(
+    const verify = await within(ran).findByRole("region", { name: "Verify runs" });
+    const first = within(verify).getByRole("listitem", { name: "Run 1" });
+    const second = within(verify).getByRole("listitem", { name: "Run 2" });
+    expect(first).toHaveTextContent("A verify runner");
+    expect(first).toHaveTextContent(/Verifier\s*cannery-runner/);
+    expect(first).toHaveTextContent("The runner holding token gke-runner");
+    expect(first).toHaveTextContent("Step overlap-producer");
+    expect(first).toHaveTextContent("Step fixture-scorer");
+    const [log] = verifier.outputs;
+    expect(within(verify).getByRole("link", { name: "overlap-producer.log" })).toHaveAttribute(
       "href",
-      `/api/projects/sardines/artifacts/${first?.id ?? ""}`,
+      `/api/projects/sardines/artifacts/${log?.id ?? ""}`,
     );
-    expect(within(test).getByRole("link", { name: "fixture-scorer.log" })).toBeInTheDocument();
+    expect(within(verify).getByRole("link", { name: "fixture-scorer.log" })).toBeInTheDocument();
     // A step's other outputs are not logs.
-    expect(within(test).queryByRole("link", { name: "run.json" })).not.toBeInTheDocument();
+    expect(within(verify).queryByRole("link", { name: "run.json" })).not.toBeInTheDocument();
 
-    const evaluation = within(ran).getByRole("region", { name: "Evaluation runs" });
-    expect(evaluation).toHaveTextContent("The runner holding token eval-runner");
-    expect(within(evaluation).getByRole("link", { name: "stock-policy.log" })).toHaveAttribute(
+    expect(second).toHaveTextContent("Rerun a researcher asked for");
+    expect(second).toHaveTextContent("An agent or a researcher");
+    expect(second).not.toHaveTextContent("Verifier");
+    expect(second).toHaveTextContent(/Run by\s*An agent/);
+    expect(within(verify).getByRole("link", { name: "scorer-rerun.log" })).toHaveAttribute(
       "href",
-      `/api/projects/sardines/artifacts/${evaluatorLog.id}`,
+      `/api/projects/sardines/artifacts/${rerunLog.id}`,
     );
     expect(screen.getByRole("region", { name: "Summary" })).toHaveTextContent(
       "A workflow runner (token local-runner)",
@@ -153,7 +163,7 @@ describe("how an attempt ran", () => {
     expect(summary).not.toHaveTextContent("token cli");
   });
 
-  it("says an agent ran the experiment, and that no run of the next stages has started", async () => {
+  it("says an agent ran the experiment, and that no verify run has started", async () => {
     signedIn({}, hypothesisApi(hypothesis(), { attempts: [attempt()], reports: { 1: report() } }));
     renderApp("/hypotheses/12/attempts/1");
     const ran = await screen.findByRole("region", { name: "How it ran" });
@@ -161,18 +171,17 @@ describe("how an attempt ran", () => {
     expect(within(experiment).getByText("Agent")).toBeInTheDocument();
     expect(experiment).toHaveTextContent("An agent through API");
     expect(experiment).toHaveTextContent("Cannery Row keeps no logs of an outside agent's run.");
-    expect(await within(ran).findByText("No test run yet.")).toBeInTheDocument();
-    expect(within(ran).getByText("No evaluation run yet.")).toBeInTheDocument();
+    expect(await within(ran).findByText("No verify run yet.")).toBeInTheDocument();
   });
 
   it("tells a viewer there are logs without offering to download them", async () => {
-    const { a, tester, evaluator } = workflowAttempt();
+    const { a, verifier, rerun } = workflowAttempt();
     signedIn(
       { projects: [project("sardines", "Sardines", "viewer")] },
       hypothesisApi(hypothesis(), {
         attempts: [a],
         reports: { 1: report() },
-        jobs: { 1: [tester, evaluator] },
+        jobs: { 1: [verifier, rerun] },
       }),
     );
     renderApp("/hypotheses/12/attempts/1");
@@ -222,50 +231,53 @@ describe("how an attempt ran", () => {
   });
 });
 
-describe("the assessment", () => {
-  it("groups the test and the evaluation under one heading, as separate records", async () => {
+describe("the verification", () => {
+  it("shows one report: the measurements, then the verdict", async () => {
     signedIn({}, hypothesisApi(hypothesis(), { attempts: [attempt()], reports: { 1: report() } }));
     renderApp("/hypotheses/12/attempts/1");
-    const assessment = await screen.findByRole("region", { name: "Assessment" });
-    expect(screen.getByRole("heading", { level: 2, name: "Assessment" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "Evidence" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { level: 2, name: "Evaluator verdict" }),
-    ).not.toBeInTheDocument();
+    const verification = await screen.findByRole("region", { name: "Verification" });
+    expect(screen.getByRole("heading", { level: 2, name: "Verification" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Assessment" })).not.toBeInTheDocument();
 
-    const test = within(assessment).getByRole("region", { name: "Test" });
-    const evaluation = within(assessment).getByRole("region", { name: "Evaluation" });
-    expect(within(assessment).getByRole("heading", { level: 3, name: "Test" })).toBeInTheDocument();
+    const measured = within(verification).getByRole("region", { name: "Measurements" });
+    const verdict = within(verification).getByRole("region", { name: "Verdict" });
     expect(
-      within(assessment).getByRole("heading", { level: 3, name: "Evaluation" }),
-    ).toBeInTheDocument();
-    // Two records, neither inside the other, the test first.
-    expect(test.contains(evaluation)).toBe(false);
-    expect(evaluation.contains(test)).toBe(false);
-    expect(
-      test.compareDocumentPosition(evaluation) & Node.DOCUMENT_POSITION_FOLLOWING,
+      measured.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    // The tester's measurements stay in the test; the verdict stays in the evaluation.
-    expect(within(test).getByText("0.91")).toBeInTheDocument();
-    expect(within(test).queryByText("Passed")).not.toBeInTheDocument();
-    expect(within(evaluation).getByText("Passed")).toBeInTheDocument();
-    expect(within(evaluation).getByText("Accuracy held within the margin")).toBeInTheDocument();
-    expect(within(evaluation).queryByText("0.91")).not.toBeInTheDocument();
+    // The verified values stay with the measurements; the verdict stays on its own.
+    expect(within(measured).getByText("0.91")).toBeInTheDocument();
+    expect(within(measured).queryByText("Passed")).not.toBeInTheDocument();
+    expect(within(verdict).getByText("Passed")).toBeInTheDocument();
+    expect(within(verdict).getByText("Accuracy held within the margin")).toBeInTheDocument();
+    expect(within(verdict).queryByText("0.91")).not.toBeInTheDocument();
   });
 
-  it("says when the evaluation has not finished, while the test is shown", async () => {
+  it("shows the verifier's notes from the report body", async () => {
     signedIn(
       {},
       hypothesisApi(hypothesis(), {
-        attempts: [attempt({ state: "evaluating" })],
-        reports: { 1: report({ evaluation: null }) },
+        attempts: [attempt()],
+        reports: {
+          1: report({ verification: verification({ body_markdown: "Re-ran on **two** seeds." }) }),
+        },
       }),
     );
     renderApp("/hypotheses/12/attempts/1");
-    const assessment = await screen.findByRole("region", { name: "Assessment" });
-    expect(within(assessment).getByRole("region", { name: "Test" })).toHaveTextContent("0.91");
-    expect(within(assessment).getByRole("region", { name: "Evaluation" })).toHaveTextContent(
-      "The evaluation has not finished yet.",
+    const measured = await screen.findByRole("region", { name: "Measurements" });
+    expect(within(measured).getByRole("heading", { name: "Verifier notes" })).toBeInTheDocument();
+    expect(within(measured).getByText("two")).toBeInTheDocument();
+  });
+
+  it("says when the verification has not published its report yet", async () => {
+    signedIn(
+      {},
+      hypothesisApi(hypothesis(), {
+        attempts: [attempt({ state: "verifying" })],
+        reports: { 1: report({ verification: null }) },
+      }),
     );
+    renderApp("/hypotheses/12/attempts/1");
+    const section = await screen.findByRole("region", { name: "Verification" });
+    expect(section).toHaveTextContent("The verification has not published its report yet.");
   });
 });

@@ -2,7 +2,7 @@
 use super::{
     FutureResult, RuntimeError,
     http::{self, LeaseHeaders},
-    worker::{self, JobResult, Tester},
+    worker::{self, JobResult, Resources},
 };
 use crate::cancellation::CancellationEvent;
 use cannery_core::principal::Secret;
@@ -10,14 +10,14 @@ use reqwest::Method;
 use serde_json::{Value, json};
 use std::time::Duration;
 
-/// The resource configuration is shared with the tester; claims and completion
+/// The resource configuration is shared with the verify kind; claims and completion
 /// are attempt-specific. The scheduler must cancel and settle an active call.
 pub struct Experiment {
-    resources: Tester,
+    resources: Resources,
 }
 impl Experiment {
     #[must_use]
-    pub const fn new(resources: Tester) -> Self {
+    pub const fn new(resources: Resources) -> Self {
         Self { resources }
     }
     /// # Errors
@@ -226,7 +226,8 @@ impl Experiment {
         }
         record.insert("provenance".into(), provenance);
         record.insert("manifest".into(), manifest);
-        let submission = json!({"document": run_document(record, &body)?});
+        // The run document: its front matter, then its notes unchanged.
+        let submission = json!({"document": crate::verification::markdown(record, &body)?});
         let submission_lease = LeaseHeaders {
             token: Secret::new(lease.token.expose().to_owned()),
             generation: lease.generation.clone(),
@@ -314,23 +315,6 @@ impl Experiment {
             Err(_) => Ok("unreported".into()),
         }
     }
-}
-/// The run document submitted for the step's `run.md`: its front matter, one
-/// JSON value per key (JSON is YAML), then its notes unchanged.
-fn run_document(
-    front_matter: &serde_json::Map<String, Value>,
-    body: &str,
-) -> Result<String, RuntimeError> {
-    let mut document = String::from("---\n");
-    for (key, value) in front_matter {
-        document.push_str(&serde_json::to_string(key)?);
-        document.push_str(": ");
-        document.push_str(&serde_json::to_string(value)?);
-        document.push('\n');
-    }
-    document.push_str("---\n");
-    document.push_str(body);
-    Ok(document)
 }
 impl super::process::RuntimeWorker for Experiment {
     fn run_once(&self, cancel: CancellationEvent) -> FutureResult<'_, Option<JobResult>> {

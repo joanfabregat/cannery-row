@@ -62,7 +62,7 @@ async fn idle_api() -> Result<(String, tokio::task::JoinHandle<()>), Error> {
         );
         assert_eq!(
             serde_json::from_slice::<Value>(&request.body).expect("claim body"),
-            json!({"stage":"tester"})
+            json!({"phase":"verify","revision":"fixture-policy-1"})
         );
         json_reply(
             &mut stream,
@@ -118,7 +118,9 @@ async fn installed_container_factories_start_clients_and_claim_with_separate_cre
             .arg("--data-root")
             .arg(&root.0)
             .arg("--work-root")
-            .arg(&root.0);
+            .arg(&root.0)
+            .arg("--policy")
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/fixture/policy.json"));
         if let Some(cluster) = &cluster {
             command
                 .args([

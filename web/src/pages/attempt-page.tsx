@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router";
 import { useAttempt, useAttemptJobs, useHypothesis, useReport } from "@/api/queries";
 import type { AttemptDetail, AttemptFailure, Report } from "@/api/types";
 import { CommentsSection } from "@/components/comments";
-import { ArtifactList, AssessmentSection, ReportSection } from "@/components/evidence";
+import { ArtifactList, ReportSection, VerificationSection } from "@/components/evidence";
 import { AttemptExecution } from "@/components/execution";
 import { ImportedBadge } from "@/components/imported-badge";
 import { PageHeader } from "@/components/page-header";
@@ -122,7 +122,7 @@ function ReportBlocks({ project, report }: { project: string; report: Report }) 
   return (
     <>
       <ReportSection report={report} />
-      <AssessmentSection project={project} report={report} />
+      <VerificationSection project={project} report={report} />
     </>
   );
 }

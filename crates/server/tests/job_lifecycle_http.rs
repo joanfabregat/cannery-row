@@ -17,7 +17,7 @@ use cannery_server::{
     job_lifecycle,
 };
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, fmt::Write as _, sync::Arc};
 use tower::ServiceExt;
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 fn profile() -> Result<JobLifecycleContext> {
@@ -42,12 +42,38 @@ fn profile() -> Result<JobLifecycleContext> {
             rendering: cannery_research::science::RenderingContext { nesting_budget: 80 },
         },
         contracts: ContractValidator::new()?,
+        phases: cannery_core::contracts::phases::PhaseSchemas::new()?,
         repr_budget: 80,
         response: cannery_server::job_read_wire::ResponseContext {
             inferred_nesting_budget: 80,
             representation_budget: 80,
         },
     })
+}
+/// A researcher authenticates with a personal token, a service account with its own.
+fn bearer(role: &str) -> String {
+    if role == "researcher" {
+        "Bearer cr_pat_track_http_researcher".into()
+    } else {
+        format!("Bearer cr_svc_track_http_{role}")
+    }
+}
+/// A verification report: the front matter, one YAML key per line, then a short body.
+fn report(front_matter: &Value) -> String {
+    let mut text = String::from("---\n");
+    for (key, value) in front_matter.as_object().into_iter().flatten() {
+        let _ = writeln!(text, "{key}: {value}");
+    }
+    text.push_str("---\n\nThe scorer completed with no missing rows.\n");
+    text
+}
+/// The front matter of a passing report on the fixture run under science revision 3.
+fn verification(policy: &str, dataset: bool) -> Value {
+    let mut provenance = json!({"source_revision":"source-1","science_revision":"3"});
+    if dataset {
+        provenance["dataset_revision"] = json!("data-1");
+    }
+    json!({"verdict":"pass","reason":"bounded verification","policy_revision":policy,"gates":[{"id":"coverage","result":"pass"}],"measurements":[],"provenance":provenance})
 }
 async fn call(
     app: &Router,
@@ -66,7 +92,7 @@ async fn call(
                 .as_str()
                 .unwrap_or("00000000-0000-0000-0000-000000006005")
         ))
-        .header("authorization", format!("Bearer cr_svc_track_http_{role}"))
+        .header("authorization", bearer(role))
         .header("content-type", "application/json")
         .header("x-lease-token", token)
         .header("x-lease-generation", generation);
@@ -148,10 +174,11 @@ async fn job_lifecycle_integrity() -> Result<()> {
     }
     let failure = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006005","step":"scorer","error_code":"runner_failed","reason":"bounded fixture failure","logs":[]});
     for (role, token, generation, expected) in [
-        ("tester", "wrong", "9", 409),
-        ("tester", "fixture-held", "8", 409),
-        ("evaluator", "fixture-held", "9", 403),
+        ("verifier", "wrong", "9", 409),
+        ("verifier", "fixture-held", "8", 409),
+        ("other-verifier", "fixture-held", "9", 403),
         ("agent", "fixture-held", "9", 403),
+        ("researcher", "fixture-held", "9", 403),
     ] {
         let (status, value, _) =
             call(&app, "failure", role, token, generation, &failure, None).await?;
@@ -165,7 +192,7 @@ async fn job_lifecycle_integrity() -> Result<()> {
         let (status, value, _) = call(
             &app,
             "failure",
-            "tester",
+            "verifier",
             "fixture-held",
             "9",
             &failure,
@@ -189,7 +216,7 @@ async fn job_lifecycle_integrity() -> Result<()> {
     let (status, value, _) = call(
         &app,
         "failure",
-        "tester",
+        "verifier",
         "fixture-held",
         "9",
         &failure,
@@ -209,7 +236,7 @@ async fn job_lifecycle_integrity() -> Result<()> {
     let (status, value, _) = call(
         &app,
         "failure",
-        "tester",
+        "verifier",
         "fixture-held",
         "9",
         &failure,
@@ -217,22 +244,33 @@ async fn job_lifecycle_integrity() -> Result<()> {
     )
     .await?;
     assert_eq!(status, 200, "{value}");
-    let states:Vec<(String,)> =sqlx::query_as("SELECT state FROM jobs WHERE attempt_id='00000000-0000-0000-0000-000000002005' ORDER BY run_number").fetch_all(&state.pool).await?;
-    assert_eq!(states, vec![("failed".into(),)]);
+    // The runner's failure is within the rerun budget: a second run waits for the verifier.
+    let states:Vec<(String,String,Option<String>)> =sqlx::query_as("SELECT state,origin,error_code FROM jobs WHERE attempt_id='00000000-0000-0000-0000-000000002005' ORDER BY run_number").fetch_all(&state.pool).await?;
+    assert_eq!(
+        states,
+        vec![
+            (
+                "failed".into(),
+                "submission".into(),
+                Some("runner_failed".into())
+            ),
+            ("pending".into(), "auto_retry".into(), None)
+        ]
+    );
     let attempt: String = sqlx::query_scalar(
         "SELECT state FROM attempts WHERE id='00000000-0000-0000-0000-000000002005'",
     )
     .fetch_one(&state.pool)
     .await?;
-    assert_eq!(attempt, "failed");
-    let code:String=sqlx::query_scalar("SELECT code FROM attempt_failures WHERE attempt_id='00000000-0000-0000-0000-000000002005' ORDER BY created_at DESC LIMIT 1").fetch_one(&state.pool).await?;
-    assert_eq!(code, "no_evaluator");
-    let audits:i64=sqlx::query_scalar("SELECT count(*) FROM audit_events WHERE subject_id IN ('00000000-0000-0000-0000-000000006005','00000000-0000-0000-0000-000000002005')").fetch_one(&state.pool).await?;
-    assert!(audits >= 2);
+    assert_eq!(attempt, "verifying");
+    let failures:i64=sqlx::query_scalar("SELECT count(*) FROM attempt_failures WHERE attempt_id='00000000-0000-0000-0000-000000002005'").fetch_one(&state.pool).await?;
+    assert_eq!(failures, 0);
+    let audits:i64=sqlx::query_scalar("SELECT count(*) FROM audit_events WHERE action='job.failed' AND subject_id='00000000-0000-0000-0000-000000006005'").fetch_one(&state.pool).await?;
+    assert_eq!(audits, 1);
     let (status, value, _) = call(
         &app,
         "failure",
-        "tester",
+        "verifier",
         "fixture-held",
         "9",
         &failure,
@@ -242,8 +280,8 @@ async fn job_lifecycle_integrity() -> Result<()> {
     assert_eq!(status, 409, "{value}");
     publication_and_upload(&app, &state.pool, &uploads, &root.0, &job_uploads).await?;
     rerun_budget(&app, &state.pool).await?;
-    evaluator_publication_race(&app, &state.pool).await?;
-    multi_record_evaluator_publication(&app, &state.pool).await?;
+    agent_publication_race(&app, &state.pool).await?;
+    researcher_comparison_publication(&app, &state.pool).await?;
     uploads.cancellation.drain().await?;
     state.pool.close().await;
     Ok(())
@@ -268,7 +306,7 @@ async fn publication_and_upload(
             Request::builder()
                 .method("POST")
                 .uri("/api/projects/matrix/jobs/00000000-0000-0000-0000-000000006006/uploads")
-                .header("authorization", "Bearer cr_svc_track_http_tester")
+                .header("authorization", "Bearer cr_svc_track_http_verifier")
                 .header("content-type", "application/json")
                 .header("x-lease-token", "fixture-held-second")
                 .header("x-lease-generation", "9")
@@ -369,13 +407,14 @@ async fn publication_and_upload(
     assert!(checked);
     cancelled_receive(app, pool, uploads, root).await?;
     direct_s3_upload().await?;
-    let evidence = json!({"schema_version":"0.2","attempt_id":"00000000-0000-0000-0000-000000002006","stage":"tester","status":"completed","producer":{"kind":"service","id":"fixture-tester"},"started_at":"2026-10-01T00:00:00Z","finished_at":"2026-10-01T00:01:00Z","provenance":{"source_revision":"source-1","science_revision":"3","tester_revision":"tester-1","dataset_revision":"data-1"},"observations":"bounded tester output","measurements":[],"artifact_roles":[]});
+    let mut front_matter = verification("policy-1", true);
+    front_matter["artifact_roles"] = json!(["output"]);
     let object = json!({"role":artifact["role"],"storage":artifact["storage"],"size_bytes":artifact["size_bytes"],"sha256":artifact["sha256"],"media_type":artifact["media_type"]});
-    let completion = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006006","evidence":evidence,"manifest":{"schema_version":"0.2","attempt_id":"00000000-0000-0000-0000-000000002006","objects":[object]}});
+    let completion = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006006","document":report(&front_matter),"manifest":{"schema_version":"0.2","attempt_id":"00000000-0000-0000-0000-000000002006","objects":[object]}});
     let (status, value, replay) = call(
         app,
         "completion",
-        "tester",
+        "verifier",
         "fixture-held-second",
         "9",
         &completion,
@@ -387,7 +426,7 @@ async fn publication_and_upload(
     let (status, value, replay) = call(
         app,
         "completion",
-        "tester",
+        "verifier",
         "wrong",
         "1",
         &completion,
@@ -397,11 +436,12 @@ async fn publication_and_upload(
     assert_eq!(status, 200, "{value}");
     assert!(replay);
     let mut conflict = completion.clone();
-    conflict["evidence"]["observations"] = json!("different output");
+    front_matter["reason"] = json!("different output");
+    conflict["document"] = json!(report(&front_matter));
     let (status, value, _) = call(
         app,
         "completion",
-        "tester",
+        "verifier",
         "fixture-held-second",
         "9",
         &conflict,
@@ -409,28 +449,38 @@ async fn publication_and_upload(
     )
     .await?;
     assert_eq!(status, 409, "{value}");
-    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='tester'),(SELECT count(*) FROM manifests WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='tester'),(SELECT count(*) FROM idempotency_keys WHERE scope='job.complete')").fetch_one(pool).await?;
+    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='verification'),(SELECT count(*) FROM manifests WHERE attempt_id='00000000-0000-0000-0000-000000002006' AND stage='verify'),(SELECT count(*) FROM idempotency_keys WHERE scope='job.complete')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
+    // Publication hands the verified attempt to review.
+    let (attempt,cases):(String,i64)=sqlx::query_as("SELECT a.state,(SELECT count(*) FROM review_cases c WHERE c.attempt_id=a.id AND c.kind='result') FROM attempts a WHERE a.id='00000000-0000-0000-0000-000000002006'").fetch_one(pool).await?;
+    assert_eq!((attempt, cases), ("awaiting_human_review".into(), 1));
     Ok(())
 }
 async fn rerun_budget(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
-    sqlx::raw_sql("INSERT INTO config_revisions(project_id,kind,revision,content,created_by) SELECT project_id,kind,4,content||'{\"evaluator\":{\"id\":\"fixture-evaluator\",\"revision\":\"policy-1\"},\"limits\":{\"max_output_bytes\":10000}}'::jsonb,created_by FROM config_revisions WHERE project_id='00000000-0000-0000-0000-000000000010' AND kind='science' AND revision=3;
-    INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002405','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001005',2,'testing',2,4,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
-    INSERT INTO jobs(id,project_id,attempt_id,stage,run_number,state,science_revision,tester_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006107',project_id,'00000000-0000-0000-0000-000000002405','tester',1,'claimed',4,tester_id,spec,600,'00000000-0000-0000-0000-000000000023','api',1,sha256(convert_to('rerun-initial','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006006';").execute(pool).await?;
-    let mut report = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006107","error_code":"runner_failed","reason":"worker crash","logs":[]});
+    sqlx::raw_sql("INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at) SELECT '00000000-0000-0000-0000-000000001405',project_id,1405,track_id,'Rerun budget',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001005';
+    INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel) SELECT '00000000-0000-0000-0000-000000001405',2,content,3,author_user,via_channel FROM hypothesis_revisions WHERE hypothesis_id='00000000-0000-0000-0000-000000001005' AND revision=2;
+    INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002405','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001405',1,'verifying',2,3,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
+    INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003405','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002405','agent','completed','{\"provenance\":{\"source_revision\":\"source-1\"}}',repeat('a',64),'00000000-0000-0000-0000-000000000020','api');
+    INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006107',project_id,'00000000-0000-0000-0000-000000002405','verify',1,'claimed',3,performer,verifier_id,jsonb_set(spec,'{inputs,run,ref}','\"00000000-0000-0000-0000-000000003405\"'),600,'00000000-0000-0000-0000-000000000023','api',1,sha256(convert_to('rerun-initial','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006006';").execute(pool).await?;
+    // The runner's report names another policy revision than the registered verifier's.
+    let completion = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006107","document":report(&verification("policy-2", true))});
     let (status, value, _) = call(
         app,
         "completion",
-        "tester",
+        "verifier",
         "rerun-initial",
         "1",
-        &report,
+        &completion,
         None,
     )
     .await?;
     assert_eq!(
         status, 422,
         "invalid completion must durably fail and rerun: {value}"
+    );
+    assert_eq!(
+        value["error"]["message"],
+        "must match the registered verifier's policy revision; another run was queued"
     );
     let (id,origin,previous):(uuid::Uuid,String,uuid::Uuid)=sqlx::query_as("SELECT id,origin,previous_run_id FROM jobs WHERE attempt_id='00000000-0000-0000-0000-000000002405' AND run_number=2").fetch_one(pool).await?;
     assert_eq!(origin, "auto_retry");
@@ -446,21 +496,36 @@ async fn rerun_budget(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
     )
     .fetch_one(pool)
     .await?;
-    assert_eq!(state, "testing");
+    assert_eq!(state, "verifying");
     let prefix: String = sqlx::query_scalar("SELECT spec->>'output_prefix' FROM jobs WHERE id=$1")
         .bind(id)
         .fetch_one(pool)
         .await?;
     assert!(prefix.contains(&id.to_string()));
     sqlx::query("UPDATE jobs SET state='claimed',claimed_by_service='00000000-0000-0000-0000-000000000023',lease_generation=1,lease_token_hash=sha256(convert_to('rerun-second','UTF8')),lease_expires_at=now()+interval '1 hour',claimed_at=now(),deadline=now()+interval '2 hours' WHERE id=$1").bind(id).execute(pool).await?;
-    report["job_id"] = json!(id.to_string());
-    let (status, value, _) =
-        call(app, "failure", "tester", "rerun-second", "1", &report, None).await?;
+    let failure = json!({"schema_version":"0.2","job_id":id.to_string(),"error_code":"runner_failed","reason":"worker crash","logs":[]});
+    let (status, value, _) = call(
+        app,
+        "failure",
+        "verifier",
+        "rerun-second",
+        "1",
+        &failure,
+        None,
+    )
+    .await?;
     assert_eq!(status, 200, "{value}");
+    // The budget is spent: the attempt fails at the verify phase and awaits review.
     let states:Vec<String>=sqlx::query_scalar("SELECT state FROM jobs WHERE attempt_id='00000000-0000-0000-0000-000000002405' ORDER BY run_number").fetch_all(pool).await?;
     assert_eq!(states, vec!["failed", "failed"]);
     let (stage,code):(String,String)=sqlx::query_as("SELECT stage,code FROM attempt_failures WHERE attempt_id='00000000-0000-0000-0000-000000002405'").fetch_one(pool).await?;
-    assert_eq!((stage, code), ("tester".into(), "runner_failed".into()));
+    assert_eq!((stage, code), ("verify".into(), "runner_failed".into()));
+    let state: String = sqlx::query_scalar(
+        "SELECT state FROM attempts WHERE id='00000000-0000-0000-0000-000000002405'",
+    )
+    .fetch_one(pool)
+    .await?;
+    assert_eq!(state, "failed");
     Ok(())
 }
 async fn cancelled_receive(
@@ -476,7 +541,7 @@ async fn cancelled_receive(
             Request::builder()
                 .method("POST")
                 .uri("/api/projects/matrix/jobs/00000000-0000-0000-0000-000000006006/uploads")
-                .header("authorization", "Bearer cr_svc_track_http_tester")
+                .header("authorization", "Bearer cr_svc_track_http_verifier")
                 .header("content-type", "application/json")
                 .header("x-lease-token", "fixture-held-second")
                 .header("x-lease-generation", "9")
@@ -556,29 +621,57 @@ async fn cancelled_receive(
     assert_eq!(status, 201, "{}", String::from_utf8_lossy(&bytes));
     Ok(())
 }
-async fn evaluator_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
-    sqlx::raw_sql("INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001006',2,'evaluating',2,4,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
-    INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002406','tester','completed','{\"provenance\":{\"source_revision\":\"source-1\",\"dataset_revision\":\"data-1\"},\"measurements\":[]}',repeat('a',64),'00000000-0000-0000-0000-000000000023','api');
-    INSERT INTO jobs(id,project_id,attempt_id,stage,run_number,state,science_revision,tester_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) VALUES('00000000-0000-0000-0000-000000006108','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002406','evaluator',1,'claimed',4,'fixture-evaluator','{\"evaluator\":{\"id\":\"fixture-evaluator\",\"revision\":\"policy-1\"},\"track\":\"track-4\",\"parameters\":{},\"control\":null,\"output_prefix\":\"evaluation/\",\"inputs\":{\"evidence\":[{\"ref\":\"00000000-0000-0000-0000-000000003406\",\"sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}]}}',600,'00000000-0000-0000-0000-000000000024','api',1,sha256(convert_to('evaluation-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours');").execute(pool).await?;
-    let record = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","evidence":{"schema_version":"0.2","attempt_id":"00000000-0000-0000-0000-000000002406","stage":"evaluator","status":"completed","producer":{"kind":"service","id":"fixture-evaluator"},"started_at":"2026-10-01T00:00:00Z","finished_at":"2026-10-01T00:01:00Z","provenance":{"source_revision":"source-1","science_revision":"4","dataset_revision":"data-1"},"assessment":{"policy_revision":"policy-1","gates":[{"id":"coverage","result":"unknown"}],"evidence":[{"ref":"00000000-0000-0000-0000-000000003406","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"verdict":"inconclusive","reason":"bounded evaluation"}}});
+async fn agent_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
+    // A researcher ran attempt 2406; the agent service account verifies it.
+    sqlx::raw_sql(r#"
+INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at)
+SELECT '00000000-0000-0000-0000-000000001406',project_id,1406,track_id,'Agent verification',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001006';
+INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel)
+SELECT '00000000-0000-0000-0000-000000001406',2,content,3,author_user,via_channel FROM hypothesis_revisions WHERE hypothesis_id='00000000-0000-0000-0000-000000001006' AND revision=2;
+INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001406',1,'verifying',2,3,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000002','api',0);
+INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_user,via_channel) VALUES('00000000-0000-0000-0000-000000003406','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002406','agent','completed','{"provenance":{"source_revision":"source-1"}}',repeat('a',64),'00000000-0000-0000-0000-000000000002','api');
+INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006108',project_id,'00000000-0000-0000-0000-000000002406','verify',1,'claimed',3,'agent',NULL,jsonb_set((spec-'verifier')||'{"performer":"agent"}','{inputs,run,ref}','"00000000-0000-0000-0000-000000003406"'),600,'00000000-0000-0000-0000-000000000020','api',1,sha256(convert_to('agent-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006006';
+"#).execute(pool).await?;
+    // An agent's invalid report is refused, and the agent keeps the lease to correct it.
+    let mut front_matter = verification("agent-checklist-1", true);
+    front_matter["provenance"]["science_revision"] = json!("4");
+    let invalid = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","document":report(&front_matter)});
+    let (status, value, _) = call(
+        app,
+        "completion",
+        "agent",
+        "agent-held",
+        "1",
+        &invalid,
+        Some("agent-invalid"),
+    )
+    .await?;
+    assert_eq!(status, 422, "{value}");
+    assert_eq!(
+        value["error"]["message"],
+        "must match the job's pinned science revision"
+    );
+    let kept:(String,String,i64,i64)=sqlx::query_as("SELECT j.state,a.state,(SELECT count(*) FROM jobs WHERE attempt_id=a.id),(SELECT count(*) FROM attempt_failures WHERE attempt_id=a.id) FROM jobs j JOIN attempts a ON a.id=j.attempt_id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
+    assert_eq!(kept, ("claimed".into(), "verifying".into(), 1, 0));
+    let record = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006108","document":report(&verification("agent-checklist-1", true))});
     let (first, second) = tokio::join!(
         call(
             app,
             "completion",
-            "evaluator",
-            "evaluation-held",
+            "agent",
+            "agent-held",
             "1",
             &record,
-            Some("evaluation-once")
+            Some("verification-once")
         ),
         call(
             app,
             "completion",
-            "evaluator",
-            "evaluation-held",
+            "agent",
+            "agent-held",
             "1",
             &record,
-            Some("evaluation-once")
+            Some("verification-once")
         )
     );
     let first = first?;
@@ -586,7 +679,7 @@ async fn evaluator_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result
     assert_eq!(first.0, 200, "{}", first.1);
     assert_eq!(second.0, 200, "{}", second.1);
     assert_ne!(first.2, second.2);
-    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND stage='evaluator'),(SELECT count(*) FROM review_cases WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND kind='result'),(SELECT count(*) FROM audit_events WHERE action='attempt.evaluated' AND subject_id='00000000-0000-0000-0000-000000002406')").fetch_one(pool).await?;
+    let counts:(i64,i64,i64)=sqlx::query_as("SELECT (SELECT count(*) FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND stage='verification'),(SELECT count(*) FROM review_cases WHERE attempt_id='00000000-0000-0000-0000-000000002406' AND kind='result'),(SELECT count(*) FROM audit_events WHERE action='attempt.verified' AND subject_id='00000000-0000-0000-0000-000000002406')").fetch_one(pool).await?;
     assert_eq!(counts, (1, 1, 1));
     let (attempt,hypothesis):(String,String)=sqlx::query_as("SELECT a.state,h.state FROM attempts a JOIN hypotheses h ON h.id=a.hypothesis_id WHERE a.id='00000000-0000-0000-0000-000000002406'").fetch_one(pool).await?;
     assert_eq!(
@@ -596,51 +689,48 @@ async fn evaluator_publication_race(app: &Router, pool: &sqlx::PgPool) -> Result
             "awaiting_human_review".into()
         )
     );
-    let linked:bool=sqlx::query_scalar("SELECT j.evidence_id=c.evidence_id AND c.subject_revision=e.revision AND c.resolved_at IS NULL FROM jobs j JOIN phase_outputs e ON e.id=j.evidence_id JOIN review_cases c ON c.evidence_id=e.id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
+    let linked:bool=sqlx::query_scalar("SELECT j.evidence_id=c.evidence_id AND c.subject_revision=e.revision AND c.resolved_at IS NULL AND e.producer_service='00000000-0000-0000-0000-000000000020' FROM jobs j JOIN phase_outputs e ON e.id=j.evidence_id JOIN review_cases c ON c.evidence_id=e.id WHERE j.id='00000000-0000-0000-0000-000000006108'").fetch_one(pool).await?;
     assert!(linked);
     Ok(())
 }
-async fn multi_record_evaluator_publication(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
+async fn researcher_comparison_publication(app: &Router, pool: &sqlx::PgPool) -> Result<()> {
+    // The agent service account ran attempt 2416; a researcher verifies it with a comparison.
     sqlx::raw_sql(r#"
 INSERT INTO config_revisions(project_id,kind,revision,content,created_by)
-SELECT project_id,kind,5,content||'{"metrics":[{"key":"mrr","splits":["dev"],"dimensions":[],"unit":"ratio","direction":"higher"}]}'::jsonb,created_by FROM config_revisions WHERE project_id='00000000-0000-0000-0000-000000000010' AND kind='science' AND revision=4;
+SELECT project_id,kind,5,content||'{"metrics":[{"key":"mrr","splits":["dev"],"dimensions":[],"unit":"ratio","direction":"higher"}]}'::jsonb,created_by FROM config_revisions WHERE project_id='00000000-0000-0000-0000-000000000010' AND kind='science' AND revision=3;
 INSERT INTO hypotheses(id,project_id,number,track_id,title,created_by_user,state,revision,approved_revision,approved_at)
-SELECT '00000000-0000-0000-0000-000000001416',project_id,1416,track_id,'Multi-record citation',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001006';
+SELECT '00000000-0000-0000-0000-000000001416',project_id,1416,track_id,'Researcher verification',created_by_user,'active',2,2,approved_at FROM hypotheses WHERE id='00000000-0000-0000-0000-000000001006';
 INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel)
 SELECT '00000000-0000-0000-0000-000000001416',2,content,5,author_user,via_channel FROM hypothesis_revisions WHERE hypothesis_id='00000000-0000-0000-0000-000000001006' AND revision=2;
-INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation)
-SELECT '00000000-0000-0000-0000-000000002416',project_id,'00000000-0000-0000-0000-000000001416',1,'evaluating',2,5,track_id,claimed_by_service,via_channel,0 FROM attempts WHERE id='00000000-0000-0000-0000-000000002406';
-INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel)
-SELECT '00000000-0000-0000-0000-000000003416',project_id,'00000000-0000-0000-0000-000000002416',stage,status,front_matter,sha256,producer_service,via_channel FROM phase_outputs WHERE id='00000000-0000-0000-0000-000000003406';
-INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,revision,front_matter,sha256,producer_service,via_channel)
-SELECT '00000000-0000-0000-0000-000000003417',project_id,attempt_id,stage,status,2,front_matter||'{"measurements":[{"metric":"mrr","split":"dev","dimensions":{},"authority":"tester_verified","value":0.42,"unit":"ratio","direction":"higher"}]}'::jsonb,repeat('b',64),producer_service,via_channel FROM phase_outputs WHERE id='00000000-0000-0000-0000-000000003416';
+INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_service,via_channel,lease_generation) VALUES('00000000-0000-0000-0000-000000002416','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000001416',1,'verifying',2,5,'00000000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000020','api',0);
+INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_service,via_channel) VALUES('00000000-0000-0000-0000-000000003416','00000000-0000-0000-0000-000000000010','00000000-0000-0000-0000-000000002416','agent','completed','{"provenance":{"source_revision":"source-1"}}',repeat('a',64),'00000000-0000-0000-0000-000000000020','api');
+INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,state,science_revision,performer,verifier_id,spec,deadline_seconds,claimed_by_user,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006118',project_id,'00000000-0000-0000-0000-000000002416','verify',1,'claimed',5,'agent',NULL,jsonb_set(spec,'{inputs,run,ref}','"00000000-0000-0000-0000-000000003416"'),600,'00000000-0000-0000-0000-000000000002','api',1,sha256(convert_to('researcher-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006108';
 "#).execute(pool).await?;
-    let refs = json!([
-        {"ref":"00000000-0000-0000-0000-000000003416","sha256":"a".repeat(64)},
-        {"ref":"00000000-0000-0000-0000-000000003417","sha256":"b".repeat(64)}
-    ]);
-    let mut spec: Value =
-        sqlx::query_scalar("SELECT spec FROM jobs WHERE id='00000000-0000-0000-0000-000000006108'")
-            .fetch_one(pool)
-            .await?;
-    spec["inputs"]["evidence"] = refs.clone();
-    sqlx::query("INSERT INTO jobs(id,project_id,attempt_id,stage,run_number,state,science_revision,tester_id,spec,deadline_seconds,claimed_by_service,via_channel,lease_generation,lease_token_hash,lease_expires_at,claimed_at,deadline) SELECT '00000000-0000-0000-0000-000000006118',project_id,'00000000-0000-0000-0000-000000002416',stage,1,'claimed',5,tester_id,$1,600,claimed_by_service,via_channel,1,sha256(convert_to('evaluation-held','UTF8')),now()+interval '1 hour',now(),now()+interval '2 hours' FROM jobs WHERE id='00000000-0000-0000-0000-000000006108'")
-        .bind(spec).execute(pool).await?;
-    let record = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006118","evidence":{"schema_version":"0.2","attempt_id":"00000000-0000-0000-0000-000000002416","stage":"evaluator","status":"completed","producer":{"kind":"service","id":"fixture-evaluator"},"started_at":"2026-10-01T00:00:00Z","finished_at":"2026-10-01T00:01:00Z","provenance":{"source_revision":"source-1","science_revision":"5","dataset_revision":"data-1"},"assessment":{"policy_revision":"policy-1","gates":[{"id":"quality","result":"pass"}],"evidence":refs,"comparisons":[{"metric":"mrr","split":"dev","dimensions":{},"source":"tester","value":0.42,"reference":{"value":0.4,"label":"baseline","kind":"baseline"}}],"verdict":"pass","reason":"second pinned record cited"}}});
+    let mut front_matter = verification("reviewer-checklist-2", true);
+    front_matter["provenance"]["science_revision"] = json!("5");
+    front_matter["measurements"] = json!([{"metric":"mrr","split":"dev","dimensions":{},"authority":"tester_verified","value":0.42,"unit":"ratio","direction":"higher"}]);
+    front_matter["comparisons"] = json!([{"metric":"mrr","split":"dev","dimensions":{},"source":"tester","value":0.42,"reference":{"value":0.4,"label":"baseline","kind":"baseline"}}]);
+    let record = json!({"schema_version":"0.2","job_id":"00000000-0000-0000-0000-000000006118","document":report(&front_matter)});
     let (status, response, _) = call(
         app,
         "completion",
-        "evaluator",
-        "evaluation-held",
+        "researcher",
+        "researcher-held",
         "1",
         &record,
-        Some("multi-record-once"),
+        Some("researcher-once"),
     )
     .await?;
     assert_eq!(status, 200, "{response}");
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM comparisons WHERE attempt_id='00000000-0000-0000-0000-000000002416' AND metric='mrr' AND value=0.42")
         .fetch_one(pool).await?;
     assert_eq!(count, 1);
+    let producer: Option<uuid::Uuid> = sqlx::query_scalar("SELECT producer_user FROM phase_outputs WHERE attempt_id='00000000-0000-0000-0000-000000002416' AND stage='verification'")
+        .fetch_one(pool).await?;
+    assert_eq!(
+        producer.map(|v| v.to_string()).as_deref(),
+        Some("00000000-0000-0000-0000-000000000002")
+    );
     Ok(())
 }
 fn hex(bytes: &[u8]) -> String {
@@ -706,7 +796,7 @@ async fn direct_s3_upload() -> Result<()> {
             Request::builder()
                 .method("POST")
                 .uri("/api/projects/matrix/jobs/00000000-0000-0000-0000-000000006006/uploads")
-                .header("authorization", "Bearer cr_svc_track_http_tester")
+                .header("authorization", "Bearer cr_svc_track_http_verifier")
                 .header("content-type", "application/json")
                 .header("x-lease-token", "fixture-held-second")
                 .header("x-lease-generation", "9")

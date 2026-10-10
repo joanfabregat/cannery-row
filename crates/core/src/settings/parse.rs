@@ -68,7 +68,7 @@ pub(super) const SECTIONS: &[(&str, &[&str])] = &[
             "ttl_seconds",
             "job_ttl_seconds",
             "job_overhead_seconds",
-            "stalled_evaluation_seconds",
+            "stalled_verification_seconds",
         ],
     ),
     (
@@ -507,7 +507,12 @@ pub(super) fn build(data: &Table) -> Result<Settings, SettingsError> {
         ttl_seconds: r.integer("ttl_seconds", 900, Some(1), None),
         job_ttl_seconds: r.integer("job_ttl_seconds", 900, Some(1), None),
         job_overhead_seconds: r.integer("job_overhead_seconds", 300, Some(0), None),
-        stalled_evaluation_seconds: r.integer("stalled_evaluation_seconds", 3600, Some(0), None),
+        stalled_verification_seconds: r.integer(
+            "stalled_verification_seconds",
+            3600,
+            Some(0),
+            None,
+        ),
     };
     r.finish();
     let mut r = Reader::new("sweeps", data, &mut issues);

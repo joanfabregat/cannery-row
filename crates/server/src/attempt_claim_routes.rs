@@ -226,11 +226,6 @@ pub(crate) async fn claim(
             let science = Science::new(
                 BigInt::from(revision.revision), &revision.content, state.profile.rendering
             ).map_err(|_| internal(&context, "claim science construction"))?;
-            if let Some(legacy) = science.legacy_problem()
-                .map_err(|_| internal(&context, "claim legacy science"))? {
-                let legacy = legacy.as_utf8().ok_or_else(|| internal(&context, "claim legacy encoding"))?;
-                return Err(conflict(legacy.clone(), "/gates", &legacy));
-            }
             let track = Repository::new(&mut tx, state.profile.repository)
                 .pin_track(id).await.map_err(|_| internal(&context, "claim track lock"))?;
             if track.state.as_str() != "active" {

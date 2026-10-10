@@ -73,7 +73,7 @@ async fn reset(pool: &PgPool, r: &Value) -> Result<()> {
     ] {
         let mut seed = seed.to_owned();
         if own && let Some(spec) = r["legacy_spec"].as_str() {
-            let marker = "3,'fixture-tester','";
+            let marker = "3,'agent',NULL,'";
             let start = seed.find(marker).ok_or("seed marker")? + marker.len();
             let end = start + seed[start..].find("',600,'").ok_or("seed delimiter")?;
             seed.replace_range(start..end, &spec.replace('\'', "''"));
@@ -153,11 +153,10 @@ async fn call(
         let prefix = if [
             "agent",
             "foreign-agent",
-            "tester",
-            "evaluator",
-            "other-tester",
-            "foreign-tester",
-            "tester-readonly",
+            "verifier",
+            "other-verifier",
+            "foreign-verifier",
+            "verifier-readonly",
         ]
         .contains(&role)
         {
@@ -321,26 +320,19 @@ async fn job_claims_match_production() -> Result<()> {
                 }
                 "waiting-message" => {
                     assert_eq!(r["status"], 409);
-                    let (kind, name) = match r["role"].as_str().ok_or("worker role")? {
-                        "evaluator" => ("evaluator", "fixture-evaluator"),
-                        "tester" => ("tester", "fixture-tester"),
-                        "other-tester" => ("tester", "other-tester"),
+                    let name = match r["role"].as_str().ok_or("worker role")? {
+                        "verifier" => "fixture-verifier",
+                        "other-verifier" => "other-verifier",
                         _ => return Err("unexpected waiting worker".into()),
                     };
-                    let mut message = format!(
-                        "no {kind} job is waiting for {kind} {}",
-                        serde_json::to_string(name)?
+                    let body: Value = serde_json::from_str(r["raw"].as_str().ok_or("body")?)?;
+                    let revision = body["revision"].as_str().ok_or("revision")?;
+                    assert!(matches!(revision, "missing" | "policy-1" | "policy-2"));
+                    let message = format!(
+                        "no verify job is waiting for verifier {} under policy revision {}",
+                        serde_json::to_string(name)?,
+                        serde_json::to_string(revision)?
                     );
-                    if kind == "evaluator" {
-                        let body: Value = serde_json::from_str(r["raw"].as_str().ok_or("body")?)?;
-                        let revision = body["revision"].as_str().ok_or("revision")?;
-                        assert!(matches!(revision, "missing" | "policy-2"));
-                        write!(
-                            message,
-                            " under policy revision {}",
-                            serde_json::to_string(revision)?
-                        )?;
-                    }
                     json!({"error":{"code":"conflict","message":message,"details":null}})
                 }
                 "incomplete-job-document" => {
@@ -526,7 +518,7 @@ async fn job_claims_match_production() -> Result<()> {
             r["name"]
         );
     }
-    let race_recipe = json!({"setup":"","headers":[["Idempotency-Key","race"]],"method":"POST","path":"/api/projects/matrix/jobs/claims","role":"tester","raw":"{}","use_previous":false});
+    let race_recipe = json!({"setup":"","headers":[["Idempotency-Key","race"]],"method":"POST","path":"/api/projects/matrix/jobs/claims","role":"verifier","raw":"{\"revision\":\"policy-1\"}","use_previous":false});
     reset(&state.pool, &race_recipe).await?;
     let race_initial = storage(&state.pool, false).await?;
     let race_before: i64 =
@@ -605,7 +597,7 @@ async fn job_claims_match_production() -> Result<()> {
         .as_array()
         .ok_or("cases")?
         .iter()
-        .find(|r| r["name"] == "heartbeat-auth" && r["role"] == "tester")
+        .find(|r| r["name"] == "heartbeat-auth" && r["role"] == "verifier")
         .ok_or("heartbeat fixture")?;
     reset(&state.pool, heartbeat).await?;
     let mut lock = state.pool.begin().await?;
