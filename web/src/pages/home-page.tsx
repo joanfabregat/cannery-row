@@ -11,7 +11,7 @@ import { navItems } from "@/components/shell/nav-items";
 import { StatusChip } from "@/components/status-chip";
 import { excerpt, formatDateTime, formatWaited } from "@/lib/format";
 import { label } from "@/lib/labels";
-import { attemptPath, hypothesisPath, reviewPath } from "@/lib/paths";
+import { attemptPath, hypothesisPath, reviewPath, writeupPath } from "@/lib/paths";
 import type { Project } from "@/projects/project-context";
 import { usePermissions } from "@/projects/use-permissions";
 
@@ -41,6 +41,7 @@ function Attention({ project }: { project: Project }) {
         <div className="flex flex-col gap-6">
           <BriefCard project={project.slug} />
           {isResearcher ? <ReviewQueue data={data} /> : null}
+          {isResearcher ? <WriteupQueue data={data} /> : null}
           <RecentOutcomes data={data} />
           <StalledVerifications data={data} />
           <RunningWork data={data} />
@@ -75,18 +76,18 @@ function BriefCard({ project }: { project: string }) {
 
 function ReviewQueue({ data }: { data: Attention }) {
   const counts = data.pending_counts;
-  const total = (counts.result ?? 0) + (counts.failure ?? 0);
+  const total = (counts.decision ?? 0) + (counts.failure ?? 0);
   return (
     <Section
-      title="Waiting for your review"
+      title="Decisions to take"
       description={
         total === 0
           ? undefined
-          : `${counts.result ?? 0} ${counts.result === 1 ? "result" : "results"} and ${counts.failure ?? 0} ${counts.failure === 1 ? "failure" : "failures"}, oldest first.`
+          : `${counts.decision ?? 0} ${counts.decision === 1 ? "decision" : "decisions"} and ${counts.failure ?? 0} ${counts.failure === 1 ? "failure" : "failures"}, oldest first.`
       }
     >
       {data.pending_reviews.length === 0 ? (
-        <EmptyState>Nothing is waiting for a review.</EmptyState>
+        <EmptyState>Nothing is waiting for a decision.</EmptyState>
       ) : (
         <ul className="flex flex-col divide-y">
           {data.pending_reviews.map((r) => (
@@ -95,7 +96,7 @@ function ReviewQueue({ data }: { data: Attention }) {
                 <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   {label("reviewKind", r.kind)}
                 </span>
-                {r.kind === "result" && r.verdict ? (
+                {r.kind === "decision" && r.verdict ? (
                   <StatusChip domain="verdict" value={r.verdict} />
                 ) : null}
                 <ImportedBadge origin={r.origin} />
@@ -104,10 +105,49 @@ function ReviewQueue({ data }: { data: Attention }) {
                 {r.hypothesis_ref} {r.title}
               </Link>
               <p className="text-sm text-muted-foreground">
-                {r.kind === "result"
-                  ? `Attempt ${r.attempt_ref ?? ""}: the verification ${VERDICT_WORDS[r.verdict ?? ""] ?? "finished"}.`
+                {r.kind === "decision"
+                  ? r.verdict
+                    ? `Attempt ${r.attempt_ref ?? ""}: the verification ${VERDICT_WORDS[r.verdict] ?? "finished"}; written up.`
+                    : `Attempt ${r.attempt_ref ?? ""}: stopped after a failure; written up.`
                   : `Attempt ${r.attempt_ref ?? ""} failed${r.failure_reason ? `: ${excerpt(r.failure_reason, 120)}` : "."}`}{" "}
                 Waiting since {formatDateTime(r.opened_at)}.
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Section>
+  );
+}
+
+/** The hypotheses waiting for their write-up, before their decision. */
+function WriteupQueue({ data }: { data: Attention }) {
+  const total = data.pending_writeup_count;
+  return (
+    <Section
+      title="Write-ups to do"
+      description={
+        total === 0
+          ? undefined
+          : `${String(total)} ${total === 1 ? "hypothesis waits" : "hypotheses wait"} for a write-up before the decision, oldest first. An agent or a researcher writes each one up; a researcher may skip one with a reason.`
+      }
+    >
+      {data.pending_writeups.length === 0 ? (
+        <EmptyState>Nothing is waiting for a write-up.</EmptyState>
+      ) : (
+        <ul className="flex flex-col divide-y">
+          {data.pending_writeups.map((w) => (
+            <li key={w.job_id} className="flex flex-col gap-1 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Link to={writeupPath(w.hypothesis)} className="font-medium hover:underline">
+                  {w.hypothesis_ref} {w.title}
+                </Link>
+                <StatusChip domain="writeup" value={w.job_state} />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Attempt {w.attempt_ref}:{" "}
+                {w.attempt_state === "verified" ? "verified" : "stopped after a failure"}. Waiting
+                since {formatDateTime(w.waiting_since)}.
               </p>
             </li>
           ))}

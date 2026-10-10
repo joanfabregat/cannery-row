@@ -400,4 +400,11 @@ const PACKAGED: &[(&str, &str)] = &[
             "/migrations/0022_verify_jobs.sql"
         )),
     ),
+    (
+        "0023_document_and_decide.sql",
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/migrations/0023_document_and_decide.sql"
+        )),
+    ),
 ];

@@ -136,6 +136,22 @@ hypotheses:
           compare:
             - {metric: macro_f1, split: dev, reference: {value: 0.812, label: "TF-IDF unigrams (control)", kind: baseline, ref: tfidf-unigram-lr}}
             - {metric: macro_f1, split: dev, dims: {domain: products}, reference: {value: 0.803, label: "TF-IDF unigrams (control)", kind: baseline, ref: tfidf-unigram-lr}}
+        # The agent claims the document job and writes it up.
+        writeup:
+          by: agent
+          summary: Bigram TF-IDF features lift dev macro-F1 by 0.034 over unigrams, on both domains, at under 2 ms per review.
+          body: |-
+            ## What was tried
+
+            Unigram and bigram TF-IDF features with the same logistic regression as the control.
+
+            ## What was found
+
+            The verifier reproduced the claim: macro-F1 0.846 against 0.812, movies 0.851 and products 0.840, p95 latency 1.9 ms.
+
+            ## What it means
+
+            Bigrams capture short negations and product phrases the unigram model misses, for almost no cost.
         decision: {by: ada, action: promote, reason: "Clear gain on both domains with negligible cost. Bigram TF-IDF is now the linear reference for this project."}
     comments:
       - {by: ben, on: hypothesis, body: "Nice. The top bigram weights are almost all negations, which is exactly the failure mode we saw in the unigram error analysis."}
@@ -198,6 +214,21 @@ hypotheses:
           reason: The primary gain gate fails and movie reviews regress against the control.
           compare:
             - {metric: macro_f1, split: dev, reference: {value: 0.812, label: "TF-IDF unigrams (control)", kind: baseline, ref: tfidf-unigram-lr}}
+        writeup:
+          by: ben
+          summary: Character n-grams do not beat the unigram control; the claimed gain came from a different tie-break, and movie reviews regress.
+          body: |-
+            ## What was tried
+
+            Character 2-to-5-grams with a linear SVM.
+
+            ## What was found
+
+            The verifier measured 0.809 macro-F1, not the claimed 0.816: the agent broke ties on equal scores differently. Movie reviews drop to 0.806 against 0.821.
+
+            ## What it means
+
+            No gain for a model 30 times larger.
         decision: {by: ben, action: reject, reason: "No gain overall, a movie regression, and a model 30 times larger. Not worth pursuing as a replacement."}
     comments:
       - {by: dev, on: 1, body: "The discrepancy is the tie-break thing again. Should the agent instructions mention the scorer's rule (ties go to negative)?"}
@@ -248,6 +279,8 @@ hypotheses:
             - {id: no-domain-regression, result: fail, detail: "both domains below the control"}
             - {id: latency-budget, result: pass}
           reason: Far below the control on both domains.
+        # Skipped: the decision shows "No write-up" with the reason.
+        writeup: {by: ada, skip: "The verification report and the error analysis in the run notes say everything."}
         decision: {by: ada, action: reject, reason: "As expected the rules are 0.10 behind. Keeping the error analysis, archiving the track."}
 
   - key: distilbert-base
@@ -550,6 +583,18 @@ hypotheses:
         stop: released
         seconds: 600
         release: "The unlabeled pool in toy-reviews-v2 turned out to overlap the dev split (about 300 reviews), so the experiment would leak. Releasing until the dataset is fixed."
-        failure_decision: {by: ada, action: close_failed, reason: "Cannot run without leaking dev reviews; closing. Re-draft once toy-reviews-v3 removes the overlap."}
+        failure_decision: {by: ada, action: stop, reason: "Cannot run without leaking dev reviews; stopping. Re-draft once toy-reviews-v3 removes the overlap."}
+        writeup:
+          by: ben
+          summary: Self-training could not run, because the unlabeled pool of toy-reviews-v2 overlaps the dev split.
+          body: |-
+            ## What was tried
+
+            Nothing ran: before training, about 300 reviews of the unlabeled pool turned out to be dev reviews.
+
+            ## What it means
+
+            Any result would leak. The idea waits for toy-reviews-v3.
+        decision: {by: ada, action: failed, reason: "The work could not produce a result without leaking dev reviews. Re-draft once toy-reviews-v3 removes the overlap."}
     comments:
       - {by: dev, on: hypothesis, body: "I counted 312 overlapping reviews between the unlabeled pool and dev. Opened a dataset ticket for v3."}

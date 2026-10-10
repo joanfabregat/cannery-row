@@ -23,12 +23,22 @@ pub enum Phase {
     Run,
     /// A verification report: the verdict, its gates and the verified measurements.
     Verification,
-    /// The narrative of a run; only imported write-ups exist for now.
+    /// A hypothesis's write-up: its summary, the attempts it covers and the
+    /// verification report it reports on; or an imported retrospective report.
     Writeup,
+    /// A hypothesis's decision: its outcome and the verification report and
+    /// write-up it cites, with the reason as the body.
+    Decision,
 }
 
 impl Phase {
-    pub const ALL: [Self; 4] = [Self::Brief, Self::Run, Self::Verification, Self::Writeup];
+    pub const ALL: [Self; 5] = [
+        Self::Brief,
+        Self::Run,
+        Self::Verification,
+        Self::Writeup,
+        Self::Decision,
+    ];
 
     /// The phase named in a URL or a tool argument; unknown names are absent.
     #[must_use]
@@ -44,6 +54,7 @@ impl Phase {
             Self::Run => "run",
             Self::Verification => "verification",
             Self::Writeup => "writeup",
+            Self::Decision => "decision",
         }
     }
 }
@@ -304,6 +315,55 @@ mod tests {
                 FrontMatterError::MissingFrontMatter
             ))
         ));
+        let sha = "a".repeat(64);
+        let written = schemas.parse(
+            Phase::Writeup,
+            &format!(
+                "---\nsummary: The bigram model beats the control on every language.\nattempts: [1, 2]\nverification: {{ref: 3f1c2a9e-7b4d-4e0a-9c55-1d2e3f4a5b6c, sha256: \"{sha}\"}}\n---\n\n# What was done\n"
+            ),
+            Limits::default(),
+        )?;
+        assert_eq!(written.body, "\n# What was done\n");
+        assert!(accepts(
+            &schemas,
+            Phase::Writeup,
+            &json!({"summary": "Stopped after the run failed twice.", "attempts": [1], "verification": null})
+        ));
+        for invalid in [
+            json!({"summary": "Two\nsentences.", "attempts": [1], "verification": null}),
+            json!({"summary": " ", "attempts": [1], "verification": null}),
+            json!({"summary": "S.", "attempts": [], "verification": null}),
+            json!({"summary": "S.", "attempts": [0], "verification": null}),
+            json!({"summary": "S.", "attempts": [1, 1], "verification": null}),
+            json!({"summary": "S.", "attempts": [1]}),
+            json!({"summary": "S.", "attempts": [1], "verification": {"ref": "x"}}),
+            json!({"summary": "S.", "attempts": [1], "verification": null, "author": "A"}),
+        ] {
+            assert!(!accepts(&schemas, Phase::Writeup, &invalid), "{invalid}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn decision_front_matter_is_checked() -> Result {
+        let schemas = schemas()?;
+        let sha = "b".repeat(64);
+        let document = schemas.parse(
+            Phase::Decision,
+            &format!(
+                "---\noutcome: promote\nverification: {{ref: v1, sha256: \"{sha}\"}}\nwriteup: null\n---\n\nAll gates pass.\n"
+            ),
+            Limits::default(),
+        )?;
+        assert_eq!(document.body, "\nAll gates pass.\n");
+        for invalid in [
+            json!({"outcome": "promoted", "verification": null, "writeup": null}),
+            json!({"outcome": "failed", "verification": null}),
+            json!({"outcome": "failed", "verification": null, "writeup": null, "reason": "r"}),
+            json!({"outcome": "reject", "verification": {"ref": "v1"}, "writeup": null}),
+        ] {
+            assert!(!accepts(&schemas, Phase::Decision, &invalid), "{invalid}");
+        }
         Ok(())
     }
 

@@ -77,6 +77,7 @@ fn profile() -> Result<ReviewDecisionContext> {
             },
         },
         contracts: ContractValidator::new()?,
+        phases: PhaseSchemas::new()?,
         validation_walk_budget: 80,
         repr_budget: 80,
 
@@ -166,7 +167,7 @@ fn native_validation_error(recipe: &Value) -> Result<Value> {
     assert_eq!(recipe["number"], 1);
     assert_eq!(recipe["method"], "POST");
     assert_eq!(recipe["status"], 422);
-    let ordinary = json!({"action":"promote","evidence_revision":1,"reason":"Reason é😀","review_case_id":"00000000-0000-0000-0000-000000000301"});
+    let ordinary = json!({"action":"retry","evidence_revision":1,"reason":"Reason é😀","review_case_id":"00000000-0000-0000-0000-000000000301"});
     let (body, path, source_count) = match recipe["native_validation_profile"].as_str() {
         Some("missing-fields") => (json!({}), "", 4),
         Some("missing-extra") => {
@@ -523,7 +524,7 @@ fn compare(
         if r["native_response_profile"] == "typed-review-model" && result.0 == 200 {
             assert!(matches!(
                 r["name"].as_str(),
-                Some("fixed-current-model" | "imported-current-model" | "fixed-current-other-user")
+                Some("fixed-current-model" | "fixed-current-other-user")
             ));
             let bytes = result
                 .3
@@ -668,7 +669,7 @@ async fn review_decisions_match_production() -> Result<()> {
         "\\x{}",
         request_hash(&json!({"project":"matrix","decision":float_case["body"]}))?
     );
-    let authored_integer_envelope = r#"{"decision":{"action":"promote","evidence_revision":1,"reason":"Reason é😀","review_case_id":"00000000-0000-0000-0000-000000000322"},"project":"matrix"}"#;
+    let authored_integer_envelope = r#"{"decision":{"action":"retry","evidence_revision":1,"reason":"Reason é😀","review_case_id":"00000000-0000-0000-0000-000000000372"},"project":"matrix"}"#;
     assert_eq!(
         serde_json::from_str::<Value>(authored_integer_envelope)?,
         json!({"project":"matrix","decision":followup})
@@ -722,7 +723,7 @@ async fn review_decisions_match_production() -> Result<()> {
             .iter()
             .filter(|r| r["native_response_profile"] == "typed-review-model")
             .count(),
-        3
+        2
     );
     assert_eq!(
         recipes
@@ -894,12 +895,16 @@ async fn review_decisions_match_production() -> Result<()> {
 async fn off_type_verdicts_reject_and_replay(app: &Router, pool: &PgPool) -> Result<()> {
     for number in [7, 9, 10, 11] {
         let case_id = format!("00000000-0000-0000-0000-{:012}", 300 + number);
+        let document = format!(
+            "---\noutcome: reject\nverification:\n  ref: 00000000-0000-0000-0000-{:012}\n  sha256: \"{}\"\nwriteup: null\n---\nAuthored off-type verdict é😀\n",
+            3000 + number,
+            "0".repeat(64)
+        );
         let recipe = json!({
             "name":"native-off-type-verdict", "number":number,
             "method":"POST", "role":"researcher",
             "key":format!("native-off-type-verdict-{number}"),
-            "body":{"review_case_id":case_id,"action":"reject",
-                    "evidence_revision":1,"reason":"Authored off-type verdict é😀"}
+            "body":{"review_case_id":case_id,"document":document}
         });
         let mut requests = BTreeMap::new();
         let report: Value =
@@ -923,13 +928,13 @@ async fn off_type_verdicts_reject_and_replay(app: &Router, pool: &PgPool) -> Res
         assert_eq!(model.id, case_id);
         assert_eq!(model.state, "resolved");
         assert_eq!(model.hypothesis_state, "rejected");
-        assert_eq!(model.attempt_state.as_deref(), Some("rejected"));
+        assert_eq!(model.attempt_state.as_deref(), Some("verified"));
         assert_eq!(created.2["verification"]["front_matter"], report);
         assert_eq!(model.decisions.len(), 1);
         assert_eq!(created.2["decisions"][0]["action"], "reject");
         assert_eq!(
             created.2["decisions"][0]["reason"],
-            recipe["body"]["reason"]
+            "Authored off-type verdict é😀"
         );
         let committed = raw_storage(pool).await?;
         let replayed = call(app, &recipe, &BTreeMap::new(), &mut requests).await?;

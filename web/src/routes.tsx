@@ -10,6 +10,7 @@ import { HypothesisPage } from "@/pages/hypothesis-page";
 import { NotFoundPage } from "@/pages/not-found-page";
 import { PlanEditPage } from "@/pages/plan-edit-page";
 import { ReviewPage } from "@/pages/review-page";
+import { WriteupPage } from "@/pages/writeup-page";
 import { SearchPage } from "@/pages/search-page";
 import { SettingsPage } from "@/pages/settings-page";
 import { SignInPage } from "@/pages/sign-in-page";
@@ -29,6 +30,7 @@ export const routes: RouteObject[] = [
       { path: "hypotheses", element: <HypothesesPage /> },
       { path: "hypotheses/:number", element: <HypothesisPage /> },
       { path: "hypotheses/:number/review", element: <ReviewPage /> },
+      { path: "hypotheses/:number/writeup", element: <WriteupPage /> },
       { path: "hypotheses/:number/attempts/:sequence", element: <AttemptPage /> },
       {
         path: "results",

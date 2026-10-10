@@ -199,6 +199,10 @@ async fn reading(
             .into_iter()
             .map(|(k, v)| (k.as_str().to_owned(), v))
             .collect();
+        let (writeup_count, writeups) =
+            cannery_attention::pending_writeups(&mut auth.connection, project.id, Some(&limit))
+                .await
+                .map_err(|_| internal(&r, "attention write-ups"))?;
         let d = AttentionDetail {
             counts,
             reviews,
@@ -208,6 +212,8 @@ async fn reading(
             failures,
             stalled_count,
             stalled,
+            writeup_count,
+            writeups,
         };
         return review_attention_wire::attention(&d)
             .map(output)

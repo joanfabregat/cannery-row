@@ -26,7 +26,7 @@ macro_rules! domain {
 domain!(Stage {Agent=>"agent",Verification=>"verification"});
 domain!(Status {Completed=>"completed",Failed=>"failed"});
 domain!(Origin {Live=>"live",Imported=>"imported"});
-domain!(AttemptState {Claimed=>"claimed",Running=>"running",Verifying=>"verifying",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+domain!(AttemptState {Claimed=>"claimed",Running=>"running",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 domain!(ImportedKind {Retrospective=>"retrospective"});
 /// Calibrated source decoder profile; no universal native default is inferred.
 #[derive(Clone, Copy, Debug)]
@@ -208,7 +208,7 @@ pub async fn result_case_ids(
 ) -> Result<Vec<ReviewCaseId>, RepositoryError> {
     let rows = source!(
         sqlx::query!(
-            r#"SELECT id AS "id!: ReviewCaseId" FROM review_cases WHERE attempt_id=$1 AND kind='result' ORDER BY opened_at,id"#,
+            r#"SELECT id AS "id!: ReviewCaseId" FROM review_cases WHERE attempt_id=$1 AND kind='decision' ORDER BY opened_at,id"#,
             attempt_id as _
         ),
         fetch_all,

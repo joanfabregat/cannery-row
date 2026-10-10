@@ -634,7 +634,11 @@ export interface paths {
          *     brief, an index of the track's other units, and a summary line and
          *     reference for each context item and each unit it derives from. The front
          *     matter states its size in bytes. `detail=compact` keeps the brief's goal,
-         *     the unit and the index, capped at 16 KiB.
+         *     the unit and the index, capped at 16 KiB. `phase=document` is the
+         *     documenter's bundle: the full bundle and the hypothesis's record, every
+         *     attempt's run document and notes, failures and their logs, verification
+         *     reports and the comments. `phase=decide` adds the write-up, or why there
+         *     is none.
          */
         get: operations["get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get"];
         put?: never;
@@ -885,6 +889,62 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/hypotheses/{number}/writeup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Write-up
+         * @description The hypothesis's write-up: `pending` or `claimed` while its document job
+         *     waits or is being written, `written` with the write-up, or `skipped` with
+         *     the researcher's reason. `inputs` is what the write-up covers and cites,
+         *     and `context` the documenter's context bundle.
+         */
+        get: operations["get_writeup_api_projects__slug__hypotheses__number__writeup_get"];
+        put?: never;
+        /**
+         * Write Up
+         * @description A researcher writes the hypothesis up: the document job is claimed and
+         *     completed in one action. The write-up is Markdown with YAML front matter
+         *     (``writeup.schema.json``): a one-sentence `summary`, the `attempts` it
+         *     covers (every attempt of the hypothesis) and the `verification` report it
+         *     cites (null for a hypothesis stopped after a failure), as the write-up's
+         *     `inputs` name them, and a body. The hypothesis then awaits its decision.
+         *     A job another documenter holds is `409 conflict`.
+         */
+        post: operations["write_up_api_projects__slug__hypotheses__number__writeup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/hypotheses/{number}/writeup/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Skip Write-up
+         * @description A researcher skips the hypothesis's write-up, waiting or being written,
+         *     with a reason: the hypothesis then awaits its decision without one, and
+         *     its decision shows "No write-up: <reason>". Nothing skips a write-up
+         *     automatically.
+         */
+        post: operations["skip_writeup_api_projects__slug__hypotheses__number__writeup_skip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/jobs/claims": {
         parameters: {
             query?: never;
@@ -896,13 +956,18 @@ export interface paths {
         put?: never;
         /**
          * Claim Job
-         * @description Claim the oldest waiting verify job the caller may verify.
+         * @description Claim the oldest waiting job of the phase (`verify` by default) the caller
+         *     may perform.
          *
          *     A verifier service account names the policy revision it applies and claims
          *     only the runner jobs its project's science revision registers under its
          *     account name and that revision. An agent service account or a researcher
          *     names no revision and claims agent jobs, never one of an attempt it ran
          *     itself.
+         *
+         *     With `phase: document`, an agent service account or a researcher claims
+         *     the oldest waiting document job: it writes up a hypothesis whose last
+         *     attempt was verified, or that a researcher stopped after a failure.
          *
          *     Replaying an ``Idempotency-Key`` while its claim still holds the lease
          *     reissues the lease token under the next lease generation (the first
@@ -944,15 +1009,21 @@ export interface paths {
         put?: never;
         /**
          * Complete Job
-         * @description Publish the verification report with the manifest of the job's outputs.
+         * @description Publish a verify job's report with the manifest of its outputs, or a
+         *     document job's write-up.
          *
          *     The report is Markdown with YAML front matter (``verification.schema.json``)
-         *     and an optional body. The attempt then awaits human review in a ``result``
-         *     case. Repeating a completion returns the completed job without publishing
+         *     and an optional body. The attempt is then verified, and the hypothesis waits
+         *     for its write-up in a document job. Repeating a completion returns the completed job without publishing
          *     again. An invalid report from a runner is an infrastructure failure of the
          *     job: it reruns from the failed step or fails the attempt for human review.
          *     An invalid report from an agent or a researcher is refused and the lease
          *     is kept, so it can be corrected and sent again.
+         *
+         *     A document job is completed with the write-up (``writeup.schema.json``)
+         *     and no manifest: it covers every attempt of the hypothesis and cites the
+         *     verification report the job names. The hypothesis then awaits its
+         *     decision. An invalid write-up is refused and the lease is kept.
          */
         post: operations["complete_job_api_projects__slug__jobs__job_id__completion_post"];
         delete?: never;
@@ -977,7 +1048,7 @@ export interface paths {
          *     The job runs again automatically, from the failed step, while reruns
          *     remain; then the attempt fails with a ``verify`` failure and a review case
          *     opens. A policy crash is such a failure, never a `fail` or `inconclusive`
-         *     verdict. An `invalid_step_output` naming a producer step is the agent's
+         *     verdict. A failed document job is queued again for another documenter. An `invalid_step_output` naming a producer step is the agent's
          *     failure (the attempt fails at once for review, with no rerun) only when
          *     the API itself refused one of that step's outputs in this job, against the
          *     interface the step declares for it (see `PUT /api/job-uploads/{id}`).
@@ -1311,7 +1382,17 @@ export interface paths {
         put?: never;
         /**
          * Decide
-         * @description Record a researcher's reasoned decision on a pending review case.
+         * @description Record a researcher's decision on a pending review case.
+         *
+         *     A decision case is decided with a decision document: Markdown with YAML
+         *     front matter (``decision.schema.json``) naming the outcome (`promote`,
+         *     `reject`, `inconclusive`, or `failed` for a hypothesis stopped after a
+         *     failure) and citing the case's verification report and write-up, each
+         *     null when there is none; its body is the reason. A promotion requires a
+         *     `pass` verdict. A decided case is corrected with `supersedes`.
+         *
+         *     A failure case is decided with `retry` or `stop`, the failure revision and
+         *     a reason: `stop` sends the hypothesis to be written up, then decided.
          */
         post: operations["decide_api_projects__slug__review_cases__case_id__decisions_post"];
         delete?: never;
@@ -1749,6 +1830,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/writeups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Write-ups To Do
+         * @description The hypotheses waiting for their write-up, oldest first, with their
+         *     document job: `pending` until an agent or a researcher claims it.
+         */
+        get: operations["list_writeups_api_projects__slug__writeups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/schemas/{phase}": {
         parameters: {
             query?: never;
@@ -2071,7 +2173,7 @@ export interface components {
             } | null;
         };
         /** @enum {string} */
-        AttemptState: "claimed" | "running" | "verifying" | "awaiting_human_review" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled" | "unreviewed";
+        AttemptState: "claimed" | "running" | "verifying" | "verified" | "failed" | "cancelled" | "unreviewed";
         AttentionFailure: {
             attempt_ref: string;
             code: string;
@@ -2092,6 +2194,12 @@ export interface components {
                 [key: string]: number;
             };
             pending_reviews: components["schemas"]["AttentionReview"][];
+            /**
+             * Format: int64
+             * @description Hypotheses waiting for their write-up.
+             */
+            pending_writeup_count: number;
+            pending_writeups: components["schemas"]["AttentionWriteup"][];
             recent_failures: components["schemas"]["AttentionFailure"][];
             recent_outcomes: components["schemas"]["AttentionOutcome"][];
             running: components["schemas"]["AttentionRunning"][];
@@ -2157,6 +2265,33 @@ export interface components {
             title: string;
             track: string;
             verifier: string | null;
+            /** Format: date-time */
+            waiting_since: string;
+        };
+        /** @description A hypothesis waiting for its write-up, and its document job. */
+        AttentionWriteup: {
+            /** @description The hypothesis's last attempt, verified or stopped after a failure. */
+            attempt_ref: string;
+            attempt_state: string;
+            /**
+             * Format: uuid
+             * @description The service account writing it.
+             */
+            claimed_by: string | null;
+            /**
+             * Format: uuid
+             * @description The researcher writing it.
+             */
+            claimed_by_user: string | null;
+            /** Format: int64 */
+            hypothesis: number;
+            hypothesis_ref: string;
+            /** Format: uuid */
+            job_id: string;
+            /** @description `pending`, or `claimed` while someone writes it. */
+            job_state: string;
+            title: string;
+            track: string;
             /** Format: date-time */
             waiting_since: string;
         };
@@ -2226,7 +2361,7 @@ export interface components {
             via_client: string | null;
         };
         /** @enum {string} */
-        CaseKind: "result" | "failure";
+        CaseKind: "decision" | "failure";
         /** @enum {string} */
         CaseState: "pending" | "resolved";
         CatalogOut: {
@@ -2261,28 +2396,39 @@ export interface components {
             id: string;
             kind: string;
         };
-        /** @description Fixed published job contract, including its claimed lease and pinned inputs. */
-        ClaimedJobDocument: {
+        /** @description What a write-up covers and cites. */
+        ClaimedDocumentInputs: {
+            /**
+             * @description The sequence numbers of every attempt of the hypothesis: the
+             *     write-up's `attempts`.
+             */
+            attempts: number[];
+            verification?: components["schemas"]["RequestCommonContentRef"] | null;
+        };
+        /** @description A claimed document job: what the write-up covers and cites, and the lease. */
+        ClaimedDocumentJob: {
+            /** @description The hypothesis's last attempt, verified or stopped after a failure. */
             attempt_id: string;
-            control?: components["schemas"]["ClaimedJobPinnedRef"] | null;
             /** Format: date-time */
             deadline: string;
-            inputs: components["schemas"]["ClaimedJobInputs"];
+            /** Format: int64 */
+            hypothesis: number;
+            inputs: components["schemas"]["ClaimedDocumentInputs"];
             job_id: string;
             lease: components["schemas"]["ClaimedJobLease"];
-            limits: components["schemas"]["ClaimedJobLimits"];
             output_prefix: string;
-            /** @description Frozen project fields can contain scalar legacy values. */
-            parameters: unknown;
-            performer: components["schemas"]["ClaimedJobPerformer"];
-            phase: components["schemas"]["ClaimedJobPhase"];
-            resume?: components["schemas"]["ClaimedJobResume"] | null;
+            performer: components["schemas"]["ClaimedDocumentPerformer"];
+            phase: components["schemas"]["ClaimedDocumentPhase"];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             science_revision: string;
-            steps: components["schemas"]["ClaimedJobStep"][];
             track: string;
-            verifier?: components["schemas"]["ClaimedJobService"] | null;
         };
+        /** @enum {string} */
+        ClaimedDocumentPerformer: "agent";
+        /** @enum {string} */
+        ClaimedDocumentPhase: "document";
+        /** @description The claimed job: a verify job, or a hypothesis's document job. */
+        ClaimedJobDocument: components["schemas"]["ClaimedVerifyJob"] | components["schemas"]["ClaimedDocumentJob"];
         ClaimedJobInputs: {
             baselines: components["schemas"]["ClaimedJobPinnedRef"][];
             datasets: components["schemas"]["ClaimedJobPinnedRef"][];
@@ -2339,6 +2485,28 @@ export interface components {
          *     sheet submitted before run documents.
          */
         ClaimedResult: components["schemas"]["RunFrontMatter"] | components["schemas"]["EvidenceEnvelopeRequest"];
+        /** @description Fixed published job contract, including its claimed lease and pinned inputs. */
+        ClaimedVerifyJob: {
+            attempt_id: string;
+            control?: components["schemas"]["ClaimedJobPinnedRef"] | null;
+            /** Format: date-time */
+            deadline: string;
+            inputs: components["schemas"]["ClaimedJobInputs"];
+            job_id: string;
+            lease: components["schemas"]["ClaimedJobLease"];
+            limits: components["schemas"]["ClaimedJobLimits"];
+            output_prefix: string;
+            /** @description Frozen project fields can contain scalar legacy values. */
+            parameters: unknown;
+            performer: components["schemas"]["ClaimedJobPerformer"];
+            phase: components["schemas"]["ClaimedJobPhase"];
+            resume?: components["schemas"]["ClaimedJobResume"] | null;
+            schema_version: components["schemas"]["RequestCommonSchemaVersion"];
+            science_revision: string;
+            steps: components["schemas"]["ClaimedJobStep"][];
+            track: string;
+            verifier?: components["schemas"]["ClaimedJobService"] | null;
+        };
         /** @description Resolved workflow with pinned manifests, inputs and the prior attempt. */
         ClaimedWorkflow: {
             attempt_id: string;
@@ -2538,7 +2706,7 @@ export interface components {
          * @description A phase whose output documents have a published front matter schema.
          * @enum {string}
          */
-        DocumentPhase: "brief" | "run" | "verification" | "writeup";
+        DocumentPhase: "brief" | "run" | "verification" | "writeup" | "decision";
         EmptyReportDocument: Record<string, never>;
         ErrorDetail: {
             code: string;
@@ -2619,16 +2787,31 @@ export interface components {
         HttpDetail: {
             detail: string;
         };
+        /**
+         * @description A decision on a review case. A decision case takes the decision
+         *     document (and `supersedes` for a correction); a failure case takes
+         *     `action`, `evidence_revision` and `reason`.
+         */
         HumanDecisionRequest: {
-            action: components["schemas"]["HumanDecisionRequestAction"];
-            /** Format: int64 */
-            evidence_revision: number;
-            reason: string;
+            /** @description Failure case: `retry` or `stop`. */
+            action?: components["schemas"]["HumanDecisionRequestAction"];
+            /**
+             * @description Decision case: the decision document, Markdown with YAML front matter
+             *     (`decision.schema.json`) whose body is the reason.
+             */
+            document?: string;
+            /**
+             * Format: int64
+             * @description Failure case: the failure revision decided on.
+             */
+            evidence_revision?: number;
+            /** @description Failure case: why. */
+            reason?: string;
             review_case_id: string;
             supersedes?: string;
         };
         /** @enum {string} */
-        HumanDecisionRequestAction: "promote" | "reject" | "inconclusive" | "retry" | "close_failed";
+        HumanDecisionRequestAction: "retry" | "stop";
         /** @description Stored historical hypotheses can predate the full publication document. */
         HypothesisDocument: components["schemas"]["NativeHypothesisDocument"] | components["schemas"]["LegacyHypothesisDocument"];
         HypothesisDocumentControl: {
@@ -2703,7 +2886,7 @@ export interface components {
             next_before: number | null;
         };
         /** @enum {string} */
-        HypothesisState: "queued" | "active" | "awaiting_human_review" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled";
+        HypothesisState: "queued" | "active" | "documenting" | "deciding" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled";
         HypothesisSummary: {
             /** Format: date-time */
             approved_at: string | null;
@@ -2767,7 +2950,7 @@ export interface components {
             plan?: components["schemas"]["PlanRef"] | null;
         };
         JobClaimRequest: {
-            /** @description The phase to claim a job of; only `verify` today. */
+            /** @description The phase to claim a job of: `verify` (the default) or `document`. */
             phase?: string | null;
             revision?: string | null;
         };
@@ -2856,6 +3039,7 @@ export interface components {
             /** @description The verifier service account registered to run a runner job. */
             verifier: string | null;
             via_client: string | null;
+            writeup?: components["schemas"]["WriteupDocument"] | null;
         };
         JobUploadRequest: {
             interface?: string | null;
@@ -4116,6 +4300,81 @@ export interface components {
             truncated: boolean;
             view: components["schemas"]["RequestDashboardViewsView"];
             warnings: string[];
+        };
+        /** @description A published write-up: its front matter and its Markdown body. */
+        WriteupDocument: {
+            body_markdown: string;
+            front_matter: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * @description A hypothesis's write-up: whether it is still to write, being written,
+         *     written or skipped, and what it covers and cites.
+         */
+        WriteupOut: {
+            /** @description The attempt the write-up is filed on: the hypothesis's last. */
+            attempt_ref: string;
+            /**
+             * Format: uuid
+             * @description The service account that claimed the document job.
+             */
+            claimed_by: string | null;
+            /**
+             * Format: uuid
+             * @description The researcher who claimed or skipped the document job.
+             */
+            claimed_by_user: string | null;
+            /** @description The documenter's context bundle; absent when the attempt pinned no plan. */
+            context: string | null;
+            /** Format: int64 */
+            hypothesis: number;
+            hypothesis_ref: string;
+            hypothesis_state: string;
+            inputs: components["schemas"]["ClaimedDocumentInputs"] | null;
+            /**
+             * Format: uuid
+             * @description The document job; absent for an imported write-up.
+             */
+            job_id: string | null;
+            /** @description Why a researcher skipped the write-up. */
+            skip_reason: string | null;
+            /** @description `pending`, `claimed`, `written` or `skipped`. */
+            status: string;
+            writeup: components["schemas"]["WriteupRecordOut"] | null;
+        };
+        /** @description The hypotheses waiting for their write-up, oldest first. */
+        WriteupQueueOut: {
+            items: components["schemas"]["AttentionWriteup"][];
+            /** Format: int64 */
+            total: number;
+        };
+        /** @description A published write-up. */
+        WriteupRecordOut: {
+            body_markdown: string;
+            /** Format: date-time */
+            created_at: string;
+            front_matter: {
+                [key: string]: unknown;
+            };
+            /** Format: uuid */
+            id: string;
+            sha256: string;
+            /** Format: uuid */
+            written_by_service: string | null;
+            /** Format: uuid */
+            written_by_user: string | null;
+        };
+        /**
+         * @description A researcher writes a hypothesis up: the write-up, Markdown with YAML
+         *     front matter (`writeup.schema.json`).
+         */
+        WriteupRequest: {
+            document: string;
+        };
+        /** @description A researcher skips a hypothesis's write-up, and says why. */
+        WriteupSkipRequest: {
+            reason: string;
         };
         cannery_row__attempts__routes__FailureOut: {
             code: string;
@@ -7495,6 +7754,8 @@ export interface operations {
             query?: {
                 /** @description `full` (the default) or `compact`. */
                 detail?: string;
+                /** @description `document` or `decide`: the documenter's or the decider's bundle. */
+                phase?: string;
             };
             header?: never;
             path: {
@@ -8769,6 +9030,254 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_writeup_api_projects__slug__hypotheses__number__writeup_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteupOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    write_up_api_projects__slug__hypotheses__number__writeup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteupOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    skip_writeup_api_projects__slug__hypotheses__number__writeup_skip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteupSkipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteupOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
         };
@@ -13138,6 +13647,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitHistoryOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    list_writeups_api_projects__slug__writeups_get: {
+        parameters: {
+            query?: {
+                /** @description Items to return. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteupQueueOut"];
                 };
             };
             /** @description Authentication required */

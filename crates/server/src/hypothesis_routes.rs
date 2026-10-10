@@ -233,7 +233,8 @@ async fn reading(
                 [
                     HypothesisState::Queued,
                     HypothesisState::Active,
-                    HypothesisState::AwaitingHumanReview,
+                    HypothesisState::Documenting,
+                    HypothesisState::Deciding,
                     HypothesisState::Promoted,
                     HypothesisState::Rejected,
                     HypothesisState::Inconclusive,

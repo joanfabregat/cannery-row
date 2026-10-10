@@ -1,0 +1,9 @@
+{
+  "reason": "a decision on a decision case is its document",
+  "document": {
+    "review_case_id": "rc-0193",
+    "evidence_revision": 1,
+    "action": "promote",
+    "reason": "All gates pass and the per-language breakdown is convincing."
+  }
+}

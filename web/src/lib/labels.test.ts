@@ -2,8 +2,9 @@ import { humanize, label, statusDomains, statusLabel, statusMeta } from "./label
 
 describe("plain-language labels", () => {
   it("names the states the spec calls out", () => {
-    expect(statusLabel("hypothesis", "awaiting_human_review")).toBe("Needs review");
-    expect(statusLabel("attempt", "awaiting_human_review")).toBe("Needs review");
+    expect(statusLabel("hypothesis", "documenting")).toBe("Being written up");
+    expect(statusLabel("hypothesis", "deciding")).toBe("Needs a decision");
+    expect(statusLabel("attempt", "verified")).toBe("Verified");
     expect(statusLabel("authority", "agent_claim")).toBe("Reported by agent");
     expect(statusLabel("authority", "tester_verified")).toBe("Verified");
     expect(statusLabel("authority", "imported_artifact")).toBe("Imported from a run file");
@@ -14,7 +15,8 @@ describe("plain-language labels", () => {
     const hypothesis = [
       "queued",
       "active",
-      "awaiting_human_review",
+      "documenting",
+      "deciding",
       "promoted",
       "rejected",
       "inconclusive",
@@ -25,10 +27,7 @@ describe("plain-language labels", () => {
       "claimed",
       "running",
       "verifying",
-      "awaiting_human_review",
-      "promoted",
-      "rejected",
-      "inconclusive",
+      "verified",
       "failed",
       "cancelled",
       "unreviewed",
@@ -58,7 +57,8 @@ describe("plain-language labels", () => {
 
   it("labels roles, decisions and channels", () => {
     expect(label("role", "researcher")).toBe("Researcher");
-    expect(label("decision", "close_failed")).toBe("Close as failed");
+    expect(label("decision", "stop")).toBe("Stop");
+    expect(label("decision", "failed")).toBe("Close as failed");
     expect(label("reviewKind", "failure")).toBe("Failure review");
     expect(label("channel", "mcp")).toBe("Agent (MCP)");
     expect(label("channel", "carrier_pigeon")).toBe("Carrier pigeon");

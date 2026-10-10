@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 
 import type { Schemas } from "@/api/client";
+import type { Writeup } from "@/api/types";
 
 import {
   attempt,
@@ -15,16 +16,46 @@ import { json, project, renderApp, signedIn } from "@/test/render";
 
 const CASE_ID = "00000000-0000-4000-8000-00000000cafe";
 
-function awaitingResult(verdict: Schemas["Verdict"]) {
+const VERIFICATION = { ref: "00000000-0000-4000-8000-0000000000e1", sha256: "a".repeat(64) };
+const WRITEUP_ID = "00000000-0000-4000-8000-0000000000f1";
+
+function writeup(overrides: Partial<Writeup> = {}): Writeup {
+  return {
+    hypothesis: 12,
+    hypothesis_ref: "#12",
+    hypothesis_state: "deciding",
+    status: "written",
+    job_id: "00000000-0000-4000-8000-0000000000d1",
+    attempt_ref: "#12.1",
+    claimed_by: null,
+    claimed_by_user: null,
+    inputs: { attempts: [1], verification: VERIFICATION },
+    context: null,
+    writeup: {
+      id: WRITEUP_ID,
+      sha256: "b".repeat(64),
+      front_matter: { summary: "Shorter prompts held on every split." },
+      body_markdown: "## Results\n\nThe verifier measured 0.44.",
+      written_by_user: null,
+      written_by_service: "00000000-0000-4000-8000-0000000000a9",
+      created_at: "2026-03-04T11:00:00Z",
+    },
+    skip_reason: null,
+    ...overrides,
+  };
+}
+
+function awaitingResult(verdict: Schemas["Verdict"], w: Writeup = writeup()) {
   const h = hypothesis({
-    state: "awaiting_human_review",
-    reviews: [review({ id: CASE_ID, kind: "result", state: "pending", subject_revision: 3 })],
+    state: "deciding",
+    reviews: [review({ id: CASE_ID, kind: "decision", state: "pending", subject_revision: 3 })],
   });
   return {
     ...hypothesisApi(h, {
-      attempts: [attempt({ state: "awaiting_human_review" })],
+      attempts: [attempt({ state: "verified" })],
       reports: { 1: report() },
     }),
+    "GET /api/projects/sardines/hypotheses/12/writeup": () => json(w),
     [`GET /api/projects/sardines/review-cases/${CASE_ID}`]: () =>
       json(
         reviewCase({
@@ -76,10 +107,61 @@ describe("reviewing a result", () => {
     expect(request?.headers.get("idempotency-key")).toMatch(/.+/);
     expect(await request?.json()).toEqual({
       review_case_id: CASE_ID,
-      evidence_revision: 3,
-      action: "promote",
-      reason: "Holds on every split",
+      document: `---\noutcome: promote\nverification: {"ref":"${VERIFICATION.ref}","sha256":"${VERIFICATION.sha256}"}\nwriteup: {"ref":"${WRITEUP_ID}","sha256":"${"b".repeat(64)}"}\n---\n\nHolds on every split\n`,
     });
+  });
+
+  it("shows the write-up before the decision", async () => {
+    signedIn({}, awaitingResult("pass"));
+    renderApp("/hypotheses/12/review");
+    const section = await screen.findByRole("region", { name: "Write-up" });
+    expect(
+      await within(section).findByText("Shorter prompts held on every split."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a skipped write-up's reason and cites no write-up", async () => {
+    const posted: Request[] = [];
+    signedIn(
+      {},
+      {
+        ...awaitingResult(
+          "fail",
+          writeup({ status: "skipped", writeup: null, skip_reason: "The numbers say it all." }),
+        ),
+        [`POST /api/projects/sardines/review-cases/${CASE_ID}/decisions`]: (request) => {
+          posted.push(request.clone());
+          return json({ id: "d1" }, 201);
+        },
+      },
+    );
+    const { user } = renderApp("/hypotheses/12/review");
+    expect(await screen.findByText("No write-up: The numbers say it all.")).toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: /Reason/ }), "Below the bar");
+    await user.click(screen.getByRole("button", { name: "Reject" }));
+    await user.click(await screen.findByRole("button", { name: "Confirm: Reject" }));
+    await screen.findByText("Your decision (Reject) was recorded.");
+    const body = (await posted[0]?.json()) as { document: string };
+    expect(body.document).toContain("\noutcome: reject\n");
+    expect(body.document).toContain("\nwriteup: null\n");
+  });
+
+  it("offers only to close a stopped hypothesis as failed", async () => {
+    const handlers = awaitingResult(
+      "fail",
+      writeup({ inputs: { attempts: [1], verification: null } }),
+    );
+    signedIn(
+      {},
+      {
+        ...handlers,
+        [`GET /api/projects/sardines/review-cases/${CASE_ID}`]: () =>
+          json(reviewCase({ id: CASE_ID, verification: null })),
+      },
+    );
+    renderApp("/hypotheses/12/review");
+    expect(await screen.findByRole("button", { name: "Close as failed" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
   });
 
   it("offers Accept only on a pass verdict", async () => {
@@ -117,9 +199,9 @@ describe("reviewing a result", () => {
 });
 
 describe("reviewing a failure", () => {
-  it("offers to try again or close as failed", async () => {
+  it("offers to try again or stop", async () => {
     const h = hypothesis({
-      state: "awaiting_human_review",
+      state: "active",
       reviews: [review({ id: CASE_ID, kind: "failure", state: "pending" })],
     });
     signedIn(
@@ -146,7 +228,7 @@ describe("reviewing a failure", () => {
     );
     renderApp("/hypotheses/12/review");
     expect(await screen.findByRole("button", { name: "Try again" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Close as failed" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
     expect(screen.getAllByText(/The verifier ran out of time/).length).toBeGreaterThan(0);
   });
 });
@@ -180,7 +262,7 @@ describe("who can review", () => {
 describe("a decision retried after a network error", () => {
   const failureCase = () => {
     const h = hypothesis({
-      state: "awaiting_human_review",
+      state: "active",
       reviews: [review({ id: CASE_ID, kind: "failure", state: "pending" })],
     });
     return {
@@ -205,7 +287,7 @@ describe("a decision retried after a network error", () => {
   };
   const flows = [
     {
-      name: "result",
+      name: "decision",
       handlers: () => awaitingResult("pass"),
       post: `POST /api/projects/sardines/review-cases/${CASE_ID}/decisions`,
       choice: "Accept",

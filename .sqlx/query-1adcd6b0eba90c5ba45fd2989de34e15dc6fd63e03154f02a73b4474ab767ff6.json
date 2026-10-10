@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM hypotheses WHERE track_id=$1 AND state=ANY(ARRAY['queued','active','documenting','deciding']::text[])",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1adcd6b0eba90c5ba45fd2989de34e15dc6fd63e03154f02a73b4474ab767ff6"
+}

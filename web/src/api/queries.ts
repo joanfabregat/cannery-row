@@ -127,6 +127,25 @@ export function useReport(slug: string, number: number, sequence: number | null)
   });
 }
 
+/** The hypothesis's write-up, or `null` when it has none (a 404): it was never written up. */
+export function useWriteup(slug: string, number: number, enabled = true) {
+  return useQuery({
+    queryKey: [...projectKey(slug), "hypothesis", number, "writeup"],
+    enabled,
+    queryFn: async () => {
+      const result = await api
+        .GET("/api/projects/{slug}/hypotheses/{number}/writeup", {
+          params: { path: { slug, number } },
+        })
+        .catch((error: unknown) => {
+          if (isNotFound(error)) return null;
+          throw error;
+        });
+      return result === null ? null : unwrap(result);
+    },
+  });
+}
+
 export function useReviewCase(slug: string, caseId: string | null) {
   return useQuery({
     queryKey: [...projectKey(slug), "review-case", caseId],

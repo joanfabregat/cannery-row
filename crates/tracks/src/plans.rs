@@ -12,7 +12,7 @@ use sqlx::PgConnection;
 use uuid::Uuid;
 
 /// Hypothesis states of a unit that is running or waiting for its decision.
-pub const IN_FLIGHT: [&str; 2] = ["active", "awaiting_human_review"];
+pub const IN_FLIGHT: [&str; 3] = ["active", "documenting", "deciding"];
 /// Hypothesis states of a decided unit.
 pub const DONE: [&str; 4] = ["promoted", "rejected", "inconclusive", "failed"];
 
@@ -911,9 +911,10 @@ pub struct Cancelled {
 }
 
 /// Cancel an in-flight hypothesis and its open attempt, which is kept: its
-/// lease ends, its claimed jobs fail as `attempt_cancelled`, its pending
-/// review cases are resolved. Pending jobs of a cancelled attempt are never
-/// claimed.
+/// lease ends, its claimed jobs and claimed document job fail as
+/// `attempt_cancelled`, its pending review cases are resolved. Pending jobs
+/// of a cancelled attempt, and a pending document job of a hypothesis no
+/// longer documenting, are never claimed.
 /// # Errors
 /// Returns a sanitized database error.
 pub async fn cancel_in_flight(
@@ -923,8 +924,7 @@ pub async fn cancel_in_flight(
     let attempts = sqlx::query_scalar!(
         r#"UPDATE attempts SET state = 'cancelled', lease_token_hash = NULL, lease_expires_at = NULL,
         finished_at = coalesce(finished_at, now())
-        WHERE hypothesis_id = $1 AND state NOT IN ('promoted', 'rejected', 'inconclusive', 'failed',
-                                                    'cancelled', 'unreviewed')
+        WHERE hypothesis_id = $1 AND state IN ('claimed', 'running', 'verifying')
         RETURNING id AS "id!: AttemptId""#,
         hypothesis as HypothesisId
     )
@@ -934,8 +934,10 @@ pub async fn cancel_in_flight(
         r#"UPDATE jobs SET state = 'failed', lease_token_hash = NULL, lease_expires_at = NULL,
         finished_at = now(), error_code = 'attempt_cancelled',
         error_reason = 'the plan made this hypothesis obsolete'
-        WHERE attempt_id = ANY($1) AND state = 'claimed'"#,
-        &attempts as &[AttemptId]
+        WHERE state = 'claimed' AND (attempt_id = ANY($1) OR (phase = 'document' AND attempt_id IN (
+            SELECT id FROM attempts WHERE hypothesis_id = $2)))"#,
+        &attempts as &[AttemptId],
+        hypothesis as HypothesisId
     )
     .execute(&mut *conn)
     .await?

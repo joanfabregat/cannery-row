@@ -41,11 +41,11 @@ macro_rules! domain {
         }
     }
 }
-domain!(Kind {Track=>"track",Hypothesis=>"hypothesis",Attempt=>"attempt",Report=>"report",Verification=>"verification",DecisionReason=>"decision_reason",Comment=>"comment"});
+domain!(Kind {Track=>"track",Hypothesis=>"hypothesis",Attempt=>"attempt",Report=>"report",Verification=>"verification",Writeup=>"writeup",DecisionReason=>"decision_reason",Comment=>"comment"});
 domain!(Origin {Live=>"live",Imported=>"imported"});
-domain!(Decision {Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Retry=>"retry",CloseFailed=>"close_failed"});
-domain!(HypothesisState {Queued=>"queued",Active=>"active",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
-domain!(AttemptState {Claimed=>"claimed",Running=>"running",Verifying=>"verifying",AwaitingHumanReview=>"awaiting_human_review",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
+domain!(Decision {Promote=>"promote",Reject=>"reject",Inconclusive=>"inconclusive",Failed=>"failed",Retry=>"retry",Stop=>"stop"});
+domain!(HypothesisState {Queued=>"queued",Active=>"active",Documenting=>"documenting",Deciding=>"deciding",Promoted=>"promoted",Rejected=>"rejected",Inconclusive=>"inconclusive",Failed=>"failed",Cancelled=>"cancelled"});
+domain!(AttemptState {Claimed=>"claimed",Running=>"running",Verifying=>"verifying",Verified=>"verified",Failed=>"failed",Cancelled=>"cancelled",Unreviewed=>"unreviewed"});
 
 #[derive(Clone, Copy)]
 pub enum TimeBound {

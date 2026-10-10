@@ -21,7 +21,7 @@ impl Tool {
     }
     #[allow(
         clippy::too_many_lines,
-        reason = "All 55 canonical tool mappings are reviewed together"
+        reason = "All 59 canonical tool mappings are reviewed together"
     )]
     pub fn request(&self, args: &Map<String, Value>) -> Result<ToolRequest, ()> {
         let mut args = args.clone();
@@ -188,9 +188,9 @@ impl Tool {
                 let id = take_path(&mut args, "case_id");
                 if name == "record_decision" {
                     args.insert("review_case_id".into(), Value::String(id.clone()));
-                    if args.get("supersedes").is_some_and(Value::is_null) {
-                        args.remove("supersedes");
-                    }
+                    // A decision case takes the document, a failure case the
+                    // action: the form left out may arrive as nulls.
+                    args.retain(|_, value| !value.is_null());
                 }
                 (
                     if name == "record_decision" {
@@ -209,6 +209,19 @@ impl Tool {
                 )
             }
             "list_reports" => (Method::GET, format!("{base}/reports")),
+            "list_writeups" => (Method::GET, format!("{base}/writeups")),
+            "get_writeup" | "write_up" | "skip_writeup" => {
+                let number = take_path(&mut args, "number");
+                let (method, suffix) = match name {
+                    "write_up" => (Method::POST, ""),
+                    "skip_writeup" => (Method::POST, "/skip"),
+                    _ => (Method::GET, ""),
+                };
+                (
+                    method,
+                    format!("{base}/hypotheses/{number}/writeup{suffix}"),
+                )
+            }
             "comment" | "list_comments" => {
                 let number = take_path(&mut args, "number");
                 let sequence = args
@@ -316,7 +329,7 @@ pub(super) fn encode(value: &str) -> String {
 pub(super) fn tools() -> Result<Vec<Tool>, StartupError> {
     let values: Vec<Value> =
         serde_json::from_str(include_str!("tools.json")).map_err(|_| StartupError::Registry)?;
-    if values.len() != 55 {
+    if values.len() != 59 {
         return Err(StartupError::Registry);
     }
     values

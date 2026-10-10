@@ -37,6 +37,7 @@ pub mod config_wire;
 mod conformance_hooks;
 mod context_bundle;
 pub mod datetime_query;
+mod document_jobs;
 mod documentation;
 pub mod errors;
 pub mod health;
@@ -100,6 +101,7 @@ mod upload_request;
 pub mod upload_routes;
 pub mod validation;
 pub mod web;
+mod writeup_routes;
 
 pub use application::production_application;
 pub use application::research_validation_policy;
@@ -209,6 +211,10 @@ pub use documentation::OPENAPI;
         review_attention_routes::list,
         review_attention_routes::read,
         review_decision_routes::decide,
+        writeup_routes::queue,
+        writeup_routes::read,
+        writeup_routes::write,
+        writeup_routes::skip,
         report_routes::list,
         report_routes::detail,
         artifact_download::download,

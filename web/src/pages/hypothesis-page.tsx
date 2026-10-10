@@ -1,7 +1,14 @@
-import { ScaleIcon } from "lucide-react";
+import { NotebookPenIcon, ScaleIcon } from "lucide-react";
 import { Link, useParams } from "react-router";
 
-import { useAttempt, useAttempts, useHypothesis, useReport, useRevisions } from "@/api/queries";
+import {
+  useAttempt,
+  useAttempts,
+  useHypothesis,
+  useReport,
+  useRevisions,
+  useWriteup,
+} from "@/api/queries";
 import type { Attempt, Hypothesis, Link as LinkOut } from "@/api/types";
 import { CommentsSection } from "@/components/comments";
 import { DecisionList } from "@/components/decisions";
@@ -14,12 +21,13 @@ import { ProjectPage } from "@/components/project-page";
 import { EmptyState, LoadError, Loading } from "@/components/query-state";
 import { Collapsible, Fact, RawJson, Section } from "@/components/section";
 import { StatusChip } from "@/components/status-chip";
+import { WriteupView } from "@/components/writeup";
 import { Button } from "@/components/ui/button";
 import { formatDateTime } from "@/lib/format";
 import { label } from "@/lib/labels";
 import { parseNumber, useNotice } from "@/lib/navigation";
 import { controlText, pendingReview, summarizeOutcome } from "@/lib/outcome";
-import { attemptPath, hypothesisPath, reviewPath, trackPath } from "@/lib/paths";
+import { attemptPath, hypothesisPath, reviewPath, trackPath, writeupPath } from "@/lib/paths";
 import { ARCHIVED_STATES } from "@/lib/states";
 import type { Project } from "@/projects/project-context";
 import { usePermissions } from "@/projects/use-permissions";
@@ -41,7 +49,7 @@ export function HypothesisPage() {
 }
 
 const REVIEW_BUTTON: Record<string, string> = {
-  result: "Review this result",
+  decision: "Decide",
   failure: "Review this failure",
 };
 
@@ -95,6 +103,14 @@ function HypothesisView({ project, number }: { project: Project; number: number 
               externalId={h.external_id}
               showSource
             />
+            {isResearcher && h.state === "documenting" ? (
+              <Button asChild>
+                <Link to={writeupPath(h.number)}>
+                  <NotebookPenIcon aria-hidden="true" />
+                  Write it up
+                </Link>
+              </Button>
+            ) : null}
             {isResearcher && pending ? (
               <Button asChild>
                 <Link to={reviewPath(h.number)}>
@@ -145,6 +161,8 @@ function HypothesisView({ project, number }: { project: Project; number: number 
           <LoadError error={report.error} retry={report.refetch} />
         ) : null}
 
+        <WriteupSection project={slug} hypothesis={h} />
+
         <Section
           title="Decisions"
           description="Every decision a researcher recorded, with the reason."
@@ -164,6 +182,28 @@ function HypothesisView({ project, number }: { project: Project; number: number 
 
 function text(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+/** The write-up, once the hypothesis has one to write: none before its first verification or stop. */
+function WriteupSection({ project, hypothesis }: { project: string; hypothesis: Hypothesis }) {
+  const writeup = useWriteup(
+    project,
+    hypothesis.number,
+    !["queued", "active", "cancelled"].includes(hypothesis.state),
+  );
+  if (writeup.data === undefined || writeup.data === null) return null;
+  return (
+    <Section
+      title="Write-up"
+      actions={
+        <Link to={writeupPath(hypothesis.number)} className="text-sm font-medium hover:underline">
+          Open the write-up
+        </Link>
+      }
+    >
+      <WriteupView writeup={writeup.data} />
+    </Section>
+  );
 }
 
 function IdeaSection({ hypothesis }: { hypothesis: Hypothesis }) {

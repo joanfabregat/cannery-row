@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cannery-row.invalid/schemas/0.2/decision.schema.json",
+  "$comment": "SPDX-License-Identifier: Apache-2.0",
+  "title": "Decision front matter",
+  "description": "The front matter of a decision document, a hypothesis's decision once it is written up; the Markdown body is the reason and is never empty. It cites the verification report and the write-up of the decision case exactly: `promote` needs that report's verdict to be `pass`, and `failed` is the decision of a hypothesis stopped after a failure, which has no verification report.",
+  "type": "object",
+  "properties": {
+    "outcome": {
+      "enum": ["promote", "reject", "inconclusive", "failed"]
+    },
+    "verification": {
+      "description": "The verification report decided on, by id and SHA-256; null for a stopped hypothesis.",
+      "oneOf": [
+        {"$ref": "common.schema.json#/$defs/content_ref"},
+        {"type": "null"}
+      ]
+    },
+    "writeup": {
+      "description": "The hypothesis's write-up, by id and SHA-256; null when the write-up was skipped.",
+      "oneOf": [
+        {"$ref": "common.schema.json#/$defs/content_ref"},
+        {"type": "null"}
+      ]
+    }
+  },
+  "required": ["outcome", "verification", "writeup"],
+  "additionalProperties": false
+}

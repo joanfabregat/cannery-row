@@ -33,7 +33,8 @@ const s = (label: string, tone: Tone, icon: StatusIcon): StatusMeta => ({ label,
 const hypothesisState = {
   queued: s("Waiting to start", "neutral", "waiting"),
   active: s("In progress", "info", "progress"),
-  awaiting_human_review: s("Needs review", "attention", "review"),
+  documenting: s("Being written up", "info", "progress"),
+  deciding: s("Needs a decision", "attention", "review"),
   promoted: s("Accepted", "success", "success"),
   rejected: s("Rejected", "danger", "failure"),
   inconclusive: s("Inconclusive", "neutral", "inconclusive"),
@@ -45,10 +46,7 @@ const attemptState = {
   claimed: s("Started", "info", "progress"),
   running: s("Running", "info", "progress"),
   verifying: s("Verifying", "info", "progress"),
-  awaiting_human_review: s("Needs review", "attention", "review"),
-  promoted: s("Accepted", "success", "success"),
-  rejected: s("Rejected", "danger", "failure"),
-  inconclusive: s("Inconclusive", "neutral", "inconclusive"),
+  verified: s("Verified", "success", "verified"),
   failed: s("Failed", "danger", "failure"),
   cancelled: s("Cancelled", "neutral", "stopped"),
   // An imported run with no decision of its own (docs/import.md).
@@ -105,6 +103,15 @@ const jobState = {
   claimed: s("In progress", "info", "progress"),
   completed: s("Done", "success", "success"),
   failed: s("Failed", "danger", "failure"),
+  skipped: s("Skipped", "neutral", "stopped"),
+};
+
+/** A hypothesis's write-up, from its document job. */
+const writeup = {
+  pending: s("To write", "attention", "waiting"),
+  claimed: s("Being written", "info", "progress"),
+  written: s("Written", "success", "success"),
+  skipped: s("Skipped", "neutral", "stopped"),
 };
 
 /** The effect of a decision, as a past-tense status: "Accepted", "Closed as failed". */
@@ -115,7 +122,8 @@ const decision = {
   reject: s("Rejected", "danger", "failure"),
   inconclusive: s("Inconclusive", "neutral", "inconclusive"),
   retry: s("Tried again", "info", "progress"),
-  close_failed: s("Closed as failed", "danger", "failure"),
+  stop: s("Stopped", "neutral", "stopped"),
+  failed: s("Closed as failed", "danger", "failure"),
 };
 
 const token = {
@@ -139,6 +147,7 @@ export const statusDomains = {
   standing,
   review: reviewState,
   job: jobState,
+  writeup,
   decision,
   token,
   account,
@@ -155,7 +164,7 @@ export const labels = {
     admin: "Administrator",
   },
   reviewKind: {
-    result: "Result review",
+    decision: "Decision",
     failure: "Failure review",
     plan: "Plan review",
   },
@@ -166,7 +175,8 @@ export const labels = {
     reject: "Reject",
     inconclusive: "Inconclusive",
     retry: "Try again",
-    close_failed: "Close as failed",
+    stop: "Stop",
+    failed: "Close as failed",
   },
   channel: {
     ui: "Web app",

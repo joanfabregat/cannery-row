@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT gen_random_uuid() AS \"id!: uuid::Uuid\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: uuid::Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e470f1f64c2014e586499dbfc88cb0f82555167f54e04db4ca93663673ce9321"
+}

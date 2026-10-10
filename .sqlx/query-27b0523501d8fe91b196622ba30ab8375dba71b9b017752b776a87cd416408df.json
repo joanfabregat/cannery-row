@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO jobs(id,project_id,attempt_id,phase,run_number,science_revision,performer,spec,deadline_seconds,origin) VALUES($1,$2,$3,'document',1,$4,'agent',$5,$6,'submission')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Jsonb",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "27b0523501d8fe91b196622ba30ab8375dba71b9b017752b776a87cd416408df"
+}

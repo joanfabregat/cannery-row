@@ -102,6 +102,21 @@ hypotheses:
           compare:
             - {metric: mase, split: backtest, reference: {value: 0.93, label: "Four-week average (#1, imported)", kind: promoted_attempt, ref: "demo-forecast#1"}}
             - {metric: mase, split: backtest, dims: {horizon: d7}, reference: {value: 0.96, label: "Four-week average (#1, imported)", kind: promoted_attempt, ref: "demo-forecast#1"}}
+        writeup:
+          by: chloe
+          summary: The global LightGBM model beats the seasonal baseline at both horizons and retrains in minutes.
+          body: |-
+            ## What was tried
+
+            One gradient-boosted model across every shop, on lags, calendar features and shop identity.
+
+            ## What was found
+
+            The verifier measured a MASE gain at day 1 and day 7, with intervals inside the target band.
+
+            ## What it means
+
+            A single global model is good enough to replace the per-shop baselines for the weekly forecast.
         decision: {by: chloe, action: promote, reason: "Clear gain at both horizons and fast enough to retrain weekly. This is the production candidate."}
     comments:
       - {by: ada, on: hypothesis, body: "Worth noting in the report that #4 (holiday-aware average, still awaiting review) is now mostly moot: the holiday flag here does the same job."}
@@ -196,6 +211,22 @@ hypotheses:
             - {id: horizons-beat-average, result: pass}
             - {id: interval-coverage, result: fail, detail: "0.768 < 0.78"}
           reason: The point forecast is unchanged, but coverage is just below the target band, driven by the three new shops.
+        # Written up, and waiting for its decision.
+        writeup:
+          by: chloe
+          summary: Quantile LightGBM keeps the point forecast, but its 80% intervals cover 77% of days, short of the band because of the new shops.
+          body: |-
+            ## What was tried
+
+            Quantile objectives at 10% and 90% on the global LightGBM model.
+
+            ## What was found
+
+            The point forecast is unchanged. Coverage is 79% for established shops and 64% for the three new ones, 76.8% overall against a 78% floor.
+
+            ## What it means
+
+            The intervals work where the history is long; the new shops need their own treatment before this can be judged.
     comments:
       - {by: ben, on: 1, body: "From the shop side, 77% would already be a big improvement over no range at all."}
 

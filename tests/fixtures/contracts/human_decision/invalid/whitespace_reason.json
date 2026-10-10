@@ -1,9 +1,9 @@
 {
   "reason": "/reason",
   "document": {
-    "review_case_id": "rc-0193",
+    "review_case_id": "rc-0201",
     "evidence_revision": 1,
-    "action": "promote",
+    "action": "retry",
     "reason": "\t"
   }
 }

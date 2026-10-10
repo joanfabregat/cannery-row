@@ -22,7 +22,7 @@ export interface OutcomeSummary {
   sentence: string;
   tried: string;
   happened: string | null;
-  /** The decision in force, as an action (`promote`, `close_failed`…), if any. */
+  /** The decision in force, as an action (`promote`, `failed`…), if any. */
   decision: Decision | null;
   decided: string | null;
   why: string | null;
@@ -38,7 +38,7 @@ export function currentDecision(review: HypothesisReview | undefined): Decision 
 
 export function latestReview(
   hypothesis: Hypothesis,
-  kind: "result" | "failure",
+  kind: "decision" | "failure",
 ): HypothesisReview | undefined {
   return hypothesis.reviews.filter((r) => r.kind === kind).at(-1);
 }
@@ -93,7 +93,8 @@ const DECIDED_WORDS: Record<string, string> = {
   reject: "Rejected",
   inconclusive: "Marked inconclusive",
   retry: "Tried again",
-  close_failed: "Closed as failed",
+  stop: "Stopped",
+  failed: "Closed as failed",
 };
 
 function lastDecision(review: HypothesisReview | undefined): Decision | null {
@@ -126,9 +127,12 @@ function decisionFor(hypothesis: Hypothesis): Decision | null {
     case "promoted":
     case "rejected":
     case "inconclusive":
-      return currentDecision(latestReview(hypothesis, "result"));
+      return currentDecision(latestReview(hypothesis, "decision"));
     case "failed":
-      return lastDecision(latestReview(hypothesis, "failure"));
+      return (
+        currentDecision(latestReview(hypothesis, "decision")) ??
+        lastDecision(latestReview(hypothesis, "failure"))
+      );
     case "queued":
     case "active":
       return newestLiveDecision(hypothesis, ["failure"]);
@@ -208,25 +212,32 @@ export function summarizeOutcome(
         attempt === null
           ? ""
           : ` (attempt ${attempt.ref}: ${statusLabel("attempt", attempt.state).toLowerCase()})`;
-      sentence =
-        decision?.action === "retry"
-          ? `${title} is being tried again now${now}: ${failedAttempt(attempt, previous)}, and a researcher decided to try again${because}`
-          : `${title} is being tried now${now}.`;
-      break;
-    }
-    case "awaiting_human_review": {
-      const pending = pendingReview(hypothesis);
-      if (pending?.kind === "failure" && attempt !== null) {
+      if (pendingReview(hypothesis)?.kind === "failure" && attempt !== null) {
+        // A failure waits for a researcher: try again, or stop and write it up.
         sentence = `We tried ${title}, but attempt ${attempt.ref} failed${
           failure ? ` (${failure.reason.replace(/[.\s]+$/, "")})` : ""
-        }; a researcher has to decide whether to try again.`;
+        }; a researcher has to decide whether to try again or stop.`;
       } else {
-        sentence = `We tried ${title}${
-          verdictPhrase === null ? "" : `: the verification ${verdictPhrase}`
-        }, and it is waiting for a researcher's decision.`;
+        sentence =
+          decision?.action === "retry"
+            ? `${title} is being tried again now${now}: ${failedAttempt(attempt, previous)}, and a researcher decided to try again${because}`
+            : `${title} is being tried now${now}.`;
       }
       break;
     }
+    case "documenting":
+      sentence =
+        verdictPhrase === null
+          ? `We tried ${title}, but the work could not produce a result; it is being written up before its decision.`
+          : `We tried ${title}: the verification ${verdictPhrase}, and it is being written up before its decision.`;
+      break;
+    case "deciding":
+      sentence = `We tried ${title}${
+        verdictPhrase === null
+          ? ", but the work could not produce a result"
+          : `: the verification ${verdictPhrase}`
+      }; it is written up and waiting for a researcher's decision.`;
+      break;
     case "promoted":
     case "rejected":
     case "inconclusive": {

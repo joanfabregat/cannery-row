@@ -20,6 +20,7 @@ export type Report = Schemas["ReportOut"];
 export type Verification = Schemas["VerificationReport"];
 
 export type ReviewCase = Schemas["cannery_row__reviews__routes__ReviewCaseOut"];
+export type Writeup = Schemas["WriteupOut"];
 
 export type Track = Schemas["TrackOut"];
 export type TrackEvent = Schemas["HistoryEvent"];

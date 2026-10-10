@@ -24,6 +24,10 @@ export function reviewPath(number: number | string): string {
   return `/hypotheses/${number}/review`;
 }
 
+export function writeupPath(number: number | string): string {
+  return `/hypotheses/${number}/writeup`;
+}
+
 export function trackPath(slug: string, project?: string | null): string {
   return inProject(`/tracks/${encodeURIComponent(slug)}`, project);
 }

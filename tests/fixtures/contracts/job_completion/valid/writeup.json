@@ -1,0 +1,5 @@
+{
+  "schema_version": "0.2",
+  "job_id": "document-job-1",
+  "document": "---\nsummary: \"Bigram features beat the unigram control on every language but French.\"\nattempts: [1, 2]\nverification: {\"ref\":\"verification-id\",\"sha256\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}\n---\n\n## What was done\n\nThe first attempt ran out of memory; the second halved the batch.\n\n## Results\n\nThe verifier measured 0.44 overall and 0.43 on French queries, below the 0.45 the run claimed.\n"
+}

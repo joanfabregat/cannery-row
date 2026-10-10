@@ -203,12 +203,18 @@ async fn item_line(
     })
 }
 
+/// What a bundle holds: the performer's full or compact bundle, or the
+/// documenter's and the decider's, which add the hypothesis's record.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(crate) enum Detail {
+    Full,
+    Compact,
+    Document,
+    Decide,
+}
+
 /// Build an attempt's bundle. `compact` keeps the brief's goal, the unit's
 /// fields and brief and the index, capped at 16 KiB.
-#[allow(
-    clippy::too_many_lines,
-    reason = "The bundle's sections are written in the order a performer reads them"
-)]
 pub(crate) async fn build(
     conn: &mut PgConnection,
     project: &projects::Project,
@@ -216,6 +222,216 @@ pub(crate) async fn build(
     compact: bool,
     context: &RequestContext,
 ) -> Result<String, Failure> {
+    build_for(
+        conn,
+        project,
+        pins,
+        if compact {
+            Detail::Compact
+        } else {
+            Detail::Full
+        },
+        context,
+    )
+    .await
+}
+
+fn fenced(value: &str) -> String {
+    let mut fence = String::from("```");
+    while value.contains(fence.as_str()) {
+        fence.push('`');
+    }
+    format!("{fence}\n{}\n{fence}", value.trim_end())
+}
+
+/// The hypothesis's record, in attempt order: each attempt's run document
+/// and notes, failures with their logs and verification reports, then the
+/// comments, and for the decider the write-up or why there is none.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The record is written in the order a documenter reads it"
+)]
+async fn record(
+    conn: &mut PgConnection,
+    project: &projects::Project,
+    pins: &AttemptPins,
+    detail: Detail,
+    body: &mut String,
+    context: &RequestContext,
+) -> Result<(), Failure> {
+    let fail = |_| internal(context, "bundle record");
+    let attempts = sqlx::query!(
+        r#"SELECT id AS "id: uuid::Uuid", sequence, state FROM attempts WHERE hypothesis_id=$1 ORDER BY sequence"#,
+        pins.hypothesis_id.0 as _
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(fail)?;
+    let outputs = sqlx::query!(
+        r#"SELECT p.attempt_id AS "attempt_id: uuid::Uuid", p.stage, p.revision, p.front_matter::text AS "front_matter!", p.body AS "body!", p.sha256 AS "sha256?", p.id AS "id: uuid::Uuid"
+           FROM phase_outputs p JOIN attempts a ON a.id=p.attempt_id
+           WHERE a.hypothesis_id=$1 AND p.status='completed' AND p.stage IN ('agent','verification','writeup')
+           ORDER BY a.sequence, p.created_at, p.id"#,
+        pins.hypothesis_id.0 as _
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(fail)?;
+    let failures = sqlx::query!(
+        r#"SELECT f.attempt_id AS "attempt_id: uuid::Uuid", f.stage, f.code, f.reason, f.log_refs::text AS "log_refs!"
+           FROM attempt_failures f JOIN attempts a ON a.id=f.attempt_id
+           WHERE a.hypothesis_id=$1 ORDER BY a.sequence, f.created_at, f.id"#,
+        pins.hypothesis_id.0 as _
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(fail)?;
+    let slug = &project.slug;
+    let number = pins.number;
+    body.push_str("## Attempts\n\n");
+    for attempt in &attempts {
+        let sequence = attempt.sequence;
+        let _ = writeln!(
+            body,
+            "### Attempt #{number}.{sequence} ({})\n",
+            attempt.state
+        );
+        let mut empty = true;
+        for output in outputs
+            .iter()
+            .filter(|output| output.attempt_id == attempt.id && output.stage != "writeup")
+        {
+            empty = false;
+            let (title, reference) = if output.stage == "agent" {
+                (
+                    format!("Run document (revision {})", output.revision),
+                    format!("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/report"),
+                )
+            } else {
+                (
+                    format!(
+                        "Verification report (revision {}, ref {}, sha256 {})",
+                        output.revision,
+                        output.id,
+                        output.sha256.as_deref().unwrap_or_default()
+                    ),
+                    format!("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}"),
+                )
+            };
+            let front_matter: Value =
+                serde_json::from_str(&output.front_matter).unwrap_or_default();
+            let _ = writeln!(
+                body,
+                "#### {title}\n\n({reference})\n\n{}\n",
+                fenced(&serde_json::to_string_pretty(&front_matter).unwrap_or_default())
+            );
+            if !output.body.trim().is_empty() {
+                let _ = writeln!(body, "{}\n", output.body.trim());
+            }
+        }
+        for failure in failures
+            .iter()
+            .filter(|failure| failure.attempt_id == attempt.id)
+        {
+            empty = false;
+            let _ = writeln!(
+                body,
+                "#### Failure at {}: {}\n\n{}\n",
+                failure.stage,
+                failure.code,
+                failure.reason.trim()
+            );
+            let logs: Value = serde_json::from_str(&failure.log_refs).unwrap_or_default();
+            for log in logs.as_array().into_iter().flatten() {
+                let _ = writeln!(
+                    body,
+                    "- log {} ({} bytes, sha256 {})",
+                    log["key"].as_str().unwrap_or_default(),
+                    log["size_bytes"],
+                    log["sha256"].as_str().unwrap_or_default()
+                );
+            }
+            if logs.as_array().is_some_and(|logs| !logs.is_empty()) {
+                body.push('\n');
+            }
+        }
+        if empty {
+            body.push_str("No run document, failure or verification report.\n\n");
+        }
+    }
+    let comments = sqlx::query!(
+        r#"SELECT c.body_markdown, c.created_at AS "created_at: cannery_core::timestamps::Timestamp", a.sequence AS "sequence?", coalesce(u.display_name, u.email, 'a researcher') AS "author!"
+           FROM comments c JOIN users u ON u.id=c.author_user LEFT JOIN attempts a ON a.id=c.attempt_id
+           WHERE c.hypothesis_id=$1 ORDER BY c.created_at, c.id"#,
+        pins.hypothesis_id.0 as _
+    )
+    .fetch_all(&mut *conn)
+    .await
+    .map_err(fail)?;
+    body.push_str("## Comments\n\n");
+    if comments.is_empty() {
+        body.push_str("None.\n\n");
+    }
+    for comment in comments {
+        let about = comment
+            .sequence
+            .map_or_else(String::new, |sequence| format!(" on #{number}.{sequence}"));
+        let _ = writeln!(
+            body,
+            "- {} ({}){about}: {}",
+            comment.author,
+            comment.created_at.isoformat(),
+            comment.body_markdown.trim().replace('\n', "\n  ")
+        );
+    }
+    body.push('\n');
+    if detail == Detail::Decide {
+        body.push_str("## Write-up\n\n");
+        let writeup = outputs.iter().rfind(|output| output.stage == "writeup");
+        let skipped = sqlx::query_scalar!(
+            r#"SELECT j.error_reason AS "reason!" FROM jobs j JOIN attempts a ON a.id=j.attempt_id
+               WHERE a.hypothesis_id=$1 AND j.phase='document' AND j.state='skipped'
+               ORDER BY j.created_at DESC LIMIT 1"#,
+            pins.hypothesis_id.0 as _
+        )
+        .fetch_optional(&mut *conn)
+        .await
+        .map_err(fail)?;
+        match (writeup, skipped) {
+            (Some(writeup), _) => {
+                let front_matter: Value =
+                    serde_json::from_str(&writeup.front_matter).unwrap_or_default();
+                let _ = writeln!(
+                    body,
+                    "(ref {}, sha256 {}; /api/projects/{slug}/hypotheses/{number}/writeup)\n\n{}\n\n{}\n",
+                    writeup.id,
+                    writeup.sha256.as_deref().unwrap_or_default(),
+                    fenced(&serde_json::to_string_pretty(&front_matter).unwrap_or_default()),
+                    writeup.body.trim()
+                );
+            }
+            (None, Some(reason)) => {
+                let _ = writeln!(body, "No write-up: {}\n", reason.trim());
+            }
+            (None, None) => body.push_str("Not written yet.\n\n"),
+        }
+    }
+    Ok(())
+}
+
+/// Build an attempt's bundle with the given detail.
+#[allow(
+    clippy::too_many_lines,
+    reason = "The bundle's sections are written in the order a performer reads them"
+)]
+pub(crate) async fn build_for(
+    conn: &mut PgConnection,
+    project: &projects::Project,
+    pins: &AttemptPins,
+    detail: Detail,
+    context: &RequestContext,
+) -> Result<String, Failure> {
+    let compact = detail == Detail::Compact;
     let limits = plans::limits(conn, project.id)
         .await
         .map_err(persistence(context))?;
@@ -411,6 +627,9 @@ pub(crate) async fn build(
             body.push('\n');
         }
     }
+    if matches!(detail, Detail::Document | Detail::Decide) {
+        record(conn, project, pins, detail, &mut body, context).await?;
+    }
     let header = |bytes: usize| {
         let mut header = String::from("---\n");
         let _ = writeln!(header, "project: {}", yaml(&project.slug));
@@ -427,7 +646,12 @@ pub(crate) async fn build(
         let _ = writeln!(
             header,
             "detail: {}",
-            if compact { "compact" } else { "full" }
+            match detail {
+                Detail::Full => "full",
+                Detail::Compact => "compact",
+                Detail::Document => "document",
+                Detail::Decide => "decide",
+            }
         );
         let _ = writeln!(header, "bytes: {bytes}");
         header.push_str("---\n\n");
@@ -465,9 +689,10 @@ pub(crate) async fn build(
     path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md",
     operation_id = "get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get",
     summary = "Get Context Bundle",
-    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB.",
+    description = "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB. `phase=document` is the\ndocumenter's bundle: the full bundle and the hypothesis's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
     params(("slug" = String, Path), ("number" = i64, Path), ("sequence" = i64, Path),
-        ("detail" = Option<String>, Query, description = "`full` (the default) or `compact`.")),
+        ("detail" = Option<String>, Query, description = "`full` (the default) or `compact`."),
+        ("phase" = Option<String>, Query, description = "`document` or `decide`: the documenter's or the decider's bundle.")),
     responses((status = 200, description = "Successful Response", body = String, content_type = "text/markdown"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
@@ -486,9 +711,17 @@ pub(crate) async fn route(
             .await
             .map_err(Failure::new)?;
     let paths = paths(&mut parts, &state).await?;
-    let compact = match parts.uri.query().unwrap_or_default() {
-        "" | "detail=full" => false,
-        "detail=compact" => true,
+    let detail = match parts.uri.query().unwrap_or_default() {
+        "" | "detail=full" => Detail::Full,
+        "detail=compact" => Detail::Compact,
+        "phase=document" => Detail::Document,
+        "phase=decide" => Detail::Decide,
+        query if query.starts_with("phase=") => {
+            return Err(crate::plan_routes::invalid(
+                "query/phase",
+                "Input should be 'document' or 'decide'",
+            ));
+        }
         _ => {
             return Err(crate::plan_routes::invalid(
                 "query/detail",
@@ -510,7 +743,7 @@ pub(crate) async fn route(
                 format!("attempt #{number}.{sequence} not found"),
             )
         })?;
-    let bundle = build(&mut auth.connection, &project, &pins, compact, &context).await?;
+    let bundle = build_for(&mut auth.connection, &project, &pins, detail, &context).await?;
     Ok((
         [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
         bundle,

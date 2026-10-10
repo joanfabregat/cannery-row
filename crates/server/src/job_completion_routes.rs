@@ -217,7 +217,7 @@ fn contract(
     path = "/api/projects/{slug}/jobs/{job_id}/completion",
     operation_id = "complete_job_api_projects__slug__jobs__job_id__completion_post",
     summary = "Complete Job",
-    description = "Publish the verification report with the manifest of the job's outputs.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt then awaits human review in a ``result``\ncase. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.",
+    description = "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the hypothesis waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the hypothesis and cites the\nverification report the job names. The hypothesis then awaits its\ndecision. An invalid write-up is refused and the lease is kept.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -246,7 +246,7 @@ pub(crate) async fn complete(
     path = "/api/projects/{slug}/jobs/{job_id}/failure",
     operation_id = "fail_job_api_projects__slug__jobs__job_id__failure_post",
     summary = "Fail Job",
-    description = "Report that the job failed: never with metrics, always with a reason.\n\nThe job runs again automatically, from the failed step, while reruns\nremain; then the attempt fails with a ``verify`` failure and a review case\nopens. A policy crash is such a failure, never a `fail` or `inconclusive`\nverdict. An `invalid_step_output` naming a producer step is the agent's\nfailure (the attempt fails at once for review, with no rerun) only when\nthe API itself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the verifier's failure.",
+    description = "Report that the job failed: never with metrics, always with a reason.\n\nThe job runs again automatically, from the failed step, while reruns\nremain; then the attempt fails with a ``verify`` failure and a review case\nopens. A policy crash is such a failure, never a `fail` or `inconclusive`\nverdict. A failed document job is queued again for another documenter. An `invalid_step_output` naming a producer step is the agent's\nfailure (the attempt fails at once for review, with no rerun) only when\nthe API itself refused one of that step's outputs in this job, against the\ninterface the step declares for it (see `PUT /api/job-uploads/{id}`).\nOtherwise, whatever the report says, it is the verifier's failure.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -366,29 +366,17 @@ async fn publish(
             .await
             .map_err(|_| internal(r, "verification revision"))?;
     Repository::new(c, s.flow.attempts)
-        .move_attempt(a.id, "verifying", "awaiting_human_review")
+        .move_attempt(a.id, "verifying", "verified")
         .await
         .map_err(|_| internal(r, "verified attempt transition"))?;
     cannery_hypotheses::repo::set_state(
         c,
         a.hypothesis_id,
-        cannery_hypotheses::repo::HypothesisState::AwaitingHumanReview,
+        cannery_hypotheses::repo::HypothesisState::Documenting,
         None,
     )
     .await
     .map_err(|_| internal(r, "verified hypothesis transition"))?;
-    let case = cannery_reviews::repo::open_result_case(
-        c,
-        cannery_reviews::repo::OpenResultCase {
-            project_id: a.project_id,
-            hypothesis_id: a.hypothesis_id,
-            attempt_id: a.id,
-            evidence_id: cannery_reviews::EvidenceId(id.0),
-            evidence_revision: Some(&BigInt::from(revision)),
-        },
-    )
-    .await
-    .map_err(|_| internal(r, "verified result review"))?;
     let front_matter = flow::value(&report.front_matter, &s.flow, r)?;
     flow::event(
         c,
@@ -398,10 +386,10 @@ async fn publish(
         "attempt",
         &a.id.to_string(),
         Some(&json!({"state":"verifying","hypothesis_state":"active"})),
-        &json!({"state":"awaiting_human_review","hypothesis_state":"awaiting_human_review",
+        &json!({"state":"verified","hypothesis_state":"documenting",
             "verdict":front_matter["verdict"],"performer":j.performer.as_str(),
             "verifier":j.verifier_id,"evidence_id":id.0.to_string(),
-            "evidence_sha256":report.sha256,"review_case_id":case.to_string(),
+            "evidence_sha256":report.sha256,"evidence_revision":revision,
             "job_id":j.id.to_string()}),
         front_matter["reason"].as_str(),
         r,
@@ -433,7 +421,102 @@ async fn publish(
     )
     .await
     .map_err(|_| internal(r, "job completion audit"))?;
+    // The hypothesis is written up next, whatever the verdict.
+    crate::document_jobs::create(
+        c,
+        cannery_core::audit::Attribution::Principal(p),
+        a,
+        jobs::Origin::Submission,
+        None,
+        &s.flow,
+        r,
+    )
+    .await?;
     Ok(())
+}
+/// Complete a document job with its write-up, or report its failure: the
+/// job is then queued again. Either way the lease is fenced by the caller.
+async fn document_mutation(
+    c: &mut PgConnection,
+    p: &Principal,
+    a: &Attempt,
+    j: &Job,
+    document: &Document,
+    completion: bool,
+    key: Option<&str>,
+    (actor, hash): (&str, &[u8]),
+    s: &JobLifecycleContext,
+    r: &RequestContext,
+) -> Result<(Job, bool, Option<Failure>), Failure> {
+    let value = flow::value(document, &s.flow, r)?;
+    if value["job_id"] != j.id.to_string() {
+        return Err(invalid("/job_id", format!("this is job {}", j.id)));
+    }
+    if completion {
+        contract(document, ContractKind::JobCompletion, s, r)?;
+        crate::api_models::request_document::<crate::api_models::JobCompletionRequest>(document)
+            .map_err(failure)?;
+        if value.get("manifest").is_some() {
+            return Err(invalid(
+                "/manifest",
+                "a document job publishes its write-up and no manifest",
+            ));
+        }
+        let text = value["document"]
+            .as_str()
+            .ok_or_else(|| internal(r, "write-up text"))?;
+        let inputs = crate::document_jobs::inputs(c, a, r).await?;
+        let writeup = crate::document_jobs::check(text, &inputs, &s.phases, "/document")?;
+        crate::document_jobs::publish(c, p, a, j, &inputs, &writeup, key, &s.flow, r).await?;
+        if let Some(key) = key {
+            remember(c, actor, key, hash, j.id, r).await?;
+        }
+    } else {
+        if value.get("step").is_some_and(|step| !step.is_null()) {
+            return Err(invalid("/step", "a document job has no steps"));
+        }
+        let artifacts = Repository::new(c, s.flow.attempts)
+            .list_job_artifacts(j.id)
+            .await
+            .map_err(|_| internal(r, "document job failure logs"))?;
+        for (i, log) in value["logs"].as_array().into_iter().flatten().enumerate() {
+            if !artifacts.iter().any(|a| {
+                log["key"] == a.key
+                    && log["size_bytes"] == a.size_bytes
+                    && log["sha256"] == a.sha256
+            }) {
+                return Err(invalid(
+                    &format!("/logs/{i}"),
+                    "not a verified output of this job",
+                ));
+            }
+        }
+        let logs = flow::document(&value["logs"], &s.flow, r)?;
+        crate::document_jobs::requeue(
+            c,
+            cannery_core::audit::Attribution::Principal(p),
+            a,
+            j,
+            jobs::Failure {
+                step: None,
+                code: value["error_code"]
+                    .as_str()
+                    .ok_or_else(|| internal(r, "failure code"))?,
+                reason: value["reason"]
+                    .as_str()
+                    .ok_or_else(|| internal(r, "failure reason"))?,
+                logs: &logs,
+            },
+            &s.flow,
+            r,
+        )
+        .await?;
+    }
+    let done = jobs::get_job(c, j.id, false, s.flow.jobs)
+        .await
+        .map_err(|_| internal(r, "document job outcome"))?
+        .ok_or_else(|| internal(r, "document job outcome missing"))?;
+    Ok((done, false, None))
 }
 #[allow(
     clippy::too_many_lines,
@@ -571,6 +654,21 @@ async fn mutate(
             &r,
         )
         .await?;
+        if job.phase == jobs::Phase::Document {
+            return document_mutation(
+                &mut tx,
+                &auth.principal,
+                &attempt,
+                &job,
+                document,
+                completion,
+                key.as_deref(),
+                (actor.as_str(), hash.as_slice()),
+                &s.context,
+                &r,
+            )
+            .await;
+        }
         require_verifying(&attempt)?;
         if completion {
             let checked = match contract(document, ContractKind::JobCompletion, &s.context, &r) {

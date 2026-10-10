@@ -1,7 +1,7 @@
 //! Read-only attention queries; transaction and authorization policy belong to callers.
 #![forbid(unsafe_code)]
 use cannery_core::{
-    ids::{ProjectId, ReviewCaseId},
+    ids::{JobId, ProjectId, ReviewCaseId, ServiceAccountId, UserId},
     timestamps::Timestamp,
 };
 use cannery_reviews::{
@@ -226,7 +226,7 @@ pub async fn pending_reviews(
     limit: Option<&BigInt>,
 ) -> Result<Vec<PendingReview>, Error> {
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.front_matter ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\" FROM review_cases c\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN phase_outputs e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawPendingReview,"\n            SELECT c.id AS \"case_id!: _\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.opened_at AS \"opened_at!: _\", h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", e.front_matter ->> 'verdict' AS \"verdict?\", f.stage AS \"failure_stage?\", f.code AS \"failure_code?\", f.reason AS \"failure_reason?\", c.origin AS \"origin!\" FROM review_cases c\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            LEFT JOIN phase_outputs e ON e.id = c.evidence_id\n            LEFT JOIN attempt_failures f ON f.id = c.failure_id\n            WHERE c.project_id = $1 AND c.state = 'pending' AND c.kind <> 'plan'\n            ORDER BY c.opened_at, c.id\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_pendingreview).collect()
 }
 /// Execute the source SQL on the caller-owned connection.
@@ -238,7 +238,7 @@ pub async fn recent_outcomes(
     limit: Option<&BigInt>,
 ) -> Result<Vec<Outcome>, Error> {
     let limit = limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawOutcome,"\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", h.state AS \"hypothesis_state!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", d.action AS \"action!\", d.reason AS \"reason!\", d.decided_at AS \"decided_at!: _\", d.origin AS \"origin!\" FROM decisions d\n            JOIN review_cases c ON c.id = d.review_case_id\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            WHERE c.project_id = $1 AND c.kind = 'result'\n              AND NOT EXISTS (SELECT 1 FROM decisions s WHERE s.supersedes = d.id)\n            ORDER BY d.decided_at DESC, d.id DESC\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawOutcome,"\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", h.state AS \"hypothesis_state!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence?\", d.action AS \"action!\", d.reason AS \"reason!\", d.decided_at AS \"decided_at!: _\", d.origin AS \"origin!\" FROM decisions d\n            JOIN review_cases c ON c.id = d.review_case_id\n            JOIN hypotheses h ON h.id = c.hypothesis_id\n            JOIN tracks t ON t.id = h.track_id\n            LEFT JOIN attempts a ON a.id = c.attempt_id\n            WHERE c.project_id = $1 AND c.kind = 'decision'\n              AND NOT EXISTS (SELECT 1 FROM decisions s WHERE s.supersedes = d.id)\n            ORDER BY d.decided_at DESC, d.id DESC\n            LIMIT $2\n            ",project as ProjectId,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_outcome).collect()
 }
 /// Execute the source SQL on the caller-owned connection.
@@ -266,7 +266,7 @@ pub async fn pending_counts(
     )
     .fetch_all(&mut *c)
     .await?;
-    let mut counts = BTreeMap::from([(CaseKind::Result, 0), (CaseKind::Failure, 0)]);
+    let mut counts = BTreeMap::from([(CaseKind::Decision, 0), (CaseKind::Failure, 0)]);
     for row in rows {
         counts.insert(CaseKind::try_from(row.kind.as_str())?, row.count);
     }
@@ -323,4 +323,90 @@ pub async fn stalled_verifications(
     let limit = limit.map(Integer::new).transpose()?;
     let rows=sqlx::query_as!(RawStalledVerification,"\n            SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\", a.sequence AS \"attempt_sequence!\", j.performer AS \"performer!\", j.verifier_id AS \"verifier?\", j.spec -> 'verifier' ->> 'revision' AS \"revision?\", j.created_at AS \"waiting_since!: _\" FROM jobs j\n            JOIN attempts a ON a.id = j.attempt_id\n            JOIN hypotheses h ON h.id = a.hypothesis_id\n            JOIN tracks t ON t.id = a.track_id\n            WHERE \n        j.project_id = $1 AND j.phase = 'verify' AND j.state = 'pending'\n        AND j.created_at < now() - make_interval(secs => $2)\n    \n            ORDER BY j.created_at, j.id\n            LIMIT $3\n            ",project as ProjectId,seconds as _,limit as _).fetch_all(&mut *c).await?;
     Ok((total, rows.iter().map(decode_stalledverification).collect()))
+}
+/// A hypothesis waiting for its write-up, with its document job.
+pub struct PendingWriteup {
+    pub hypothesis_number: i32,
+    pub hypothesis_title: String,
+    pub track_slug: String,
+    pub attempt_sequence: i32,
+    pub attempt_state: AttemptState,
+    pub job_id: JobId,
+    /// `pending`, or `claimed` while someone writes it.
+    pub job_state: String,
+    pub claimed_by_service: Option<ServiceAccountId>,
+    pub claimed_by_user: Option<UserId>,
+    pub waiting_since: Timestamp,
+}
+impl std::fmt::Debug for PendingWriteup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PendingWriteup([redacted])")
+    }
+}
+struct RawPendingWriteup {
+    hypothesis_number: i32,
+    hypothesis_title: String,
+    track_slug: String,
+    attempt_sequence: i32,
+    attempt_state: String,
+    job_id: JobId,
+    job_state: String,
+    claimed_by_service: Option<ServiceAccountId>,
+    claimed_by_user: Option<UserId>,
+    waiting_since: Timestamp,
+}
+/// Hypotheses waiting in `documenting`, oldest first, and how many there are.
+/// # Errors
+/// Returns sanitized driver, server or invariant failures.
+pub async fn pending_writeups(
+    c: &mut PgConnection,
+    project: ProjectId,
+    limit: Option<&BigInt>,
+) -> Result<(i64, Vec<PendingWriteup>), Error> {
+    let total = sqlx::query_scalar!(
+        "SELECT count(*) AS \"count!\" FROM hypotheses WHERE project_id = $1 AND state = 'documenting'",
+        project as ProjectId
+    )
+    .fetch_one(&mut *c)
+    .await?;
+    let limit = limit.map(Integer::new).transpose()?;
+    let rows = sqlx::query_as!(
+        RawPendingWriteup,
+        "SELECT h.number AS \"hypothesis_number!\", h.title AS \"hypothesis_title!\", t.slug AS \"track_slug!\",
+                a.sequence AS \"attempt_sequence!\", a.state AS \"attempt_state!\", j.id AS \"job_id!: _\",
+                j.state AS \"job_state!\", j.claimed_by_service AS \"claimed_by_service?: _\",
+                j.claimed_by_user AS \"claimed_by_user?: _\", j.created_at AS \"waiting_since!: _\"
+         FROM hypotheses h
+         JOIN tracks t ON t.id = h.track_id
+         JOIN LATERAL (SELECT * FROM jobs d
+                       WHERE d.phase = 'document'
+                         AND d.attempt_id IN (SELECT id FROM attempts WHERE hypothesis_id = h.id)
+                       ORDER BY d.created_at DESC, d.run_number DESC LIMIT 1) j ON true
+         JOIN attempts a ON a.id = j.attempt_id
+         WHERE h.project_id = $1 AND h.state = 'documenting'
+         ORDER BY j.created_at, h.number
+         LIMIT $2",
+        project as ProjectId,
+        limit as _
+    )
+    .fetch_all(&mut *c)
+    .await?;
+    let items = rows
+        .into_iter()
+        .map(|r| {
+            Ok(PendingWriteup {
+                hypothesis_number: r.hypothesis_number,
+                hypothesis_title: r.hypothesis_title,
+                track_slug: r.track_slug,
+                attempt_sequence: r.attempt_sequence,
+                attempt_state: AttemptState::try_from(r.attempt_state.as_str())?,
+                job_id: r.job_id,
+                job_state: r.job_state,
+                claimed_by_service: r.claimed_by_service,
+                claimed_by_user: r.claimed_by_user,
+                waiting_since: r.waiting_since,
+            })
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    Ok((total, items))
 }

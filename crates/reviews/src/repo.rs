@@ -25,6 +25,8 @@ pub struct Case {
     pub resolved_at: Option<Timestamp>,
     pub failure_id: Option<FailureId>,
     pub evidence_id: Option<EvidenceId>,
+    /// The write-up a decision case cites; absent when it was skipped.
+    pub writeup_id: Option<EvidenceId>,
     pub origin: Origin,
     pub source_ref: Option<String>,
 }
@@ -49,6 +51,7 @@ struct RawCase {
     resolved_at: Option<Timestamp>,
     failure_id: Option<FailureId>,
     evidence_id: Option<EvidenceId>,
+    writeup_id: Option<EvidenceId>,
     origin: String,
     source_ref: Option<String>,
 }
@@ -73,6 +76,7 @@ fn decode_case(r: &RawCase) -> Result<Case, Error> {
         resolved_at: r.resolved_at,
         failure_id: r.failure_id,
         evidence_id: r.evidence_id,
+        writeup_id: r.writeup_id,
         origin: Origin::try_from(r.origin.as_str())?,
         source_ref: r.source_ref.as_deref().map(String::from),
     })
@@ -132,7 +136,7 @@ pub async fn get_case(
         .fetch_optional(&mut *c)
         .await?;
     }
-    let row=sqlx::query_as!(RawCase,"SELECT c.id AS \"id!: _\", c.project_id AS \"project_id!: _\", c.hypothesis_id AS \"hypothesis_id!: _\", h.number AS \"hypothesis_number!\", h.state AS \"hypothesis_state!\", c.attempt_id AS \"attempt_id?: _\", a.sequence AS \"attempt_sequence?\", a.state AS \"attempt_state?\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.state AS \"state!\", c.opened_at AS \"opened_at!: _\", c.resolved_at AS \"resolved_at?: _\", c.failure_id AS \"failure_id?: _\", c.evidence_id AS \"evidence_id?: _\", c.origin AS \"origin!\", c.source_ref AS \"source_ref?\" FROM \n    review_cases c JOIN hypotheses h ON h.id = c.hypothesis_id\n    LEFT JOIN attempts a ON a.id = c.attempt_id\n WHERE c.id = $1 AND c.project_id = $2",id as ReviewCaseId,project as ProjectId).fetch_optional(&mut *c).await?;
+    let row=sqlx::query_as!(RawCase,"SELECT c.id AS \"id!: _\", c.project_id AS \"project_id!: _\", c.hypothesis_id AS \"hypothesis_id!: _\", h.number AS \"hypothesis_number!\", h.state AS \"hypothesis_state!\", c.attempt_id AS \"attempt_id?: _\", a.sequence AS \"attempt_sequence?\", a.state AS \"attempt_state?\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.state AS \"state!\", c.opened_at AS \"opened_at!: _\", c.resolved_at AS \"resolved_at?: _\", c.failure_id AS \"failure_id?: _\", c.evidence_id AS \"evidence_id?: _\", c.writeup_id AS \"writeup_id?: _\", c.origin AS \"origin!\", c.source_ref AS \"source_ref?\" FROM \n    review_cases c JOIN hypotheses h ON h.id = c.hypothesis_id\n    LEFT JOIN attempts a ON a.id = c.attempt_id\n WHERE c.id = $1 AND c.project_id = $2",id as ReviewCaseId,project as ProjectId).fetch_optional(&mut *c).await?;
     row.as_ref().map(decode_case).transpose()
 }
 pub struct ListCases<'a> {
@@ -153,7 +157,7 @@ pub async fn list_cases(
     let state = input.state.map(text).transpose()?;
     let before = input.before;
     let limit = input.limit.map(Integer::new).transpose()?;
-    let rows=sqlx::query_as!(RawCase,"\n            SELECT c.id AS \"id!: _\", c.project_id AS \"project_id!: _\", c.hypothesis_id AS \"hypothesis_id!: _\", h.number AS \"hypothesis_number!\", h.state AS \"hypothesis_state!\", c.attempt_id AS \"attempt_id?: _\", a.sequence AS \"attempt_sequence?\", a.state AS \"attempt_state?\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.state AS \"state!\", c.opened_at AS \"opened_at!: _\", c.resolved_at AS \"resolved_at?: _\", c.failure_id AS \"failure_id?: _\", c.evidence_id AS \"evidence_id?: _\", c.origin AS \"origin!\", c.source_ref AS \"source_ref?\" FROM \n    review_cases c JOIN hypotheses h ON h.id = c.hypothesis_id\n    LEFT JOIN attempts a ON a.id = c.attempt_id\n\n            WHERE c.project_id = $1\n              AND ($2::text IS NULL OR c.kind = $2)\n              AND ($3::text IS NULL OR c.state = $3)\n              AND ($4::uuid IS NULL OR (c.opened_at, c.id) < (\n                  SELECT opened_at, id FROM review_cases\n                  WHERE id = $4 AND project_id = $1))\n            ORDER BY c.opened_at DESC, c.id DESC\n            LIMIT $5\n            ",project as ProjectId,kind,state,before as Option<ReviewCaseId>,limit as _).fetch_all(&mut *c).await?;
+    let rows=sqlx::query_as!(RawCase,"\n            SELECT c.id AS \"id!: _\", c.project_id AS \"project_id!: _\", c.hypothesis_id AS \"hypothesis_id!: _\", h.number AS \"hypothesis_number!\", h.state AS \"hypothesis_state!\", c.attempt_id AS \"attempt_id?: _\", a.sequence AS \"attempt_sequence?\", a.state AS \"attempt_state?\", c.kind AS \"kind!\", c.subject_revision AS \"subject_revision!\", c.state AS \"state!\", c.opened_at AS \"opened_at!: _\", c.resolved_at AS \"resolved_at?: _\", c.failure_id AS \"failure_id?: _\", c.evidence_id AS \"evidence_id?: _\", c.writeup_id AS \"writeup_id?: _\", c.origin AS \"origin!\", c.source_ref AS \"source_ref?\" FROM \n    review_cases c JOIN hypotheses h ON h.id = c.hypothesis_id\n    LEFT JOIN attempts a ON a.id = c.attempt_id\n\n            WHERE c.project_id = $1\n              AND ($2::text IS NULL OR c.kind = $2)\n              AND ($3::text IS NULL OR c.state = $3)\n              AND ($4::uuid IS NULL OR (c.opened_at, c.id) < (\n                  SELECT opened_at, id FROM review_cases\n                  WHERE id = $4 AND project_id = $1))\n            ORDER BY c.opened_at DESC, c.id DESC\n            LIMIT $5\n            ",project as ProjectId,kind,state,before as Option<ReviewCaseId>,limit as _).fetch_all(&mut *c).await?;
     rows.iter().map(decode_case).collect()
 }
 /// Execute the source SQL on the caller-owned connection.
@@ -167,28 +171,34 @@ pub async fn get_failure(
     let row=sqlx::query_as!(RawFailure,"\n            SELECT id AS \"id!: _\", attempt_id AS \"attempt_id!: _\", stage AS \"stage!\", code AS \"code!\", reason AS \"reason!\", details::text AS \"details!\", log_refs::text AS \"log_refs!\", created_at AS \"created_at!: _\" FROM attempt_failures WHERE id = $1\n            ",id as FailureId).fetch_optional(&mut *c).await?;
     row.as_ref().map(|r| decode_failure(r, json)).transpose()
 }
-pub struct OpenResultCase<'a> {
+/// A hypothesis's decision case, opened once it is written up or its
+/// write-up is skipped: it cites the verification report decided on (none
+/// for a stopped hypothesis, whose revision is then 1) and the write-up
+/// (none when it was skipped).
+pub struct OpenDecisionCase<'a> {
     pub project_id: ProjectId,
     pub hypothesis_id: HypothesisId,
     pub attempt_id: AttemptId,
-    pub evidence_id: EvidenceId,
-    pub evidence_revision: Option<&'a BigInt>,
+    pub evidence_id: Option<EvidenceId>,
+    pub writeup_id: Option<EvidenceId>,
+    pub subject_revision: &'a BigInt,
 }
 /// Execute the source SQL on the caller-owned connection.
 /// # Errors
 /// Returns sanitized driver, server, JSON decoding or invariant failures.
-pub async fn open_result_case(
+pub async fn open_decision_case(
     c: &mut PgConnection,
-    input: OpenResultCase<'_>,
+    input: OpenDecisionCase<'_>,
 ) -> Result<ReviewCaseId, Error> {
-    let revision = input.evidence_revision.map(Integer::new).transpose()?;
+    let revision = Integer::new(input.subject_revision)?;
     let row: Option<ReviewCaseId> = sqlx::query_scalar!(
-        "\n            INSERT INTO review_cases (project_id, hypothesis_id, attempt_id, kind,\n                                      subject_revision, evidence_id)\n            VALUES ($1, $2, $3, 'result', $4, $5)\n            RETURNING id AS \"id!: _\"\n            ",
+        "\n            INSERT INTO review_cases (project_id, hypothesis_id, attempt_id, kind,\n                                      subject_revision, evidence_id, writeup_id)\n            VALUES ($1, $2, $3, 'decision', $4, $5, $6)\n            RETURNING id AS \"id!: _\"\n            ",
         input.project_id as ProjectId,
         input.hypothesis_id as HypothesisId,
         input.attempt_id as AttemptId,
         revision as _,
-        input.evidence_id as EvidenceId
+        input.evidence_id as Option<EvidenceId>,
+        input.writeup_id as Option<EvidenceId>
     )
     .fetch_optional(&mut *c)
     .await?;

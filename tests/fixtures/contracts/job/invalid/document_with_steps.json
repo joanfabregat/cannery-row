@@ -1,0 +1,31 @@
+{
+  "reason": "'steps' was unexpected",
+  "document": {
+    "schema_version": "0.2",
+    "job_id": "document-job-1",
+    "phase": "document",
+    "attempt_id": "attempt-id",
+    "performer": "agent",
+    "track": "compact-sparse",
+    "hypothesis": 12,
+    "science_revision": "3",
+    "inputs": {
+      "attempts": [
+        1,
+        2
+      ],
+      "verification": {
+        "ref": "verification-id",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "output_prefix": "projects/pilchards/attempts/attempt-id/document-runs/document-job-1/",
+    "deadline": "2026-09-29T06:00:00Z",
+    "lease": {
+      "token": "opaque",
+      "generation": 1,
+      "expires_at": "2026-09-29T00:10:00Z"
+    },
+    "steps": []
+  }
+}

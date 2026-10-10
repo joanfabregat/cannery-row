@@ -145,7 +145,7 @@ describe("hypotheses without a control", () => {
   });
 
   it("never mention a missing control in the outcome", () => {
-    for (const state of ["queued", "awaiting_human_review", "promoted"]) {
+    for (const state of ["queued", "documenting", "deciding", "promoted"]) {
       const summary = summarizeOutcome(hypothesis({ state }), attempt(), report());
       expect(summary.sentence).not.toMatch(/undefined|null|control/i);
       expect(summary.tried).not.toMatch(/undefined|null/);

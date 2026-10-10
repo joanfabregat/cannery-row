@@ -61,7 +61,7 @@ fn fixed_control_fields_and_nested_storage_reject_wrong_types_and_unknown_fields
         json!(true),
         json!(18_446_744_073_709_551_615_u64),
     ] {
-        assert!(serde_json::from_value::<HumanDecisionRequest>(json!({"review_case_id":"case","evidence_revision":revision,"action":"promote","reason":"ready"})).is_err());
+        assert!(serde_json::from_value::<HumanDecisionRequest>(json!({"review_case_id":"case","evidence_revision":revision,"action":"retry","reason":"ready"})).is_err());
     }
     for value in [
         json!({"key":"a","title":"t","question":"q","intervention":"i","acceptance":{},"state":"queued"}),
@@ -91,10 +91,10 @@ fn unregistered_view_metrics_are_explicit_empty_objects() -> Result {
 #[test]
 fn omission_is_preserved_and_nonnullable_optional_values_reject_null() -> Result {
     let request: HumanDecisionRequest = serde_json::from_value(
-        json!({"review_case_id":"case","evidence_revision":2,"action":"promote","reason":"ready"}),
+        json!({"review_case_id":"case","evidence_revision":2,"action":"retry","reason":"ready"}),
     )?;
     assert!(serde_json::to_value(request)?.get("supersedes").is_none());
-    assert!(serde_json::from_value::<HumanDecisionRequest>(json!({"review_case_id":"case","evidence_revision":2,"action":"promote","reason":"ready","supersedes":null})).is_err());
+    assert!(serde_json::from_value::<HumanDecisionRequest>(json!({"review_case_id":"case","evidence_revision":2,"action":"retry","reason":"ready","supersedes":null})).is_err());
     let mut request: Value = serde_json::from_slice(include_bytes!(
         "../../../tests/fixtures/contracts/job_completion/valid/verification.json"
     ))?;

@@ -173,9 +173,9 @@ async fn insert_result_case(
 ) -> Result<ReviewCaseId> {
     let attempt = Uuid::from_u128(11);
     let evidence = Uuid::from_u128(12);
-    sqlx::query("INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,lease_generation) VALUES($1,$2,$3,1,'awaiting_human_review',1,1,$4,$5,'api',0)").bind(attempt).bind(PROJECT).bind(hypothesis).bind(TRACK).bind(USER).execute(&mut *c).await?;
+    sqlx::query("INSERT INTO attempts(id,project_id,hypothesis_id,sequence,state,hypothesis_revision,science_revision,track_id,claimed_by_user,via_channel,lease_generation) VALUES($1,$2,$3,1,'verified',1,1,$4,$5,'api',0)").bind(attempt).bind(PROJECT).bind(hypothesis).bind(TRACK).bind(USER).execute(&mut *c).await?;
     sqlx::query("INSERT INTO phase_outputs(id,project_id,attempt_id,stage,status,front_matter,sha256,producer_user,via_channel) VALUES($1,$2,$3,'verification','completed','{}','fixture',$4,'api')").bind(evidence).bind(PROJECT).bind(attempt).bind(USER).execute(&mut *c).await?;
-    Ok(ReviewCaseId(sqlx::query_scalar("INSERT INTO review_cases(project_id,hypothesis_id,attempt_id,kind,subject_revision,evidence_id) VALUES($1,$2,$3,'result',1,$4) RETURNING id").bind(PROJECT).bind(hypothesis).bind(attempt).bind(evidence).fetch_one(&mut *c).await?))
+    Ok(ReviewCaseId(sqlx::query_scalar("INSERT INTO review_cases(project_id,hypothesis_id,attempt_id,kind,subject_revision,evidence_id) VALUES($1,$2,$3,'decision',1,$4) RETURNING id").bind(PROJECT).bind(hypothesis).bind(attempt).bind(evidence).fetch_one(&mut *c).await?))
 }
 async fn seed(c: &mut PgConnection) -> Result<()> {
     sqlx::query("SET plan_cache_mode=force_generic_plan")
@@ -322,7 +322,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
                 .await?
                 .is_some()
                 .then_some(true),
-            pending_case(c, first, CaseKind::Result, CONTEXT)
+            pending_case(c, first, CaseKind::Decision, CONTEXT)
                 .await?
                 .is_some()
                 .then_some(true)
@@ -482,7 +482,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     );
     out.insert("refs-empty".into(), json!({}));
     assert!(resolve_refs(c, Vec::new()).await?.is_empty());
-    let opened = pending_case(c, first, CaseKind::Result, CONTEXT)
+    let opened = pending_case(c, first, CaseKind::Decision, CONTEXT)
         .await?
         .is_some()
         .then_some(true);
@@ -493,7 +493,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
         .insert(Uuid::from_u128(11), "first-attempt".into());
     p.aliases
         .insert(Uuid::from_u128(12), "first-verification".into());
-    let opened = pending_case(c, first, CaseKind::Result, CONTEXT)
+    let opened = pending_case(c, first, CaseKind::Decision, CONTEXT)
         .await?
         .ok_or("missing pending")?;
     out.insert("pending".into(), reviewcase(&p, &opened)?);
@@ -506,6 +506,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
             reason: &python("Not enough data"),
             principal: &user(),
             supersedes: None,
+            document: None,
         },
         CONTEXT,
     )
@@ -522,6 +523,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
             reason: &python("Correction"),
             principal: &user(),
             supersedes: Some(decided.id),
+            document: None,
         },
         CONTEXT,
     )
@@ -537,7 +539,7 @@ async fn scenario(c: &mut PgConnection, recipes: &[Value]) -> Result<Value> {
     out.insert(
         "pending-resolved".into(),
         json!(
-            pending_case(c, first, CaseKind::Result, CONTEXT)
+            pending_case(c, first, CaseKind::Decision, CONTEXT)
                 .await?
                 .is_some()
                 .then_some(true)
@@ -744,6 +746,7 @@ async fn observe_recipe(
                     }),
                     principal: &user(),
                     supersedes: None,
+                    document: None,
                 },
                 CONTEXT,
             )

@@ -1,1 +1,1 @@
-UPDATE hypotheses SET state = 'awaiting_human_review', updated_at = now() WHERE id = $1
+UPDATE hypotheses SET state = 'active', updated_at = now() WHERE id = $1

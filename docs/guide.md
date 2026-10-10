@@ -28,13 +28,15 @@ project
             1. experiment  → candidate artifacts + run document              (agent, or runner's experiment kind)
             2. verify      → verification report: verified measurements,     (runner's verify kind, or an agent
                              verdict pass | fail | inconclusive               or researcher who did not run it)
-            then a human decision: promote | reject | inconclusive
+            then, for the hypothesis (documenting → deciding → decided):
+            3. write-up    → summary, attempts covered, verification cited   (agent, or researcher)
+            4. decision    → promote | reject | inconclusive | failed        (researcher, with a reason)
 ```
 
 - The **brief** is the project's context, written once by a researcher: what the project is for, the domain, the constraints, the resources and the conventions. Every claim names the revision it runs under, and the attempt keeps it.
 - A **hypothesis** is a unit of an approved track plan. A researcher writes the plan (often with an agent) and approves it with a reason; each unit becomes a `queued` hypothesis. Nothing runs before that, and CR never invents or recycles hypotheses.
 - An **attempt** is one execution of a hypothesis. It is created by a **claim**, which returns a lease token; every write on the attempt needs the current token and generation. One attempt at a time per hypothesis.
-- The stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **run document**: front matter with the claims (`agent_claim`, never trusted) and Markdown run notes. The **verify** job checks the frozen submission, independently of whoever ran it, and writes a **verification report**: the verified measurements (`tester_verified`), the discrepancies, and the policy's verdict with a reason. A **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
+- The stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **run document**: front matter with the claims (`agent_claim`, never trusted) and Markdown run notes. The **verify** job checks the frozen submission, independently of whoever ran it, and writes a **verification report**: the verified measurements (`tester_verified`), the discrepancies, and the policy's verdict with a reason. The hypothesis is then **written up** once, by an agent or a researcher (a researcher may skip it with a reason), and a **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
 - A track's **mode** says only who runs the experiment stage: an outside agent (`agent`, the default) or a CR runner (`workflow`). From the submission on, both modes are identical.
 
 Who holds which token, and what it may do:
@@ -43,9 +45,9 @@ Who holds which token, and what it may do:
 | --- | --- | --- | --- |
 | User, `viewer` | Personal token, or the web session | Read the project, reports, metrics, verdicts, decisions; search. | Download artifacts other than `report_asset`. |
 | User, `member` | same | Viewer rights, plus comment and download artifacts. | Plan or decide. |
-| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, claim and complete agent verify jobs of attempts it did not run, and record every human decision. | Claim in `workflow` mode; verify its own run. |
+| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, claim and complete agent verify jobs of attempts it did not run, write hypotheses up or skip their write-ups, and record every human decision. | Claim in `workflow` mode; verify its own run. |
 | User, installation admin | same | Create projects, grant memberships, register science and dashboard revisions, producers and experiment steps, create service accounts and their tokens. Admin is not a project role: an admin also needs a membership to act as a researcher. | |
-| Service account `agent` | Service token | Claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; claim and complete agent verify jobs of attempts it did not run; read the project. | Claim in `workflow` mode, verify its own run, comment, decide. |
+| Service account `agent` | Service token | Claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; claim and complete agent verify jobs of attempts it did not run; claim and complete document jobs (write-ups); read the project. | Claim in `workflow` mode, verify its own run, skip a write-up, comment, decide. |
 | Service account `experimenter` | Service token, held by a runner only | Claim in `workflow` mode only, heartbeat, upload, submit, read the predecessor attempt's artifacts, release with a failure `code`, `step` and `logs` (trusted). | Plan, comment, decide, claim in `agent` mode. |
 | Service account `verifier` | Service token, named like the science revision's `verify.verifier.id` | Claim runner verify jobs of its policy revision, read their inputs, upload outputs, complete or fail them; read the project. | Anything on attempts or decisions. |
 
@@ -55,9 +57,9 @@ A claimed job also returns a **job lease token**, which can only read that job's
 
 | Interface | Use it for |
 | --- | --- |
-| Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; write and review plans; decide results and failures; read everything; comment; search. |
+| Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; write and review plans; write hypotheses up or skip their write-ups; decide hypotheses and failures; read everything; comment; search. |
 | REST (`/api/…`) | Everything, and the only way to register science and dashboard revisions (`POST /api/projects/{slug}/config/science`), producers (`…/producers`) and experiment steps (`…/experiment-steps`). Authenticate with `Authorization: Bearer <token>`. `GET /api/me` shows who a token is. |
-| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, the verify job tools (`claim_job`, `heartbeat_job`, `get_job_input`, `create_job_upload`, `complete_job`, `fail_job`, `get_job`, `list_attempt_jobs`), and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `check_plan`, `submit_plan`, `review_plan`), `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
+| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, the verify and document job tools (`claim_job`, `heartbeat_job`, `get_job_input`, `create_job_upload`, `complete_job`, `fail_job`, `get_job`, `list_attempt_jobs`, `list_writeups`, `get_writeup`), and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `check_plan`, `submit_plan`, `review_plan`), `write_up`, `skip_writeup`, `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
 | CLI (`cannery`) | `migrate`, `serve`, `db` (dump, restore, upgrade), `runner`, `evaluator` (the stock policy alone, offline), `import`, `openapi`. |
 
 Every error answer has the shape `{"error": {"code", "message", "details"}}`; `details` holds JSON Pointers into the request. See [Troubleshooting](#troubleshooting).
@@ -397,7 +399,7 @@ A runner's `experiment` kind runs the experiment with an experimenter token. Set
 
 Submission moves the attempt to `verifying` and queues one verify job ([verify jobs](contracts.md#verify-jobs)). Its performer comes from the pinned science revision's `verify`. Either way, the job's inputs are the run document's front matter (`GET …/jobs/{id}/inputs/run`, staged as `claimed.json`), the run's verified artifacts (`inputs/manifest`, `inputs/object`), and, with the claim, the unit, the brief and the plan; the run notes are not an input. It completes with one **verification report** ([contracts](contracts.md#verification-reports)): Markdown whose front matter holds `verdict` (`pass`, `fail` or `inconclusive`), `reason`, `policy_revision`, `gates` (each `pass`, `fail` or `unknown`), `measurements` (each `authority: "tester_verified"`, finite values, registered metric, split and dimensions, a `missing_reason` instead of a value when it could not be measured), `discrepancies` with the claims, optional `comparisons`, and `provenance` (`source_revision`, `science_revision`, `dataset_revision`, `control_revision` when the hypothesis names a control), and whose optional body holds what the verifier observed (schema: `GET /api/schemas/verification`). A required slice `{dimension: value}` is covered only by a measurement whose `dimensions` are exactly that pair.
 
-CR checks the report: the schema, the pinned provenance, the metric registry and required slices, that a `pass` reports every gate as passed, that every comparison cites the report's own verified measurements, that a runner's report comes from the registered verifier under the registered revision, and the output manifest against `required_artifact_roles.verify`. It then indexes the verified measurements and comparisons and opens a result review case: every completed verification, whatever its verdict, leaves the attempt awaiting a human decision.
+CR checks the report: the schema, the pinned provenance, the metric registry and required slices, that a `pass` reports every gate as passed, that every comparison cites the report's own verified measurements, that a runner's report comes from the registered verifier under the registered revision, and the output manifest against `required_artifact_roles.verify`. It then indexes the verified measurements and comparisons and marks the attempt `verified`: every completed verification, whatever its verdict, sends the hypothesis to be [written up and decided](#document-and-decide).
 
 ### With the runner
 
@@ -435,6 +437,13 @@ A failure of the verify job (a step exits non-zero, a deadline, a validator reje
 
 - `policy_mismatch`: the job names another verifier id or revision than the policy file's. The claim hands out only the verifier's own revision, so this signals a misconfiguration;
 - a policy step that fails reports the codes of any step, with the policy step named: `step_failed` or `setup_failed` when it exits non-zero or runs out of memory, `deadline_exceeded` when it runs out of time, `missing_output` when it writes no verdict, and `invalid_step_output` when its verdict is invalid. A policy step that does not fit the science revision's allowance fails with `deadline_exceeded` before any step runs, and its reason gives the step's and the allowance's seconds.
+
+## Document and decide
+
+A verified attempt ends at `verified`, whatever the verdict, and its hypothesis moves to `documenting`: one document job waits for its write-up ([contracts](contracts.md#write-ups-and-decisions)). The same happens when a researcher stops a hypothesis after a failure (`stop` on its failure case). The web app's Home lists the write-ups to do and the decisions to take.
+
+- **The write-up.** An `agent` service account or a researcher claims the document job (`POST /api/projects/{slug}/jobs/claims` with `{"phase": "document"}`, MCP `claim_job`) and follows [the agent's steps](agents.md#document): read the documenter's context bundle (the brief, the plan, the unit, every attempt's run document and notes, the failures with their logs, the verification reports, the comments) and complete the job with the write-up, Markdown whose front matter holds a one-sentence `summary`, the `attempts` it covers and the `verification` it cites, as the claim's `inputs` name them. In the web app, a researcher's "Write it up" claims and completes the job in one action. A researcher may instead skip the write-up with a reason; the decision then shows "No write-up: <reason>". Nothing skips a write-up automatically.
+- **The decision.** The hypothesis then moves to `deciding` and its decision case opens. A researcher records a decision document: the `outcome` (`promote`, `reject`, `inconclusive`, or `failed` for a stopped hypothesis) citing the verification report and the write-up, and the reason as its body. A promotion needs a `pass` verdict.
 
 ## Running the runner
 
@@ -522,7 +531,8 @@ From an empty CR to the first decided hypothesis:
 11. Plan each track and approve the plan. [Planning a track](#planning-a-track), [Agent mode](#agent-mode)
 12. Run the experiment: an agent claims and submits, or the experiment kind does. [Experiment stage](#experiment-stage)
 13. Watch the verify job (`GET …/attempts/{sequence}/jobs`, the web app's attempt page).
-14. A researcher reviews the result case (`GET /api/projects/{slug}/review-cases`, then `POST …/review-cases/{case_id}/decisions` with `review_case_id`, `evidence_revision`, `action` and `reason`, or the web app) and records `promote`, `reject` or `inconclusive`.
+14. The hypothesis is written up: an agent claims its document job (`claim_job` with `{"phase": "document"}`), or a researcher writes it up or skips it from the web app's write-up page. [Document and decide](#document-and-decide)
+15. A researcher decides it on its decision case (`GET /api/projects/{slug}/review-cases`, then `POST …/review-cases/{case_id}/decisions` with `review_case_id` and the decision `document`, or the web app) and records `promote`, `reject` or `inconclusive`.
 
 ## Troubleshooting
 

@@ -46,8 +46,8 @@ const CASES: Case[] = [
 
 function pendingResult() {
   return hypothesis({
-    state: "awaiting_human_review",
-    reviews: [review({ kind: "result", state: "pending" })],
+    state: "deciding",
+    reviews: [review({ kind: "decision", state: "pending" })],
   });
 }
 
@@ -62,7 +62,7 @@ describe.each(CASES)("as a $name", ({ projects, admin, comment, research }) => {
     renderApp("/hypotheses/12");
     await screen.findByTestId("outcome-sentence");
     await screen.findByRole("heading", { level: 2, name: "Comments" });
-    present(research, screen.queryByRole("link", { name: "Review this result" }));
+    present(research, screen.queryByRole("link", { name: "Decide" }));
     present(comment, screen.queryByRole("textbox", { name: "Add a comment" }));
   });
 
@@ -73,7 +73,7 @@ describe.each(CASES)("as a $name", ({ projects, admin, comment, research }) => {
     );
     renderApp("/");
     await screen.findByRole("heading", { level: 2, name: "Recent outcomes" });
-    present(research, screen.queryByRole("heading", { level: 2, name: "Waiting for your review" }));
+    present(research, screen.queryByRole("heading", { level: 2, name: "Decisions to take" }));
   });
 
   it("manages tracks only when a researcher", async () => {

@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.attempt_id AS \"attempt_id: uuid::Uuid\", p.stage, p.revision, p.front_matter::text AS \"front_matter!\", p.body AS \"body!\", p.sha256 AS \"sha256?\", p.id AS \"id: uuid::Uuid\"\n           FROM phase_outputs p JOIN attempts a ON a.id=p.attempt_id\n           WHERE a.hypothesis_id=$1 AND p.status='completed' AND p.stage IN ('agent','verification','writeup')\n           ORDER BY a.sequence, p.created_at, p.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "attempt_id: uuid::Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "stage",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "front_matter!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "body!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "sha256?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "id: uuid::Uuid",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "025e5a51847c8311f75a1e8e01711ba99a50d3728fa267f936a68bfa05a8024a"
+}

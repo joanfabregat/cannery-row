@@ -63,7 +63,7 @@ WITH q AS (
     LEFT JOIN LATERAL (
         SELECT d.action
         FROM review_cases c JOIN decisions d ON d.review_case_id = c.id
-        WHERE c.attempt_id = x.attempt_id AND c.kind = 'result'
+        WHERE c.attempt_id = x.attempt_id AND c.kind = 'decision'
           AND NOT EXISTS (SELECT 1 FROM decisions s WHERE s.supersedes = d.id)
         ORDER BY d.decided_at DESC LIMIT 1
     ) dec ON true

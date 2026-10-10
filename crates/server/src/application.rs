@@ -253,6 +253,14 @@ fn application_with_proxy(
         .merge(contexts.job_uploads.map_or_else(Router::new, |context| {
             crate::job_upload_routes::routes(state.clone(), context)
         }))
+        .merge(
+            contexts
+                .job_lifecycle
+                .clone()
+                .map_or_else(Router::new, |context| {
+                    crate::writeup_routes::routes(state.clone(), context)
+                }),
+        )
         .merge(contexts.job_lifecycle.map_or_else(Router::new, |context| {
             crate::job_completion_routes::routes(state.clone(), context)
         }))

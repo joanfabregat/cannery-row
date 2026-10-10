@@ -480,6 +480,10 @@ async fn expire_attempt(
     Ok(())
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "A verify job and a document job expire in one locked sequence"
+)]
 async fn expire_job(
     c: &mut PgConnection,
     s: &SweepContext,
@@ -538,7 +542,21 @@ async fn expire_job(
         reason,
         logs: &empty,
     };
-    let rerun = if attempt.state == cannery_attempts::model::State::Verifying {
+    let rerun = if job.phase == jobs::Phase::Document {
+        // A document job is queued again: only a researcher skips it.
+        crate::document_jobs::requeue(
+            &mut tx,
+            Attribution::System(None),
+            &attempt,
+            &job,
+            failure,
+            &s.lifecycle,
+            r,
+        )
+        .await
+        .map_err(|_| SweepError::Transition)?;
+        true
+    } else if attempt.state == cannery_attempts::model::State::Verifying {
         job_lifecycle::fail_job_run_as(
             &mut tx,
             Attribution::System(None),

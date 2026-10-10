@@ -106,7 +106,7 @@ fn published_examples_match_their_schemas() {
 }
 
 #[test]
-fn completion_examples_carry_valid_verification_reports() {
+fn completion_examples_carry_valid_reports_and_writeups() {
     let phases = PhaseSchemas::new().unwrap();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/contracts/job_completion/valid");
@@ -115,11 +115,34 @@ fn completion_examples_carry_valid_verification_reports() {
     for (path, completion) in completions {
         let completion = completion.unwrap();
         let text = completion["document"].as_str().unwrap();
+        // A document job is completed with a write-up, a verify job with its report.
+        let phase = if path.ends_with("writeup.json") {
+            Phase::Writeup
+        } else {
+            Phase::Verification
+        };
         assert!(
-            phases
-                .parse(Phase::Verification, text, Limits::default())
-                .is_ok(),
+            phases.parse(phase, text, Limits::default()).is_ok(),
             "{path}"
         );
     }
+}
+
+#[test]
+fn decision_examples_carry_valid_decision_documents() {
+    let phases = PhaseSchemas::new().unwrap();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/contracts/human_decision/valid");
+    let mut documents = 0;
+    for (path, decision) in examples(&root) {
+        if let Some(text) = decision.unwrap()["document"].as_str() {
+            let parsed = phases.parse(Phase::Decision, text, Limits::default());
+            assert!(
+                parsed.is_ok_and(|document| !document.body.trim().is_empty()),
+                "{path}"
+            );
+            documents += 1;
+        }
+    }
+    assert_ne!(documents, 0);
 }
