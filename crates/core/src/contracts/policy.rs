@@ -10,7 +10,7 @@ pub(super) fn errors(root: &Value) -> Vec<ContractViolation> {
     if !root.is_object() {
         return vec![ContractViolation {
             path: String::new(),
-            message: "project schema must be an object",
+            message: "project schema must be an object".into(),
         }];
     }
     let mut errors = Vec::new();
@@ -44,7 +44,7 @@ pub(super) fn errors(root: &Value) -> Vec<ContractViolation> {
             if let Some(message) = message {
                 errors.push(ContractViolation {
                     path: location.clone(),
-                    message,
+                    message: message.into(),
                 });
             }
             match name.as_str() {

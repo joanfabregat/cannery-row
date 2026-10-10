@@ -303,7 +303,7 @@ fn validate(
     if let Some(first) = violations.first() {
         return Err(violation(
             &first.path.as_utf8().unwrap_or_default(),
-            first.message,
+            &first.message,
         ));
     }
     Ok(())

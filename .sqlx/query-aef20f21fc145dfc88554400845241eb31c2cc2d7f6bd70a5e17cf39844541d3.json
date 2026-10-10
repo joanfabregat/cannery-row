@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ar.id::text AS \"id!\", ar.role, ar.media_type, ar.size_bytes, ar.sha256,\n                h.number, aa.sequence\n            FROM jobs j JOIN attempts ja ON ja.id = j.attempt_id, artifacts ar\n            JOIN attempts aa ON aa.id = ar.attempt_id JOIN units h ON h.id = aa.unit_id\n            WHERE j.id = $1::text::uuid AND ar.project_id = j.project_id AND ar.backend <> 'external'\n              AND ((j.phase = 'verify' AND ar.attempt_id = j.attempt_id AND EXISTS (\n                      SELECT 1 FROM manifests m\n                      WHERE m.attempt_id = j.attempt_id\n                        AND m.id::text = j.spec #>> '{inputs,manifest,ref}'\n                        AND m.content -> 'objects' @> jsonb_build_array(jsonb_build_object(\n                            'storage', jsonb_build_object('key', ar.key)))))\n                   OR (j.phase IN ('document', 'decide') AND aa.unit_id = ja.unit_id))\n            ORDER BY aa.sequence, ar.role, ar.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "media_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "sha256",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "sequence",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aef20f21fc145dfc88554400845241eb31c2cc2d7f6bd70a5e17cf39844541d3"
+}

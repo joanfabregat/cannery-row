@@ -7,7 +7,12 @@
   "type": "object",
   "properties": {
     "ts": {
-      "description": "When the event happened, as an RFC 3339 date-time.",
+      "description": "When the event happened, as an RFC 3339 date-time, if the performer has a clock it trusts. Optional: the server stamps every event with `received_at` as it is appended, so an agent without a clock leaves `ts` out rather than guess.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "received_at": {
+      "description": "When the server received the event, as an RFC 3339 date-time. The server sets it on every appended event; a value the performer sends is replaced.",
       "type": "string",
       "format": "date-time"
     },
@@ -42,6 +47,6 @@
       "maxLength": 200
     }
   },
-  "required": ["ts", "kind", "content"],
+  "required": ["kind", "content"],
   "additionalProperties": false
 }

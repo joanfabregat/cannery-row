@@ -65,6 +65,7 @@ enum Operation {
     Run,
     Manifest,
     Object,
+    Artifacts,
 }
 pub fn routes(app: AppState, profile: Arc<JobInputContext>) -> Router {
     Router::new()
@@ -79,6 +80,10 @@ pub fn routes(app: AppState, profile: Arc<JobInputContext>) -> Router {
         .route(
             "/api/projects/{slug}/jobs/{job_id}/inputs/object",
             get(object).head(head).fallback(method),
+        )
+        .route(
+            "/api/projects/{slug}/jobs/{job_id}/inputs/artifacts",
+            get(artifacts).head(head).fallback(method),
         )
         .with_state(RouteState { app, profile })
 }
@@ -152,6 +157,33 @@ pub(crate) async fn manifest(
     request: Request,
 ) -> Result<Response, Failure> {
     read(state, context, request, Operation::Manifest).await
+}
+#[utoipa::path(
+    get,
+    path = "/api/projects/{slug}/jobs/{job_id}/inputs/artifacts",
+    operation_id = "input_artifacts_api_projects__slug__jobs__job_id__inputs_artifacts_get",
+    summary = "Input Artifacts",
+    description = "The artifacts the job's holder may download while its lease and deadline\nrun: for a verify job, the objects of the run's verified manifest; for a\ndocument or decide job, the artifacts of the unit's attempts. Each comes\nwith its artifact id, role, attempt, size, digest and `download_url`\n(`GET /api/projects/{slug}/artifacts/{artifact_id}` with the same bearer\ntoken; the MCP tool `get_artifact` gives the same URL). Once the lease\nends, these downloads are refused like any other.",
+    params(("slug" = String, Path),
+        ("job_id" = String, Path, format = "uuid"),
+        ("X-Lease-Token" = Option<String>, Header),
+        ("X-Lease-Generation" = Option<i64>, Header)),
+    responses((status = 200, description = "Successful Response", body = crate::api_models::JobInputArtifactsOut, content_type = "application/json"),
+        (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 400, description = "Invalid request", body = crate::api_models::BadRequestResponse, content_type = "application/json"),
+        (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 403, description = "Permission denied or invalid CSRF token", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 404, description = "Resource not found", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 409, description = "Resource conflict or stale lease", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 503, description = "Service unavailable", body = crate::api_models::ErrorResponse, content_type = "application/json"),
+        (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
+)]
+pub(crate) async fn artifacts(
+    State(state): State<RouteState>,
+    axum::Extension(context): axum::Extension<RequestContext>,
+    request: Request,
+) -> Result<Response, Failure> {
+    read(state, context, request, Operation::Artifacts).await
 }
 #[utoipa::path(
     get,
@@ -389,6 +421,51 @@ async fn read(
     if job.lease_expires_at.is_none_or(|value| value.0 <= now.0) {
         return Err(domain(ErrorCode::StaleLease, "the lease expired"));
     }
+    if matches!(operation, Operation::Artifacts) {
+        let rows = sqlx::query!(
+            r#"SELECT ar.id::text AS "id!", ar.role, ar.media_type, ar.size_bytes, ar.sha256,
+                h.number, aa.sequence
+            FROM jobs j JOIN attempts ja ON ja.id = j.attempt_id, artifacts ar
+            JOIN attempts aa ON aa.id = ar.attempt_id JOIN units h ON h.id = aa.unit_id
+            WHERE j.id = $1::text::uuid AND ar.project_id = j.project_id AND ar.backend <> 'external'
+              AND ((j.phase = 'verify' AND ar.attempt_id = j.attempt_id AND EXISTS (
+                      SELECT 1 FROM manifests m
+                      WHERE m.attempt_id = j.attempt_id
+                        AND m.id::text = j.spec #>> '{inputs,manifest,ref}'
+                        AND m.content -> 'objects' @> jsonb_build_array(jsonb_build_object(
+                            'storage', jsonb_build_object('key', ar.key)))))
+                   OR (j.phase IN ('document', 'decide') AND aa.unit_id = ja.unit_id))
+            ORDER BY aa.sequence, ar.role, ar.id"#,
+            job.id.0.to_string()
+        )
+        .fetch_all(&mut *auth.connection)
+        .await
+        .map_err(|_| internal(&context))?;
+        let base = state
+            .app
+            .settings
+            .server
+            .public_base_url
+            .trim_end_matches('/');
+        let items: Vec<_> = rows
+            .into_iter()
+            .map(|row| crate::api_models::JobInputArtifact {
+                artifact_id: row.id.clone(),
+                role: row.role,
+                attempt: format!("#{}.{}", row.number, row.sequence),
+                media_type: row.media_type,
+                size_bytes: row.size_bytes,
+                sha256: row.sha256,
+                download_url: format!(
+                    "{base}/api/projects/{}/artifacts/{}",
+                    crate::mcp::encode(&project.slug),
+                    row.id
+                ),
+                tool: String::from("get_artifact"),
+            })
+            .collect();
+        return Ok(axum::Json(crate::api_models::JobInputArtifactsOut { items }).into_response());
+    }
     let mut repository = Repository::new(&mut auth.connection, state.profile.attempts);
     let bytes = match operation {
         Operation::Run => {
@@ -434,6 +511,7 @@ async fn read(
             )
             .map_err(|_| internal(&context))?
         }
+        Operation::Artifacts => return Err(internal(&context)),
         Operation::Object => {
             let value = input_manifest(&mut repository, &job, &state.profile, &context).await?;
             let value = with_resumed_outputs(&value, &job, &state.profile, &context)?;

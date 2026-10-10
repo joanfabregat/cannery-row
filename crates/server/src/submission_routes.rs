@@ -149,16 +149,29 @@ async fn check_run(
     };
     let front_matter = Value::Object(parsed.front_matter);
     let violations = profile.phases.violations(Phase::Run, &front_matter);
-    if !violations.is_empty() {
+    if let Some(first) = violations.first() {
+        // The message names the first problem, so the failure a reviewer
+        // reads says what to fix; the details list them all.
+        let message = format!(
+            "invalid run document front matter: {} {}{}",
+            if first.path.is_empty() {
+                "/"
+            } else {
+                first.path.as_str()
+            },
+            first.message,
+            match violations.len() {
+                1 => String::new(),
+                count => format!(" (and {} more)", count - 1),
+            }
+        );
         let details: Vec<_> = violations
             .into_iter()
             .map(|value| json!({"path":value.path,"message":value.message}))
             .collect();
-        return Ok(Err(DomainError::new(
-            ErrorCode::ValidationFailed,
-            "invalid run document front matter",
-        )
-        .with_details(json!(details))));
+        return Ok(Err(
+            DomainError::new(ErrorCode::ValidationFailed, message).with_details(json!(details))
+        ));
     }
     let sheet = job_lifecycle::document(&front_matter, &profile.lifecycle, request)?;
     let provenance = sheet
@@ -229,14 +242,32 @@ async fn check_run(
     let required = registration["required_artifact_roles"]["attempt"]
         .as_array()
         .ok_or_else(|| internal(request, "submission required roles"))?;
-    if required
+    let missing: Vec<&str> = required
         .iter()
-        .any(|role| role.as_str().is_none_or(|role| !roles.contains(role)))
-    {
-        return Ok(Err(invalid(
-            "/manifest",
-            "the manifest lacks required artifact roles",
-        )));
+        .filter_map(Value::as_str)
+        .filter(|role| !roles.contains(*role))
+        .collect();
+    if !missing.is_empty() {
+        let message = format!(
+            "the manifest lacks the required artifact role{} {}: a run must cite a manifest with an object of each role the science revision requires ({})",
+            if missing.len() == 1 { "" } else { "s" },
+            missing.join(", "),
+            required
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        return Ok(Err(DomainError::new(
+            ErrorCode::ValidationFailed,
+            message.clone(),
+        )
+        .with_details(json!([{
+            "path": "/manifest",
+            "message": message,
+            "missing_roles": missing,
+            "required_roles": required,
+        }]))));
     }
     let limit = registration["limits"]["report_max_bytes"]
         .as_u64()

@@ -42,6 +42,8 @@ export function TranscriptPage() {
 /** A transcript event, as the schema defines it. */
 interface Event {
   ts?: string;
+  /** When the server stored the event; `ts` is the agent's own, optional. */
+  received_at?: string;
   kind?: string;
   content?: unknown;
   tool?: string;
@@ -74,7 +76,7 @@ function timeline(events: TranscriptEvent[], messages: Message[]): Entry[] {
   const entries: Entry[] = events.map((e) => {
     const event = asEvent(e.event);
     if (event.message) recorded.add(event.message);
-    return { type: "event", at: event.ts ?? "", index: e.index, event };
+    return { type: "event", at: event.ts ?? event.received_at ?? "", index: e.index, event };
   });
   for (const message of messages) {
     if (recorded.has(message.id)) continue;
@@ -110,11 +112,12 @@ function timeline(events: TranscriptEvent[], messages: Message[]): Entry[] {
 
 function EventItem({ index, event }: { index: number; event: Event }) {
   const kind = event.kind ?? "note";
+  const at = event.ts ?? event.received_at;
   const heading = (
     <span className="text-xs text-muted-foreground">
       <span className="font-medium text-foreground">{label("transcriptKind", kind)}</span>
       {event.tool ? ` · ${event.tool}` : ""}
-      {event.model ? ` · ${event.model}` : ""} · {formatDateTime(event.ts)} · #{index}
+      {event.model ? ` · ${event.model}` : ""} · {formatDateTime(at)} · #{index}
     </span>
   );
   if (TOOLS.has(kind)) {

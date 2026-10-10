@@ -60,10 +60,11 @@ pub const MESSAGE_BODY_MAX_BYTES: usize = 16_384;
 pub const DEFAULT_MAX_BYTES: usize = 4000;
 /// The largest note of an escalation, in UTF-8 bytes.
 pub const ESCALATION_NOTE_MAX_BYTES: usize = 8000;
-/// How long `wait_for_answer` waits when the caller names no time.
-const WAIT_SECONDS: u64 = 30;
+/// How long `wait_for_answer` waits when the caller names no time: well
+/// under the timeouts of common MCP clients, which call again in a loop.
+const WAIT_SECONDS: u64 = 20;
 /// The longest `wait_for_answer` waits.
-const WAIT_MAX_SECONDS: u64 = 60;
+const WAIT_MAX_SECONDS: u64 = 25;
 const PAGE: i64 = 50;
 const STATES: [&str; 3] = ["open", "answered", "escalated"];
 const CONCERN_KINDS: [&str; 4] = ["wrong_assumption", "better_idea", "blocker", "other"];
@@ -1065,9 +1066,9 @@ pub(crate) async fn get_question(
     path = "/api/projects/{slug}/questions/{question_id}/answer",
     operation_id = "wait_for_answer_api_projects__slug__questions__question_id__answer_get",
     summary = "Wait For Answer",
-    description = "Wait up to `wait` seconds (default 30, at most 60) for a question to be\nanswered or escalated, then return it, with its `answer` once given\n(`null` when the wait ran out: ask again). When you asked the question, the\nanswer returned is acknowledged.",
+    description = "Long-poll for the answer to a question: wait up to `wait` seconds (default\n20, at most 25, under common MCP client timeouts) for it to be answered or\nescalated, then return it, with its `answer` once given (`null` when the\nwait ran out: call again, in a loop). When you asked the question, the\nanswer returned is acknowledged.",
     params(("slug" = String, Path), ("question_id" = String, Path, format = "uuid"),
-        ("wait" = Option<i64>, Query, description = "Seconds to wait for the answer.", minimum = 0, maximum = 60)),
+        ("wait" = Option<i64>, Query, description = "Seconds to wait for the answer.", minimum = 0, maximum = 25)),
     responses((status = 200, description = "Successful Response", body = crate::api_models::MessageOut, content_type = "application/json"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
@@ -1088,7 +1089,7 @@ pub(crate) async fn wait_for_answer(
                 .parse::<u64>()
                 .ok()
                 .filter(|value| *value <= WAIT_MAX_SECONDS)
-                .ok_or_else(|| invalid("query/wait", "Input should be between 0 and 60"))
+                .ok_or_else(|| invalid("query/wait", "Input should be between 0 and 25"))
         })
         .transpose()?
         .unwrap_or(WAIT_SECONDS);
@@ -1609,7 +1610,7 @@ pub(crate) async fn post_steering(
     path = "/api/projects/{slug}/messages/acknowledgements",
     operation_id = "ack_steering_api_projects__slug__messages_acknowledgements_post",
     summary = "Ack Steering",
-    description = "Acknowledge steering notes and answers you have read, by id: a note posted\nto an attempt you hold, an answer to a question you asked, or an answer to\na released question of the unit whose attempt you now hold. Heartbeat\nresponses stop carrying them. Acknowledging twice is harmless.",
+    description = "Acknowledge steering notes and answers you have read, by id: a note posted\nto an attempt you hold, an answer to a question you asked, or an answer to\na released question of the unit whose attempt you now hold. Heartbeat\nresponses stop carrying them. `acknowledged` lists every id sent, all now\nacknowledged, and `already_acknowledged` those that were before: by an\nearlier acknowledgement, or an answer `wait_for_answer` returned to its\nasker. Acknowledging twice is harmless.",
     params(("slug" = String, Path)),
     request_body(content = crate::api_models::AcknowledgementIn, content_type = "application/json"),
     responses((status = 200, description = "Successful Response", body = crate::api_models::AcknowledgementOut, content_type = "application/json"),
@@ -1677,8 +1678,25 @@ pub(crate) async fn acknowledge(
     tx.commit()
         .await
         .map_err(|_| internal(&context, "acknowledgement commit"))?;
+    let mut acknowledged = Vec::new();
+    for id in &ids {
+        let id = id.to_string();
+        if !acknowledged.contains(&id) {
+            acknowledged.push(id);
+        }
+    }
+    let already_acknowledged = acknowledged
+        .iter()
+        .filter(|id| {
+            found
+                .iter()
+                .any(|(found, already)| *already && found.to_string() == **id)
+        })
+        .cloned()
+        .collect();
     Ok(Json(AcknowledgementOut {
-        acknowledged: done.iter().map(ToString::to_string).collect(),
+        acknowledged,
+        already_acknowledged,
     })
     .into_response())
 }

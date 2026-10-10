@@ -42,6 +42,7 @@ server artifact_download_http
 server attempt_leases_http
 server job_reads_http
 server job_inputs_http
+server job_input_artifacts_http
 server predecessor_input_http
 server job_claims_http
 server attempt_claims_http

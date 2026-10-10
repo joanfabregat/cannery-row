@@ -40,6 +40,95 @@
     }
   },
   {
+    "name": "get_protocol",
+    "title": "Get the working protocol",
+    "description": "The whole working protocol, docs/agents.md, as Markdown, with its version, sha256 and size (GET /api/protocol). Read it before you start: the server's instructions are only its opening. Every claim and job claim names it as protocol with its sha256; read it again when the digest differs from the copy you read.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "ProtocolArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get the working protocol",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "list_schemas",
+    "title": "List the contract schemas",
+    "description": "The name, reference and a one-line description of every published contract schema: the documents the tools take (unit and its acceptance, artifact_manifest, run, verification, writeup, decision, concern, transcript, brief, track, job_completion, job_failure, ...). Read one with get_schema.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "ListSchemas",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "List the contract schemas",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_schema",
+    "title": "Get a contract schema",
+    "description": "A published contract schema by name, as one self-contained JSON Schema (GET /api/schemas/{name}): required keys, types, patterns, enums and descriptions. unit holds a plan unit's fields and its acceptance; artifact_manifest what post_manifest records; run, verification, writeup, decision, concern and brief the front matter of those documents; transcript one transcript event. Validate a document against it before you send it.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "The schema's name, as list_schemas lists it.",
+          "enum": [
+            "artifact_manifest",
+            "brief",
+            "common",
+            "concern",
+            "dashboard_views",
+            "decision",
+            "evidence_envelope",
+            "gates",
+            "human_decision",
+            "import_bundle",
+            "interface",
+            "job",
+            "job_completion",
+            "job_failure",
+            "policy_config",
+            "run",
+            "science_revision",
+            "step_manifest",
+            "track",
+            "track_transition",
+            "transcript",
+            "unit",
+            "verification",
+            "writeup"
+          ],
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "SchemaArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get a contract schema",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
     "name": "get_brief",
     "title": "Get the project brief",
     "description": "The project's brief: its goal, domain, constraints and conventions, as Markdown with YAML front matter. Read it before planning or claiming. Without revision, the current one; claims and jobs name the revision they run under.",
@@ -304,10 +393,9 @@
           "type": "string"
         },
         "document": {
-          "additionalProperties": true,
-          "description": "The contract document.",
+          "x-cannery-contract": "track#",
           "title": "Document",
-          "type": "object"
+          "description": "The track: slug, title, description, producer, mode and workflow (get_schema track)."
         }
       },
       "required": [
@@ -372,8 +460,9 @@
         "producer": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "x-cannery-contract": "common#/$defs/producer_ref",
+              "title": "Producer",
+              "description": "A registered producer step manifest revision: {name, revision}."
             },
             {
               "type": "null"
@@ -396,8 +485,9 @@
         "workflow": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "x-cannery-contract": "track#/properties/workflow",
+              "title": "Workflow",
+              "description": "The experiment workflow of a workflow track: {steps: [{name, revision}, ...]}."
             },
             {
               "type": "null"
@@ -472,10 +562,9 @@
           "type": "string"
         },
         "document": {
-          "additionalProperties": true,
-          "description": "The contract document.",
+          "x-cannery-contract": "track_transition#",
           "title": "Document",
-          "type": "object"
+          "description": "The state change: to_state, expected_revision and reason (get_schema track_transition)."
         }
       },
       "required": [
@@ -534,7 +623,7 @@
   {
     "name": "get_plan",
     "title": "Get a track's plan",
-    "description": "One revision of a track's plan: its approach, its units with their acceptance, parameters, relations, context and brief, its alignment entries and its review. revision is a number, \"draft\" (the open revision) or \"current\" (the approved plan, else the newest revision; the default).",
+    "description": "One revision of a track's plan: its approach, its units with their acceptance, parameters, relations, context and brief, its alignment entries and its review. revision is a number, \"draft\" (the open revision) or \"current\" (the approved plan, else the newest revision; the default). A unit the plan adds has number null until the plan is approved; approval assigns the numbers, and list_track_units then lists them.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -695,7 +784,7 @@
   {
     "name": "add_unit",
     "title": "Add a unit to the plan",
-    "description": "Add a unit of work to the draft. acceptance is its acceptance plan (selection_splits, confirmation_splits, primary_metric, required_slices, success_criteria, falsification_criteria, regression_gates, compute_budget), checked against the project's metric registry; parameters are the project's unit fields. relations name a unit number ({kind, unit}) or another unit of this plan ({kind, unit: key}). context lists what its performer should read: {kind: unit, unit: number or key}, {kind: writeup, unit: number, attempt: sequence} or {kind: artifact, artifact: id}, each with an optional note. brief is the unit's own Markdown for whoever runs it. Refused over the project's limits (unit brief 32 KiB, 64 context items by default).",
+    "description": "Add a unit of work to the draft. acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a number named <resource>_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}), all required, checked against the project's metric registry. parameters are the project's unit fields. relations name another unit with a kind: derived_from, supersedes or related_to. context lists what its performer should read: {kind: unit, unit: number or key}, {kind: writeup, unit: number, attempt: sequence} or {kind: artifact, artifact: id}, each with an optional note. brief is the unit's own Markdown for whoever runs it. The unit has no number until a researcher approves the plan: get_plan shows it with number null until then, and other units of the plan name it by its key. Refused over the project's limits (unit brief 32 KiB, 64 context items by default); a refusal names each failing field and what it expected.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -737,8 +826,9 @@
         "control": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "x-cannery-contract": "unit#/properties/control",
+              "title": "Control",
+              "description": "What the unit compares against: {kind: baseline, id, revision}."
             },
             {
               "type": "null"
@@ -749,15 +839,15 @@
           "title": "Control"
         },
         "acceptance": {
-          "additionalProperties": true,
+          "x-cannery-contract": "unit#/properties/acceptance",
           "title": "Acceptance",
-          "type": "object"
+          "description": "acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a number named <resource>_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}), all required, checked against the project's metric registry."
         },
         "parameters": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "type": "object",
+              "description": "The project's own unit fields, checked against the science revision's unit_fields schema; omit them when the project defines none."
             },
             {
               "type": "null"
@@ -770,8 +860,9 @@
         "relations": {
           "default": [],
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "x-cannery-contract": "unit#/properties/relations/items",
+            "title": "Relation",
+            "description": "kind derived_from (the unit builds on that unit's outputs, which its context bundle summarizes), supersedes (it replaces that unit) or related_to; unit is a unit number of this project, {project, number} of another project, or the key of another unit of this plan."
           },
           "title": "Relations",
           "type": "array"
@@ -779,8 +870,9 @@
         "context": {
           "default": [],
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "x-cannery-contract": "unit#/properties/context/items",
+            "title": "Context item",
+            "description": "What the unit's performer should read: {kind: unit, unit: number or key}, {kind: writeup, unit: number, attempt: sequence} or {kind: artifact, artifact: id}, each with an optional note. The performer may download an artifact named here while it holds an attempt of the unit."
           },
           "title": "Context",
           "type": "array"
@@ -814,7 +906,7 @@
   {
     "name": "update_unit",
     "title": "Update a unit of the plan",
-    "description": "Change a new or queued unit of the draft. Omitted fields keep their value; control or parameters set to null are removed. Checked as add_unit checks a new unit.",
+    "description": "Change a new or queued unit of the draft. Omitted fields keep their value; control or parameters set to null are removed. Checked as add_unit checks a new unit. The unit keeps number null until the plan is approved.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -856,8 +948,9 @@
         "control": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "x-cannery-contract": "unit#/properties/control",
+              "title": "Control",
+              "description": "What the unit compares against: {kind: baseline, id, revision}."
             },
             {
               "type": "null"
@@ -866,15 +959,15 @@
           "title": "Control"
         },
         "acceptance": {
-          "additionalProperties": true,
+          "x-cannery-contract": "unit#/properties/acceptance",
           "title": "Acceptance",
-          "type": "object"
+          "description": "acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a number named <resource>_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}), all required, checked against the project's metric registry."
         },
         "parameters": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "type": "object",
+              "description": "The project's own unit fields, checked against the science revision's unit_fields schema; omit them when the project defines none."
             },
             {
               "type": "null"
@@ -884,16 +977,18 @@
         },
         "relations": {
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "x-cannery-contract": "unit#/properties/relations/items",
+            "title": "Relation",
+            "description": "kind derived_from (the unit builds on that unit's outputs, which its context bundle summarizes), supersedes (it replaces that unit) or related_to; unit is a unit number of this project, {project, number} of another project, or the key of another unit of this plan."
           },
           "title": "Relations",
           "type": "array"
         },
         "context": {
           "items": {
-            "additionalProperties": true,
-            "type": "object"
+            "x-cannery-contract": "unit#/properties/context/items",
+            "title": "Context item",
+            "description": "What the unit's performer should read: {kind: unit, unit: number or key}, {kind: writeup, unit: number, attempt: sequence} or {kind: artifact, artifact: id}, each with an optional note. The performer may download an artifact named here while it holds an attempt of the unit."
           },
           "title": "Context",
           "type": "array"
@@ -1152,7 +1247,7 @@
   {
     "name": "review_plan",
     "title": "Review a submitted plan",
-    "description": "A researcher's decision on a submitted plan revision, with a reason. approve creates the new units as queued units, revises the changed ones, cancels the queued ones it drops, applies the alignment entries and activates a planning track, in one transaction; send_back asks for another revision; decline closes it.",
+    "description": "A researcher's decision on a submitted plan revision, with a reason. approve creates the new units as queued units, revises the changed ones, cancels the queued ones it drops, applies the alignment entries and activates a planning track, in one transaction; send_back asks for another revision; decline closes it. Approval assigns each new unit its number.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1777,7 +1872,7 @@
   {
     "name": "claim_unit",
     "title": "Claim a queued unit",
-    "description": "Claim a queued unit (a given number, or the next one, optionally in a track) and receive an attempt with a lease token and generation. Heartbeat before the lease expires. Agents and researchers claim only units of `agent`-mode tracks; `workflow` tracks are claimed only by an experimenter (a Cannery Row runner).",
+    "description": "Claim a queued unit (a given number, or the next one, optionally in a track) and receive an attempt with a lease token and generation. Heartbeat before the lease expires. Agents and researchers claim only units of `agent`-mode tracks; `workflow` tracks are claimed only by an experimenter (a Cannery Row runner). The claim's context names the attempt's context bundle: call the tool it names (context.tool, get_context) with context.arguments, or read the MCP resource context.resource. Read it first: its Submitting section says what the run must submit.",
     "inputSchema": {
       "$defs": {
         "TrackMode": {
@@ -1847,6 +1942,69 @@
       "readOnlyHint": false,
       "destructiveHint": false,
       "idempotentHint": false,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "get_context",
+    "title": "Get an attempt's context bundle",
+    "description": "The context bundle of an attempt, as Markdown (GET /api/projects/{slug}/units/{number}/attempts/{sequence}/context.md). Read it first: the brief, the plan's approach, the unit's fields, acceptance and brief, a section Submitting that says what the run must submit (the required artifact roles, the metrics with their keys, directions and slices, the datasets and splits, the interfaces, how to build the manifest, with an example, and the run document's front matter), the track's other units, the context items, and what earlier attempts asked, were told and why they failed. A claim (claim_unit) names the exact call as context.tool and context.arguments; so does a job claim (claim_job), whose bundle is the attempt's with phase document or decide for a document or decide job, and the plain bundle for a verify job. detail compact keeps the brief's goal, the unit, Submitting and the index, under 16 KiB.",
+    "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "description": "Project slug.",
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Project",
+          "type": "string"
+        },
+        "number": {
+          "description": "Unit number within the project (#12 is 12).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "sequence": {
+          "description": "Attempt sequence within the unit (#12.3 is 3).",
+          "maximum": 2147483647,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "detail": {
+          "description": "full (the default) or compact. Not with phase.",
+          "enum": [
+            "full",
+            "compact"
+          ],
+          "title": "Detail",
+          "type": "string"
+        },
+        "phase": {
+          "description": "document: the documenter's bundle, which adds every attempt's run document and notes, failures and their logs, verification reports and comments; decide: the decider's, which adds the write-up. Omitted: the performer's bundle, which a verifier reads too.",
+          "enum": [
+            "document",
+            "decide"
+          ],
+          "title": "Phase",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "number",
+        "sequence"
+      ],
+      "title": "ContextArgs",
+      "type": "object"
+    },
+    "annotations": {
+      "title": "Get an attempt's context bundle",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
       "openWorldHint": false
     }
   },
@@ -1946,7 +2104,7 @@
   {
     "name": "get_attempt",
     "title": "Get an attempt",
-    "description": "One attempt: state, artifacts, failures and what it claimed.",
+    "description": "One attempt: state, artifacts, failures and what it claimed. Besides the roles the run declared, an agent-mode attempt has the system role transcript once submitted: its sealed transcript.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1991,7 +2149,7 @@
   {
     "name": "heartbeat_attempt",
     "title": "Extend an attempt's lease",
-    "description": "Extend the claimed attempt's lease, and read the answers and steering notes you have not acknowledged (answers, steering): act on them, then ack_steering. While a blocking question waits (waiting_on_human), the lease clock is stopped and a heartbeat changes nothing.",
+    "description": "Extend the claimed attempt's lease, and read what you have not acknowledged: answers (replies to questions you asked; wait_for_answer returns them too) and steering (unasked notes a researcher posted to your attempt: a correction, a hint, a narrower focus). Act on them, then acknowledge them with ack_steering and their ids. While a blocking question waits (waiting_on_human), the lease clock is stopped and a heartbeat changes nothing.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2297,7 +2455,7 @@
   {
     "name": "post_manifest",
     "title": "Record the artifact manifest",
-    "description": "Record the attempt's artifact manifest; every object must be a verified upload. Returns the manifest reference the run document cites.",
+    "description": "Record the attempt's artifact manifest; every object must be a verified upload. Returns the manifest reference the run document cites. Each object: role, storage {backend, bucket, key} as create_upload returned it, size_bytes, sha256 and media_type; the context bundle's Submitting section lists the roles the science revision requires and shows an example. A refusal names each failing field and what it expected.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2337,10 +2495,9 @@
           "type": "integer"
         },
         "document": {
-          "additionalProperties": true,
-          "description": "An artifact_manifest contract document.",
+          "x-cannery-contract": "artifact_manifest#",
           "title": "Document",
-          "type": "object"
+          "description": "The manifest (get_schema artifact_manifest): schema_version \"0.2\", attempt_id (the attempt's id, from the claim), and objects, each {role, storage: {backend, bucket, key}, size_bytes, sha256, media_type} of a verified upload, storage as create_upload returned it. Every artifact role the science revision requires needs an object; the context bundle's Submitting section lists them, with an example."
         }
       },
       "required": [
@@ -2365,7 +2522,7 @@
   {
     "name": "submit_attempt",
     "title": "Submit the run document",
-    "description": "Submit the run document of a completed run and freeze the attempt for independent verification: Markdown with YAML front matter holding claims, provenance, artifact_roles, the verified manifest and extensions (GET /api/schemas/run), and optional run notes as the body. Claimed metrics stay unverified. A run that failed releases the attempt instead.",
+    "description": "Submit the run document of a completed run and freeze the attempt for independent verification: Markdown with YAML front matter holding claims, provenance, artifact_roles, the verified manifest and extensions (GET /api/schemas/run), and optional run notes as the body. Claimed metrics stay unverified. A run that failed releases the attempt instead. The context bundle's Submitting section lists the required artifact roles and the run document's front matter, with an example. A refused document names what is wrong (the missing roles, the failing fields), and that reason is kept on the failed attempt's review case.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2449,7 +2606,7 @@
   {
     "name": "claim_job",
     "title": "Claim a job",
-    "description": "Claim the oldest waiting job of a phase the caller may perform. verify (the default): a verifier service account receives jobs whose science revision has the runner perform verify and names it; an agent service account or a researcher receives jobs whose verify performer is agent, never of an attempt it ran itself. document: an agent service account or a researcher receives the oldest unit waiting for its write-up. decide: the decider service account a science revision registers receives the oldest unit waiting for its automatic decision. The job document carries its lease token once.",
+    "description": "Claim the oldest waiting job of a phase the caller may perform. verify (the default): a verifier service account receives jobs whose science revision has the runner perform verify and names it; an agent service account or a researcher receives jobs whose verify performer is agent, never of an attempt it ran itself. document: an agent service account or a researcher receives the oldest unit waiting for its write-up. decide: the decider service account a science revision registers receives the oldest unit waiting for its automatic decision. The job document carries its lease token once. Its context names the job's context bundle: call context.tool (get_context) with context.arguments. A verify job's inputs are read with get_job_input: run, manifest and artifacts.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2577,7 +2734,7 @@
   {
     "name": "get_job_input",
     "title": "Read a claimed job's input",
-    "description": "Read one input document of the claimed job. Object bytes are read over REST.",
+    "description": "Read one input of the claimed job, under its lease. run: the front matter of the run document, with its claims and provenance; its manifest.ref is the manifest's id, read with input manifest (it is not an artifact id). manifest: the run's verified artifact manifest, with each object's storage key. artifacts: each input artifact's artifact_id, role, attempt, size, digest and download_url, which the job's holder may GET with its bearer token while the lease runs (get_artifact gives the same URL): a verify job's are the manifest's objects, a document or decide job's every artifact of the unit's attempts. The run notes are not an input.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2608,10 +2765,11 @@
           "type": "integer"
         },
         "input": {
-          "description": "run (the front matter of the run document, with its claims and provenance) or manifest (the run's verified artifacts). The run notes are not an input.",
+          "description": "run (the run document's front matter, with its claims and provenance), manifest (the run's verified manifest) or artifacts (the input artifacts with their ids and download URLs).",
           "enum": [
             "run",
-            "manifest"
+            "manifest",
+            "artifacts"
           ],
           "title": "Input",
           "type": "string"
@@ -2767,10 +2925,9 @@
           "type": "integer"
         },
         "document": {
-          "additionalProperties": true,
-          "description": "A job_completion contract document.",
+          "x-cannery-contract": "job_completion#",
           "title": "Document",
-          "type": "object"
+          "description": "The completion (get_schema job_completion): schema_version \"0.2\", job_id, document (the report, write-up or decision as Markdown with YAML front matter) and, for a verify job that uploaded files, manifest."
         },
         "idempotency_key": {
           "anyOf": [
@@ -2840,10 +2997,9 @@
           "type": "integer"
         },
         "document": {
-          "additionalProperties": true,
-          "description": "A job_failure contract document.",
+          "x-cannery-contract": "job_failure#",
           "title": "Document",
-          "type": "object"
+          "description": "The failure (get_schema job_failure): schema_version \"0.2\", job_id, error_code (snake_case), reason and logs (an empty list when there are none)."
         }
       },
       "required": [
@@ -3093,7 +3249,7 @@
   {
     "name": "record_decision",
     "title": "Record a human decision",
-    "description": "Record a researcher's decision on a pending review case. A decision case takes the decision document: Markdown with YAML front matter (GET /api/schemas/decision) naming the outcome (promote, reject, inconclusive, or failed for a unit stopped after a failure) and citing the case's verification report and write-up, the reason as its body; supersedes corrects a decision, including one a decider recorded. While a decide job of a registered decider waits or runs, the case is its to decide. A failure case takes action retry or stop, the evidence revision and a reason. Only people with the researcher role may; service account tokens are refused.",
+    "description": "Record a researcher's decision on a pending review case (list_review_cases, get_review_case); the case's kind says which fields to send. A decision case (kind decision) takes document only: the decision document, Markdown with YAML front matter (get_schema decision) naming the outcome (promote, reject, inconclusive, or failed for a unit stopped after a failure) and citing the case's verification report and write-up, the reason as its body; supersedes corrects an earlier decision, including one a decider recorded. While a decide job of a registered decider waits or runs, the case is its to decide. A failure case (kind failure) takes action (retry or stop), evidence_revision (the case's subject_revision: the failure revision decided on) and reason, and no document. Only people with the researcher role may; service account tokens are refused.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3136,7 +3292,7 @@
             }
           ],
           "default": null,
-          "description": "Failure case: the failure revision decided on.",
+          "description": "Failure case: the failure revision decided on, which the case shows as subject_revision.",
           "title": "Evidence Revision"
         },
         "action": {
@@ -3205,7 +3361,53 @@
         "case_id"
       ],
       "title": "RecordDecision",
-      "type": "object"
+      "type": "object",
+      "oneOf": [
+        {
+          "title": "Decision case",
+          "description": "A case of kind decision: the decision document.",
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "string"
+            },
+            "action": {
+              "type": "null"
+            },
+            "evidence_revision": {
+              "type": "null"
+            },
+            "reason": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "title": "Failure case",
+          "description": "A case of kind failure: action, evidence_revision and reason.",
+          "required": [
+            "action",
+            "evidence_revision",
+            "reason"
+          ],
+          "properties": {
+            "document": {
+              "type": "null"
+            },
+            "action": {
+              "type": "string"
+            },
+            "evidence_revision": {
+              "type": "integer"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        }
+      ]
     },
     "annotations": {
       "title": "Record a human decision",
@@ -3504,7 +3706,7 @@
   {
     "name": "get_artifact",
     "title": "Get an artifact download reference",
-    "description": "An artifact's metadata and its REST download URL, if the caller may download it (report assets: every reader; other roles: members and up). Fetch the bytes with the same bearer token (an S3-backed API redirects to a presigned URL: follow it without the token); MCP never carries them.",
+    "description": "An artifact's metadata and its REST download URL, if the caller may download it (report assets: every reader; other roles: members and up). Fetch the bytes with the same bearer token (an S3-backed API redirects to a presigned URL: follow it without the token); MCP never carries them. The holder of a claimed job may download that job's input artifacts (get_job_input artifacts lists them), and the performer of an attempt in progress the artifacts its unit's context names, while the lease runs.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3988,7 +4190,7 @@
   {
     "name": "metric_catalog",
     "title": "List metrics",
-    "description": "The project's registered metrics, splits and dimensions.",
+    "description": "The project's registered metrics, splits and dimensions, under the current science revision or the one given. Each metric has its key, unit, direction (higher or lower is better), aggregation, splits, dimensions as {name, values} and required_slices as {dimension, values}: the dimensions it must be reported on, with their values. A unit's acceptance.required_slices names dimensions only, as bare names such as [\"language\"], not {dimension, values} objects.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4460,7 +4662,7 @@
   {
     "name": "ask",
     "title": "Ask a question about your unit",
-    "description": "Ask a researcher a question about the unit under your attempt's lease (agent mode). A blocking question stops your lease clock until it is answered: wait with wait_for_answer or keep heartbeating, and do nothing else on the attempt meanwhile. A non-blocking question states the default you proceed on until it is answered (default is required). Raise a concern instead when the track's plan itself is wrong.",
+    "description": "Ask a researcher a question about the unit under your attempt's lease (agent mode). body is your question as Markdown. A blocking question stops your lease clock until it is answered: wait with wait_for_answer or keep heartbeating, and do nothing else on the attempt meanwhile. A non-blocking question states the default you proceed on until it is answered (default is required). Returns the question message: its id (pass it to wait_for_answer), kind question, body, blocking, default and state; its question field is null, since that field is set only on an answer, naming the question it answers. Raise a concern instead when the track's plan itself is wrong.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4565,7 +4767,7 @@
   {
     "name": "ask_job",
     "title": "Ask a question about your job's unit",
-    "description": "Ask a researcher a question about the unit under your job's lease, as ask does for an attempt. A blocking question stops the job's lease clock until it is answered; a non-blocking one states the default you proceed on.",
+    "description": "Ask a researcher a question about the unit under your job's lease, as ask does for an attempt. A blocking question stops the job's lease clock until it is answered; a non-blocking one states the default you proceed on. Returns the question message with its id, for wait_for_answer.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4660,7 +4862,7 @@
   {
     "name": "list_questions",
     "title": "List questions",
-    "description": "The questions performers asked about the project's units, newest first, with their answers: of one track when track is given, in one state when state is given (open ones wait for a researcher).",
+    "description": "The questions performers asked about the project's units, newest first, with their answers: of one track when track is given, in one state when state is given (open ones wait for a researcher). Each question's text is its body and its answer is answer; the question field is set only on answer messages.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4742,7 +4944,7 @@
   {
     "name": "get_question",
     "title": "Read a question",
-    "description": "One question: who asked it, under which attempt or job, whether it blocks, the default it proceeds on, and its answer once given.",
+    "description": "One question: who asked it, under which attempt or job, whether it blocks, the default it proceeds on, and its answer once given. body holds the question's text; answer holds the answer once given. A message's question field is set only on an answer and names the question it answers.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4777,7 +4979,7 @@
   {
     "name": "wait_for_answer",
     "title": "Wait for an answer",
-    "description": "Wait up to wait seconds (default 30, at most 60) for a question to be answered or escalated, then return it with its answer, or with answer null when the wait ran out: call again. An answer to your own question is acknowledged as it is returned.",
+    "description": "Long-poll for the answer to a question: wait up to wait seconds (default 20, at most 25, under common MCP client timeouts) for it to be answered or escalated, then return it with its answer, or with answer null when the wait ran out. Call it again in a loop until answer is set or state is no longer open; keep heartbeating a non-blocking question's attempt meanwhile. An answer to your own question is acknowledged as it is returned: no ack_steering needed for it.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4794,9 +4996,9 @@
           "type": "string"
         },
         "wait": {
-          "default": 30,
+          "default": 20,
           "description": "Seconds to wait for the answer.",
-          "maximum": 60,
+          "maximum": 25,
           "minimum": 0,
           "title": "Wait",
           "type": "integer"
@@ -4820,7 +5022,7 @@
   {
     "name": "answer_question",
     "title": "Answer a question",
-    "description": "Answer an open question, as Markdown (researchers). The performer reads it with wait_for_answer or in its next heartbeat; a blocking question's attempt or job gets a fresh lease and runs on.",
+    "description": "Answer an open question, as Markdown (researchers). The performer reads it with wait_for_answer or in its next heartbeat; a blocking question's attempt or job gets a fresh lease and runs on. An answer replies to that question only; an unasked note to a running attempt is a steering note (post_steering).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4917,7 +5119,7 @@
   {
     "name": "get_steering",
     "title": "Read steering notes",
-    "description": "The steering notes researchers posted to an attempt, oldest first; only those not yet acknowledged with pending true. Your heartbeat responses carry the same unacknowledged notes.",
+    "description": "The steering notes researchers posted to an attempt, oldest first; only those not yet acknowledged with pending true. Your heartbeat responses carry the same unacknowledged notes. Answers to your questions are not steering notes: they arrive with wait_for_answer and in heartbeats.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4968,7 +5170,7 @@
   {
     "name": "post_steering",
     "title": "Steer a running attempt",
-    "description": "Post a steering note to a running agent-mode attempt, unasked, as Markdown (researchers). The agent reads it in its next heartbeat or with get_steering and acknowledges it.",
+    "description": "Post a steering note to a running agent-mode attempt, unasked, as Markdown (researchers). The agent reads it in its next heartbeat or with get_steering and acknowledges it. A steering note is unasked; to reply to a performer's question, use answer_question instead.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5021,7 +5223,7 @@
   {
     "name": "ack_steering",
     "title": "Acknowledge steering notes and answers",
-    "description": "Acknowledge the steering notes and answers you have read, by id, once you act on them; heartbeat responses stop carrying them. Acknowledging twice is harmless.",
+    "description": "Acknowledge by id the steering notes and the answers you have read, once you act on them: heartbeat responses stop carrying them and the researcher sees you took them in. An answer that wait_for_answer returned to you is already acknowledged. Returns acknowledged, every id you sent, all now acknowledged, and already_acknowledged, those that were before this call (by wait_for_answer or an earlier ack); acknowledging twice is harmless.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5061,7 +5263,7 @@
   {
     "name": "list_messages",
     "title": "List a unit's questions and steering",
-    "description": "The questions, answers and steering notes of a unit, newest first: of one attempt when attempt (its sequence) is given.",
+    "description": "The questions, answers and steering notes of a unit, newest first: of one attempt when attempt (its sequence) is given. A question's text is its body; an answer's question field names the question it answers; a steering note (kind steer) is an unasked note a researcher posted.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -5134,7 +5336,7 @@
   {
     "name": "append_transcript",
     "title": "Append to your transcript",
-    "description": "Append events to your attempt's transcript under its lease (agent mode), as you go: each event is {ts, kind, content} with kind assistant, user, tool_call, tool_result, note, question, answer or steer (transcript.schema.json), at most 1000 per call. Redact secrets first. Submitting the attempt seals the transcript; an append over the project's transcript_max_bytes is refused with its size and the limit.",
+    "description": "Append events to your attempt's transcript under its lease (agent mode), as you go: each event is {ts, kind, content} with kind assistant, user, tool_call, tool_result, note, question, answer or steer (transcript.schema.json), at most 1000 per call. Redact secrets first. Submitting the attempt seals the transcript; an append over the project's transcript_max_bytes is refused with its size and the limit. ts is optional: the server stamps each event with received_at as it is appended, so leave ts out rather than guess a time.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

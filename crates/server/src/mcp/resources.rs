@@ -27,7 +27,7 @@ pub(super) fn templates() -> Value {
         {"uriTemplate":format!("{PREFIX}{{project}}/brief/revisions/{{revision}}"),"name":"brief_revision","title":"Project brief revision",
          "description":"One revision of the project's brief, as claims and jobs name it.","mimeType":MARKDOWN},
         {"uriTemplate":format!("{PREFIX}{{project}}/units/{{number}}/attempts/{{sequence}}/context"),"name":"context","title":"Attempt context bundle",
-         "description":"What an attempt's performer reads first, assembled from the revisions it pinned at its claim: the brief, the plan's approach, the unit's fields and brief, an index of the track's other units, and a summary line and reference for each context item. Append /compact for the brief's goal, the unit and the index only, capped at 16 KiB. Append /document for the documenter's bundle, which adds every attempt's run document and notes, failures and their logs, verification reports and the comments; /decide adds the write-up too.","mimeType":MARKDOWN},
+         "description":"What an attempt's performer reads first, assembled from the revisions it pinned at its claim: the brief, the plan's approach, the unit's fields and brief, what to submit, an index of the track's other units, and a summary line and reference for each context item. Append /compact for the brief's goal, the unit, what to submit and the index only, capped at 16 KiB. Append /document for the documenter's bundle, which adds every attempt's run document and notes, failures and their logs, verification reports and the comments; /decide adds the write-up too. A claim names the exact URI as context.resource; the tool get_context returns the same text.","mimeType":MARKDOWN},
     ]})
 }
 
@@ -150,15 +150,32 @@ fn number(value: &str) -> bool {
     !value.is_empty() && value.len() <= 10 && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
-/// The REST path of the context bundle a context URI names.
+/// The REST path of the context bundle a context URI names. The URI ends in
+/// `/context`, optionally followed by `/compact`, `/document` or `/decide`;
+/// the REST path's own form, ending in `/context.md` with an optional
+/// `?detail=` or `?phase=` query, resolves too, so the `ref` a claim
+/// returns can be read as a resource by swapping its scheme.
 fn context_path(uri: &str) -> Option<String> {
     let rest = uri.strip_prefix(PREFIX)?;
+    let (rest, query) = rest.split_once('?').unwrap_or((rest, ""));
     let parts: Vec<_> = rest.split('/').collect();
-    let (slug, number_, sequence, query) = match parts.as_slice() {
-        [slug, "units", n, "attempts", s, "context"] => (slug, n, s, ""),
-        [slug, "units", n, "attempts", s, "context", "compact"] => (slug, n, s, "?detail=compact"),
-        [slug, "units", n, "attempts", s, "context", "document"] => (slug, n, s, "?phase=document"),
-        [slug, "units", n, "attempts", s, "context", "decide"] => (slug, n, s, "?phase=decide"),
+    let (slug, number_, sequence, suffix) = match parts.as_slice() {
+        [slug, "units", n, "attempts", s, "context" | "context.md"] => (slug, n, s, ""),
+        [slug, "units", n, "attempts", s, "context", "compact"] => (slug, n, s, "detail=compact"),
+        [slug, "units", n, "attempts", s, "context", "document"] => (slug, n, s, "phase=document"),
+        [slug, "units", n, "attempts", s, "context", "decide"] => (slug, n, s, "phase=decide"),
+        _ => return None,
+    };
+    let query = match (suffix, query) {
+        ("", "") => String::new(),
+        ("", query)
+            if query
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"=&_".contains(&b)) =>
+        {
+            format!("?{query}")
+        }
+        (suffix, "") => format!("?{suffix}"),
         _ => return None,
     };
     (!slug.is_empty() && number(number_) && number(sequence)).then(|| {
@@ -278,10 +295,29 @@ mod tests {
                 .as_deref(),
             Some("/api/projects/demo/units/3/attempts/1/context.md?detail=compact")
         );
+        // The claim's REST ref, read as a resource.
+        assert_eq!(
+            context_path("cannery-row://projects/demo/units/3/attempts/1/context.md").as_deref(),
+            Some("/api/projects/demo/units/3/attempts/1/context.md")
+        );
+        assert_eq!(
+            context_path("cannery-row://projects/demo/units/3/attempts/1/context.md?phase=decide")
+                .as_deref(),
+            Some("/api/projects/demo/units/3/attempts/1/context.md?phase=decide")
+        );
+        assert_eq!(
+            context_path("cannery-row://projects/demo/units/3/attempts/1/context/document")
+                .as_deref(),
+            Some("/api/projects/demo/units/3/attempts/1/context.md?phase=document")
+        );
+        let claimed = crate::context_bundle::bundle_ref("demo", 3, 1, Some("decide"), 10);
+        assert_eq!(context_path(&claimed.resource), Some(claimed.r#ref.clone()));
         for uri in [
             "cannery-row://projects/demo/units/x/attempts/1/context",
             "cannery-row://projects//units/3/attempts/1/context",
             "cannery-row://projects/demo/units/3/attempts/1/context/full",
+            "cannery-row://projects/demo/units/3/attempts/1/context/compact?phase=decide",
+            "cannery-row://projects/demo/units/3/attempts/1/context.md?x=%2F",
             "cannery-row://projects/demo/brief",
         ] {
             assert_eq!(context_path(uri), None, "{uri}");

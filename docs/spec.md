@@ -92,7 +92,7 @@ A researcher can also post a **steering note** to a running agent-mode attempt, 
 
 In agent mode the agent appends its **transcript** as it works: JSON Lines events checked one by one against the published `transcript` schema, appended in chunks under the attempt's lease, readable live while the attempt runs (the attempt's timeline page refreshes on its own) and sealed into the attempt's `transcript` artifact at submission. An append over the project's transcript limit is refused with its location, size and limit. Redacting secrets and personal data before appending is the performer's job: Cannery Row stores what it receives.
 
-How a performer works — when to ask and when to proceed on a default, when a question is a concern, reading steering at each heartbeat and appending the transcript — is the working protocol, [agents.md](agents.md). The MCP server sends it as its instructions, `GET /api/protocol` serves it with its version and digest, and every claim and job claim names it as `protocol`.
+How a performer works — when to ask and when to proceed on a default, when a question is a concern, reading steering at each heartbeat and appending the transcript — is the working protocol, [agents.md](agents.md). The MCP server sends its opening as its instructions, `GET /api/protocol` and MCP `get_protocol` serve it with its version and digest, and every claim and job claim names it as `protocol`.
 
 ## Data model and lifecycle
 

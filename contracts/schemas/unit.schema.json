@@ -41,7 +41,7 @@
         },
         "primary_metric": {"$ref": "common.schema.json#/$defs/name"},
         "required_slices": {
-          "description": "Dimension names that must be reported per slice.",
+          "description": "Dimension names, bare strings such as \"language\": the result must be reported for every value of each. The metric catalog lists each metric's dimensions with their values as {dimension, values}; acceptance names the dimensions only.",
           "type": "array",
           "uniqueItems": true,
           "items": {"$ref": "common.schema.json#/$defs/name"}
@@ -55,7 +55,7 @@
           "items": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"}
         },
         "compute_budget": {
-          "description": "Upper bounds, each named <resource>_max.",
+          "description": "Upper bounds the run must stay within: an object whose keys are <resource>_max (snake case, ending in _max) and whose values are non-negative numbers, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}. At least one.",
           "type": "object",
           "minProperties": 1,
           "patternProperties": {

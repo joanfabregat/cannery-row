@@ -773,7 +773,7 @@
     "/api/projects/{slug}/artifacts/{artifact_id}": {
       "get": {
         "summary": "Download Artifact",
-        "description": "Stream one verified artifact as an attachment.\n\n``report_asset`` objects are readable by everyone who reads the project;\nevery other role needs ``member`` or above (``forbidden`` otherwise). The\nETag is the artifact's SHA-256; ``If-None-Match`` with it answers 304. A\nstored object that is gone or no longer the verified one is\n``not_found``; an unreachable object store is ``store_unavailable``. With an S3\nstore, the answer is a redirect (302) to a presigned GET that names the\nfilename and the served media type, valid for a few minutes.",
+        "description": "Stream one verified artifact as an attachment.\n\n``report_asset`` objects are readable by everyone who reads the project;\nevery other role needs ``member`` or above (``forbidden`` otherwise), except\nfor the holder of the work that takes the artifact as an input, while its\nlease runs: a claimed verify job (an object of its input manifest), a\nclaimed document or decide job (an artifact of the unit's attempts; its\n``inputs/artifacts`` lists them), or an attempt in progress whose plan\nentry names the artifact as a context item. The\nETag is the artifact's SHA-256; ``If-None-Match`` with it answers 304. A\nstored object that is gone or no longer the verified one is\n``not_found``; an unreachable object store is ``store_unavailable``. With an S3\nstore, the answer is a redirect (302) to a presigned GET that names the\nfilename and the served media type, valid for a few minutes.",
         "operationId": "download_artifact_api_projects__slug__artifacts__artifact_id__get",
         "parameters": [
           {
@@ -4556,6 +4556,147 @@
         }
       }
     },
+    "/api/projects/{slug}/jobs/{job_id}/inputs/artifacts": {
+      "get": {
+        "summary": "Input Artifacts",
+        "description": "The artifacts the job's holder may download while its lease and deadline\nrun: for a verify job, the objects of the run's verified manifest; for a\ndocument or decide job, the artifacts of the unit's attempts. Each comes\nwith its artifact id, role, attempt, size, digest and `download_url`\n(`GET /api/projects/{slug}/artifacts/{artifact_id}` with the same bearer\ntoken; the MCP tool `get_artifact` gives the same URL). Once the lease\nends, these downloads are refused like any other.",
+        "operationId": "input_artifacts_api_projects__slug__jobs__job_id__inputs_artifacts_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Lease-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "X-Lease-Generation",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobInputArtifactsOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied or invalid CSRF token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Resource conflict or stale lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{slug}/jobs/{job_id}/inputs/manifest": {
       "get": {
         "summary": "Input Manifest",
@@ -5824,7 +5965,7 @@
     "/api/projects/{slug}/messages/acknowledgements": {
       "post": {
         "summary": "Ack Steering",
-        "description": "Acknowledge steering notes and answers you have read, by id: a note posted\nto an attempt you hold, an answer to a question you asked, or an answer to\na released question of the unit whose attempt you now hold. Heartbeat\nresponses stop carrying them. Acknowledging twice is harmless.",
+        "description": "Acknowledge steering notes and answers you have read, by id: a note posted\nto an attempt you hold, an answer to a question you asked, or an answer to\na released question of the unit whose attempt you now hold. Heartbeat\nresponses stop carrying them. `acknowledged` lists every id sent, all now\nacknowledged, and `already_acknowledged` those that were before: by an\nearlier acknowledgement, or an answer `wait_for_answer` returned to its\nasker. Acknowledging twice is harmless.",
         "operationId": "ack_steering_api_projects__slug__messages_acknowledgements_post",
         "parameters": [
           {
@@ -5913,7 +6054,7 @@
     "/api/projects/{slug}/metrics": {
       "get": {
         "summary": "Metric Catalog",
-        "description": "The metric registry of the latest (or the given) science revision.",
+        "description": "The metric registry of the latest (or the given) science revision: each\nmetric's key, unit, direction, aggregation, splits, dimensions as\n`{name, values}` and required slices as `{dimension, values}`. A unit's\n`acceptance.required_slices` names dimensions only, as bare names such as\n`[\"language\"]`.",
         "operationId": "metric_catalog_api_projects__slug__metrics_get",
         "parameters": [
           {
@@ -6864,7 +7005,7 @@
     "/api/projects/{slug}/questions/{question_id}/answer": {
       "get": {
         "summary": "Wait For Answer",
-        "description": "Wait up to `wait` seconds (default 30, at most 60) for a question to be\nanswered or escalated, then return it, with its `answer` once given\n(`null` when the wait ran out: ask again). When you asked the question, the\nanswer returned is acknowledged.",
+        "description": "Long-poll for the answer to a question: wait up to `wait` seconds (default\n20, at most 25, under common MCP client timeouts) for it to be answered or\nescalated, then return it, with its `answer` once given (`null` when the\nwait ran out: call again, in a loop). When you asked the question, the\nanswer returned is acknowledged.",
         "operationId": "wait_for_answer_api_projects__slug__questions__question_id__answer_get",
         "parameters": [
           {
@@ -6892,7 +7033,7 @@
             "schema": {
               "type": "integer",
               "format": "int64",
-              "maximum": 60,
+              "maximum": 25,
               "minimum": 0
             }
           }
@@ -11737,7 +11878,7 @@
     "/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md": {
       "get": {
         "summary": "Get Context Bundle",
-        "description": "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from. The front\nmatter states its size in bytes. `detail=compact` keeps the brief's goal,\nthe unit and the index, capped at 16 KiB. `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
+        "description": "The attempt's context bundle as Markdown, assembled from the revisions it\npinned at its claim: the brief, the plan's approach, the unit's fields and\nbrief, an index of the track's other units, and a summary line and\nreference for each context item and each unit it derives from; what to\nsubmit (the required artifact roles, the metrics, datasets and interfaces\nof the pinned science revision, an example manifest and run document); and\nhow the unit's earlier attempts ended, with the decisions' reasons, their\nsteering notes, questions and answers. The front matter states its size in\nbytes. `detail=compact` keeps the brief's goal, the unit, what to submit,\nthe index and the earlier attempts, capped at 16 KiB. Over MCP:\n`get_context`. `phase=document` is the\ndocumenter's bundle: the full bundle and the unit's record, every\nattempt's run document and notes, failures and their logs, verification\nreports and the comments. `phase=decide` adds the write-up, or why there\nis none.",
         "operationId": "get_context_api_projects__slug__units__number__attempts__sequence__context_md_get",
         "parameters": [
           {
@@ -15019,7 +15160,7 @@
     "/api/protocol": {
       "get": {
         "summary": "Get Protocol",
-        "description": "The working protocol every performer follows, as Markdown: when to ask a\nquestion and when to proceed on a stated default, when to raise a concern\ninstead, reading and acknowledging steering at each heartbeat, and\nappending the transcript. Every claim and job claim names it as `protocol`\nwith its `sha256`, also sent as the `ETag`; the MCP server sends the same\ntext as its instructions. No authentication.",
+        "description": "The working protocol every performer follows, as Markdown: when to ask a\nquestion and when to proceed on a stated default, when to raise a concern\ninstead, reading and acknowledging steering at each heartbeat, and\nappending the transcript. Every claim and job claim names it as `protocol`\nwith its `sha256`, also sent as the `ETag`. The MCP tool `get_protocol`\nreturns the same text; its opening, before the first section, is the MCP\nserver's instructions. No authentication.",
         "operationId": "get_protocol_api_protocol_get",
         "responses": {
           "200": {
@@ -15038,18 +15179,37 @@
         }
       }
     },
-    "/api/schemas/{phase}": {
+    "/api/schemas": {
       "get": {
-        "summary": "Phase Schema",
-        "description": "The JSON Schema of a phase output's front matter, as one self-contained\ndocument: the published schemas it references are embedded under `$defs`.\nNo authentication.",
-        "operationId": "phase_schema_api_schemas__phase__get",
+        "summary": "List Schemas",
+        "description": "The name, reference and a one-line description of every published contract\nschema: the documents the API takes (unit and its acceptance, manifest,\nrun, verification, write-up, decision, concern, transcript, brief, ...).\nNo authentication.",
+        "operationId": "list_schemas_api_schemas_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaListOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/schemas/{name}": {
+      "get": {
+        "summary": "Contract Schema",
+        "description": "A published contract schema by name (`GET /api/schemas` lists them), as one\nself-contained JSON Schema document: the published schemas it references\nare embedded under `$defs`. For a phase output (`brief`, `run`,\n`verification`, `writeup`, `decision`, `concern`) it is the schema of the\ndocument's front matter. No authentication.",
+        "operationId": "contract_schema_api_schemas__name__get",
         "parameters": [
           {
-            "name": "phase",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/DocumentPhase"
+              "$ref": "#/components/schemas/ContractSchemaName"
             }
           }
         ],
@@ -16217,16 +16377,25 @@
       },
       "AcknowledgementOut": {
         "type": "object",
-        "description": "The messages newly acknowledged.",
+        "description": "The messages acknowledged.",
         "required": [
-          "acknowledged"
+          "acknowledged",
+          "already_acknowledged"
         ],
         "properties": {
           "acknowledged": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Every id sent, in order: all are acknowledged now."
+          },
+          "already_acknowledged": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Those of them acknowledged before this request: by an earlier\nacknowledgement, or an answer `wait_for_answer` returned to its\nasker, which it acknowledges as it returns it."
           }
         },
         "additionalProperties": false
@@ -18858,18 +19027,38 @@
       },
       "ContextBundleRef": {
         "type": "object",
-        "description": "Where to read an attempt's context bundle, and its size in bytes.",
+        "description": "Where to read an attempt's context bundle, and its size in bytes: over\nREST at `ref`, over MCP with `tool` and `arguments`, or as the MCP\nresource `resource`.",
         "required": [
           "ref",
-          "bytes"
+          "bytes",
+          "tool",
+          "arguments",
+          "resource"
         ],
         "properties": {
+          "arguments": {
+            "type": "object",
+            "description": "The arguments to call `tool` with.",
+            "additionalProperties": {},
+            "propertyNames": {
+              "type": "string"
+            }
+          },
           "bytes": {
             "type": "integer",
             "format": "int64"
           },
           "ref": {
-            "type": "string"
+            "type": "string",
+            "description": "The REST path of the bundle, `GET` with the bearer token."
+          },
+          "resource": {
+            "type": "string",
+            "description": "The bundle as an MCP resource URI (`resources/read`)."
+          },
+          "tool": {
+            "type": "string",
+            "description": "The MCP tool that returns the bundle: `get_context`."
           }
         },
         "additionalProperties": false
@@ -18908,6 +19097,36 @@
           "unit": {}
         },
         "additionalProperties": false
+      },
+      "ContractSchemaName": {
+        "type": "string",
+        "description": "The name of a published contract schema: its file name stem under\n`contracts/schemas/`.",
+        "enum": [
+          "artifact_manifest",
+          "brief",
+          "common",
+          "concern",
+          "dashboard_views",
+          "decision",
+          "evidence_envelope",
+          "gates",
+          "human_decision",
+          "import_bundle",
+          "interface",
+          "job",
+          "job_completion",
+          "job_failure",
+          "policy_config",
+          "run",
+          "science_revision",
+          "step_manifest",
+          "track",
+          "track_transition",
+          "transcript",
+          "unit",
+          "verification",
+          "writeup"
+        ]
       },
       "DashboardOut": {
         "type": "object",
@@ -19107,17 +19326,6 @@
           }
         },
         "additionalProperties": false
-      },
-      "DocumentPhase": {
-        "type": "string",
-        "description": "A phase whose output documents have a published front matter schema.",
-        "enum": [
-          "brief",
-          "run",
-          "verification",
-          "writeup",
-          "decision"
-        ]
       },
       "EmptyReportDocument": {
         "type": "object",
@@ -19717,6 +19925,69 @@
           "size_bytes": {
             "type": "integer",
             "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobInputArtifact": {
+        "type": "object",
+        "description": "An artifact a job's holder may download while it holds the job.",
+        "required": [
+          "artifact_id",
+          "role",
+          "attempt",
+          "media_type",
+          "size_bytes",
+          "sha256",
+          "download_url",
+          "tool"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attempt": {
+            "type": "string",
+            "description": "The attempt it belongs to, as `#number.sequence`."
+          },
+          "download_url": {
+            "type": "string",
+            "description": "`GET` it with the same bearer token; an S3-backed API redirects to a\nshort-lived presigned URL, followed without the token."
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tool": {
+            "type": "string",
+            "description": "The MCP tool that gives the same URL with the artifact's metadata."
+          }
+        },
+        "additionalProperties": false
+      },
+      "JobInputArtifactsOut": {
+        "type": "object",
+        "description": "The artifacts a job's holder may download, in attempt and role order.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobInputArtifact"
+            }
           }
         },
         "additionalProperties": false
@@ -20427,7 +20698,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "The question an answer answers."
+            "description": "For an answer, the id of the question it answers; null for a question\nor a steering note. A message's text, a question's included, is `body`."
           },
           "released_at": {
             "type": [
@@ -23145,6 +23416,45 @@
           "invalid_job",
           "held_out_labels_to_experiment"
         ]
+      },
+      "SchemaListItem": {
+        "type": "object",
+        "description": "One published contract schema.",
+        "required": [
+          "name",
+          "ref",
+          "description"
+        ],
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "What it describes and which tool or route takes it."
+          },
+          "name": {
+            "$ref": "#/components/schemas/ContractSchemaName"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Where to read it: `/api/schemas/{name}`."
+          }
+        },
+        "additionalProperties": false
+      },
+      "SchemaListOut": {
+        "type": "object",
+        "description": "The published contract schemas, by name.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SchemaListItem"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "ScienceRevisionRequest": {
         "type": "object",

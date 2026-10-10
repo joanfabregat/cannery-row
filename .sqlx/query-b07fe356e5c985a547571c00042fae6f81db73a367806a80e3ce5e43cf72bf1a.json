@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.science_revision, c.content::text AS \"content!\"\n           FROM attempts a JOIN config_revisions c ON c.project_id = a.project_id\n             AND c.kind = 'science' AND c.revision = a.science_revision\n           WHERE a.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "science_revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "content!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "b07fe356e5c985a547571c00042fae6f81db73a367806a80e3ce5e43cf72bf1a"
+}

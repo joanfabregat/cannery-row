@@ -171,7 +171,12 @@ export interface paths {
          * @description Stream one verified artifact as an attachment.
          *
          *     ``report_asset`` objects are readable by everyone who reads the project;
-         *     every other role needs ``member`` or above (``forbidden`` otherwise). The
+         *     every other role needs ``member`` or above (``forbidden`` otherwise), except
+         *     for the holder of the work that takes the artifact as an input, while its
+         *     lease runs: a claimed verify job (an object of its input manifest), a
+         *     claimed document or decide job (an artifact of the unit's attempts; its
+         *     ``inputs/artifacts`` lists them), or an attempt in progress whose plan
+         *     entry names the artifact as a context item. The
          *     ETag is the artifact's SHA-256; ``If-None-Match`` with it answers 304. A
          *     stored object that is gone or no longer the verified one is
          *     ``not_found``; an unreachable object store is ``store_unavailable``. With an S3
@@ -738,6 +743,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{slug}/jobs/{job_id}/inputs/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Input Artifacts
+         * @description The artifacts the job's holder may download while its lease and deadline
+         *     run: for a verify job, the objects of the run's verified manifest; for a
+         *     document or decide job, the artifacts of the unit's attempts. Each comes
+         *     with its artifact id, role, attempt, size, digest and `download_url`
+         *     (`GET /api/projects/{slug}/artifacts/{artifact_id}` with the same bearer
+         *     token; the MCP tool `get_artifact` gives the same URL). Once the lease
+         *     ends, these downloads are refused like any other.
+         */
+        get: operations["input_artifacts_api_projects__slug__jobs__job_id__inputs_artifacts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{slug}/jobs/{job_id}/inputs/manifest": {
         parameters: {
             query?: never;
@@ -933,7 +964,10 @@ export interface paths {
          * @description Acknowledge steering notes and answers you have read, by id: a note posted
          *     to an attempt you hold, an answer to a question you asked, or an answer to
          *     a released question of the unit whose attempt you now hold. Heartbeat
-         *     responses stop carrying them. Acknowledging twice is harmless.
+         *     responses stop carrying them. `acknowledged` lists every id sent, all now
+         *     acknowledged, and `already_acknowledged` those that were before: by an
+         *     earlier acknowledgement, or an answer `wait_for_answer` returned to its
+         *     asker. Acknowledging twice is harmless.
          */
         post: operations["ack_steering_api_projects__slug__messages_acknowledgements_post"];
         delete?: never;
@@ -951,7 +985,11 @@ export interface paths {
         };
         /**
          * Metric Catalog
-         * @description The metric registry of the latest (or the given) science revision.
+         * @description The metric registry of the latest (or the given) science revision: each
+         *     metric's key, unit, direction, aggregation, splits, dimensions as
+         *     `{name, values}` and required slices as `{dimension, values}`. A unit's
+         *     `acceptance.required_slices` names dimensions only, as bare names such as
+         *     `["language"]`.
          */
         get: operations["metric_catalog_api_projects__slug__metrics_get"];
         put?: never;
@@ -1072,9 +1110,10 @@ export interface paths {
         };
         /**
          * Wait For Answer
-         * @description Wait up to `wait` seconds (default 30, at most 60) for a question to be
-         *     answered or escalated, then return it, with its `answer` once given
-         *     (`null` when the wait ran out: ask again). When you asked the question, the
+         * @description Long-poll for the answer to a question: wait up to `wait` seconds (default
+         *     20, at most 25, under common MCP client timeouts) for it to be answered or
+         *     escalated, then return it, with its `answer` once given (`null` when the
+         *     wait ran out: call again, in a loop). When you asked the question, the
          *     answer returned is acknowledged.
          */
         get: operations["wait_for_answer_api_projects__slug__questions__question_id__answer_get"];
@@ -1756,9 +1795,14 @@ export interface paths {
          * @description The attempt's context bundle as Markdown, assembled from the revisions it
          *     pinned at its claim: the brief, the plan's approach, the unit's fields and
          *     brief, an index of the track's other units, and a summary line and
-         *     reference for each context item and each unit it derives from. The front
-         *     matter states its size in bytes. `detail=compact` keeps the brief's goal,
-         *     the unit and the index, capped at 16 KiB. `phase=document` is the
+         *     reference for each context item and each unit it derives from; what to
+         *     submit (the required artifact roles, the metrics, datasets and interfaces
+         *     of the pinned science revision, an example manifest and run document); and
+         *     how the unit's earlier attempts ended, with the decisions' reasons, their
+         *     steering notes, questions and answers. The front matter states its size in
+         *     bytes. `detail=compact` keeps the brief's goal, the unit, what to submit,
+         *     the index and the earlier attempts, capped at 16 KiB. Over MCP:
+         *     `get_context`. `phase=document` is the
          *     documenter's bundle: the full bundle and the unit's record, every
          *     attempt's run document and notes, failures and their logs, verification
          *     reports and the comments. `phase=decide` adds the write-up, or why there
@@ -2259,8 +2303,9 @@ export interface paths {
          *     question and when to proceed on a stated default, when to raise a concern
          *     instead, reading and acknowledging steering at each heartbeat, and
          *     appending the transcript. Every claim and job claim names it as `protocol`
-         *     with its `sha256`, also sent as the `ETag`; the MCP server sends the same
-         *     text as its instructions. No authentication.
+         *     with its `sha256`, also sent as the `ETag`. The MCP tool `get_protocol`
+         *     returns the same text; its opening, before the first section, is the MCP
+         *     server's instructions. No authentication.
          */
         get: operations["get_protocol_api_protocol_get"];
         put?: never;
@@ -2271,7 +2316,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/schemas/{phase}": {
+    "/api/schemas": {
         parameters: {
             query?: never;
             header?: never;
@@ -2279,12 +2324,37 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Phase Schema
-         * @description The JSON Schema of a phase output's front matter, as one self-contained
-         *     document: the published schemas it references are embedded under `$defs`.
+         * List Schemas
+         * @description The name, reference and a one-line description of every published contract
+         *     schema: the documents the API takes (unit and its acceptance, manifest,
+         *     run, verification, write-up, decision, concern, transcript, brief, ...).
          *     No authentication.
          */
-        get: operations["phase_schema_api_schemas__phase__get"];
+        get: operations["list_schemas_api_schemas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/schemas/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Contract Schema
+         * @description A published contract schema by name (`GET /api/schemas` lists them), as one
+         *     self-contained JSON Schema document: the published schemas it references
+         *     are embedded under `$defs`. For a phase output (`brief`, `run`,
+         *     `verification`, `writeup`, `decision`, `concern`) it is the schema of the
+         *     document's front matter. No authentication.
+         */
+        get: operations["contract_schema_api_schemas__name__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2462,9 +2532,16 @@ export interface components {
         AcknowledgementIn: {
             ids: string[];
         };
-        /** @description The messages newly acknowledged. */
+        /** @description The messages acknowledged. */
         AcknowledgementOut: {
+            /** @description Every id sent, in order: all are acknowledged now. */
             acknowledged: string[];
+            /**
+             * @description Those of them acknowledged before this request: by an earlier
+             *     acknowledgement, or an answer `wait_for_answer` returned to its
+             *     asker, which it acknowledges as it returns it.
+             */
+            already_acknowledged: string[];
         };
         /** @description What a plan revision decides about a done or in-flight unit. */
         AlignmentOut: {
@@ -3195,11 +3272,24 @@ export interface components {
             science_revisions: number[];
             split: string | null;
         };
-        /** @description Where to read an attempt's context bundle, and its size in bytes. */
+        /**
+         * @description Where to read an attempt's context bundle, and its size in bytes: over
+         *     REST at `ref`, over MCP with `tool` and `arguments`, or as the MCP
+         *     resource `resource`.
+         */
         ContextBundleRef: {
+            /** @description The arguments to call `tool` with. */
+            arguments: {
+                [key: string]: unknown;
+            };
             /** Format: int64 */
             bytes: number;
+            /** @description The REST path of the bundle, `GET` with the bearer token. */
             ref: string;
+            /** @description The bundle as an MCP resource URI (`resources/read`). */
+            resource: string;
+            /** @description The MCP tool that returns the bundle: `get_context`. */
+            tool: string;
         };
         /**
          * @description Something a unit's performer should read: another unit (`unit`: a
@@ -3216,6 +3306,12 @@ export interface components {
             note?: string | null;
             unit?: unknown;
         };
+        /**
+         * @description The name of a published contract schema: its file name stem under
+         *     `contracts/schemas/`.
+         * @enum {string}
+         */
+        ContractSchemaName: "artifact_manifest" | "brief" | "common" | "concern" | "dashboard_views" | "decision" | "evidence_envelope" | "gates" | "human_decision" | "import_bundle" | "interface" | "job" | "job_completion" | "job_failure" | "policy_config" | "run" | "science_revision" | "step_manifest" | "track" | "track_transition" | "transcript" | "unit" | "verification" | "writeup";
         DashboardOut: {
             /** Format: int64 */
             dashboard_revision: number | null;
@@ -3269,11 +3365,6 @@ export interface components {
         DisableRequest: {
             reason: string;
         };
-        /**
-         * @description A phase whose output documents have a published front matter schema.
-         * @enum {string}
-         */
-        DocumentPhase: "brief" | "run" | "verification" | "writeup" | "decision";
         EmptyReportDocument: Record<string, never>;
         ErrorDetail: {
             code: string;
@@ -3456,6 +3547,29 @@ export interface components {
             sha256: string;
             /** Format: int64 */
             size_bytes: number;
+        };
+        /** @description An artifact a job's holder may download while it holds the job. */
+        JobInputArtifact: {
+            /** Format: uuid */
+            artifact_id: string;
+            /** @description The attempt it belongs to, as `#number.sequence`. */
+            attempt: string;
+            /**
+             * @description `GET` it with the same bearer token; an S3-backed API redirects to a
+             *     short-lived presigned URL, followed without the token.
+             */
+            download_url: string;
+            media_type: string;
+            role: string;
+            sha256: string;
+            /** Format: int64 */
+            size_bytes: number;
+            /** @description The MCP tool that gives the same URL with the artifact's metadata. */
+            tool: string;
+        };
+        /** @description The artifacts a job's holder may download, in attempt and role order. */
+        JobInputArtifactsOut: {
+            items: components["schemas"]["JobInputArtifact"][];
         };
         JobLeaseOut: {
             /** @description Answers to the job's questions it has not acknowledged yet. */
@@ -3651,7 +3765,8 @@ export interface components {
             kind: string;
             /**
              * Format: uuid
-             * @description The question an answer answers.
+             * @description For an answer, the id of the question it answers; null for a question
+             *     or a steering note. A message's text, a question's included, is `body`.
              */
             question: string | null;
             /**
@@ -4374,6 +4489,18 @@ export interface components {
         };
         /** @enum {string} */
         RunnerFailureCode: "step_failed" | "deadline_exceeded" | "runner_error" | "setup_failed" | "invalid_step_output" | "invalid_output" | "missing_output" | "invalid_code" | "code_not_allowed" | "invalid_input" | "missing_input" | "input_verification_failed" | "upload_expired" | "invalid_job" | "held_out_labels_to_experiment";
+        /** @description One published contract schema. */
+        SchemaListItem: {
+            /** @description What it describes and which tool or route takes it. */
+            description: string;
+            name: components["schemas"]["ContractSchemaName"];
+            /** @description Where to read it: `/api/schemas/{name}`. */
+            ref: string;
+        };
+        /** @description The published contract schemas, by name. */
+        SchemaListOut: {
+            items: components["schemas"]["SchemaListItem"][];
+        };
         ScienceRevisionRequest: {
             baselines: components["schemas"]["ScienceRevisionRequestBaselinesItem"][];
             code_repositories?: components["schemas"]["ScienceRevisionRequestCodeRepositories"];
@@ -8615,6 +8742,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobLeaseOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    input_artifacts_api_projects__slug__jobs__job_id__inputs_artifacts_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+            };
+            path: {
+                slug: string;
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobInputArtifactsOut"];
                 };
             };
             /** @description Invalid request */
@@ -16208,12 +16433,32 @@ export interface operations {
             };
         };
     };
-    phase_schema_api_schemas__phase__get: {
+    list_schemas_api_schemas_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SchemaListOut"];
+                };
+            };
+        };
+    };
+    contract_schema_api_schemas__name__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                phase: components["schemas"]["DocumentPhase"];
+                name: components["schemas"]["ContractSchemaName"];
             };
             cookie?: never;
         };

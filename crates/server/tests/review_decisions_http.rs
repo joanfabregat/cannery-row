@@ -168,17 +168,33 @@ fn native_validation_error(recipe: &Value) -> Result<Value> {
     assert_eq!(recipe["method"], "POST");
     assert_eq!(recipe["status"], 422);
     let ordinary = json!({"action":"retry","evidence_revision":1,"reason":"Reason é😀","review_case_id":"00000000-0000-0000-0000-000000000301"});
-    let (body, path, source_count) = match recipe["native_validation_profile"].as_str() {
-        Some("missing-fields") => (json!({}), "", 4),
+    // The message names what the schema expected: the missing case id, then
+    // what each of the two input sets (a decision or a failure case) lacks.
+    let forms = "missing required property \"review_case_id\"; matches none of the allowed forms: (1) missing required property \"document\"; (2) missing required properties \"evidence_revision\", \"action\", \"reason\"";
+    let (body, path, source_count, message) = match recipe["native_validation_profile"].as_str() {
+        Some("missing-fields") => (json!({}), "", 4, forms.to_owned()),
         Some("missing-extra") => {
             assert_eq!(recipe["name"], "body-validation");
-            (json!({"extra":1}), "", 5)
+            (
+                json!({"extra":1}),
+                "",
+                5,
+                forms.replace(
+                    "; matches",
+                    "; unexpected property \"extra\": the schema does not allow it; matches",
+                ),
+            )
         }
         Some("empty-reason") => {
             assert_eq!(recipe["name"], "body-validation");
             let mut body = ordinary;
             body["reason"] = json!("");
-            (body, "/reason", 2)
+            (
+                body,
+                "/reason",
+                2,
+                "does not match the pattern \\S; is shorter than 1 character".to_owned(),
+            )
         }
         _ => return Err("unknown native validator profile".into()),
     };
@@ -189,7 +205,7 @@ fn native_validation_error(recipe: &Value) -> Result<Value> {
         "source observations remain exact and independent"
     );
     Ok(
-        json!({"error":{"code":"validation_failed","message":"invalid human decision","details":[{"path":path,"message":"value does not satisfy the schema"}]}}),
+        json!({"error":{"code":"validation_failed","message":"invalid human decision","details":[{"path":path,"message":message}]}}),
     )
 }
 struct Snapshot {

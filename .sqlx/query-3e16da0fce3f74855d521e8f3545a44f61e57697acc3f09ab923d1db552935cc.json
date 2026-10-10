@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n            SELECT 1 FROM jobs j JOIN attempts ja ON ja.id = j.attempt_id, artifacts ar\n            JOIN attempts aa ON aa.id = ar.attempt_id\n            WHERE ar.id = $1::text::uuid AND j.project_id = ar.project_id AND j.state = 'claimed'\n              AND j.lease_expires_at > now() AND (j.deadline IS NULL OR j.deadline > now())\n              AND j.claimed_by_user IS NOT DISTINCT FROM $2::text::uuid\n              AND j.claimed_by_service IS NOT DISTINCT FROM $3::text::uuid\n              AND ((j.phase = 'verify' AND ar.attempt_id = j.attempt_id AND EXISTS (\n                      SELECT 1 FROM manifests m\n                      WHERE m.attempt_id = j.attempt_id\n                        AND m.id::text = j.spec #>> '{inputs,manifest,ref}'\n                        AND m.content -> 'objects' @> jsonb_build_array(jsonb_build_object(\n                            'storage', jsonb_build_object('key', ar.key)))))\n                   OR (j.phase IN ('document', 'decide') AND aa.unit_id = ja.unit_id))\n        ) OR EXISTS (\n            SELECT 1 FROM attempts a\n            JOIN plan_revisions r ON r.track_id = a.track_id AND r.revision = a.plan_revision\n            JOIN plan_units u ON u.plan_revision_id = r.id AND u.unit_id = a.unit_id,\n            artifacts ar\n            WHERE ar.id = $1::text::uuid AND a.project_id = ar.project_id\n              AND (a.state = 'waiting_on_human'\n                   OR (a.state IN ('claimed', 'running') AND a.lease_expires_at > now()))\n              AND a.claimed_by_user IS NOT DISTINCT FROM $2::text::uuid\n              AND a.claimed_by_service IS NOT DISTINCT FROM $3::text::uuid\n              AND u.fields -> 'context' @> jsonb_build_array(jsonb_build_object(\n                  'kind', 'artifact', 'artifact', ar.id::text))\n        ) AS \"held!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "held!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "3e16da0fce3f74855d521e8f3545a44f61e57697acc3f09ab923d1db552935cc"
+}

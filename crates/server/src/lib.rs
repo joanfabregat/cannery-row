@@ -226,6 +226,7 @@ pub use documentation::OPENAPI;
         job_input_routes::run,
         job_input_routes::manifest,
         job_input_routes::object,
+        job_input_routes::artifacts,
         job_upload_routes::create,
         upload_routes::rest_put_job_upload,
         upload_routes::rest_presign_job_upload,
@@ -258,6 +259,7 @@ pub use documentation::OPENAPI;
         metric_routes::view,
         comparison_routes::list,
         review_attention_routes::attention,
+        schema_routes::list_schemas,
         schema_routes::schema,
         health::health
     ),
