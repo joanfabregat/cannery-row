@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!: AttemptId\" FROM attempts WHERE unit_id=$1 AND sequence=$2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "808b30460140bbf358af3a4409599320d5930b3e3da764a4200a43056e8122ce"
+}

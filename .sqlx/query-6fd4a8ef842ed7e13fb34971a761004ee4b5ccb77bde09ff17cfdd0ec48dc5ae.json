@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE units SET state = 'queued', updated_at = now() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6fd4a8ef842ed7e13fb34971a761004ee4b5ccb77bde09ff17cfdd0ec48dc5ae"
+}

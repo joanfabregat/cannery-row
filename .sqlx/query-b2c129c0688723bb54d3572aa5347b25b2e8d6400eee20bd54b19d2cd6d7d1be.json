@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT r.brief FROM unit_revisions r JOIN units h ON h.id = r.unit_id\n        WHERE r.unit_id = $1 AND r.revision = coalesce(h.approved_revision, h.revision)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "brief",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b2c129c0688723bb54d3572aa5347b25b2e8d6400eee20bd54b19d2cd6d7d1be"
+}

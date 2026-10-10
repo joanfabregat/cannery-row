@@ -21,7 +21,7 @@ export function SignInPage() {
         <Logo className="size-40" />
         <h1 className="mt-6 text-2xl font-semibold tracking-tight">Sign in to Cannery Row</h1>
         <p className="mt-2 mb-8 text-muted-foreground">
-          Research tracks, hypotheses and results, in one place for your team.
+          Research tracks, units and results, in one place for your team.
         </p>
         <Button asChild size="lg" className="w-full">
           <a href={signInHref(returnTo)}>Sign in</a>

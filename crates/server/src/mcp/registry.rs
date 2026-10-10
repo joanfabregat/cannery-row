@@ -83,7 +83,7 @@ impl Tool {
             | "check_plan"
             | "submit_plan"
             | "review_plan"
-            | "list_units" => {
+            | "list_track_units" => {
                 let track = take_path(&mut args, "track");
                 let plans = format!("{base}/tracks/{track}/plans");
                 match name {
@@ -128,12 +128,12 @@ impl Tool {
                     _ => (Method::GET, format!("{base}/tracks/{track}/units")),
                 }
             }
-            "get_unit" | "get_unit_history" => {
+            "get_unit_plan" | "get_unit_history" => {
                 let number = take_path(&mut args, "number");
                 let suffix = if name == "get_unit_history" {
                     "/history"
                 } else {
-                    ""
+                    "/plan"
                 };
                 (Method::GET, format!("{base}/units/{number}{suffix}"))
             }
@@ -150,17 +150,17 @@ impl Tool {
                     (Method::GET, format!("{base}/concerns/{id}"))
                 }
             }
-            "list_hypotheses" => (Method::GET, format!("{base}/hypotheses")),
-            "get_hypothesis" | "list_hypothesis_revisions" => {
+            "list_units" => (Method::GET, format!("{base}/units")),
+            "get_unit" | "list_unit_revisions" => {
                 let number = take_path(&mut args, "number");
-                let suffix = if name == "list_hypothesis_revisions" {
+                let suffix = if name == "list_unit_revisions" {
                     "/revisions"
                 } else {
                     ""
                 };
-                (Method::GET, format!("{base}/hypotheses/{number}{suffix}"))
+                (Method::GET, format!("{base}/units/{number}{suffix}"))
             }
-            "claim_hypothesis" => (Method::POST, format!("{base}/claims")),
+            "claim_unit" => (Method::POST, format!("{base}/claims")),
             "list_attempts" => (Method::GET, format!("{base}/attempts")),
             "get_attempt" | "heartbeat_attempt" | "release_attempt" | "create_upload"
             | "post_manifest" | "submit_attempt" | "get_report" | "list_attempt_jobs" => {
@@ -178,7 +178,7 @@ impl Tool {
                 };
                 (
                     method,
-                    format!("{base}/hypotheses/{number}/attempts/{sequence}{suffix}"),
+                    format!("{base}/units/{number}/attempts/{sequence}{suffix}"),
                 )
             }
             "claim_job" => (Method::POST, format!("{base}/jobs/claims")),
@@ -235,10 +235,7 @@ impl Tool {
                     "skip_writeup" => (Method::POST, "/skip"),
                     _ => (Method::GET, ""),
                 };
-                (
-                    method,
-                    format!("{base}/hypotheses/{number}/writeup{suffix}"),
-                )
+                (method, format!("{base}/units/{number}/writeup{suffix}"))
             }
             "comment" | "list_comments" => {
                 let number = take_path(&mut args, "number");
@@ -253,7 +250,7 @@ impl Tool {
                     } else {
                         Method::GET
                     },
-                    format!("{base}/hypotheses/{number}{sequence}/comments"),
+                    format!("{base}/units/{number}{sequence}/comments"),
                 )
             }
             "edit_comment" => {

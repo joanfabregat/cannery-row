@@ -1,11 +1,11 @@
 # Integrating a research project
 
-This is the guide to read first. It tells an agent or an engineer what to build and configure, in which order, to run a research project's experiments through Cannery Row (CR), from an empty installation to the first decided hypothesis. It is the map and the procedure; the authoritative contracts stay in the references it links to:
+This is the guide to read first. It tells an agent or an engineer what to build and configure, in which order, to run a research project's experiments through Cannery Row (CR), from an empty installation to the first decided unit. It is the map and the procedure; the authoritative contracts stay in the references it links to:
 
 | Reference | Holds |
 | --- | --- |
 | [spec.md](spec.md) | The system: roles, lifecycle, failure classes, trust rules. |
-| [contracts.md](contracts.md) | Every document: tracks, hypotheses, uploads, evidence, jobs, step manifests, workflow tracks, the stock policy and policy steps. |
+| [contracts.md](contracts.md) | Every document: tracks, units, uploads, evidence, jobs, step manifests, workflow tracks, the stock policy and policy steps. |
 | [deploy.md](deploy.md) | The image, settings, object storage, the runner, its launchers and the stock policy. |
 | [import.md](import.md) | Importing a research history kept elsewhere. |
 | [deploy/runner-k8s/README.md](../deploy/runner-k8s/README.md) | The runner's Kubernetes manifests. |
@@ -22,21 +22,21 @@ project
 ├── science revision (immutable, versioned): metrics, datasets, interfaces, scorer, verifier, limits…
 ├── producers and experiment steps (registered step manifests, each revision immutable)
 └── track (agent or workflow mode; planning → active once its first plan is approved)
-    ├── plan (revisioned): approach + units, each a hypothesis with its brief and context
-    └── hypothesis  #12          (plan approval) → queued → active → … → decided
+    ├── plan (revisioned): approach + units, each a unit with its brief and context
+    └── unit  #12          (plan approval) → queued → active → … → decided
         └── attempt  #12.1       claimed under a lease, then two stages:
             1. experiment  → candidate artifacts + run document              (agent, or runner's experiment kind)
             2. verify      → verification report: verified measurements,     (runner's verify kind, or an agent
                              verdict pass | fail | inconclusive               or researcher who did not run it)
-            then, for the hypothesis (documenting → deciding → decided):
+            then, for the unit (documenting → deciding → decided):
             3. write-up    → summary, attempts covered, verification cited   (agent, or researcher)
             4. decision    → promote | reject | inconclusive | failed        (researcher, with a reason)
 ```
 
 - The **brief** is the project's context, written once by a researcher: what the project is for, the domain, the constraints, the resources and the conventions. Every claim names the revision it runs under, and the attempt keeps it.
-- A **hypothesis** is a unit of an approved track plan. A researcher writes the plan (often with an agent) and approves it with a reason; each unit becomes a `queued` hypothesis. Nothing runs before that, and CR never invents or recycles hypotheses.
-- An **attempt** is one execution of a hypothesis. It is created by a **claim**, which returns a lease token; every write on the attempt needs the current token and generation. One attempt at a time per hypothesis.
-- The stages are kept apart on purpose. The **experiment** tests the hypothesis and produces the candidate and a **run document**: front matter with the claims (`agent_claim`, never trusted) and Markdown run notes. The **verify** job checks the frozen submission, independently of whoever ran it, and writes a **verification report**: the verified measurements (`tester_verified`), the discrepancies, and the policy's verdict with a reason. The hypothesis is then **written up** once, by an agent or a researcher (a researcher may skip it with a reason), and a **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
+- A **unit** is a unit of work that an approved track plan lists. A researcher writes the plan (often with an agent) and approves it with a reason; each unit it lists is `queued`. Nothing runs before that, and CR never invents or recycles units.
+- An **attempt** is one execution of a unit. It is created by a **claim**, which returns a lease token; every write on the attempt needs the current token and generation. One attempt at a time per unit.
+- The stages are kept apart on purpose. The **experiment** tests the unit and produces the candidate and a **run document**: front matter with the claims (`agent_claim`, never trusted) and Markdown run notes. The **verify** job checks the frozen submission, independently of whoever ran it, and writes a **verification report**: the verified measurements (`tester_verified`), the discrepancies, and the policy's verdict with a reason. The unit is then **written up** once, by an agent or a researcher (a researcher may skip it with a reason), and a **human decision** comes last: `promote` needs a `pass` verdict; every decision needs a reason.
 - A track's **mode** says only who runs the experiment stage: an outside agent (`agent`, the default) or a CR runner (`workflow`). From the submission on, both modes are identical.
 
 Who holds which token, and what it may do:
@@ -45,7 +45,7 @@ Who holds which token, and what it may do:
 | --- | --- | --- | --- |
 | User, `viewer` | Personal token, or the web session | Read the project, reports, metrics, verdicts, decisions; search. | Download artifacts other than `report_asset`. |
 | User, `member` | same | Viewer rights, plus comment, download artifacts and raise a concern about a track's plan. | Plan or decide. |
-| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, answer or dismiss concerns, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, claim and complete agent verify jobs of attempts it did not run, write hypotheses up or skip their write-ups, and record every human decision. | Claim in `workflow` mode; verify its own run. |
+| User, `researcher` | same | Member rights, plus write the brief, author and approve track plans, answer or dismiss concerns, manage tracks (create, change mode, workflow or producer, pause, archive), claim in `agent` mode, claim and complete agent verify jobs of attempts it did not run, write units up or skip their write-ups, and record every human decision. | Claim in `workflow` mode; verify its own run. |
 | User, installation admin | same | Create projects, grant memberships, register science and dashboard revisions, producers and experiment steps, create service accounts and their tokens. Admin is not a project role: an admin also needs a membership to act as a researcher. | |
 | Service account `agent` | Service token | Claim in `agent` mode, heartbeat, upload, post the manifest, submit, release; claim and complete agent verify jobs of attempts it did not run; claim and complete document jobs (write-ups); raise a concern; read the project. | Claim in `workflow` mode, verify its own run, skip a write-up, comment, decide. |
 | Service account `experimenter` | Service token, held by a runner only | Claim in `workflow` mode only, heartbeat, upload, submit, read the predecessor attempt's artifacts, release with a failure `code`, `step` and `logs` (trusted); raise a concern. | Plan, comment, decide, claim in `agent` mode. |
@@ -58,9 +58,9 @@ A claimed job also returns a **job lease token**, which can only read that job's
 
 | Interface | Use it for |
 | --- | --- |
-| Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; write and review plans; write hypotheses up or skip their write-ups; decide hypotheses and failures; read everything; comment; search. |
+| Web app | Sign in; create projects; grant memberships; create service accounts and mint every token; create and change tracks; write and review plans; write units up or skip their write-ups; decide units and failures; read everything; comment; search. |
 | REST (`/api/…`) | Everything, and the only way to register science and dashboard revisions (`POST /api/projects/{slug}/config/science`), producers (`…/producers`) and experiment steps (`…/experiment-steps`). Authenticate with `Authorization: Bearer <token>`. `GET /api/me` shows who a token is. |
-| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_units`, `get_unit`, `get_unit_history`, `search`, `claim_hypothesis`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, the verify and document job tools (`claim_job`, `heartbeat_job`, `get_job_input`, `create_job_upload`, `complete_job`, `fail_job`, `get_job`, `list_attempt_jobs`, `list_writeups`, `get_writeup`), the concern tools (`raise_concern`, `list_concerns`, `get_concern`), and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `answer_concern`, `check_plan`, `submit_plan`, `review_plan`), `dismiss_concern`, `write_up`, `skip_writeup`, `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
+| MCP (`/mcp`, Streamable HTTP, same bearer token) | An agent's work: `get_brief`, `list_tracks`, `get_track`, `get_plan`, `list_plan_revisions`, `list_track_units`, `get_unit_plan`, `get_unit_history`, `search`, `claim_unit`, `heartbeat_attempt`, `create_upload`, `post_manifest`, `submit_attempt`, `release_attempt`, `metric_catalog`, `query_metrics`, `query_comparisons`, the verify and document job tools (`claim_job`, `heartbeat_job`, `get_job_input`, `create_job_upload`, `complete_job`, `fail_job`, `get_job`, `list_attempt_jobs`, `list_writeups`, `get_writeup`), the concern tools (`raise_concern`, `list_concerns`, `get_concern`), and the researcher's `revise_brief`, the plan tools (`start_plan_revision`, `set_plan_approach`, `add_unit`, `update_unit`, `drop_unit`, `set_alignment`, `answer_concern`, `check_plan`, `submit_plan`, `review_plan`), `dismiss_concern`, `write_up`, `skip_writeup`, `record_decision`, `create_track`, `update_track`, `transition_track`. The brief is also an MCP resource, `cannery-row://projects/{project}/brief`, and so is each attempt's context bundle. [agents.md](agents.md) lists an agent's steps. File bytes never go through MCP: `create_upload` returns a URL the client sends them to. |
 | CLI (`cannery`) | `migrate`, `serve`, `db` (dump, restore, upgrade), `runner`, `evaluator` (the stock policy alone, offline), `import`, `openapi`. |
 
 Every error answer has the shape `{"error": {"code", "message", "details"}}`; `details` holds JSON Pointers into the request. See [Troubleshooting](#troubleshooting).
@@ -93,7 +93,7 @@ curl -sf -X POST "$API/tracks" -H "Authorization: Bearer $RESEARCHER" \
 
 ### The brief
 
-The brief tells every agent and step what the project is for, so each hypothesis does not have to repeat it. It is one Markdown document with YAML front matter holding `title` and a one-paragraph `goal` (schema: `GET /api/schemas/brief`); the body carries the domain, the constraints, the resources and the conventions ([the contract](contracts.md#the-brief)). A researcher writes it in the web app (**Brief**, linked from Home), with MCP `revise_brief`, or through REST:
+The brief tells every agent and step what the project is for, so each unit does not have to repeat it. It is one Markdown document with YAML front matter holding `title` and a one-paragraph `goal` (schema: `GET /api/schemas/brief`); the body carries the domain, the constraints, the resources and the conventions ([the contract](contracts.md#the-brief)). A researcher writes it in the web app (**Brief**, linked from Home), with MCP `revise_brief`, or through REST:
 
 ```sh
 jq -n --rawfile document brief.md '{document: $document, expected_revision: 0}' |
@@ -111,11 +111,11 @@ The science revision is the project's rules, as one immutable JSON document (`sc
 | --- | --- |
 | `schema_version` | `"0.2"`. |
 | `verify` | Who verifies a submitted run: `{"performer": "runner", "verifier": {"id", "revision"}}`, the verifier service account's name and the policy revision its reports must name (the runner's `verify` kind claims only jobs registered to its account's name under its revision), or `{"performer": "agent"}`, an agent or a researcher who did not run the attempt. Required. See [Verify stage](#verify-stage). |
-| `decide` | Who decides a written-up hypothesis: `{"performer": "researcher"}` (the default when absent), or `{"performer": "step", "decider": {"id", "revision"}}`, the decider service account's name and the revision of its decider step (the runner's `decide` kind claims only jobs registered to its account's name under that revision). See [Document and decide](#document-and-decide). |
-| `hypothesis_fields` | A JSON Schema for a hypothesis's `project_fields`. In a `workflow` track these are the experiment's **parameters** (learning rate, seed, model size); plan units are validated against it. |
+| `decide` | Who decides a written-up unit: `{"performer": "researcher"}` (the default when absent), or `{"performer": "step", "decider": {"id", "revision"}}`, the decider service account's name and the revision of its decider step (the runner's `decide` kind claims only jobs registered to its account's name under that revision). See [Document and decide](#document-and-decide). |
+| `unit_fields` | A JSON Schema for a unit's `project_fields`. In a `workflow` track these are the experiment's **parameters** (learning rate, seed, model size); plan units are validated against it. |
 | `metrics` | The metric registry: each `{key, unit, direction, aggregation, dimensions, splits, required_slices}`. Only registered metrics, splits and dimension values can be reported, charted or compared. |
 | `datasets` | Each `{id, revision, held_out_labels, description?}`. Mark evaluation labels `held_out_labels: true` (see [the held-out labels rule](#the-held-out-labels-rule)). CR stores no dataset bytes: the runner reads them from its data root, `datasets/<id>/<revision>/`. |
-| `baselines` | Controls, each `{id, revision, description?}`: immutable references a step can take as input (`from: baseline`, from `baselines/<id>/<revision>/`) and a hypothesis can name as its `control`. Their values live in the verifier's policy, not here. |
+| `baselines` | Controls, each `{id, revision, description?}`: immutable references a step can take as input (`from: baseline`, from `baselines/<id>/<revision>/`) and a unit can name as its `control`. Their values live in the verifier's policy, not here. |
 | `interfaces` | The formats steps exchange, `{name, version, schema | format, media_type?, encoding?, max_bytes?, allow_empty?, magic?, validate?, validator?}` ([contracts](contracts.md#step-manifests-and-the-container-contract)). Every step output naming an interface is checked against it. |
 | `validators` | Optional `role: validator` step manifests that an interface names in `validator`. |
 | `scorer` | The project's one scorer step manifest (`role: scorer`), shared by every track so metrics are computed identically. |
@@ -155,7 +155,7 @@ A track is a line of research (one architecture against another). A project's fi
 
 ### Planning a track
 
-A track's plan sets its approach and the units (hypotheses) it runs. It is built step by step through REST or MCP, by a researcher or by an agent working with one ([the routes](contracts.md#track-plans), [the planner's steps](agents.md#planning)); the web app's track page shows the plan, its revisions and the review, and **Edit the draft** opens the editor.
+A track's plan sets its approach and the units of work it runs. It is built step by step through REST or MCP, by a researcher or by an agent working with one ([the routes](contracts.md#track-plans), [the planner's steps](agents.md#planning)); the web app's track page shows the plan, its revisions and the review, and **Edit the draft** opens the editor.
 
 ```sh
 TRACK=$API/tracks/lexical
@@ -170,9 +170,9 @@ curl -sf -X POST "$TRACK/plans/1/review" -H "Authorization: Bearer $RESEARCHER" 
   -H 'Content-Type: application/json' -d '{"action": "approve", "reason": "Ready to run."}'
 ```
 
-Approval creates a queued hypothesis per new unit and activates a `planning` track. A later revision starts from the approved one; every unit already done or in flight needs an alignment (`keep`, `obsolete` or `redo`, with a reason) before it can be submitted. The project's size limits (`GET $API/limits`) apply at each write.
+Approval queues each new unit and activates a `planning` track. A later revision starts from the approved one; every unit already done or in flight needs an alignment (`keep`, `obsolete` or `redo`, with a reason) before it can be submitted. The project's size limits (`GET $API/limits`) apply at each write.
 
-Anyone working on the track, a member, a researcher, an agent or a runner step, can raise a **concern** that the plan itself is wrong (the track page's **Raise a concern**, MCP `raise_concern`, `POST $TRACK/concerns` with a Markdown document whose front matter names its `kind`, or a runner step writing `/cr/outputs/concern/concern.md`; [contracts](contracts.md#concerns)). While one is open, no new hypothesis of the track is claimed (`409 concern_open`); work already claimed continues. Home lists the open concerns to researchers. A researcher answers one with a plan revision (**Revise the plan** on the concern opens the editor with it listed: every open concern needs an answer before the draft is submitted, and approval closes the answered ones) or dismisses it with a reason.
+Anyone working on the track, a member, a researcher, an agent or a runner step, can raise a **concern** that the plan itself is wrong (the track page's **Raise a concern**, MCP `raise_concern`, `POST $TRACK/concerns` with a Markdown document whose front matter names its `kind`, or a runner step writing `/cr/outputs/concern/concern.md`; [contracts](contracts.md#concerns)). While one is open, no new unit of the track is claimed (`409 concern_open`); work already claimed continues. Home lists the open concerns to researchers. A researcher answers one with a plan revision (**Revise the plan** on the concern opens the editor with it listed: every open concern needs an answer before the draft is submitted, and approval closes the answered ones) or dismisses it with a reason.
 
 ### Service accounts and tokens
 
@@ -216,7 +216,7 @@ A candidate step's setup cache never serves a trusted step, even with the same i
 
 | Path | Contents |
 | --- | --- |
-| `/cr/job.json` (read-only) | The job or attempt, the step, its manifest and, for an experiment step, the hypothesis's `parameters`. Never a token. |
+| `/cr/job.json` (read-only) | The job or attempt, the step, its manifest and, for an experiment step, the unit's `parameters`. Never a token. |
 | `/cr/inputs/<name>/` (read-only) | Each declared input, SHA-256-verified before the step starts. |
 | `/cr/outputs/<name>/` | Each declared output, checked against its interface after the step exits, then uploaded. |
 | `/cr/code` (read-only) | With `code`: the repository tree at the commit (only `code.path`); the working directory. |
@@ -244,7 +244,7 @@ The runner caps the cache root (`cache_max_bytes`, `20Gi` by default), evicting 
 
 ### Worked example: a Python experiment step
 
-An experiment that fine-tunes a model with the hypothesis's parameters, from `example-org/ranker` (listed in `code_repositories.candidate`). The repository's `experiments/` holds `train.py` and a hash-pinned `requirements.txt` (`pip-compile --generate-hashes`).
+An experiment that fine-tunes a model with the unit's parameters, from `example-org/ranker` (listed in `code_repositories.candidate`). The repository's `experiments/` holds `train.py` and a hash-pinned `requirements.txt` (`pip-compile --generate-hashes`).
 
 ```yaml
 apiVersion: cannery-row/v1
@@ -292,7 +292,7 @@ from ranker import train  # the project's own code, next to train.py in /cr/code
 
 root = Path(os.environ.get("CR_ROOT", "/cr"))
 job = json.loads((root / "job.json").read_text())
-params = job["parameters"]  # the hypothesis's project_fields
+params = job["parameters"]  # the unit's project_fields
 resume = root / "inputs" / "checkpoint"  # empty on a first attempt
 model = train(root / "inputs" / "train", lr=params["learning_rate"], resume=resume)
 model.save(root / "outputs" / "checkpoint" / "model.safetensors")
@@ -307,7 +307,7 @@ model.save(root / "outputs" / "checkpoint" / "model.safetensors")
 )
 ```
 
-This needs, in the science revision: a `checkpoint/v1` interface (for example `{"name": "checkpoint", "version": 1, "format": "safetensors", "media_type": "application/octet-stream"}`), a `train` dataset not marked as held-out labels, `learning_rate` in `hypothesis_fields`, a `nvidia.com/gpu` ceiling, and `max_deadline_seconds` of at least 14400. The track's producer then reads `checkpoint` (`from: attempt`).
+This needs, in the science revision: a `checkpoint/v1` interface (for example `{"name": "checkpoint", "version": 1, "format": "safetensors", "media_type": "application/octet-stream"}`), a `train` dataset not marked as held-out labels, `learning_rate` in `unit_fields`, a `nvidia.com/gpu` ceiling, and `max_deadline_seconds` of at least 14400. The track's producer then reads `checkpoint` (`from: attempt`).
 
 ### Worked example: a Node validator step
 
@@ -370,9 +370,9 @@ The image digest is that of `node:22-slim` when this guide was written; pin the 
 
 An outside agent (a Codex or Claude Code session) runs the experiment itself, through REST or MCP, with an `agent` service token or a researcher's personal token.
 
-1. **Plan.** A researcher adds the hypothesis as a unit of the track's plan (`examples/fixture/hypothesis.json` is a unit entry) and approves the plan ([Planning a track](#planning-a-track)); the unit becomes a queued hypothesis. Search first (`GET /api/search`, MCP `search`) for prior related work.
-2. **Claim.** `POST /api/projects/{slug}/claims` with `{}` or `{"hypothesis": 12}` or `{"track": "lexical"}` (MCP `claim_hypothesis`). The answer holds the `attempt`, `lease_token` and `lease_generation` (send them as `X-Lease-Token` and `X-Lease-Generation` on every attempt call), `heartbeat_seconds`, and `brief`, the brief revision to read (`GET` its `ref`, or MCP `get_brief` with that `revision`). In a planned track it also names `plan`, the plan revision the attempt pinned, and `context`, the attempt's [context bundle](contracts.md#the-context-bundle) (`ref` and `bytes`): read it first.
-3. **Heartbeat** `POST …/hypotheses/{number}/attempts/{sequence}/heartbeat` at least every `heartbeat_seconds` (a third of the lease TTL, `leases.ttl_seconds`, 900 seconds by default).
+1. **Plan.** A researcher adds the unit to the track's plan (`examples/fixture/unit.json` is a unit entry) and approves the plan ([Planning a track](#planning-a-track)); the unit is queued. Search first (`GET /api/search`, MCP `search`) for prior related work.
+2. **Claim.** `POST /api/projects/{slug}/claims` with `{}` or `{"unit": 12}` or `{"track": "lexical"}` (MCP `claim_unit`). The answer holds the `attempt`, `lease_token` and `lease_generation` (send them as `X-Lease-Token` and `X-Lease-Generation` on every attempt call), `heartbeat_seconds`, and `brief`, the brief revision to read (`GET` its `ref`, or MCP `get_brief` with that `revision`). In a planned track it also names `plan`, the plan revision the attempt pinned, and `context`, the attempt's [context bundle](contracts.md#the-context-bundle) (`ref` and `bytes`): read it first.
+3. **Heartbeat** `POST …/units/{number}/attempts/{sequence}/heartbeat` at least every `heartbeat_seconds` (a third of the lease TTL, `leases.ttl_seconds`, 900 seconds by default).
 4. **Upload** each file: `POST …/attempts/{sequence}/uploads` with `{role, name, size_bytes, sha256, media_type}`, then send the bytes as the grant says (a `PUT upload_url`, or the `direct` presigned requests and `POST finish_url`; [the protocol](contracts.md#uploads-and-downloads)). The role is what the track's producer reads (`from: attempt`), plus every role in `required_artifact_roles.attempt`.
 5. **Post the manifest** of the verified uploads (`POST …/manifest`, MCP `post_manifest`), which answers `{ref, sha256}`.
 6. **Submit** the run document (`POST …/submission` with `{"document": "…"}` and an `Idempotency-Key`, MCP `submit_attempt`): Markdown with YAML front matter holding the `claims` (`agent_claim`), `provenance` and the manifest reference, and the run notes as the body ([run documents](contracts.md#run-documents)). The attempt is frozen, moves to `verifying`, and its verify job is queued.
@@ -381,30 +381,30 @@ A document the API rejects fails the attempt at once (`invalid_submission`) and 
 
 ### Workflow mode
 
-A runner's `experiment` kind runs the experiment with an experimenter token. Setting it up takes four things ([workflow tracks](contracts.md#workflow-tracks)): `hypothesis_fields` in the science revision describing the parameters, registered experiment steps, a `workflow` track naming them, and a runner with an `experiment` kind.
+A runner's `experiment` kind runs the experiment with an experimenter token. Setting it up takes four things ([workflow tracks](contracts.md#workflow-tracks)): `unit_fields` in the science revision describing the parameters, registered experiment steps, a `workflow` track naming them, and a runner with an `experiment` kind.
 
 - The workflow's last step, and only it, outputs `run` (`cr-run/v0.2`): one Markdown file, `run.md`, whose front matter may hold `claims` (`agent_claim`), `artifact_roles`, `extensions` and `provenance`, and whose body holds the run notes. The runner adds the science revision and the manifest. Every other output becomes attempt artifacts whose role is the output's name (flat files only), and together they must cover `required_artifact_roles.attempt` and every `from: attempt` input of the track's producer.
-- The hypothesis supplies the parameters: the `project_fields` of its approved revision arrive as `parameters` in the claim's `workflow` object and in each step's `/cr/job.json` ([job.json](contracts.md#jobjson-of-an-experiment-step)). A plan unit sets them as `parameters` (`examples/fixture/workflow-hypothesis.json`, `"parameters": {"top_k": 2}`), and the plan is approved as in any track.
+- The unit supplies the parameters: the `project_fields` of its approved revision arrive as `parameters` in the claim's `workflow` object and in each step's `/cr/job.json` ([job.json](contracts.md#jobjson-of-an-experiment-step)). A plan unit sets them as `parameters` (`examples/fixture/workflow-unit.json`, `"parameters": {"top_k": 2}`), and the plan is approved as in any track.
 - A `from: attempt` input of an experiment step reads the **predecessor** attempt's verified artifacts of that role (an empty directory on a first attempt), so a step can resume from a failed attempt's checkpoint. The step decides whether a partial predecessor output is usable.
 - The runner claims with `{"mode": "workflow"}`, heartbeats, runs the steps in order through its launcher, checks each output against its interface and validator, uploads every output and log, posts the manifest and submits. The attempt's deadline is pinned at claim: the sum of the steps' deadlines (setups and validators included) plus `leases.job_overhead_seconds` (300 by default).
-- A claim skips a track whose workflow or producer no longer fits the current science revision. When only such tracks have queued hypotheses the claim answers `409 workflow_unavailable` naming them; the runner logs it and keeps polling until a researcher fixes the track or the science revision.
+- A claim skips a track whose workflow or producer no longer fits the current science revision. When only such tracks have queued units the claim answers `409 workflow_unavailable` naming them; the runner logs it and keeps polling until a researcher fixes the track or the science revision.
 
 ### Crashes, lease loss and requeue
 
 | What happens | Agent mode | Workflow mode |
 | --- | --- | --- |
-| The worker stops heartbeating (crash, lost network) | The sweep fails the attempt with `lease_expired`, an agent-side failure: a failure review case opens. A researcher's `retry` queues the hypothesis again; the next claim creates a new attempt linked to the failed one. | The sweep fails it with `lease_expired`, a failure of the run: the hypothesis is queued again automatically, with no review case, while `max_auto_retries` allows; then a failure review case. |
+| The worker stops heartbeating (crash, lost network) | The sweep fails the attempt with `lease_expired`, an agent-side failure: a failure review case opens. A researcher's `retry` queues the unit again; the next claim creates a new attempt linked to the failed one. | The sweep fails it with `lease_expired`, a failure of the run: the unit is queued again automatically, with no review case, while `max_auto_retries` allows; then a failure review case. |
 | The attempt passes its deadline | No deadline. | The API refuses the lease (`stale_lease`) and the sweep fails it with `deadline_exceeded`, then as above. |
 | A late call after the lease was lost | `409 stale_lease`: stop working on the attempt. | The runner stops the step and reports nothing. |
 | The worker gives up | `release`: fails with `released`, review case. | The runner releases with a `code` (`step_failed`, `setup_failed`, `invalid_step_output`… [the list](contracts.md#failures-release-codes-and-automatic-retries)), the failing `step` and its `logs`; requeued automatically as above. |
 | An upload the API refused or could not verify, or a run document it rejected | `upload_verification_failed` or `invalid_submission`: the candidate's failure, review case at once. | The same: these are blamed on the candidate in both modes. |
-| The runner gets `SIGTERM` | | It cancels the run, removes its containers, reports nothing and exits 143; the lease expires and the sweep requeues the hypothesis. |
+| The runner gets `SIGTERM` | | It cancels the run, removes its containers, reports nothing and exits 143; the lease expires and the sweep requeues the unit. |
 
 ## Verify stage
 
-Submission moves the attempt to `verifying` and queues one verify job ([verify jobs](contracts.md#verify-jobs)). Its performer comes from the pinned science revision's `verify`. Either way, the job's inputs are the run document's front matter (`GET …/jobs/{id}/inputs/run`, staged as `claimed.json`), the run's verified artifacts (`inputs/manifest`, `inputs/object`), and, with the claim, the unit, the brief and the plan; the run notes are not an input. It completes with one **verification report** ([contracts](contracts.md#verification-reports)): Markdown whose front matter holds `verdict` (`pass`, `fail` or `inconclusive`), `reason`, `policy_revision`, `gates` (each `pass`, `fail` or `unknown`), `measurements` (each `authority: "tester_verified"`, finite values, registered metric, split and dimensions, a `missing_reason` instead of a value when it could not be measured), `discrepancies` with the claims, optional `comparisons`, and `provenance` (`source_revision`, `science_revision`, `dataset_revision`, `control_revision` when the hypothesis names a control), and whose optional body holds what the verifier observed (schema: `GET /api/schemas/verification`). A required slice `{dimension: value}` is covered only by a measurement whose `dimensions` are exactly that pair.
+Submission moves the attempt to `verifying` and queues one verify job ([verify jobs](contracts.md#verify-jobs)). Its performer comes from the pinned science revision's `verify`. Either way, the job's inputs are the run document's front matter (`GET …/jobs/{id}/inputs/run`, staged as `claimed.json`), the run's verified artifacts (`inputs/manifest`, `inputs/object`), and, with the claim, the unit, the brief and the plan; the run notes are not an input. It completes with one **verification report** ([contracts](contracts.md#verification-reports)): Markdown whose front matter holds `verdict` (`pass`, `fail` or `inconclusive`), `reason`, `policy_revision`, `gates` (each `pass`, `fail` or `unknown`), `measurements` (each `authority: "tester_verified"`, finite values, registered metric, split and dimensions, a `missing_reason` instead of a value when it could not be measured), `discrepancies` with the claims, optional `comparisons`, and `provenance` (`source_revision`, `science_revision`, `dataset_revision`, `control_revision` when the unit names a control), and whose optional body holds what the verifier observed (schema: `GET /api/schemas/verification`). A required slice `{dimension: value}` is covered only by a measurement whose `dimensions` are exactly that pair.
 
-CR checks the report: the schema, the pinned provenance, the metric registry and required slices, that a `pass` reports every gate as passed, that every comparison cites the report's own verified measurements, that a runner's report comes from the registered verifier under the registered revision, and the output manifest against `required_artifact_roles.verify`. It then indexes the verified measurements and comparisons and marks the attempt `verified`: every completed verification, whatever its verdict, sends the hypothesis to be [written up and decided](#document-and-decide).
+CR checks the report: the schema, the pinned provenance, the metric registry and required slices, that a `pass` reports every gate as passed, that every comparison cites the report's own verified measurements, that a runner's report comes from the registered verifier under the registered revision, and the output manifest against `required_artifact_roles.verify`. It then indexes the verified measurements and comparisons and marks the attempt `verified`: every completed verification, whatever its verdict, sends the unit to be [written up and decided](#document-and-decide).
 
 ### With the runner
 
@@ -426,7 +426,7 @@ Register producers with `POST /api/projects/{slug}/producers`; each registration
 | Writes | The gate results it computes. | One JSON file in `/cr/outputs/verdict/`, at most 1 MiB, with exactly `gates`, `comparisons` (optional), `verdict` and `reason`. |
 | Alone | `cannery evaluator --config policy.json`, offline, for a verifier that runs its own steps. | Only as a `verify` kind of `cannery runner`. |
 
-The job pins the hypothesis's `parameters` when it is created (the `project_fields` of the revision the attempt pinned, `{}` without any), so a later revision never changes what a run or rerun sees: a policy step reads them from `/cr/job.json` ([contracts](contracts.md#policy-steps)) and the stock gates ignore them.
+The job pins the unit's `parameters` when it is created (the `project_fields` of the revision the attempt pinned, `{}` without any), so a later revision never changes what a run or rerun sees: a policy step reads them from `/cr/job.json` ([contracts](contracts.md#policy-steps)) and the stock gates ignore them.
 
 **The deadline budget.** A runner job's deadline is the sum of its steps' deadlines (setups and validators included) plus `leases.job_overhead_seconds` plus the science revision's `limits.max_deadline_seconds` (one hour when unset) for the policy. A policy step's setup deadline (when it has a setup) plus its `activeDeadlineSeconds` plus the 30 seconds the runner keeps to upload and report must fit that allowance, or the step never starts and the job fails with `deadline_exceeded`.
 
@@ -445,11 +445,11 @@ A failure of the verify job (a step exits non-zero, a deadline, a validator reje
 
 ## Document and decide
 
-A verified attempt ends at `verified`, whatever the verdict, and its hypothesis moves to `documenting`: one document job waits for its write-up ([contracts](contracts.md#write-ups-and-decisions)). The same happens when a researcher stops a hypothesis after a failure (`stop` on its failure case). The web app's Home lists the write-ups to do and the decisions to take.
+A verified attempt ends at `verified`, whatever the verdict, and its unit moves to `documenting`: one document job waits for its write-up ([contracts](contracts.md#write-ups-and-decisions)). The same happens when a researcher stops a unit after a failure (`stop` on its failure case). The web app's Home lists the write-ups to do and the decisions to take.
 
 - **The write-up.** An `agent` service account or a researcher claims the document job (`POST /api/projects/{slug}/jobs/claims` with `{"phase": "document"}`, MCP `claim_job`) and follows [the agent's steps](agents.md#document): read the documenter's context bundle (the brief, the plan, the unit, every attempt's run document and notes, the failures with their logs, the verification reports, the comments) and complete the job with the write-up, Markdown whose front matter holds a one-sentence `summary`, the `attempts` it covers and the `verification` it cites, as the claim's `inputs` name them. In the web app, a researcher's "Write it up" claims and completes the job in one action. A researcher may instead skip the write-up with a reason; the decision then shows "No write-up: <reason>". Nothing skips a write-up automatically.
-- **The decision.** The hypothesis then moves to `deciding` and its decision case opens. A researcher records a decision document: the `outcome` (`promote`, `reject`, `inconclusive`, or `failed` for a stopped hypothesis) citing the verification report and the write-up, and the reason as its body. A promotion needs a `pass` verdict.
-- **Automatic decisions.** A science revision with `decide: {"performer": "step", "decider": {"id": "<decider service account>", "revision": "<step revision>"}}` hands each decision to a decider step instead: a decide job is queued beside the decision case, and the runner's `decide` kind (below) runs the step and records its decision document under the same rules, a promotion only on a `pass` verdict. Home names the decider on that case, and a researcher cannot decide it while the decide job waits or runs. Once the decision is recorded, the hypothesis page shows "Decided automatically by the decider step", and a researcher may correct it with a new decision that supersedes it. A decide job that keeps failing, after the science revision's `max_auto_retries`, leaves the case to researchers. There is no other override.
+- **The decision.** The unit then moves to `deciding` and its decision case opens. A researcher records a decision document: the `outcome` (`promote`, `reject`, `inconclusive`, or `failed` for a stopped unit) citing the verification report and the write-up, and the reason as its body. A promotion needs a `pass` verdict.
+- **Automatic decisions.** A science revision with `decide: {"performer": "step", "decider": {"id": "<decider service account>", "revision": "<step revision>"}}` hands each decision to a decider step instead: a decide job is queued beside the decision case, and the runner's `decide` kind (below) runs the step and records its decision document under the same rules, a promotion only on a `pass` verdict. Home names the decider on that case, and a researcher cannot decide it while the decide job waits or runs. Once the decision is recorded, the unit page shows "Decided automatically by the decider step", and a researcher may correct it with a new decision that supersedes it. A decide job that keeps failing, after the science revision's `max_auto_retries`, leaves the case to researchers. There is no other override.
 
 ## Running the runner
 
@@ -519,7 +519,7 @@ The cache root (`cache_root`, `<work_root>/cache` by default) holds code trees b
 
 ## Importing history
 
-If the project has results from before CR (notebooks, reports, run artifacts in a bucket), import them once, before or beside live work, so new hypotheses can be compared with them. `cannery import --bundle DIR --project SLUG [--science FILE] [--dry-run] [--allow-missing]` loads a human-reviewed bundle of YAML or JSON files in one transaction ([import.md](import.md); `examples/import/` is a complete bundle for the fixture science revision). Always start with `--dry-run`: an imported file can never be edited afterwards.
+If the project has results from before CR (notebooks, reports, run artifacts in a bucket), import them once, before or beside live work, so new units can be compared with them. `cannery import --bundle DIR --project SLUG [--science FILE] [--dry-run] [--allow-missing]` loads a human-reviewed bundle of YAML or JSON files in one transaction ([import.md](import.md); `examples/import/` is a complete bundle for the fixture science revision). Always start with `--dry-run`: an imported file can never be edited afterwards.
 
 Imported records carry `origin: imported` and a `source_ref`; their measurements have the authorities `imported_artifact` (read from an artifact) or `imported_transcribed` (copied from a document), never `tester_verified`, so they never pass for work CR tested. A finished imported attempt with no decision of its own is `unreviewed`, a state only imports use. An imported result awaiting review continues in the live workflow. Imported artifacts are references (backend `external`, URI, size, SHA-256): CR never had the bytes. Metrics queries and comparisons return imported values only on request (`authority=imported`, `origin=imported`).
 
@@ -527,7 +527,7 @@ An attempt may carry its retrospective report, a Markdown file under the bundle'
 
 ## Checklist
 
-From an empty CR to the first decided hypothesis:
+From an empty CR to the first decided unit:
 
 1. Deploy the image with OIDC and a bootstrap admin, run `migrate`, sign in. [deploy.md](deploy.md#configuration)
 2. Create the project with its first track, grant `researcher` to the people who approve and decide (yourself included), and write the brief. [Setting up a project](#setting-up-a-project), [The brief](#the-brief)
@@ -542,16 +542,16 @@ From an empty CR to the first decided hypothesis:
 11. Plan each track and approve the plan. [Planning a track](#planning-a-track), [Agent mode](#agent-mode)
 12. Run the experiment: an agent claims and submits, or the experiment kind does. [Experiment stage](#experiment-stage)
 13. Watch the verify job (`GET …/attempts/{sequence}/jobs`, the web app's attempt page).
-14. The hypothesis is written up: an agent claims its document job (`claim_job` with `{"phase": "document"}`), or a researcher writes it up or skips it from the web app's write-up page. [Document and decide](#document-and-decide)
+14. The unit is written up: an agent claims its document job (`claim_job` with `{"phase": "document"}`), or a researcher writes it up or skips it from the web app's write-up page. [Document and decide](#document-and-decide)
 15. A researcher decides it on its decision case (`GET /api/projects/{slug}/review-cases`, then `POST …/review-cases/{case_id}/decisions` with `review_case_id` and the decision `document`, or the web app) and records `promote`, `reject` or `inconclusive`.
 
 ## Troubleshooting
 
 | Code | Where | Means | Do |
 | --- | --- | --- | --- |
-| `nothing_to_claim` (409) | Hypothesis claim | No queued hypothesis in an active track of the caller's mode. | Check a plan was approved, the track is `active`, and the identity matches the mode (agents claim `agent` tracks, experimenters `workflow` tracks). The runner just keeps polling. |
-| `concern_open` (409) | Hypothesis claim | Queued hypotheses wait only in tracks with an open concern about their plan; the message names the tracks. | Read the concerns on the track page: a researcher revises the plan to answer them (Revise the plan) or dismisses them with a reason. The runner just keeps polling. |
-| `workflow_unavailable` (409) | Hypothesis claim, `workflow` mode | Queued hypotheses wait only in workflow tracks that no longer fit the current science revision; `details` names each track and why. | Fix the track (`PATCH` its workflow or producer) or register a science revision it fits. |
+| `nothing_to_claim` (409) | Unit claim | No queued unit in an active track of the caller's mode. | Check a plan was approved, the track is `active`, and the identity matches the mode (agents claim `agent` tracks, experimenters `workflow` tracks). The runner just keeps polling. |
+| `concern_open` (409) | Unit claim | Queued units wait only in tracks with an open concern about their plan; the message names the tracks. | Read the concerns on the track page: a researcher revises the plan to answer them (Revise the plan) or dismisses them with a reason. The runner just keeps polling. |
+| `workflow_unavailable` (409) | Unit claim, `workflow` mode | Queued units wait only in workflow tracks that no longer fit the current science revision; `details` names each track and why. | Fix the track (`PATCH` its workflow or producer) or register a science revision it fits. |
 | `forbidden` (403) | Any | The identity cannot do this: an agent claiming `workflow`, an experimenter claiming `agent`, a token created without a browser session, a missing role, a missing `write` scope. | Use the identity the [token table](#the-model-in-one-screen) gives. |
 | `conflict` (409) | Job claim, track, claim | No verify job waits for this verifier name and policy revision, only jobs of attempts the caller ran itself wait (an agent or researcher never verifies its own run), or a genuine conflict (track paused or switched during a claim, a control a step cannot stage). | For a runner: the service account's name must equal the science revision's `verify.verifier.id`, and the policy file's revision its `verify.verifier.revision`. For an agent: let another identity verify the attempts it ran. |
 | `stale_lease` (409) | Attempt or job calls | The lease token or generation is not current, it expired, or a runner-driven attempt passed its deadline. | Stop working on it. In agent mode the attempt fails for review; in workflow mode it is requeued. |

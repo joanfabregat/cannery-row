@@ -10,18 +10,18 @@ use axum::{
 use cannery_comments_reports::comments::{self, Comment, CommentId};
 use cannery_core::{
     errors::{DomainError, ErrorCode},
-    ids::{AttemptId, HypothesisId},
+    ids::{AttemptId, UnitId},
     json::Node,
     pg_integer::Integer,
 };
-use cannery_hypotheses::repo as hypotheses;
+use cannery_units::repo as units;
 use num_bigint::BigInt;
 use sqlx::PgConnection;
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Caller-selected repository profiles; physical pooled history is bound separately.
 pub struct CommentContext {
-    pub hypotheses: hypotheses::JsonContext,
+    pub units: units::JsonContext,
     pub mutations: Option<Arc<crate::comment_mutations::CommentMutationContext>>,
 }
 #[derive(Clone)]
@@ -53,11 +53,11 @@ pub(crate) fn invalid(e: &crate::validation::ValidationErrors, c: &RequestContex
 pub fn routes(app: AppState, context: Arc<CommentContext>) -> Router {
     let router = Router::new()
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/comments",
-            get(rest_list_hypothesis_comments).head(head_post),
+            "/api/projects/{slug}/units/{number}/comments",
+            get(rest_list_unit_comments).head(head_post),
         )
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/comments",
             get(rest_list_attempt_comments).head(head_post),
         )
         .route(
@@ -71,11 +71,11 @@ pub fn routes(app: AppState, context: Arc<CommentContext>) -> Router {
     let router = if context.mutations.is_some() {
         router
             .route(
-                "/api/projects/{slug}/hypotheses/{number}/comments",
-                axum::routing::post(crate::comment_mutations::rest_comment_on_hypothesis),
+                "/api/projects/{slug}/units/{number}/comments",
+                axum::routing::post(crate::comment_mutations::rest_comment_on_unit),
             )
             .route(
-                "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments",
+                "/api/projects/{slug}/units/{number}/attempts/{sequence}/comments",
                 axum::routing::post(crate::comment_mutations::rest_comment_on_attempt),
             )
             .route(
@@ -96,11 +96,11 @@ async fn head_get() -> impl IntoResponse {
 pub(crate) fn output(row: &Comment) -> crate::api_models::CommentOut {
     crate::api_models::CommentOut {
         id: row.id.0.to_string(),
-        hypothesis: i64::from(row.hypothesis_number),
-        hypothesis_ref: format!("#{}", row.hypothesis_number),
+        unit: i64::from(row.unit_number),
+        unit_ref: format!("#{}", row.unit_number),
         attempt_ref: row
             .attempt_sequence
-            .map(|sequence| format!("#{}.{sequence}", row.hypothesis_number)),
+            .map(|sequence| format!("#{}.{sequence}", row.unit_number)),
         author_user_id: row.author_user.to_string(),
         body_markdown: row.body_markdown.clone(),
         revision: i64::from(row.revision),
@@ -198,14 +198,14 @@ fn paging(
 }
 pub(crate) async fn attempt_id(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
     sequence: &BigInt,
     c: &RequestContext,
 ) -> Result<Option<AttemptId>, Failure> {
     let integer = Integer::new(sequence).map_err(|_| internal(c, "comment sequence encoding"))?;
     let row = sqlx::query!(
-        "SELECT id AS \"id!: AttemptId\" FROM attempts WHERE hypothesis_id=$1 AND sequence=$2",
-        hypothesis as _,
+        "SELECT id AS \"id!: AttemptId\" FROM attempts WHERE unit_id=$1 AND sequence=$2",
+        unit as _,
         integer as _
     )
     .fetch_optional(conn)
@@ -224,7 +224,7 @@ async fn list(
         .await
         .map_err(|e| Failure(Box::new(e.into_response())))?;
     let paths = paths(&mut parts, &s).await?;
-    let parsed = crate::validation::hypothesis_parameters(
+    let parsed = crate::validation::unit_parameters(
         paths.get("number").map(String::as_str),
         paths.get("sequence").map(String::as_str),
         &[],
@@ -258,21 +258,16 @@ async fn list(
     let number = parsed
         .number
         .ok_or_else(|| internal(&c, "comment number"))?;
-    let hyp = hypotheses::get_hypothesis(
+    let hyp = units::get_unit(
         &mut auth.connection,
         project.id,
         &number,
         false,
-        s.context.hypotheses,
+        s.context.units,
     )
     .await
-    .map_err(|_| internal(&c, "comment hypothesis"))?
-    .ok_or_else(|| {
-        domain(
-            ErrorCode::NotFound,
-            format!("hypothesis #{number} not found"),
-        )
-    })?;
+    .map_err(|_| internal(&c, "comment unit"))?
+    .ok_or_else(|| domain(ErrorCode::NotFound, format!("unit #{number} not found")))?;
     let attempt = if let Some(sequence) = parsed.revision {
         Some(
             attempt_id(&mut auth.connection, hyp.id, &sequence, &c)
@@ -442,10 +437,10 @@ pub(crate) async fn revisions(
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/comments",
-    operation_id = "list_hypothesis_comments_api_projects__slug__hypotheses__number__comments_get",
-    summary = "List Hypothesis Comments",
-    description = "Comments on the hypothesis and on its attempts, newest first.",
+    path = "/api/projects/{slug}/units/{number}/comments",
+    operation_id = "list_unit_comments_api_projects__slug__units__number__comments_get",
+    summary = "List Unit Comments",
+    description = "Comments on the unit and on its attempts, newest first.",
     params(("slug" = String, Path),
         ("number" = i64, Path),
         ("before" = Option<String>, Query, description = "Continue after this comment id.", format = "uuid"),
@@ -460,7 +455,7 @@ pub(crate) async fn revisions(
         (status = 503, description = "Service unavailable", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
 )]
-pub(crate) async fn rest_list_hypothesis_comments(
+pub(crate) async fn rest_list_unit_comments(
     arg0: State<RouteState>,
     arg1: axum::Extension<RequestContext>,
     arg2: Request,
@@ -470,8 +465,8 @@ pub(crate) async fn rest_list_hypothesis_comments(
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments",
-    operation_id = "list_attempt_comments_api_projects__slug__hypotheses__number__attempts__sequence__comments_get",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/comments",
+    operation_id = "list_attempt_comments_api_projects__slug__units__number__attempts__sequence__comments_get",
     summary = "List Attempt Comments",
     description = "Comments on the attempt, newest first.",
     params(("slug" = String, Path),

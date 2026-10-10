@@ -4,8 +4,8 @@ WITH q AS (
 ), base AS (
     SELECT d.id, d.kind, d.source_id, d.attempt_id, d.title AS doc_title, d.body,
            d.occurred_at, d.actor_user, d.actor_service, p.slug AS project, t.slug AS track,
-           h.number AS hypothesis_number, h.title AS hypothesis_title,
-           a.sequence AS attempt_sequence, h.state AS hypothesis_state,
+           h.number AS unit_number, h.title AS unit_title,
+           a.sequence AS attempt_sequence, h.state AS unit_state,
            a.state AS attempt_state,
            CASE WHEN d.kind IN ('track', 'comment') THEN 'live'
                 WHEN d.kind = 'decision_reason'
@@ -20,7 +20,7 @@ WITH q AS (
     FROM search_documents d
     CROSS JOIN q
     JOIN projects p ON p.id = d.project_id
-    LEFT JOIN hypotheses h ON h.id = d.hypothesis_id
+    LEFT JOIN units h ON h.id = d.unit_id
     LEFT JOIN attempts a ON a.id = d.attempt_id
     LEFT JOIN tracks t ON t.id = coalesce(d.track_id, a.track_id, h.track_id)
     WHERE ($1::uuid[] IS NULL OR d.project_id = ANY($1::uuid[]))
@@ -37,7 +37,7 @@ WITH q AS (
       AND ($5::bigint IS NULL OR (
            h.number = $5::bigint
            AND ($4::text IS NULL OR p.slug = $4::text)
-           AND CASE WHEN $6::bigint IS NULL THEN d.kind = 'hypothesis'
+           AND CASE WHEN $6::bigint IS NULL THEN d.kind = 'unit'
                     ELSE a.sequence = $6::bigint END))
       AND ($9::text[] IS NULL OR t.slug = ANY($9::text[]))
       AND ($10::text[] IS NULL
@@ -75,8 +75,8 @@ WITH q AS (
             UNION ALL SELECT 'project', project, count(*) FROM filtered GROUP BY project
             UNION ALL SELECT 'track', track, count(*) FROM filtered
                 WHERE track IS NOT NULL GROUP BY track
-            UNION ALL SELECT 'hypothesis_state', hypothesis_state, count(*) FROM filtered
-                WHERE hypothesis_state IS NOT NULL GROUP BY hypothesis_state
+            UNION ALL SELECT 'unit_state', unit_state, count(*) FROM filtered
+                WHERE unit_state IS NOT NULL GROUP BY unit_state
             UNION ALL SELECT 'attempt_state', attempt_state, count(*) FROM filtered
                 WHERE attempt_state IS NOT NULL GROUP BY attempt_state
             UNION ALL SELECT 'verdict', verdict, count(*) FROM filtered

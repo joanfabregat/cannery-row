@@ -2,12 +2,12 @@ import { screen, within } from "@testing-library/react";
 
 import type { Schemas } from "@/api/client";
 
-import { attempt, hypothesis, hypothesisApi, report } from "@/test/fixtures";
+import { attempt, unit, unitApi, report } from "@/test/fixtures";
 import { renderApp, signedIn } from "@/test/render";
 
 const imported = {
   origin: "imported",
-  source_ref: "hypotheses/H-001.yaml#/attempts/0",
+  source_ref: "units/H-001.yaml#/attempts/0",
 } as const;
 
 function importedAttempt(
@@ -15,7 +15,7 @@ function importedAttempt(
 ) {
   const a = attempt({ ...imported, imported: { label: "seed-1" } });
   const r = report({ ...imported, report: retrospective, claimed_measurements: [] });
-  return hypothesisApi(hypothesis({ ...imported, external_id: "H-001" }), {
+  return unitApi(unit({ ...imported, external_id: "H-001" }), {
     attempts: [a],
     reports: { 1: r },
   });
@@ -35,7 +35,7 @@ describe("an imported attempt's report", () => {
         source_ref: "reports/H-001/seed-1.md",
       }),
     );
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     const section = await screen.findByRole("region", { name: "Retrospective report" });
     expect(within(section).getByText("A research agent; reviewed by Ana")).toBeInTheDocument();
     const day = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeZone: "UTC" });
@@ -62,7 +62,7 @@ describe("an imported attempt's report", () => {
         source_ref: "reports/H-001/seed-1.md",
       }),
     );
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     const section = await screen.findByRole("region", { name: "Retrospective report" });
     const at = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
     expect(section).toHaveTextContent(`Written${at.format(new Date(instant))}`);
@@ -70,7 +70,7 @@ describe("an imported attempt's report", () => {
 
   it("says no agent wrote one when the history has none", async () => {
     signedIn({}, importedAttempt({}));
-    renderApp("/hypotheses/12/attempts/1");
+    renderApp("/units/12/attempts/1");
     expect(await screen.findByText(/no agent wrote a report for it/)).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Retrospective report" })).not.toBeInTheDocument();
   });

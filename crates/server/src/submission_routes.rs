@@ -54,7 +54,7 @@ pub(crate) struct RouteState {
 pub fn routes(app: AppState, profile: Arc<SubmissionContext>) -> Router {
     Router::new()
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/submission",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/submission",
             post(submit),
         )
         .with_state(RouteState { app, profile })
@@ -287,8 +287,8 @@ async fn failed(
 )]
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/submission",
-    operation_id = "submit_api_projects__slug__hypotheses__number__attempts__sequence__submission_post",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/submission",
+    operation_id = "submit_api_projects__slug__units__number__attempts__sequence__submission_post",
     summary = "Submit",
     description = "Submit the run document of a completed run; the attempt is frozen on acceptance.\n\nThe document is Markdown with YAML front matter, checked against\n`GET /api/schemas/run`: the claims, provenance, artifact roles and verified\nmanifest, and optional run notes as the body. A run that failed releases\nthe attempt instead; front matter with a `status` is refused and leaves the\nattempt as it was. Any other invalid document fails the attempt for human\nreview, once the caller has shown it holds the lease.",
     params(("slug" = String, Path),
@@ -544,22 +544,20 @@ async fn record_run(
         &profile.lifecycle,
         request,
     )?;
-    let mentions = crate::hypothesis_mutations::resolve_mentions(
+    let mentions = crate::unit_mutations::resolve_mentions(
         c,
         principal,
         project,
         &notes,
-        Some(attempt.hypothesis_id),
+        Some(attempt.unit_id),
         profile.nesting_budget,
         request,
     )
     .await
     .map_err(failure)?;
-    cannery_hypotheses::repo::replace_mentions(
+    cannery_units::repo::replace_mentions(
         c,
-        cannery_hypotheses::repo::MentionSource::Report(cannery_hypotheses::repo::EvidenceId(
-            evidence.0,
-        )),
+        cannery_units::repo::MentionSource::Report(cannery_units::repo::EvidenceId(evidence.0)),
         mentions,
     )
     .await

@@ -8,8 +8,8 @@ function inProject(path: string, project?: string | null): string {
   return project ? `${path}?project=${encodeURIComponent(project)}` : path;
 }
 
-export function hypothesisPath(number: number | string, project?: string | null): string {
-  return inProject(`/hypotheses/${number}`, project);
+export function unitPath(number: number | string, project?: string | null): string {
+  return inProject(`/units/${number}`, project);
 }
 
 export function attemptPath(
@@ -17,15 +17,15 @@ export function attemptPath(
   sequence: number | string,
   project?: string | null,
 ): string {
-  return inProject(`/hypotheses/${number}/attempts/${sequence}`, project);
+  return inProject(`/units/${number}/attempts/${sequence}`, project);
 }
 
 export function reviewPath(number: number | string): string {
-  return `/hypotheses/${number}/review`;
+  return `/units/${number}/review`;
 }
 
 export function writeupPath(number: number | string): string {
-  return `/hypotheses/${number}/writeup`;
+  return `/units/${number}/writeup`;
 }
 
 export function trackPath(slug: string, project?: string | null): string {

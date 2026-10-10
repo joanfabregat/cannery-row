@@ -245,8 +245,8 @@ async fn storage(pool: &sqlx::PgPool) -> Result<Value> {
     let mut output = json!({});
     for (table, order) in [
         ("tracks", "id"),
-        ("hypotheses", "id"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "id"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("artifacts", "id"),
         ("measurements", "id"),
@@ -348,7 +348,7 @@ async fn predecessor_input_match_production() -> Result<()> {
         .await?;
     let object_request = || {
         Request::builder()
-            .uri("/api/projects/matrix/hypotheses/2/attempts/1/inputs/predecessor/00000000-0000-0000-0000-000000004008")
+            .uri("/api/projects/matrix/units/2/attempts/1/inputs/predecessor/00000000-0000-0000-0000-000000004008")
             .header("authorization", "Bearer cr_svc_track_http_experimenter")
             .header("X-Lease-Token", "fixture-predecessor-held")
             .header("X-Lease-Generation", "9")

@@ -57,9 +57,9 @@ brief:
     # Conventions
 
     - Report recall@10 and NDCG@10 per `user_segment` slice: returning and new users.
-    - The popularity list (`popularity` r1) is the control unless a promoted hypothesis is better.
+    - The popularity list (`popularity` r1) is the control unless a promoted unit is better.
 
-hypotheses:
+units:
   - key: als-64
     doc:
       track: matrix-factorization
@@ -134,7 +134,7 @@ hypotheses:
             Collaborative filtering is worth it here; new users still need a fallback.
         decision: {by: decider, action: promote, reason: "Large, consistent gain for returning users without hurting new ones. ALS-64 is the reference model of this project."}
     comments:
-      - {by: chloe, on: hypothesis, body: "Coverage going from 0.3% to 21% is the number merchandising will care about most."}
+      - {by: chloe, on: unit, body: "Coverage going from 0.3% to 21% is the number merchandising will care about most."}
 
   - key: item-knn
     doc:
@@ -154,7 +154,7 @@ hypotheses:
         regression_gates: [user_segment]
         compute_budget: {cpu_hours_max: 1}
       relations:
-        - {kind: related_to, hypothesis: als-64}
+        - {kind: related_to, unit: als-64}
     attempts:
       - by: agent
         stop: verified
@@ -217,7 +217,7 @@ hypotheses:
         compute_budget: {cpu_hours_max: 3}
       project_fields: {factors: 64, seed: 3}
       relations:
-        - {kind: related_to, hypothesis: als-64}
+        - {kind: related_to, unit: als-64}
     attempts:
       - by: agent
         stop: verified
@@ -276,7 +276,7 @@ hypotheses:
         compute_budget: {cpu_hours_max: 3}
       project_fields: {factors: 128, seed: 3}
       relations:
-        - {kind: derived_from, hypothesis: als-64}
+        - {kind: derived_from, unit: als-64}
     attempts:
       - by: agent
         stop: released
@@ -361,7 +361,7 @@ hypotheses:
         regression_gates: []
         compute_budget: {cpu_hours_max: 1}
       relations:
-        - {kind: derived_from, hypothesis: content-cold-start}
+        - {kind: derived_from, unit: content-cold-start}
     attempts:
       - by: agent
         stop: submitted

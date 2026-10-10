@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 
 /// Validated source `ClaimRequest`; values are excluded from diagnostics.
 pub struct ClaimRequest {
-    pub hypothesis: Option<BigInt>,
+    pub unit: Option<BigInt>,
     pub track: Option<String>,
     pub mode: Option<TrackMode>,
     pub fields_set: BTreeSet<String>,
@@ -44,13 +44,13 @@ pub fn claim_mode(
     if mode == TrackMode::Workflow && !experimenter {
         return Err(DomainError::new(
             ErrorCode::Forbidden,
-            "only an experimenter service account (a Cannery Row runner) claims hypotheses of workflow tracks",
+            "only an experimenter service account (a Cannery Row runner) claims units of workflow tracks",
         ));
     }
     if mode == TrackMode::Agent && experimenter {
         return Err(DomainError::new(
             ErrorCode::Forbidden,
-            "an experimenter claims only hypotheses of workflow tracks",
+            "an experimenter claims only units of workflow tracks",
         ));
     }
     Ok(mode)

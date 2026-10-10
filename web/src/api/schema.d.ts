@@ -307,14 +307,14 @@ export interface paths {
         put?: never;
         /**
          * Claim
-         * @description Claim a queued hypothesis.
+         * @description Claim a queued unit.
          *
          *     ``409 nothing_to_claim`` when none is available. In ``workflow`` mode a
          *     track whose workflow (or producer) cannot be pinned under the current
-         *     science revision is skipped, so the other tracks' hypotheses still flow;
-         *     when only such tracks have queued hypotheses, ``409 workflow_unavailable``
+         *     science revision is skipped, so the other tracks' units still flow;
+         *     when only such tracks have queued units, ``409 workflow_unavailable``
          *     names them. While an open concern about a track's plan blocks it, its
-         *     hypotheses are not claimed; when only such tracks have queued hypotheses,
+         *     units are not claimed; when only such tracks have queued units,
          *     ``409 concern_open`` names them.
          */
         post: operations["claim_api_projects__slug__claims_post"];
@@ -440,7 +440,7 @@ export interface paths {
         /**
          * Dismiss Concern
          * @description A researcher dismisses an open concern without revising the plan, with a
-         *     reason the raiser and the track see. The track's hypotheses can be claimed
+         *     reason the raiser and the track see. The track's units can be claimed
          *     again once no concern about its plan is open.
          */
         post: operations["dismiss_concern_api_projects__slug__concerns__concern_id__dismissal_post"];
@@ -594,423 +594,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{slug}/hypotheses": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Hypotheses */
-        get: operations["list_hypotheses_api_projects__slug__hypotheses_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Hypothesis */
-        get: operations["get_hypothesis_api_projects__slug__hypotheses__number__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Attempts
-         * @description The hypothesis's attempts, by sequence.
-         */
-        get: operations["list_attempts_api_projects__slug__hypotheses__number__attempts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Attempt */
-        get: operations["get_attempt_api_projects__slug__hypotheses__number__attempts__sequence__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Attempt Comments
-         * @description Comments on the attempt, newest first.
-         */
-        get: operations["list_attempt_comments_api_projects__slug__hypotheses__number__attempts__sequence__comments_get"];
-        put?: never;
-        /** Comment On Attempt */
-        post: operations["comment_on_attempt_api_projects__slug__hypotheses__number__attempts__sequence__comments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Context Bundle
-         * @description The attempt's context bundle as Markdown, assembled from the revisions it
-         *     pinned at its claim: the brief, the plan's approach, the unit's fields and
-         *     brief, an index of the track's other units, and a summary line and
-         *     reference for each context item and each unit it derives from. The front
-         *     matter states its size in bytes. `detail=compact` keeps the brief's goal,
-         *     the unit and the index, capped at 16 KiB. `phase=document` is the
-         *     documenter's bundle: the full bundle and the hypothesis's record, every
-         *     attempt's run document and notes, failures and their logs, verification
-         *     reports and the comments. `phase=decide` adds the write-up, or why there
-         *     is none.
-         */
-        get: operations["get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/heartbeat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Heartbeat */
-        post: operations["heartbeat_api_projects__slug__hypotheses__number__attempts__sequence__heartbeat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Predecessor Input
-         * @description Read a verified artifact of the predecessor attempt, under the lease.
-         *
-         *     How an experimenter stages an experiment step's ``from: attempt`` input;
-         *     only an experimenter may, on its runner-driven attempt, and only its
-         *     predecessor's own verified uploads of a role some pinned step reads
-         *     (listed in its claim's ``workflow.inputs.predecessor``) are readable. With
-         *     an object store that presigns, the answer is a redirect (302) to a
-         *     short-lived presigned GET: follow it without this request's headers, and
-         *     check the bytes against the listed size and SHA-256.
-         */
-        get: operations["predecessor_input_api_projects__slug__hypotheses__number__attempts__sequence__inputs_predecessor__artifact_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Attempt Jobs
-         * @description The attempt's verify jobs, by run number.
-         */
-        get: operations["list_attempt_jobs_api_projects__slug__hypotheses__number__attempts__sequence__jobs_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/manifest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Post Manifest
-         * @description Verify an artifact manifest against this attempt's verified uploads.
-         */
-        post: operations["post_manifest_api_projects__slug__hypotheses__number__attempts__sequence__manifest_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/release": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Release
-         * @description Give up the attempt. It fails and a researcher decides whether to retry.
-         *
-         *     An experimenter (a Cannery Row runner) giving up a runner-driven attempt
-         *     reports why with ``code``, the failing ``step`` and its ``logs``. Its
-         *     report is trusted: the failure is one of the run, and the hypothesis is
-         *     queued again automatically while retries remain (docs/spec.md). Only an
-         *     experimenter may send them.
-         */
-        post: operations["release_api_projects__slug__hypotheses__number__attempts__sequence__release_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/report": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Report
-         * @description The attempt's full report with the evidence and decisions that followed it.
-         */
-        get: operations["get_report_api_projects__slug__hypotheses__number__attempts__sequence__report_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/submission": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Submit
-         * @description Submit the run document of a completed run; the attempt is frozen on acceptance.
-         *
-         *     The document is Markdown with YAML front matter, checked against
-         *     `GET /api/schemas/run`: the claims, provenance, artifact roles and verified
-         *     manifest, and optional run notes as the body. A run that failed releases
-         *     the attempt instead; front matter with a `status` is refused and leaves the
-         *     attempt as it was. Any other invalid document fails the attempt for human
-         *     review, once the caller has shown it holds the lease.
-         */
-        post: operations["submit_api_projects__slug__hypotheses__number__attempts__sequence__submission_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/uploads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Upload
-         * @description Grant a one-time, create-only upload of one file of the attempt.
-         *
-         *     With an object store that presigns, the grant also carries ``direct``:
-         *     the presigned request(s) that send the bytes straight to the bucket, then
-         *     a finish request (see ``docs/contracts.md``).
-         */
-        post: operations["create_upload_api_projects__slug__hypotheses__number__attempts__sequence__uploads_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/comments": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Hypothesis Comments
-         * @description Comments on the hypothesis and on its attempts, newest first.
-         */
-        get: operations["list_hypothesis_comments_api_projects__slug__hypotheses__number__comments_get"];
-        put?: never;
-        /** Comment On Hypothesis */
-        post: operations["comment_on_hypothesis_api_projects__slug__hypotheses__number__comments_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/revisions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Revisions
-         * @description Revisions, oldest first.
-         */
-        get: operations["list_revisions_api_projects__slug__hypotheses__number__revisions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/revisions/{revision}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Revision */
-        get: operations["get_revision_api_projects__slug__hypotheses__number__revisions__revision__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/writeup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Write-up
-         * @description The hypothesis's write-up: `pending` or `claimed` while its document job
-         *     waits or is being written, `written` with the write-up, or `skipped` with
-         *     the researcher's reason. `inputs` is what the write-up covers and cites,
-         *     and `context` the documenter's context bundle.
-         */
-        get: operations["get_writeup_api_projects__slug__hypotheses__number__writeup_get"];
-        put?: never;
-        /**
-         * Write Up
-         * @description A researcher writes the hypothesis up: the document job is claimed and
-         *     completed in one action. The write-up is Markdown with YAML front matter
-         *     (``writeup.schema.json``): a one-sentence `summary`, the `attempts` it
-         *     covers (every attempt of the hypothesis) and the `verification` report it
-         *     cites (null for a hypothesis stopped after a failure), as the write-up's
-         *     `inputs` name them, and a body. The hypothesis then awaits its decision.
-         *     A job another documenter holds is `409 conflict`.
-         */
-        post: operations["write_up_api_projects__slug__hypotheses__number__writeup_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{slug}/hypotheses/{number}/writeup/skip": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Skip Write-up
-         * @description A researcher skips the hypothesis's write-up, waiting or being written,
-         *     with a reason: the hypothesis then awaits its decision without one, and
-         *     its decision shows "No write-up: <reason>". Nothing skips a write-up
-         *     automatically.
-         */
-        post: operations["skip_writeup_api_projects__slug__hypotheses__number__writeup_skip_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/projects/{slug}/jobs/claims": {
         parameters: {
             query?: never;
@@ -1032,12 +615,12 @@ export interface paths {
          *     itself.
          *
          *     With `phase: document`, an agent service account or a researcher claims
-         *     the oldest waiting document job: it writes up a hypothesis whose last
+         *     the oldest waiting document job: it writes up a unit whose last
          *     attempt was verified, or that a researcher stopped after a failure.
          *
          *     With `phase: decide`, the decider service account a science revision
          *     registers names the revision of its step and claims the oldest waiting
-         *     decide job registered to it: it decides a written-up hypothesis on its
+         *     decide job registered to it: it decides a written-up unit on its
          *     decision case.
          *
          *     Replaying an ``Idempotency-Key`` while its claim still holds the lease
@@ -1084,7 +667,7 @@ export interface paths {
          *     document job's write-up.
          *
          *     The report is Markdown with YAML front matter (``verification.schema.json``)
-         *     and an optional body. The attempt is then verified, and the hypothesis waits
+         *     and an optional body. The attempt is then verified, and the unit waits
          *     for its write-up in a document job. Repeating a completion returns the completed job without publishing
          *     again. An invalid report from a runner is an infrastructure failure of the
          *     job: it reruns from the failed step or fails the attempt for human review.
@@ -1092,13 +675,13 @@ export interface paths {
          *     is kept, so it can be corrected and sent again.
          *
          *     A document job is completed with the write-up (``writeup.schema.json``)
-         *     and no manifest: it covers every attempt of the hypothesis and cites the
-         *     verification report the job names. The hypothesis then awaits its
+         *     and no manifest: it covers every attempt of the unit and cites the
+         *     verification report the job names. The unit then awaits its
          *     decision. An invalid write-up is refused and the lease is kept.
          *
          *     A decide job is completed by its decider with the decision document
          *     (``decision.schema.json``) and no manifest: it is recorded on the
-         *     hypothesis's decision case with the decider as its actor. A promotion
+         *     unit's decision case with the decider as its actor. A promotion
          *     requires a `pass` verdict. An invalid decision document is refused and
          *     the lease is kept.
          */
@@ -1463,13 +1046,13 @@ export interface paths {
          *
          *     A decision case is decided with a decision document: Markdown with YAML
          *     front matter (``decision.schema.json``) naming the outcome (`promote`,
-         *     `reject`, `inconclusive`, or `failed` for a hypothesis stopped after a
+         *     `reject`, `inconclusive`, or `failed` for a unit stopped after a
          *     failure) and citing the case's verification report and write-up, each
          *     null when there is none; its body is the reason. A promotion requires a
          *     `pass` verdict. A decided case is corrected with `supersedes`.
          *
          *     A failure case is decided with `retry` or `stop`, the failure revision and
-         *     a reason: `stop` sends the hypothesis to be written up, then decided.
+         *     a reason: `stop` sends the unit to be written up, then decided.
          */
         post: operations["decide_api_projects__slug__review_cases__case_id__decisions_post"];
         delete?: never;
@@ -1594,10 +1177,10 @@ export interface paths {
          * @description Raise a concern about the track's plan: a wrong assumption, a better idea,
          *     a blocker. The document is Markdown with YAML front matter
          *     (`concern.schema.json`): its `kind` and, when it comes from one, the
-         *     `hypothesis` (number) and `attempt` (sequence) of the track, with the
+         *     `unit` (number) and `attempt` (sequence) of the track, with the
          *     argument as its body (at most 16 KiB). Members, researchers and the
          *     project's service accounts raise concerns. While one is open, no new
-         *     hypothesis of the track is claimed (`409 concern_open`); work already
+         *     unit of the track is claimed (`409 concern_open`); work already
          *     claimed continues. A plan revision answers it, or a researcher dismisses it.
          */
         post: operations["raise_concern_api_projects__slug__tracks__track_slug__concerns_post"];
@@ -1781,8 +1364,8 @@ export interface paths {
         /**
          * Add Unit
          * @description Add a unit to the draft. `acceptance` is checked against the project's
-         *     metric registry and `parameters` against its hypothesis fields, as for a
-         *     hypothesis; `context` items must exist; the brief and the number of context
+         *     metric registry and `parameters` against its unit fields, as for a
+         *     unit; `context` items must exist; the brief and the number of context
          *     items are refused over the project's limits.
          */
         post: operations["add_unit_api_projects__slug__tracks__track_slug__plans_draft_units_post"];
@@ -1873,7 +1456,7 @@ export interface paths {
         /**
          * Review Plan
          * @description A researcher's decision on a submitted revision, with a reason: `approve`
-         *     it (in one transaction: create a queued hypothesis per new unit, write a
+         *     it (in one transaction: create a queued unit per new unit, write a
          *     new revision of each changed one, cancel the queued ones it drops, apply
          *     its alignment entries, and move a planning track to active), `send_back`
          *     for another revision, or `decline` it.
@@ -1910,11 +1493,28 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Units
-         * @description The units (hypotheses) of a track, newest first: number, plan key, title,
+         * List Track Units
+         * @description The units of a track, newest first: number, plan key, title,
          *     state and whether an approved plan made them obsolete.
          */
-        get: operations["list_units_api_projects__slug__tracks__track_slug__units_get"];
+        get: operations["list_track_units_api_projects__slug__tracks__track_slug__units_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Units */
+        get: operations["list_units_api_projects__slug__units_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1930,14 +1530,300 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Unit
-         * @description One unit: its hypothesis with the plan fields, context and brief it was
-         *     last approved with.
-         */
+        /** Get Unit */
         get: operations["get_unit_api_projects__slug__units__number__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Attempts
+         * @description The unit's attempts, by sequence.
+         */
+        get: operations["list_attempts_api_projects__slug__units__number__attempts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Attempt */
+        get: operations["get_attempt_api_projects__slug__units__number__attempts__sequence__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Attempt Comments
+         * @description Comments on the attempt, newest first.
+         */
+        get: operations["list_attempt_comments_api_projects__slug__units__number__attempts__sequence__comments_get"];
+        put?: never;
+        /** Comment On Attempt */
+        post: operations["comment_on_attempt_api_projects__slug__units__number__attempts__sequence__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Context Bundle
+         * @description The attempt's context bundle as Markdown, assembled from the revisions it
+         *     pinned at its claim: the brief, the plan's approach, the unit's fields and
+         *     brief, an index of the track's other units, and a summary line and
+         *     reference for each context item and each unit it derives from. The front
+         *     matter states its size in bytes. `detail=compact` keeps the brief's goal,
+         *     the unit and the index, capped at 16 KiB. `phase=document` is the
+         *     documenter's bundle: the full bundle and the unit's record, every
+         *     attempt's run document and notes, failures and their logs, verification
+         *     reports and the comments. `phase=decide` adds the write-up, or why there
+         *     is none.
+         */
+        get: operations["get_context_api_projects__slug__units__number__attempts__sequence__context_md_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Heartbeat */
+        post: operations["heartbeat_api_projects__slug__units__number__attempts__sequence__heartbeat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/inputs/predecessor/{artifact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Predecessor Input
+         * @description Read a verified artifact of the predecessor attempt, under the lease.
+         *
+         *     How an experimenter stages an experiment step's ``from: attempt`` input;
+         *     only an experimenter may, on its runner-driven attempt, and only its
+         *     predecessor's own verified uploads of a role some pinned step reads
+         *     (listed in its claim's ``workflow.inputs.predecessor``) are readable. With
+         *     an object store that presigns, the answer is a redirect (302) to a
+         *     short-lived presigned GET: follow it without this request's headers, and
+         *     check the bytes against the listed size and SHA-256.
+         */
+        get: operations["predecessor_input_api_projects__slug__units__number__attempts__sequence__inputs_predecessor__artifact_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Attempt Jobs
+         * @description The attempt's verify jobs, by run number.
+         */
+        get: operations["list_attempt_jobs_api_projects__slug__units__number__attempts__sequence__jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Manifest
+         * @description Verify an artifact manifest against this attempt's verified uploads.
+         */
+        post: operations["post_manifest_api_projects__slug__units__number__attempts__sequence__manifest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release
+         * @description Give up the attempt. It fails and a researcher decides whether to retry.
+         *
+         *     An experimenter (a Cannery Row runner) giving up a runner-driven attempt
+         *     reports why with ``code``, the failing ``step`` and its ``logs``. Its
+         *     report is trusted: the failure is one of the run, and the unit is
+         *     queued again automatically while retries remain (docs/spec.md). Only an
+         *     experimenter may send them.
+         */
+        post: operations["release_api_projects__slug__units__number__attempts__sequence__release_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Report
+         * @description The attempt's full report with the evidence and decisions that followed it.
+         */
+        get: operations["get_report_api_projects__slug__units__number__attempts__sequence__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/submission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit
+         * @description Submit the run document of a completed run; the attempt is frozen on acceptance.
+         *
+         *     The document is Markdown with YAML front matter, checked against
+         *     `GET /api/schemas/run`: the claims, provenance, artifact roles and verified
+         *     manifest, and optional run notes as the body. A run that failed releases
+         *     the attempt instead; front matter with a `status` is refused and leaves the
+         *     attempt as it was. Any other invalid document fails the attempt for human
+         *     review, once the caller has shown it holds the lease.
+         */
+        post: operations["submit_api_projects__slug__units__number__attempts__sequence__submission_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/attempts/{sequence}/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Upload
+         * @description Grant a one-time, create-only upload of one file of the attempt.
+         *
+         *     With an object store that presigns, the grant also carries ``direct``:
+         *     the presigned request(s) that send the bytes straight to the bucket, then
+         *     a finish request (see ``docs/contracts.md``).
+         */
+        post: operations["create_upload_api_projects__slug__units__number__attempts__sequence__uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Unit Comments
+         * @description Comments on the unit and on its attempts, newest first.
+         */
+        get: operations["list_unit_comments_api_projects__slug__units__number__comments_get"];
+        put?: never;
+        /** Comment On Unit */
+        post: operations["comment_on_unit_api_projects__slug__units__number__comments_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1953,12 +1839,126 @@ export interface paths {
         };
         /**
          * Get Unit History
-         * @description A unit's hypothesis revisions, with the plan revision that wrote each one,
+         * @description A unit's revisions, with the plan revision that wrote each one,
          *     and the alignment entries approved plans made about it, oldest first.
          */
         get: operations["get_unit_history_api_projects__slug__units__number__history_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Unit Plan
+         * @description One unit: its unit with the plan fields, context and brief it was
+         *     last approved with.
+         */
+        get: operations["get_unit_plan_api_projects__slug__units__number__plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Revisions
+         * @description Revisions, oldest first.
+         */
+        get: operations["list_revisions_api_projects__slug__units__number__revisions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/revisions/{revision}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Revision */
+        get: operations["get_revision_api_projects__slug__units__number__revisions__revision__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/writeup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Write-up
+         * @description The unit's write-up: `pending` or `claimed` while its document job
+         *     waits or is being written, `written` with the write-up, or `skipped` with
+         *     the researcher's reason. `inputs` is what the write-up covers and cites,
+         *     and `context` the documenter's context bundle.
+         */
+        get: operations["get_writeup_api_projects__slug__units__number__writeup_get"];
+        put?: never;
+        /**
+         * Write Up
+         * @description A researcher writes the unit up: the document job is claimed and
+         *     completed in one action. The write-up is Markdown with YAML front matter
+         *     (``writeup.schema.json``): a one-sentence `summary`, the `attempts` it
+         *     covers (every attempt of the unit) and the `verification` report it
+         *     cites (null for a unit stopped after a failure), as the write-up's
+         *     `inputs` name them, and a body. The unit then awaits its decision.
+         *     A job another documenter holds is `409 conflict`.
+         */
+        post: operations["write_up_api_projects__slug__units__number__writeup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{slug}/units/{number}/writeup/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Skip Write-up
+         * @description A researcher skips the unit's write-up, waiting or being written,
+         *     with a reason: the unit then awaits its decision without one, and
+         *     its decision shows "No write-up: <reason>". Nothing skips a write-up
+         *     automatically.
+         */
+        post: operations["skip_writeup_api_projects__slug__units__number__writeup_skip_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1974,7 +1974,7 @@ export interface paths {
         };
         /**
          * List Write-ups To Do
-         * @description The hypotheses waiting for their write-up, oldest first, with their
+         * @description The units waiting for their write-up, oldest first, with their
          *     document job: `pending` until an agent or a researcher claims it.
          */
         get: operations["list_writeups_api_projects__slug__writeups_get"];
@@ -2232,8 +2232,6 @@ export interface components {
             failures: components["schemas"]["cannery_row__attempts__routes__FailureOut"][];
             /** Format: date-time */
             finished_at: string | null;
-            /** Format: int64 */
-            hypothesis_revision: number;
             /** Format: uuid */
             id: string;
             imported: {
@@ -2266,6 +2264,8 @@ export interface components {
             /** Format: date-time */
             submitted_at: string | null;
             track: string;
+            /** Format: int64 */
+            unit_revision: number;
             via_channel: string;
             via_client: string | null;
             /** @description Legacy stored workflow metadata remains readable; new requests use `TrackCreateRequestWorkflow`. */
@@ -2279,8 +2279,6 @@ export interface components {
             claimed_by: components["schemas"]["Claimant"];
             /** Format: date-time */
             finished_at: string | null;
-            /** Format: int64 */
-            hypothesis_revision: number;
             /** Format: uuid */
             id: string;
             imported: {
@@ -2312,6 +2310,8 @@ export interface components {
             /** Format: date-time */
             submitted_at: string | null;
             track: string;
+            /** Format: int64 */
+            unit_revision: number;
             via_channel: string;
             via_client: string | null;
             /** @description Legacy stored workflow metadata remains readable; new requests use `TrackCreateRequestWorkflow`. */
@@ -2326,15 +2326,15 @@ export interface components {
             code: string;
             /** Format: date-time */
             created_at: string;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
-            hypothesis_state: string;
             origin: components["schemas"]["Origin"];
             reason: string;
             stage: string;
             title: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
+            unit_state: string;
         };
         AttentionOut: {
             pending_counts: {
@@ -2343,7 +2343,7 @@ export interface components {
             pending_reviews: components["schemas"]["AttentionReview"][];
             /**
              * Format: int64
-             * @description Hypotheses waiting for their write-up.
+             * @description Units waiting for their write-up.
              */
             pending_writeup_count: number;
             pending_writeups: components["schemas"]["AttentionWriteup"][];
@@ -2361,14 +2361,14 @@ export interface components {
             attempt_ref: string | null;
             /** Format: date-time */
             decided_at: string;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
-            hypothesis_state: string;
             origin: components["schemas"]["Origin"];
             reason: string;
             title: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
+            unit_state: string;
         };
         AttentionReview: {
             attempt_ref: string | null;
@@ -2382,9 +2382,6 @@ export interface components {
             failure_code: string | null;
             failure_reason: string | null;
             failure_stage: string | null;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
             kind: string;
             /** Format: date-time */
             opened_at: string;
@@ -2393,36 +2390,39 @@ export interface components {
             subject_revision: number;
             title: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
             verdict: string | null;
         };
         AttentionRunning: {
             attempt_ref: string;
             /** Format: date-time */
             claimed_at: string;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
             state: string;
             title: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
         };
         AttentionStalledVerification: {
             attempt_ref: string;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
             message: string;
             performer: string;
             revision: string | null;
             title: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
             verifier: string | null;
             /** Format: date-time */
             waiting_since: string;
         };
-        /** @description A hypothesis waiting for its write-up, and its document job. */
+        /** @description A unit waiting for its write-up, and its document job. */
         AttentionWriteup: {
-            /** @description The hypothesis's last attempt, verified or stopped after a failure. */
+            /** @description The unit's last attempt, verified or stopped after a failure. */
             attempt_ref: string;
             attempt_state: string;
             /**
@@ -2435,15 +2435,15 @@ export interface components {
              * @description The researcher writing it.
              */
             claimed_by_user: string | null;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
             /** Format: uuid */
             job_id: string;
             /** @description `pending`, or `claimed` while someone writes it. */
             job_state: string;
             title: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
             /** Format: date-time */
             waiting_since: string;
         };
@@ -2538,10 +2538,10 @@ export interface components {
             workflow?: components["schemas"]["ClaimedWorkflow"] | null;
         };
         ClaimRequest: {
-            /** Format: int64 */
-            hypothesis?: number | null;
             mode?: components["schemas"]["TrackMode"] | null;
             track?: string | null;
+            /** Format: int64 */
+            unit?: number | null;
         };
         Claimant: {
             /** Format: uuid */
@@ -2561,14 +2561,12 @@ export interface components {
          *     what that document cites, the registered decider and the lease.
          */
         ClaimedDecideJob: {
-            /** @description The hypothesis's last attempt. */
+            /** @description The unit's last attempt. */
             attempt_id: string;
             /** Format: date-time */
             deadline: string;
             /** @description The registered decider and the revision of its step. */
             decider: components["schemas"]["ClaimedJobPinnedRef"];
-            /** Format: int64 */
-            hypothesis: number;
             inputs: components["schemas"]["ClaimedDecideInputs"];
             job_id: string;
             lease: components["schemas"]["ClaimedJobLease"];
@@ -2581,6 +2579,8 @@ export interface components {
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             science_revision: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
         };
         ClaimedDecideLimits: {
             /**
@@ -2596,7 +2596,7 @@ export interface components {
         /** @description What a write-up covers and cites. */
         ClaimedDocumentInputs: {
             /**
-             * @description The sequence numbers of every attempt of the hypothesis: the
+             * @description The sequence numbers of every attempt of the unit: the
              *     write-up's `attempts`.
              */
             attempts: number[];
@@ -2604,12 +2604,10 @@ export interface components {
         };
         /** @description A claimed document job: what the write-up covers and cites, and the lease. */
         ClaimedDocumentJob: {
-            /** @description The hypothesis's last attempt, verified or stopped after a failure. */
+            /** @description The unit's last attempt, verified or stopped after a failure. */
             attempt_id: string;
             /** Format: date-time */
             deadline: string;
-            /** Format: int64 */
-            hypothesis: number;
             inputs: components["schemas"]["ClaimedDocumentInputs"];
             job_id: string;
             lease: components["schemas"]["ClaimedJobLease"];
@@ -2619,12 +2617,14 @@ export interface components {
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             science_revision: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
         };
         /** @enum {string} */
         ClaimedDocumentPerformer: "agent";
         /** @enum {string} */
         ClaimedDocumentPhase: "document";
-        /** @description The claimed job: a verify job, or a hypothesis's document or decide job. */
+        /** @description The claimed job: a verify job, or a unit's document or decide job. */
         ClaimedJobDocument: components["schemas"]["ClaimedVerifyJob"] | components["schemas"]["ClaimedDocumentJob"] | components["schemas"]["ClaimedDecideJob"];
         ClaimedJobInputs: {
             baselines: components["schemas"]["ClaimedJobPinnedRef"][];
@@ -2757,13 +2757,13 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             edited_at: string | null;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
             /** Format: uuid */
             id: string;
             /** Format: int64 */
             revision: number;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
         };
         CommentRevisionOut: {
             body_markdown: string;
@@ -2783,10 +2783,6 @@ export interface components {
             /** Format: uuid */
             evidence_id: string;
             /** Format: int64 */
-            hypothesis: number;
-            hypothesis_state: string;
-            hypothesis_title: string;
-            /** Format: int64 */
             id: number;
             metric: string;
             origin: components["schemas"]["Origin"];
@@ -2799,6 +2795,10 @@ export interface components {
             source: string;
             split: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_state: string;
+            unit_title: string;
             /** Format: double */
             value: number;
             verdict: components["schemas"]["Verdict"];
@@ -2816,7 +2816,7 @@ export interface components {
             answered_by_revision: number | null;
             /**
              * Format: int64
-             * @description The attempt of that hypothesis the concern comes from.
+             * @description The attempt of that unit the concern comes from.
              */
             attempt: number | null;
             /** @description The argument, as Markdown. */
@@ -2828,11 +2828,6 @@ export interface components {
             front_matter: {
                 [key: string]: unknown;
             };
-            /**
-             * Format: int64
-             * @description The hypothesis the concern comes from.
-             */
-            hypothesis: number | null;
             /** Format: uuid */
             id: string;
             kind: string;
@@ -2850,13 +2845,18 @@ export interface components {
              */
             state: string;
             track: string;
+            /**
+             * Format: int64
+             * @description The unit the concern comes from.
+             */
+            unit: number | null;
             via_channel: string;
             via_client: string | null;
         };
         /**
          * @description A concern about a track's plan: Markdown with YAML front matter
          *     (`concern.schema.json`) naming its kind and, when it comes from one, the
-         *     hypothesis or attempt; the argument as its body.
+         *     unit or attempt; the argument as its body.
          */
         ConcernRaise: {
             document: string;
@@ -2878,7 +2878,7 @@ export interface components {
         ConfigRevisionRequest: components["schemas"]["ScienceRevisionRequest"] | components["schemas"]["DashboardRevisionRequest"];
         Context: {
             authority: string;
-            /** @description Stored legacy controls may predate the fixed hypothesis control contract. */
+            /** @description Stored legacy controls may predate the fixed unit control contract. */
             controls: {
                 [key: string]: unknown;
             }[];
@@ -2901,7 +2901,7 @@ export interface components {
         };
         /**
          * @description Something a unit's performer should read: another unit (`unit`: a
-         *     hypothesis number or a key of the same plan), an attempt's write-up
+         *     unit number or a key of the same plan), an attempt's write-up
          *     (`writeup`: `unit` number and `attempt` sequence) or an artifact
          *     (`artifact`: its id). `note` says why it matters.
          */
@@ -3077,107 +3077,6 @@ export interface components {
         };
         /** @enum {string} */
         HumanDecisionRequestAction: "retry" | "stop";
-        /** @description Stored historical hypotheses can predate the full publication document. */
-        HypothesisDocument: components["schemas"]["NativeHypothesisDocument"] | components["schemas"]["LegacyHypothesisDocument"];
-        HypothesisDocumentControl: {
-            id: string;
-            kind: components["schemas"]["HypothesisDocumentControlKind"];
-            revision: string;
-        };
-        /** @enum {string} */
-        HypothesisDocumentControlKind: "baseline";
-        HypothesisDocumentPlan: {
-            compute_budget: {
-                [key: string]: number;
-            };
-            confirmation_splits: string[];
-            falsification_criteria: string;
-            primary_metric: string;
-            regression_gates: string[];
-            required_slices: string[];
-            selection_splits: string[];
-            success_criteria: string;
-        };
-        HypothesisDocumentRelation: {
-            hypothesis: components["schemas"]["HypothesisDocumentRelationTarget"];
-            kind: components["schemas"]["HypothesisDocumentRelationKind"];
-        };
-        /** @enum {string} */
-        HypothesisDocumentRelationKind: "derived_from" | "supersedes" | "related_to";
-        HypothesisDocumentRelationProject: {
-            /** Format: int64 */
-            number: number;
-            project: string;
-        };
-        HypothesisDocumentRelationTarget: number | components["schemas"]["HypothesisDocumentRelationProject"];
-        HypothesisOut: {
-            /** Format: date-time */
-            approved_at: string | null;
-            /** Format: int64 */
-            approved_revision: number | null;
-            backlinks: components["schemas"]["LinkOut"][];
-            /** Format: date-time */
-            created_at: string;
-            created_by: components["schemas"]["Author"];
-            document: components["schemas"]["HypothesisDocument"];
-            external_id: string | null;
-            /** Format: uuid */
-            id: string;
-            imported: {
-                [key: string]: unknown;
-            } | null;
-            mode: string;
-            /** Format: int64 */
-            number: number;
-            origin: components["schemas"]["Origin"];
-            project: string;
-            ref: string;
-            relations: components["schemas"]["LinkOut"][];
-            reviews: components["schemas"]["cannery_row__hypotheses__routes__ReviewCaseOut"][];
-            /** Format: int64 */
-            revision: number;
-            /** Format: int64 */
-            science_revision: number;
-            source_ref: string | null;
-            state: string;
-            title: string;
-            track: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
-        HypothesisPage: {
-            items: components["schemas"]["HypothesisSummary"][];
-            /** Format: int64 */
-            next_before: number | null;
-        };
-        /** @enum {string} */
-        HypothesisState: "queued" | "active" | "documenting" | "deciding" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled";
-        HypothesisSummary: {
-            /** Format: date-time */
-            approved_at: string | null;
-            /** Format: int64 */
-            approved_revision: number | null;
-            /** Format: date-time */
-            created_at: string;
-            created_by: components["schemas"]["Author"];
-            external_id: string | null;
-            imported: {
-                [key: string]: unknown;
-            } | null;
-            mode: string;
-            /** Format: int64 */
-            number: number;
-            origin: components["schemas"]["Origin"];
-            ref: string;
-            /** Format: int64 */
-            revision: number;
-            source_ref: string | null;
-            state: string;
-            title: string;
-            track: string;
-            /** Format: date-time */
-            updated_at: string;
-        };
         ImportedReportDocument: {
             author: string;
             body_markdown: string;
@@ -3324,9 +3223,9 @@ export interface components {
             /** Format: int64 */
             lease_generation: number;
         };
-        LegacyHypothesisDocument: {
+        LegacyUnitDocument: {
             question: string;
-            relations?: components["schemas"]["HypothesisDocumentRelation"][];
+            relations?: components["schemas"]["UnitDocumentRelation"][];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             title: string;
             track: string;
@@ -3385,16 +3284,16 @@ export interface components {
             /** Format: int64 */
             next_before: number | null;
         };
-        NativeHypothesisDocument: {
-            control?: components["schemas"]["HypothesisDocumentControl"];
+        NativeUnitDocument: {
+            control?: components["schemas"]["UnitDocumentControl"];
             intervention: string;
-            plan: components["schemas"]["HypothesisDocumentPlan"];
+            plan: components["schemas"]["UnitDocumentPlan"];
             project_fields?: {
                 [key: string]: unknown;
             };
             question: string;
             rationale: string;
-            relations?: components["schemas"]["HypothesisDocumentRelation"][];
+            relations?: components["schemas"]["UnitDocumentRelation"][];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             title: string;
             track: string;
@@ -3590,7 +3489,7 @@ export interface components {
         };
         /**
          * @description A unit as a plan revision lists it. `number` and `state` name its
-         *     hypothesis once it has one; `redo_of` is the unit it redoes.
+         *     unit once it has one; `redo_of` is the unit it redoes.
          */
         PlanUnitOut: {
             acceptance: {
@@ -3601,11 +3500,6 @@ export interface components {
             control: {
                 [key: string]: unknown;
             } | null;
-            /**
-             * Format: int64
-             * @description The hypothesis revision this entry wrote when its plan was approved.
-             */
-            hypothesis_revision: number | null;
             intervention: string;
             key: string;
             /** Format: int64 */
@@ -3621,6 +3515,11 @@ export interface components {
             science_revision: number;
             state: string | null;
             title: string;
+            /**
+             * Format: int64
+             * @description The unit revision this entry wrote when its plan was approved.
+             */
+            unit_revision: number | null;
         };
         PointOut: {
             attempt_ref: string;
@@ -3641,10 +3540,6 @@ export interface components {
             /** Format: date-time */
             finished_at: string | null;
             /** Format: int64 */
-            hypothesis: number;
-            hypothesis_state: string;
-            hypothesis_title: string;
-            /** Format: int64 */
             id: number;
             metric: string;
             missing_reason: string | null;
@@ -3660,6 +3555,10 @@ export interface components {
             track: string;
             uncertainty: components["schemas"]["Uncertainty"] | null;
             unit: string;
+            /** Format: int64 */
+            unit_number: number;
+            unit_state: string;
+            unit_title: string;
             /** Format: double */
             value: number | null;
         };
@@ -3798,9 +3697,6 @@ export interface components {
             author: components["schemas"]["Producer"];
             claimed_measurements: components["schemas"]["ReadMeasurement"][];
             decisions: components["schemas"]["DecisionOut"][];
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_title: string;
             /** Format: uuid */
             id: string;
             origin: components["schemas"]["Origin"];
@@ -3812,6 +3708,9 @@ export interface components {
             /** Format: date-time */
             submitted_at: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_title: string;
             verification: components["schemas"]["VerificationReport"] | null;
         };
         ReportSummary: {
@@ -3819,9 +3718,6 @@ export interface components {
             attempt_state: string;
             author: components["schemas"]["Producer"];
             findings: string;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_title: string;
             /** Format: uuid */
             id: string;
             origin: components["schemas"]["Origin"];
@@ -3829,6 +3725,9 @@ export interface components {
             /** Format: date-time */
             submitted_at: string;
             track: string;
+            /** Format: int64 */
+            unit: number;
+            unit_title: string;
             what_was_tried: string;
         };
         RequestArtifactManifestObject: {
@@ -3986,7 +3885,7 @@ export interface components {
             author: components["schemas"]["Author"];
             /** Format: date-time */
             created_at: string;
-            document: components["schemas"]["HypothesisDocument"];
+            document: components["schemas"]["UnitDocument"];
             origin: components["schemas"]["Origin"];
             /** Format: int64 */
             revision: number;
@@ -4032,9 +3931,6 @@ export interface components {
             datasets: components["schemas"]["ScienceRevisionRequestDatasetsItem"][];
             decide?: components["schemas"]["ScienceRevisionRequestDecide"];
             default_producer: components["schemas"]["RequestCommonProducerRef"];
-            hypothesis_fields?: {
-                [key: string]: unknown;
-            };
             interfaces: components["schemas"]["InterfaceRequest"][];
             limits: components["schemas"]["ScienceRevisionRequestLimits"];
             /** Format: int64 */
@@ -4047,6 +3943,9 @@ export interface components {
             retention?: components["schemas"]["ScienceRevisionRequestRetentionItem"][];
             schema_version: components["schemas"]["RequestCommonSchemaVersion"];
             scorer: components["schemas"]["StepManifestRequest"];
+            unit_fields?: {
+                [key: string]: unknown;
+            };
             validators?: components["schemas"]["StepManifestRequest"][];
             verify: components["schemas"]["ScienceRevisionRequestVerify"];
         };
@@ -4066,7 +3965,7 @@ export interface components {
             revision: string;
         };
         /**
-         * @description Who decides a written-up hypothesis: a researcher (the default when
+         * @description Who decides a written-up unit: a researcher (the default when
          *     absent), or the registered decider service account running its decider
          *     step, which promotes only on a `pass` verdict.
          */
@@ -4124,9 +4023,6 @@ export interface components {
             attempt_ref: string | null;
             attempt_state: string | null;
             decision: string | null;
-            /** Format: int64 */
-            hypothesis: number | null;
-            hypothesis_state: string | null;
             kind: string;
             /** Format: date-time */
             occurred_at: string;
@@ -4140,6 +4036,9 @@ export interface components {
             source_id: string;
             title: string;
             track: string | null;
+            /** Format: int64 */
+            unit: number | null;
+            unit_state: string | null;
             verdict: string | null;
         };
         SearchPage: {
@@ -4397,9 +4296,9 @@ export interface components {
             reason: string;
         };
         /**
-         * @description A new unit of a plan draft. `acceptance` is the hypothesis acceptance
+         * @description A new unit of a plan draft. `acceptance` is the unit acceptance
          *     plan (splits, primary metric, criteria, gates, budget); `parameters` are
-         *     the project's hypothesis fields.
+         *     the project's unit fields.
          */
         UnitCreate: {
             acceptance: {
@@ -4419,6 +4318,39 @@ export interface components {
             relations?: components["schemas"]["UnitRelation"][];
             title: string;
         };
+        /** @description Stored historical units can predate the full publication document. */
+        UnitDocument: components["schemas"]["NativeUnitDocument"] | components["schemas"]["LegacyUnitDocument"];
+        UnitDocumentControl: {
+            id: string;
+            kind: components["schemas"]["UnitDocumentControlKind"];
+            revision: string;
+        };
+        /** @enum {string} */
+        UnitDocumentControlKind: "baseline";
+        UnitDocumentPlan: {
+            compute_budget: {
+                [key: string]: number;
+            };
+            confirmation_splits: string[];
+            falsification_criteria: string;
+            primary_metric: string;
+            regression_gates: string[];
+            required_slices: string[];
+            selection_splits: string[];
+            success_criteria: string;
+        };
+        UnitDocumentRelation: {
+            kind: components["schemas"]["UnitDocumentRelationKind"];
+            unit: components["schemas"]["UnitDocumentRelationTarget"];
+        };
+        /** @enum {string} */
+        UnitDocumentRelationKind: "derived_from" | "supersedes" | "related_to";
+        UnitDocumentRelationProject: {
+            /** Format: int64 */
+            number: number;
+            project: string;
+        };
+        UnitDocumentRelationTarget: number | components["schemas"]["UnitDocumentRelationProject"];
         /** @description A unit's revisions and the alignment entries approved about it, oldest first. */
         UnitHistoryOut: {
             alignments: components["schemas"]["UnitAlignmentOut"][];
@@ -4436,8 +4368,48 @@ export interface components {
             state: string;
             title: string;
         };
-        /** @description A unit: a hypothesis with the plan fields it was approved with. */
         UnitOut: {
+            /** Format: date-time */
+            approved_at: string | null;
+            /** Format: int64 */
+            approved_revision: number | null;
+            backlinks: components["schemas"]["LinkOut"][];
+            /** Format: date-time */
+            created_at: string;
+            created_by: components["schemas"]["Author"];
+            document: components["schemas"]["UnitDocument"];
+            external_id: string | null;
+            /** Format: uuid */
+            id: string;
+            imported: {
+                [key: string]: unknown;
+            } | null;
+            mode: string;
+            /** Format: int64 */
+            number: number;
+            origin: components["schemas"]["Origin"];
+            project: string;
+            ref: string;
+            relations: components["schemas"]["LinkOut"][];
+            reviews: components["schemas"]["cannery_row__units__routes__ReviewCaseOut"][];
+            /** Format: int64 */
+            revision: number;
+            /** Format: int64 */
+            science_revision: number;
+            source_ref: string | null;
+            state: string;
+            title: string;
+            track: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        UnitPage: {
+            items: components["schemas"]["UnitSummary"][];
+            /** Format: int64 */
+            next_before: number | null;
+        };
+        /** @description A unit with the plan fields it was last approved with. */
+        UnitPlanOut: {
             acceptance: {
                 [key: string]: unknown;
             };
@@ -4470,16 +4442,15 @@ export interface components {
             track: string;
         };
         /**
-         * @description A typed relation of a unit: to a hypothesis of the project (its number),
-         *     of another project (`{project, number}`), or to another unit of the same
-         *     plan by key. Exactly one of `hypothesis` and `unit`.
+         * @description A typed relation of a unit, whose `unit` is a unit of the project (its
+         *     number), of another project (`{project, number}`), or another unit of the
+         *     same plan (its key).
          */
         UnitRelation: {
-            hypothesis?: unknown;
             kind: string;
-            unit?: string | null;
+            unit: unknown;
         };
-        /** @description One revision of a unit's hypothesis. */
+        /** @description One revision of a unit. */
         UnitRevisionOut: {
             brief: string | null;
             /** Format: date-time */
@@ -4492,6 +4463,34 @@ export interface components {
             /** Format: int64 */
             revision: number;
             title: string;
+        };
+        /** @enum {string} */
+        UnitState: "queued" | "active" | "documenting" | "deciding" | "promoted" | "rejected" | "inconclusive" | "failed" | "cancelled";
+        UnitSummary: {
+            /** Format: date-time */
+            approved_at: string | null;
+            /** Format: int64 */
+            approved_revision: number | null;
+            /** Format: date-time */
+            created_at: string;
+            created_by: components["schemas"]["Author"];
+            external_id: string | null;
+            imported: {
+                [key: string]: unknown;
+            } | null;
+            mode: string;
+            /** Format: int64 */
+            number: number;
+            origin: components["schemas"]["Origin"];
+            ref: string;
+            /** Format: int64 */
+            revision: number;
+            source_ref: string | null;
+            state: string;
+            title: string;
+            track: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         /**
          * @description Changes to a unit of a plan draft; omitted fields keep their value, and
@@ -4603,11 +4602,11 @@ export interface components {
             };
         };
         /**
-         * @description A hypothesis's write-up: whether it is still to write, being written,
+         * @description A unit's write-up: whether it is still to write, being written,
          *     written or skipped, and what it covers and cites.
          */
         WriteupOut: {
-            /** @description The attempt the write-up is filed on: the hypothesis's last. */
+            /** @description The attempt the write-up is filed on: the unit's last. */
             attempt_ref: string;
             /**
              * Format: uuid
@@ -4621,10 +4620,6 @@ export interface components {
             claimed_by_user: string | null;
             /** @description The documenter's context bundle; absent when the attempt pinned no plan. */
             context: string | null;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
-            hypothesis_state: string;
             inputs: components["schemas"]["ClaimedDocumentInputs"] | null;
             /**
              * Format: uuid
@@ -4635,9 +4630,13 @@ export interface components {
             skip_reason: string | null;
             /** @description `pending`, `claimed`, `written` or `skipped`. */
             status: string;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
+            unit_state: string;
             writeup: components["schemas"]["WriteupRecordOut"] | null;
         };
-        /** @description The hypotheses waiting for their write-up, oldest first. */
+        /** @description The units waiting for their write-up, oldest first. */
         WriteupQueueOut: {
             items: components["schemas"]["AttentionWriteup"][];
             /** Format: int64 */
@@ -4660,13 +4659,13 @@ export interface components {
             written_by_user: string | null;
         };
         /**
-         * @description A researcher writes a hypothesis up: the write-up, Markdown with YAML
+         * @description A researcher writes a unit up: the write-up, Markdown with YAML
          *     front matter (`writeup.schema.json`).
          */
         WriteupRequest: {
             document: string;
         };
-        /** @description A researcher skips a hypothesis's write-up, and says why. */
+        /** @description A researcher skips a unit's write-up, and says why. */
         WriteupSkipRequest: {
             reason: string;
         };
@@ -4684,21 +4683,6 @@ export interface components {
         };
         /** @enum {string} */
         cannery_row__config__routes__Kind: "science" | "dashboard";
-        cannery_row__hypotheses__routes__ReviewCaseOut: {
-            decisions: components["schemas"]["DecisionOut"][];
-            /** Format: uuid */
-            id: string;
-            kind: string;
-            /** Format: date-time */
-            opened_at: string;
-            origin: components["schemas"]["Origin"];
-            /** Format: date-time */
-            resolved_at: string | null;
-            source_ref: string | null;
-            state: string;
-            /** Format: int64 */
-            subject_revision: number;
-        };
         cannery_row__reviews__routes__FailureOut: {
             code: string;
             /** Format: date-time */
@@ -4715,10 +4699,6 @@ export interface components {
             attempt_state: string | null;
             decisions: components["schemas"]["DecisionOut"][];
             failure: components["schemas"]["cannery_row__reviews__routes__FailureOut"] | null;
-            /** Format: int64 */
-            hypothesis: number;
-            hypothesis_ref: string;
-            hypothesis_state: string;
             /** Format: uuid */
             id: string;
             kind: string;
@@ -4731,10 +4711,29 @@ export interface components {
             state: string;
             /** Format: int64 */
             subject_revision: number;
+            /** Format: int64 */
+            unit: number;
+            unit_ref: string;
+            unit_state: string;
             verification: components["schemas"]["VerificationDocument"] | null;
         };
         /** @enum {string} */
-        cannery_row__search__routes__Kind: "track" | "hypothesis" | "attempt" | "report" | "verification" | "decision_reason" | "comment";
+        cannery_row__search__routes__Kind: "track" | "unit" | "attempt" | "report" | "verification" | "decision_reason" | "comment";
+        cannery_row__units__routes__ReviewCaseOut: {
+            decisions: components["schemas"]["DecisionOut"][];
+            /** Format: uuid */
+            id: string;
+            kind: string;
+            /** Format: date-time */
+            opened_at: string;
+            origin: components["schemas"]["Origin"];
+            /** Format: date-time */
+            resolved_at: string | null;
+            source_ref: string | null;
+            state: string;
+            /** Format: int64 */
+            subject_revision: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -7675,2132 +7674,6 @@ export interface operations {
             };
         };
     };
-    list_hypotheses_api_projects__slug__hypotheses_get: {
-        parameters: {
-            query?: {
-                state?: components["schemas"]["HypothesisState"][];
-                /** @description true: only archived states; false: hide them. Ignored with `state`. */
-                archived?: boolean;
-                track?: string;
-                before?: number;
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                slug: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HypothesisPage"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_hypothesis_api_projects__slug__hypotheses__number__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HypothesisOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_attempts_api_projects__slug__hypotheses__number__attempts_get: {
-        parameters: {
-            query?: {
-                /** @description Continue after this sequence. */
-                before?: number;
-                /** @description Items per page. */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_AttemptOut_int_"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_attempt_api_projects__slug__hypotheses__number__attempts__sequence__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AttemptDetail"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_attempt_comments_api_projects__slug__hypotheses__number__attempts__sequence__comments_get: {
-        parameters: {
-            query?: {
-                /** @description Continue after this comment id. */
-                before?: string;
-                /** @description Items per page. */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_CommentOut_UUID_"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    comment_on_attempt_api_projects__slug__hypotheses__number__attempts__sequence__comments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CommentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommentOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_context_api_projects__slug__hypotheses__number__attempts__sequence__context_md_get: {
-        parameters: {
-            query?: {
-                /** @description `full` (the default) or `compact`. */
-                detail?: string;
-                /** @description `document` or `decide`: the documenter's or the decider's bundle. */
-                phase?: string;
-            };
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/markdown": string;
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-        };
-    };
-    heartbeat_api_projects__slug__hypotheses__number__attempts__sequence__heartbeat_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-            };
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LeaseOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    predecessor_input_api_projects__slug__hypotheses__number__attempts__sequence__inputs_predecessor__artifact_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-            };
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-                artifact_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Verified object bytes */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/octet-stream": number[];
-                };
-            };
-            /** @description Short-lived presigned download URL */
-            302: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_attempt_jobs_api_projects__slug__hypotheses__number__attempts__sequence__jobs_get: {
-        parameters: {
-            query?: {
-                /** @description Continue after this job id. */
-                before?: string;
-                /** @description Items per page. */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_JobOut_UUID_"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    post_manifest_api_projects__slug__hypotheses__number__attempts__sequence__manifest_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-            };
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ArtifactManifestRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ManifestRef"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    release_api_projects__slug__hypotheses__number__attempts__sequence__release_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-            };
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReleaseRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AttemptOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_report_api_projects__slug__hypotheses__number__attempts__sequence__report_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    submit_api_projects__slug__hypotheses__number__attempts__sequence__submission_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-                "idempotency-key"?: string | null;
-            };
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RunSubmission"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AttemptOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_upload_api_projects__slug__hypotheses__number__attempts__sequence__uploads_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Lease-Token"?: string | null;
-                "X-Lease-Generation"?: number | null;
-            };
-            path: {
-                slug: string;
-                number: number;
-                sequence: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UploadRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UploadGrant"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_hypothesis_comments_api_projects__slug__hypotheses__number__comments_get: {
-        parameters: {
-            query?: {
-                /** @description Continue after this comment id. */
-                before?: string;
-                /** @description Items per page. */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_CommentOut_UUID_"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    comment_on_hypothesis_api_projects__slug__hypotheses__number__comments_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CommentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CommentOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_revisions_api_projects__slug__hypotheses__number__revisions_get: {
-        parameters: {
-            query?: {
-                /** @description Continue after this revision. */
-                before?: number;
-                /** @description Items per page. */
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_RevisionOut_int_"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_revision_api_projects__slug__hypotheses__number__revisions__revision__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-                revision: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RevisionOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-            /** @description Service unavailable */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_writeup_api_projects__slug__hypotheses__number__writeup_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WriteupOut"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-        };
-    };
-    write_up_api_projects__slug__hypotheses__number__writeup_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WriteupRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WriteupOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-        };
-    };
-    skip_writeup_api_projects__slug__hypotheses__number__writeup_skip_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                slug: string;
-                number: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WriteupSkipRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WriteupOut"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BadRequestResponse"];
-                };
-            };
-            /** @description Authentication required */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Permission denied or invalid CSRF token */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource conflict or stale lease */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Internal server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-        };
-    };
     claim_job_api_projects__slug__jobs_claims_post: {
         parameters: {
             query?: never;
@@ -11633,7 +9506,7 @@ export interface operations {
     list_reports_api_projects__slug__reports_get: {
         parameters: {
             query?: {
-                hypothesis?: number;
+                unit?: number;
                 track?: string;
                 /** @description Continue after this report id. */
                 before?: string;
@@ -14320,10 +12193,10 @@ export interface operations {
             };
         };
     };
-    list_units_api_projects__slug__tracks__track_slug__units_get: {
+    list_track_units_api_projects__slug__tracks__track_slug__units_get: {
         parameters: {
             query?: {
-                /** @description Only units in this hypothesis state. */
+                /** @description Only units in this unit state. */
                 state?: string;
                 /** @description Continue before this number. */
                 before?: number;
@@ -14395,6 +12268,107 @@ export interface operations {
             };
         };
     };
+    list_units_api_projects__slug__units_get: {
+        parameters: {
+            query?: {
+                state?: components["schemas"]["UnitState"][];
+                /** @description true: only archived states; false: hide them. Ignored with `state`. */
+                archived?: boolean;
+                track?: string;
+                before?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitPage"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_unit_api_projects__slug__units__number__get: {
         parameters: {
             query?: never;
@@ -14414,6 +12388,504 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_attempts_api_projects__slug__units__number__attempts_get: {
+        parameters: {
+            query?: {
+                /** @description Continue after this sequence. */
+                before?: number;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AttemptOut_int_"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_attempt_api_projects__slug__units__number__attempts__sequence__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptDetail"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_attempt_comments_api_projects__slug__units__number__attempts__sequence__comments_get: {
+        parameters: {
+            query?: {
+                /** @description Continue after this comment id. */
+                before?: string;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CommentOut_UUID_"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    comment_on_attempt_api_projects__slug__units__number__attempts__sequence__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_context_api_projects__slug__units__number__attempts__sequence__context_md_get: {
+        parameters: {
+            query?: {
+                /** @description `full` (the default) or `compact`. */
+                detail?: string;
+                /** @description `document` or `decide`: the documenter's or the decider's bundle. */
+                phase?: string;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": string;
                 };
             };
             /** @description Authentication required */
@@ -14463,6 +12935,1021 @@ export interface operations {
             };
         };
     };
+    heartbeat_api_projects__slug__units__number__attempts__sequence__heartbeat_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaseOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    predecessor_input_api_projects__slug__units__number__attempts__sequence__inputs_predecessor__artifact_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+                artifact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Verified object bytes */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": number[];
+                };
+            };
+            /** @description Short-lived presigned download URL */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_attempt_jobs_api_projects__slug__units__number__attempts__sequence__jobs_get: {
+        parameters: {
+            query?: {
+                /** @description Continue after this job id. */
+                before?: string;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_JobOut_UUID_"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    post_manifest_api_projects__slug__units__number__attempts__sequence__manifest_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactManifestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManifestRef"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    release_api_projects__slug__units__number__attempts__sequence__release_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_report_api_projects__slug__units__number__attempts__sequence__report_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submit_api_projects__slug__units__number__attempts__sequence__submission_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+                "idempotency-key"?: string | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RunSubmission"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttemptOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_upload_api_projects__slug__units__number__attempts__sequence__uploads_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Lease-Token"?: string | null;
+                "X-Lease-Generation"?: number | null;
+            };
+            path: {
+                slug: string;
+                number: number;
+                sequence: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadGrant"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_unit_comments_api_projects__slug__units__number__comments_get: {
+        parameters: {
+            query?: {
+                /** @description Continue after this comment id. */
+                before?: string;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CommentOut_UUID_"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    comment_on_unit_api_projects__slug__units__number__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CommentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommentOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_unit_history_api_projects__slug__units__number__history_get: {
         parameters: {
             query?: never;
@@ -14504,6 +13991,518 @@ export interface operations {
             };
             /** @description Resource not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    get_unit_plan_api_projects__slug__units__number__plan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnitPlanOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    list_revisions_api_projects__slug__units__number__revisions_get: {
+        parameters: {
+            query?: {
+                /** @description Continue after this revision. */
+                before?: number;
+                /** @description Items per page. */
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_RevisionOut_int_"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_revision_api_projects__slug__units__number__revisions__revision__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+                revision: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevisionOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description Service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_writeup_api_projects__slug__units__number__writeup_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteupOut"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    write_up_api_projects__slug__units__number__writeup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteupOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Internal server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+        };
+    };
+    skip_writeup_api_projects__slug__units__number__writeup_skip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WriteupSkipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteupOut"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BadRequestResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Permission denied or invalid CSRF token */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource conflict or stale lease */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -14651,7 +14650,7 @@ export interface operations {
                 kind?: components["schemas"]["cannery_row__search__routes__Kind"][];
                 /** @description Track slugs. */
                 track?: string[];
-                hypothesis_state?: components["schemas"]["HypothesisState"][];
+                unit_state?: components["schemas"]["UnitState"][];
                 attempt_state?: components["schemas"]["AttemptState"][];
                 verdict?: components["schemas"]["Verdict"][];
                 decision?: components["schemas"]["ResultDecision"][];

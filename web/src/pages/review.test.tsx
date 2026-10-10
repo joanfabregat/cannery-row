@@ -5,8 +5,8 @@ import type { Writeup } from "@/api/types";
 
 import {
   attempt,
-  hypothesis,
-  hypothesisApi,
+  unit,
+  unitApi,
   report,
   review,
   reviewCase,
@@ -21,9 +21,9 @@ const WRITEUP_ID = "00000000-0000-4000-8000-0000000000f1";
 
 function writeup(overrides: Partial<Writeup> = {}): Writeup {
   return {
-    hypothesis: 12,
-    hypothesis_ref: "#12",
-    hypothesis_state: "deciding",
+    unit: 12,
+    unit_ref: "#12",
+    unit_state: "deciding",
     status: "written",
     job_id: "00000000-0000-4000-8000-0000000000d1",
     attempt_ref: "#12.1",
@@ -46,16 +46,16 @@ function writeup(overrides: Partial<Writeup> = {}): Writeup {
 }
 
 function awaitingResult(verdict: Schemas["Verdict"], w: Writeup = writeup()) {
-  const h = hypothesis({
+  const h = unit({
     state: "deciding",
     reviews: [review({ id: CASE_ID, kind: "decision", state: "pending", subject_revision: 3 })],
   });
   return {
-    ...hypothesisApi(h, {
+    ...unitApi(h, {
       attempts: [attempt({ state: "verified" })],
       reports: { 1: report() },
     }),
-    "GET /api/projects/sardines/hypotheses/12/writeup": () => json(w),
+    "GET /api/projects/sardines/units/12/writeup": () => json(w),
     [`GET /api/projects/sardines/review-cases/${CASE_ID}`]: () =>
       json(
         reviewCase({
@@ -84,7 +84,7 @@ describe("reviewing a result", () => {
         },
       },
     );
-    const { user, router } = renderApp("/hypotheses/12/review");
+    const { user, router } = renderApp("/units/12/review");
     const accept = await screen.findByRole("button", { name: "Accept" });
     expect(accept).toBeDisabled();
     expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
@@ -101,7 +101,7 @@ describe("reviewing a result", () => {
     await user.click(within(dialog).getByRole("button", { name: "Confirm: Accept" }));
 
     expect(await screen.findByText("Your decision (Accept) was recorded.")).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe("/hypotheses/12");
+    expect(router.state.location.pathname).toBe("/units/12");
     expect(posted).toHaveLength(1);
     const request = posted[0];
     expect(request?.headers.get("idempotency-key")).toMatch(/.+/);
@@ -113,7 +113,7 @@ describe("reviewing a result", () => {
 
   it("shows the write-up before the decision", async () => {
     signedIn({}, awaitingResult("pass"));
-    renderApp("/hypotheses/12/review");
+    renderApp("/units/12/review");
     const section = await screen.findByRole("region", { name: "Write-up" });
     expect(
       await within(section).findByText("Shorter prompts held on every split."),
@@ -135,7 +135,7 @@ describe("reviewing a result", () => {
         },
       },
     );
-    const { user } = renderApp("/hypotheses/12/review");
+    const { user } = renderApp("/units/12/review");
     expect(await screen.findByText("No write-up: The numbers say it all.")).toBeInTheDocument();
     await user.type(screen.getByRole("textbox", { name: /Reason/ }), "Below the bar");
     await user.click(screen.getByRole("button", { name: "Reject" }));
@@ -146,7 +146,7 @@ describe("reviewing a result", () => {
     expect(body.document).toContain("\nwriteup: null\n");
   });
 
-  it("offers only to close a stopped hypothesis as failed", async () => {
+  it("offers only to close a stopped unit as failed", async () => {
     const handlers = awaitingResult(
       "fail",
       writeup({ inputs: { attempts: [1], verification: null } }),
@@ -159,14 +159,14 @@ describe("reviewing a result", () => {
           json(reviewCase({ id: CASE_ID, verification: null })),
       },
     );
-    renderApp("/hypotheses/12/review");
+    renderApp("/units/12/review");
     expect(await screen.findByRole("button", { name: "Close as failed" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
   });
 
   it("offers Accept only on a pass verdict", async () => {
     signedIn({}, awaitingResult("fail"));
-    renderApp("/hypotheses/12/review");
+    renderApp("/units/12/review");
     expect(await screen.findByRole("button", { name: "Reject" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Inconclusive" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
@@ -186,7 +186,7 @@ describe("reviewing a result", () => {
           ),
       },
     );
-    const { user } = renderApp("/hypotheses/12/review");
+    const { user } = renderApp("/units/12/review");
     await user.type(await screen.findByRole("textbox", { name: /Reason/ }), "Looks right");
     await user.click(screen.getByRole("button", { name: "Reject" }));
     await user.click(await screen.findByRole("button", { name: "Confirm: Reject" }));
@@ -200,14 +200,14 @@ describe("reviewing a result", () => {
 
 describe("reviewing a failure", () => {
   it("offers to try again or stop", async () => {
-    const h = hypothesis({
+    const h = unit({
       state: "active",
       reviews: [review({ id: CASE_ID, kind: "failure", state: "pending" })],
     });
     signedIn(
       {},
       {
-        ...hypothesisApi(h, { attempts: [attempt({ state: "failed" })] }),
+        ...unitApi(h, { attempts: [attempt({ state: "failed" })] }),
         [`GET /api/projects/sardines/review-cases/${CASE_ID}`]: () =>
           json(
             reviewCase({
@@ -226,7 +226,7 @@ describe("reviewing a failure", () => {
           ),
       },
     );
-    renderApp("/hypotheses/12/review");
+    renderApp("/units/12/review");
     expect(await screen.findByRole("button", { name: "Try again" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
     expect(screen.getAllByText(/The verifier ran out of time/).length).toBeGreaterThan(0);
@@ -235,9 +235,9 @@ describe("reviewing a failure", () => {
 
 describe("who can review", () => {
   for (const role of ["viewer", "member"]) {
-    it(`sends a ${role} back to the hypothesis`, async () => {
+    it(`sends a ${role} back to the unit`, async () => {
       signedIn({ projects: [project("sardines", "Sardines", role)] }, awaitingResult("pass"));
-      renderApp("/hypotheses/12/review");
+      renderApp("/units/12/review");
       expect(await screen.findByText(/Only researchers record decisions/)).toBeInTheDocument();
       expect(screen.queryByRole("textbox", { name: /Reason/ })).not.toBeInTheDocument();
     });
@@ -248,25 +248,25 @@ describe("who can review", () => {
       { admin: true, projects: [project("sardines", "Sardines", null)] },
       awaitingResult("pass"),
     );
-    renderApp("/hypotheses/12/review");
+    renderApp("/units/12/review");
     expect(await screen.findByText(/Only researchers record decisions/)).toBeInTheDocument();
   });
 
   it("does not let a read-only session decide", async () => {
     signedIn({ scopes: ["read"] }, awaitingResult("pass"));
-    renderApp("/hypotheses/12/review");
+    renderApp("/units/12/review");
     expect(await screen.findByText(/Only researchers record decisions/)).toBeInTheDocument();
   });
 });
 
 describe("a decision retried after a network error", () => {
   const failureCase = () => {
-    const h = hypothesis({
+    const h = unit({
       state: "active",
       reviews: [review({ id: CASE_ID, kind: "failure", state: "pending" })],
     });
     return {
-      ...hypothesisApi(h, { attempts: [attempt({ state: "failed" })] }),
+      ...unitApi(h, { attempts: [attempt({ state: "failed" })] }),
       [`GET /api/projects/sardines/review-cases/${CASE_ID}`]: () =>
         json(
           reviewCase({
@@ -314,7 +314,7 @@ describe("a decision retried after a network error", () => {
           },
         },
       );
-      const { user } = renderApp("/hypotheses/12/review");
+      const { user } = renderApp("/units/12/review");
       await user.type(await screen.findByRole("textbox", { name: /Reason/ }), "Worth it");
       await user.click(screen.getByRole("button", { name: flow.choice }));
       const confirm = await screen.findByRole("button", { name: `Confirm: ${flow.choice}` });

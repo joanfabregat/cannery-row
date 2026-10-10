@@ -1,20 +1,13 @@
-import type {
-  Attempt,
-  AttemptDetail,
-  Decision,
-  Hypothesis,
-  HypothesisReview,
-  Report,
-} from "@/api/types";
+import type { Attempt, AttemptDetail, Decision, Unit, UnitReview, Report } from "@/api/types";
 
 import { formatDate } from "./format";
 import { statusLabel } from "./labels";
 import { plainText } from "./plain-text";
 
 /**
- * A hypothesis page answers first, in one sentence, "what was tried, what
+ * A unit page answers first, in one sentence, "what was tried, what
  * happened, what was decided and why". The sentence is built from the
- * hypothesis, its latest attempt, that attempt's report and verification
+ * unit, its latest attempt, that attempt's report and verification
  * verdict, and the decision in force with its reason. The parts are also
  * returned on their own for the summary under the sentence.
  */
@@ -29,23 +22,20 @@ export interface OutcomeSummary {
 }
 
 /** The decision a later correction has not superseded. */
-export function currentDecision(review: HypothesisReview | undefined): Decision | null {
+export function currentDecision(review: UnitReview | undefined): Decision | null {
   if (review === undefined) return null;
   const superseded = new Set(review.decisions.map((d) => d.supersedes).filter(Boolean));
   const live = review.decisions.filter((d) => !superseded.has(d.id));
   return live.at(-1) ?? null;
 }
 
-export function latestReview(
-  hypothesis: Hypothesis,
-  kind: "decision" | "failure",
-): HypothesisReview | undefined {
-  return hypothesis.reviews.filter((r) => r.kind === kind).at(-1);
+export function latestReview(unit: Unit, kind: "decision" | "failure"): UnitReview | undefined {
+  return unit.reviews.filter((r) => r.kind === kind).at(-1);
 }
 
 /** The review a researcher still has to decide, if any. */
-export function pendingReview(hypothesis: Hypothesis): HypothesisReview | undefined {
-  return hypothesis.reviews.filter((r) => r.state === "pending").at(-1);
+export function pendingReview(unit: Unit): UnitReview | undefined {
+  return unit.reviews.filter((r) => r.state === "pending").at(-1);
 }
 
 function text(value: unknown): string | null {
@@ -53,7 +43,7 @@ function text(value: unknown): string | null {
 }
 
 /**
- * What the hypothesis compares against, in words ("base-camp, revision
+ * What the unit compares against, in words ("base-camp, revision
  * r3"), or null when it names no control: the control is optional, and the
  * policy decides what it means.
  */
@@ -97,22 +87,17 @@ const DECIDED_WORDS: Record<string, string> = {
   failed: "Closed as failed",
 };
 
-function lastDecision(review: HypothesisReview | undefined): Decision | null {
+function lastDecision(review: UnitReview | undefined): Decision | null {
   return review?.decisions.at(-1) ?? null;
 }
 
 /**
  * The newest decision still in force across these kinds of review: what put
- * a queued or active hypothesis back where it is (a decision to try again
+ * a queued or active unit back where it is (a decision to try again
  * after a failure). Its approval is its plan's.
  */
-function newestLiveDecision(
-  hypothesis: Hypothesis,
-  kinds: HypothesisReview["kind"][],
-): Decision | null {
-  const decisions = hypothesis.reviews
-    .filter((r) => kinds.includes(r.kind))
-    .flatMap((r) => r.decisions);
+function newestLiveDecision(unit: Unit, kinds: UnitReview["kind"][]): Decision | null {
+  const decisions = unit.reviews.filter((r) => kinds.includes(r.kind)).flatMap((r) => r.decisions);
   const superseded = new Set(decisions.map((d) => d.supersedes).filter(Boolean));
   const live = decisions.filter((d) => !superseded.has(d.id));
   return live.reduce<Decision | null>(
@@ -122,20 +107,20 @@ function newestLiveDecision(
   );
 }
 
-function decisionFor(hypothesis: Hypothesis): Decision | null {
-  switch (hypothesis.state) {
+function decisionFor(unit: Unit): Decision | null {
+  switch (unit.state) {
     case "promoted":
     case "rejected":
     case "inconclusive":
-      return currentDecision(latestReview(hypothesis, "decision"));
+      return currentDecision(latestReview(unit, "decision"));
     case "failed":
       return (
-        currentDecision(latestReview(hypothesis, "decision")) ??
-        lastDecision(latestReview(hypothesis, "failure"))
+        currentDecision(latestReview(unit, "decision")) ??
+        lastDecision(latestReview(unit, "failure"))
       );
     case "queued":
     case "active":
-      return newestLiveDecision(hypothesis, ["failure"]);
+      return newestLiveDecision(unit, ["failure"]);
     default:
       return null;
   }
@@ -160,20 +145,20 @@ function failedAttempt(attempt: AttemptDetail | null, previous: Attempt | null):
  * is tried again, the new attempt follows it.
  */
 export function summarizeOutcome(
-  hypothesis: Hypothesis,
+  unit: Unit,
   attempt: AttemptDetail | null,
   report: Report | null,
   previous: Attempt | null = null,
 ): OutcomeSummary {
-  const title = `“${hypothesis.title}”`;
-  const document = hypothesis.document;
+  const title = `“${unit.title}”`;
+  const document = unit.document;
   const agentReport = report !== null && "what_was_tried" in report.report ? report.report : null;
   // Shown inline as plain text: the report's Markdown syntax would read as noise.
   const tried = plainText(
     text(agentReport?.what_was_tried) ??
       text("intervention" in document ? document.intervention : undefined) ??
       text(document.question) ??
-      hypothesis.title,
+      unit.title,
   );
 
   const verification = report?.verification ?? null;
@@ -191,7 +176,7 @@ export function summarizeOutcome(
     happened = `Attempt ${attempt.ref}: ${statusLabel("attempt", attempt.state).toLowerCase()}.`;
   }
 
-  const decision = decisionFor(hypothesis);
+  const decision = decisionFor(unit);
   const why = decision === null ? null : decision.reason;
   // An automatic decision is recorded by the decider step, not a person.
   const who =
@@ -205,7 +190,7 @@ export function summarizeOutcome(
   const because = decision === null ? "" : ` because ${quoteReason(decision.reason)}`;
 
   let sentence: string;
-  switch (hypothesis.state) {
+  switch (unit.state) {
     case "queued":
       sentence =
         decision?.action === "retry"
@@ -217,7 +202,7 @@ export function summarizeOutcome(
         attempt === null
           ? ""
           : ` (attempt ${attempt.ref}: ${statusLabel("attempt", attempt.state).toLowerCase()})`;
-      if (pendingReview(hypothesis)?.kind === "failure" && attempt !== null) {
+      if (pendingReview(unit)?.kind === "failure" && attempt !== null) {
         // A failure waits for a researcher: try again, or stop and write it up.
         sentence = `We tried ${title}, but attempt ${attempt.ref} failed${
           failure ? ` (${failure.reason.replace(/[.\s]+$/, "")})` : ""
@@ -248,7 +233,7 @@ export function summarizeOutcome(
     case "inconclusive": {
       const phrase =
         decision === null
-          ? `it was ${statusLabel("hypothesis", hypothesis.state).toLowerCase()}.`
+          ? `it was ${statusLabel("unit", unit.state).toLowerCase()}.`
           : `${who} ${DECISION_PHRASES[decision.action] ?? "decided"}${because}`;
       sentence = `We tried ${title}${
         verdictPhrase === null ? ", and " : `: the verification ${verdictPhrase}, and `
@@ -264,7 +249,7 @@ export function summarizeOutcome(
       sentence = `${title} was cancelled before it produced a result.`;
       break;
     default:
-      sentence = `${title}: ${statusLabel("hypothesis", hypothesis.state).toLowerCase()}.`;
+      sentence = `${title}: ${statusLabel("unit", unit.state).toLowerCase()}.`;
   }
 
   return { sentence, tried, happened, decision, decided, why };

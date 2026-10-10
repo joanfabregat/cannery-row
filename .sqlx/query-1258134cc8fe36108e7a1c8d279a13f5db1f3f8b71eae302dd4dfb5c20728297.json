@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE projects SET next_unit_number=next_unit_number+1 WHERE id=$1 RETURNING next_unit_number-1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1258134cc8fe36108e7a1c8d279a13f5db1f3f8b71eae302dd4dfb5c20728297"
+}

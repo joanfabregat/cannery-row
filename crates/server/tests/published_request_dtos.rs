@@ -43,7 +43,7 @@ fn every_fixed_envelope_roundtrips_published_valid_examples() -> Result {
     published_examples::<JobCompletionRequest>("job_completion")?;
     published_examples::<JobFailureRequest>("job_failure")?;
     published_examples::<EvidenceEnvelopeRequest>("evidence_envelope")?;
-    published_examples::<UnitCreate>("hypothesis")?;
+    published_examples::<UnitCreate>("unit")?;
     published_examples::<TrackCreateRequest>("track")?;
     published_examples::<StepManifestRequest>("step_manifest")?;
     published_examples::<ScienceRevisionRequest>("science_revision")?;

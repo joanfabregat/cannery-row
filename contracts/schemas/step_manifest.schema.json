@@ -345,7 +345,7 @@
         {
           "if": {"properties": {"role": {"const": "decider"}}, "required": ["role"]},
           "then": {
-            "description": "A decider step has no network and no input artifacts (it reads the hypothesis's decide context bundle at /cr/context/context.md) and outputs exactly its decision document.",
+            "description": "A decider step has no network and no input artifacts (it reads the unit's decide context bundle at /cr/context/context.md) and outputs exactly its decision document.",
             "properties": {
               "network": {"const": "none"},
               "inputs": {"properties": {"artifacts": {"maxItems": 0}}},

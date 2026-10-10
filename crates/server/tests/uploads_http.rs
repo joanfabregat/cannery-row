@@ -25,7 +25,7 @@ use std::{
 use tower::ServiceExt;
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 const TOKEN: &str = "cr_upl_fixture_wire";
-const BASE: &str = "/api/projects/matrix/hypotheses/1/attempts/1/uploads";
+const BASE: &str = "/api/projects/matrix/units/1/attempts/1/uploads";
 fn hex(bytes: &[u8]) -> String {
     let mut value = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -289,8 +289,8 @@ async fn storage(pool: &sqlx::PgPool, root: &Path) -> Result<Value> {
     let mut out = json!({});
     for (table, order) in [
         ("tracks", "id"),
-        ("hypotheses", "id"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "id"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("artifacts", "id"),
         ("measurements", "id"),

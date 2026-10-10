@@ -152,7 +152,7 @@ pub(crate) async fn experiment_as(
 ) -> Result<bool, Failure> {
     if is_infrastructure(attempt, report.code) {
         let used = Repository::new(conn, profile)
-            .automatic_requeues(attempt.hypothesis_id)
+            .automatic_requeues(attempt.unit_id)
             .await
             .map_err(|_| internal(context, "automatic retry count"))?;
         let revision = config_repo::get_revision(
@@ -191,7 +191,7 @@ pub(crate) async fn experiment_as(
                 .ok_or_else(|| internal(context, "retry audit integer"))?;
             let rendered = allowed.to_string();
             let prior = json!({"state":"active"});
-            let new = json!({"state":"queued","automatic":true,"failed_attempt":format!("#{}.{}",attempt.hypothesis_number,attempt.sequence),"code":report.code,"retry":used+1,"max_auto_retries":allowed});
+            let new = json!({"state":"queued","automatic":true,"failed_attempt":format!("#{}.{}",attempt.unit_number,attempt.sequence),"code":report.code,"retry":used+1,"max_auto_retries":allowed});
             let reason = format!(
                 "automatic retry {} of {rendered} after an infrastructure failure",
                 used + 1
@@ -200,9 +200,9 @@ pub(crate) async fn experiment_as(
                 conn,
                 actor,
                 Record {
-                    action: "hypothesis.requeued",
-                    subject_type: "hypothesis",
-                    subject_id: &attempt.hypothesis_id.0.to_string(),
+                    action: "unit.requeued",
+                    subject_type: "unit",
+                    subject_id: &attempt.unit_id.0.to_string(),
                     project_id: Some(attempt.project_id),
                     prior_state: Some(&prior),
                     new_state: Some(&new),

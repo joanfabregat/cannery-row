@@ -19,8 +19,8 @@ use cannery_core::{
     json::{DocumentBuilder, Node},
     principal::Role,
 };
-use cannery_hypotheses::repo as hypotheses;
 use cannery_projects::authz;
+use cannery_units::repo as units;
 use num_bigint::BigInt;
 use sqlx::Acquire;
 
@@ -35,7 +35,7 @@ fn input(body: &DecodedBody) -> BodyInput<'_> {
         DecodedBody::Json(d) => BodyInput::Json(d),
     }
 }
-fn map_failure(error: crate::hypothesis_routes::Failure) -> Failure {
+fn map_failure(error: crate::unit_routes::Failure) -> Failure {
     Failure(Box::new(error.into_response()))
 }
 
@@ -57,7 +57,7 @@ pub(crate) async fn create(
     let raw = crate::api_contract::typed_body::<crate::api_models::CommentCreate>(raw)
         .map_err(|error| Failure(Box::new(error.into_response())))?;
     let paths = routes::paths(&mut parts, &state).await?;
-    let parameters = validation::hypothesis_parameters(
+    let parameters = validation::unit_parameters(
         paths.get("number").map(String::as_str),
         paths.get("sequence").map(String::as_str),
         &[],
@@ -125,21 +125,10 @@ pub(crate) async fn create(
         .await
         .map_err(|_| internal(&context, "comment begin"))?;
     let result = async {
-        let hyp = hypotheses::get_hypothesis(
-            &mut tx,
-            project.id,
-            &number,
-            false,
-            state.context.hypotheses,
-        )
-        .await
-        .map_err(|_| internal(&context, "comment target"))?
-        .ok_or_else(|| {
-            domain(
-                ErrorCode::NotFound,
-                format!("hypothesis #{number} not found"),
-            )
-        })?;
+        let hyp = units::get_unit(&mut tx, project.id, &number, false, state.context.units)
+            .await
+            .map_err(|_| internal(&context, "comment target"))?
+            .ok_or_else(|| domain(ErrorCode::NotFound, format!("unit #{number} not found")))?;
         let attempt = if let Some(sequence) = parameters.revision {
             Some(
                 routes::attempt_id(&mut tx, hyp.id, &sequence, &context)
@@ -168,7 +157,7 @@ pub(crate) async fn create(
         let document = builder
             .finish(root)
             .map_err(|_| internal(&context, "comment mentions document"))?;
-        let mentions = crate::hypothesis_mutations::resolve_mentions(
+        let mentions = crate::unit_mutations::resolve_mentions(
             &mut tx,
             &auth.principal,
             &project,
@@ -179,9 +168,9 @@ pub(crate) async fn create(
         )
         .await
         .map_err(map_failure)?;
-        hypotheses::replace_mentions(
+        units::replace_mentions(
             &mut tx,
-            hypotheses::MentionSource::Comment(hypotheses::CommentId(id.0)),
+            units::MentionSource::Comment(units::CommentId(id.0)),
             mentions,
         )
         .await
@@ -349,20 +338,20 @@ pub(crate) async fn edit(
         let document = builder
             .finish(root)
             .map_err(|_| internal(&context, "comment mentions document"))?;
-        let mentions = crate::hypothesis_mutations::resolve_mentions(
+        let mentions = crate::unit_mutations::resolve_mentions(
             &mut tx,
             &auth.principal,
             &project,
             &document,
-            Some(comment.hypothesis_id),
+            Some(comment.unit_id),
             profile.mention_walk_budget,
             &context,
         )
         .await
         .map_err(map_failure)?;
-        hypotheses::replace_mentions(
+        units::replace_mentions(
             &mut tx,
-            hypotheses::MentionSource::Comment(hypotheses::CommentId(id.0)),
+            units::MentionSource::Comment(units::CommentId(id.0)),
             mentions,
         )
         .await
@@ -410,9 +399,9 @@ pub(crate) async fn edit(
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/comments",
-    operation_id = "comment_on_hypothesis_api_projects__slug__hypotheses__number__comments_post",
-    summary = "Comment On Hypothesis",
+    path = "/api/projects/{slug}/units/{number}/comments",
+    operation_id = "comment_on_unit_api_projects__slug__units__number__comments_post",
+    summary = "Comment On Unit",
     params(("slug" = String, Path),
         ("number" = i64, Path)),
     request_body(content = crate::api_models::CommentCreate, content_type = "application/json"),
@@ -426,7 +415,7 @@ pub(crate) async fn edit(
         (status = 503, description = "Service unavailable", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
 )]
-pub(crate) async fn rest_comment_on_hypothesis(
+pub(crate) async fn rest_comment_on_unit(
     arg0: State<RouteState>,
     arg1: axum::Extension<RequestContext>,
     arg2: Request,
@@ -436,8 +425,8 @@ pub(crate) async fn rest_comment_on_hypothesis(
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments",
-    operation_id = "comment_on_attempt_api_projects__slug__hypotheses__number__attempts__sequence__comments_post",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/comments",
+    operation_id = "comment_on_attempt_api_projects__slug__units__number__attempts__sequence__comments_post",
     summary = "Comment On Attempt",
     params(("slug" = String, Path),
         ("number" = i64, Path),

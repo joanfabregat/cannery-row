@@ -18,7 +18,7 @@ pub(crate) const STATES: &[&str] = &[
 ];
 #[derive(Clone, Copy)]
 pub(crate) enum Operation {
-    Hypothesis,
+    Unit,
     Project,
     Detail,
 }
@@ -93,7 +93,7 @@ pub(crate) fn parse(
             }
             Err(e) => errors.extend(e.problems().iter().cloned()),
         }
-    } else if matches!(operation, Operation::Hypothesis) {
+    } else if matches!(operation, Operation::Unit) {
         if let Some(raw) = query.get("before") {
             match validation::bounded_query_integer(raw, "before", 0, Some(i64::from(i32::MAX))) {
                 Ok(v) => result.after = Some(v),

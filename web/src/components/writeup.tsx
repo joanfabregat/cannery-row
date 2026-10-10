@@ -9,7 +9,7 @@ function text(value: unknown): string | null {
 }
 
 /**
- * A hypothesis's write-up: its one-sentence summary and its body, who wrote
+ * A unit's write-up: its one-sentence summary and its body, who wrote
  * it and when; "No write-up: <reason>" when a researcher skipped it; or where
  * it stands while it is still to write.
  */

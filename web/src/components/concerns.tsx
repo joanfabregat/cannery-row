@@ -23,11 +23,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { describeError } from "@/lib/errors";
 import { formatDateTime } from "@/lib/format";
 import { label } from "@/lib/labels";
-import { attemptPath, hypothesisPath, planEditorPath, trackPath } from "@/lib/paths";
+import { attemptPath, unitPath, planEditorPath, trackPath } from "@/lib/paths";
 
 /**
  * Concerns about a track's plan: anyone working on the track says the plan
- * is wrong, and while a concern is open no new hypothesis of the track
+ * is wrong, and while a concern is open no new unit of the track
  * starts. A plan revision answers it, or a researcher dismisses it.
  */
 
@@ -47,19 +47,17 @@ function raisedBy(concern: Concern): string {
   return concern.via_client ? `${who} (${through}, ${concern.via_client})` : `${who} (${through})`;
 }
 
-/** Where a concern comes from: its hypothesis or attempt, when it names one. */
+/** Where a concern comes from: its unit or attempt, when it names one. */
 function Origin({ concern }: { concern: Concern }) {
-  if (concern.hypothesis == null) return null;
+  if (concern.unit == null) return null;
   const to =
-    concern.attempt == null
-      ? hypothesisPath(concern.hypothesis)
-      : attemptPath(concern.hypothesis, concern.attempt);
+    concern.attempt == null ? unitPath(concern.unit) : attemptPath(concern.unit, concern.attempt);
   return (
     <>
       {" "}
       from{" "}
       <Link to={to} className="underline underline-offset-4">
-        #{concern.hypothesis}
+        #{concern.unit}
         {concern.attempt == null ? "" : `.${String(concern.attempt)}`}
       </Link>
     </>
@@ -143,7 +141,7 @@ export function RaiseConcernDialog({ project, track }: { project: string; track:
         <DialogDescription>
           Say what is wrong with the plan itself: an assumption it relies on, a better way to test
           the track&apos;s idea, or something that stops it from being carried out. While the
-          concern is open, no new hypothesis of this track starts; work already started continues.
+          concern is open, no new unit of this track starts; work already started continues.
         </DialogDescription>
         <form
           className="flex flex-col gap-4"
@@ -235,7 +233,7 @@ function DismissConcernDialog({ project, concern }: { project: string; concern: 
         <DialogTitle>Dismiss the concern</DialogTitle>
         <DialogDescription>
           The plan stays as it is and the concern closes. If no other concern is open, the
-          track&apos;s hypotheses can start again.
+          track&apos;s units can start again.
         </DialogDescription>
         <form
           className="flex flex-col gap-4"
@@ -372,7 +370,7 @@ export function TrackConcerns({
   return (
     <Section
       title="Concerns"
-      description="A concern says the plan itself is wrong. While one is open, no new hypothesis of this track starts; work already started continues. A plan revision answers it, or a researcher dismisses it."
+      description="A concern says the plan itself is wrong. While one is open, no new unit of this track starts; work already started continues. A plan revision answers it, or a researcher dismisses it."
       actions={
         canRaise && !archived ? <RaiseConcernDialog project={project} track={track} /> : null
       }

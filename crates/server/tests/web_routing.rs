@@ -77,7 +77,7 @@ async fn override_static_spa_and_head() -> Result {
         "/index.html",
         "/projects/demo",
         "/projects/v1.2",
-        "/hypotheses/12.3",
+        "/units/12.3",
     ] {
         let (status, headers, body) = request(app.clone(), Method::GET, path).await?;
         assert_eq!(status, StatusCode::OK);

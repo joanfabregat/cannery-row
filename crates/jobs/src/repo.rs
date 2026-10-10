@@ -1,6 +1,6 @@
 //! Frozen job specifications, claim queue, lease updates and outcomes.
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, JobId, ProjectId, ServiceAccountId, UserId},
+    ids::{AttemptId, JobId, ProjectId, ServiceAccountId, UnitId, UserId},
     json::{self, Document},
     principal::Principal,
     timestamps::Timestamp,
@@ -426,7 +426,7 @@ pub async fn pick_pending_runner(
     .map(|r| r.id))
 }
 /// The oldest waiting decide job registered to `decider` under its step `revision`,
-/// of a hypothesis still awaiting its decision.
+/// of a unit still awaiting its decision.
 /// # Errors
 /// Reports sanitized database or source text-adaptation failure.
 pub async fn pick_pending_decider(
@@ -659,22 +659,22 @@ pub async fn complete_decide_job(
     .ok_or(JobError::StaleLease)?
     .decode(c)
 }
-/// A hypothesis's latest decide job, whatever its state.
+/// A unit's latest decide job, whatever its state.
 /// # Errors
 /// Reports sanitized database or row-decoding failure.
 pub async fn decide_job(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
     c: JsonContext,
 ) -> Result<Option<Job>, JobError> {
-    sqlx::query_file_as!(RawJob, "src/sql/decide_job.sql", hypothesis as HypothesisId)
+    sqlx::query_file_as!(RawJob, "src/sql/decide_job.sql", unit as UnitId)
         .fetch_optional(conn)
         .await
         .map_err(|e| JobError::database(&e))?
         .map(|r| r.decode(c))
         .transpose()
 }
-/// A researcher skips a hypothesis's document job, pending or claimed, with
+/// A researcher skips a unit's document job, pending or claimed, with
 /// a reason; the skip ends any lease on it.
 /// # Errors
 /// A job no longer waiting or claimed is `StaleLease`.
@@ -707,24 +707,20 @@ pub async fn skip_job(
     .ok_or(JobError::StaleLease)?
     .decode(c)
 }
-/// A hypothesis's latest document job, whatever its state.
+/// A unit's latest document job, whatever its state.
 /// # Errors
 /// Reports sanitized database or row-decoding failure.
 pub async fn document_job(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
+    unit: UnitId,
     c: JsonContext,
 ) -> Result<Option<Job>, JobError> {
-    sqlx::query_file_as!(
-        RawJob,
-        "src/sql/document_job.sql",
-        hypothesis as HypothesisId
-    )
-    .fetch_optional(conn)
-    .await
-    .map_err(|e| JobError::database(&e))?
-    .map(|r| r.decode(c))
-    .transpose()
+    sqlx::query_file_as!(RawJob, "src/sql/document_job.sql", unit as UnitId)
+        .fetch_optional(conn)
+        .await
+        .map_err(|e| JobError::database(&e))?
+        .map(|r| r.decode(c))
+        .transpose()
 }
 const fn channel(channel: cannery_core::principal::Channel) -> &'static str {
     match channel {

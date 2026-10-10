@@ -43,7 +43,7 @@ pub(crate) struct RouteState {
 pub fn routes(app: AppState, profile: Arc<ManifestContext>) -> Router {
     Router::new()
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/manifest",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/manifest",
             post(create),
         )
         .with_state(RouteState { app, profile })
@@ -127,8 +127,8 @@ pub(crate) fn canonical_bytes(document: &Document, budget: usize) -> Result<Vec<
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/manifest",
-    operation_id = "post_manifest_api_projects__slug__hypotheses__number__attempts__sequence__manifest_post",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/manifest",
+    operation_id = "post_manifest_api_projects__slug__units__number__attempts__sequence__manifest_post",
     summary = "Post Manifest",
     description = "Verify an artifact manifest against this attempt's verified uploads.",
     params(("slug" = String, Path),

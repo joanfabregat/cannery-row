@@ -371,25 +371,22 @@ pub async fn update_track(
     optional(raw, context)
 }
 
-/// Only queued, active and awaiting-human-review hypotheses are open.
+/// Only queued, active and awaiting-human-review units are open.
 /// # Errors
 /// Returns a sanitized database failure. This function takes no implicit lock.
-pub async fn count_open_hypotheses(
+pub async fn count_open_units(
     connection: &mut PgConnection,
     id: TrackId,
 ) -> Result<i64, TrackError> {
-    Ok(sqlx::query_scalar!(r#"SELECT count(*) AS "count!" FROM hypotheses WHERE track_id=$1 AND state=ANY(ARRAY['queued','active','documenting','deciding']::text[])"#,id as TrackId).fetch_one(connection).await?)
+    Ok(sqlx::query_scalar!(r#"SELECT count(*) AS "count!" FROM units WHERE track_id=$1 AND state=ANY(ARRAY['queued','active','documenting','deciding']::text[])"#,id as TrackId).fetch_one(connection).await?)
 }
 
-/// Every hypothesis of the track, whatever its state.
+/// Every unit of the track, whatever its state.
 /// # Errors
 /// Returns a sanitized database failure.
-pub async fn count_hypotheses(
-    connection: &mut PgConnection,
-    id: TrackId,
-) -> Result<i64, TrackError> {
+pub async fn count_units(connection: &mut PgConnection, id: TrackId) -> Result<i64, TrackError> {
     Ok(sqlx::query_scalar!(
-        r#"SELECT count(*) AS "count!" FROM hypotheses WHERE track_id = $1"#,
+        r#"SELECT count(*) AS "count!" FROM units WHERE track_id = $1"#,
         id as TrackId
     )
     .fetch_one(connection)

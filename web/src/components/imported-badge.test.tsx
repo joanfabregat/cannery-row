@@ -8,13 +8,11 @@ import { ImportedBadge } from "./imported-badge";
 
 describe("imported records", () => {
   it("are badged with their source as the tooltip and their external id", () => {
-    render(
-      <ImportedBadge origin="imported" sourceRef="hypotheses/H-001.yaml" externalId="H-001" />,
-    );
+    render(<ImportedBadge origin="imported" sourceRef="units/H-001.yaml" externalId="H-001" />);
     const badge = screen.getByText("Imported").closest("[data-slot=imported-badge]");
-    expect(badge).toHaveAttribute("title", "hypotheses/H-001.yaml");
+    expect(badge).toHaveAttribute("title", "units/H-001.yaml");
     expect(badge).toHaveTextContent("H-001");
-    expect(badge).toHaveTextContent("from hypotheses/H-001.yaml");
+    expect(badge).toHaveTextContent("from units/H-001.yaml");
   });
 
   it("write their source out on detail pages", () => {

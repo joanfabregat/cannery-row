@@ -508,7 +508,7 @@ async fn config_publication_reads_semantics_and_bounded_json_refusal() -> Result
     .await?;
     // Native JSON depth refusal occurs before publication or audit writes.
     let mut deep = doc.clone();
-    deep["hypothesis_fields"] = json!({"const":"FIXED-DEEP-PROBE"});
+    deep["unit_fields"] = json!({"const":"FIXED-DEEP-PROBE"});
     let shallow = serde_json::to_string(&deep)?;
     let raw = shallow.replace(
         "\"FIXED-DEEP-PROBE\"",

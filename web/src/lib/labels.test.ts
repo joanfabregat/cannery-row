@@ -2,8 +2,8 @@ import { humanize, label, statusDomains, statusLabel, statusMeta } from "./label
 
 describe("plain-language labels", () => {
   it("names the states the spec calls out", () => {
-    expect(statusLabel("hypothesis", "documenting")).toBe("Being written up");
-    expect(statusLabel("hypothesis", "deciding")).toBe("Needs a decision");
+    expect(statusLabel("unit", "documenting")).toBe("Being written up");
+    expect(statusLabel("unit", "deciding")).toBe("Needs a decision");
     expect(statusLabel("attempt", "verified")).toBe("Verified");
     expect(statusLabel("authority", "agent_claim")).toBe("Reported by agent");
     expect(statusLabel("authority", "tester_verified")).toBe("Verified");
@@ -11,8 +11,8 @@ describe("plain-language labels", () => {
     expect(statusLabel("authority", "imported_transcribed")).toBe("Imported from a document");
   });
 
-  it("covers every hypothesis and attempt state of the lifecycle", () => {
-    const hypothesis = [
+  it("covers every unit and attempt state of the lifecycle", () => {
+    const unit = [
       "queued",
       "active",
       "documenting",
@@ -32,7 +32,7 @@ describe("plain-language labels", () => {
       "cancelled",
       "unreviewed",
     ];
-    expect(Object.keys(statusDomains.hypothesis).sort()).toEqual([...hypothesis].sort());
+    expect(Object.keys(statusDomains.unit).sort()).toEqual([...unit].sort());
     expect(Object.keys(statusDomains.attempt).sort()).toEqual([...attempt].sort());
   });
 
@@ -46,7 +46,7 @@ describe("plain-language labels", () => {
   });
 
   it("falls back to readable words for an unknown value", () => {
-    expect(statusMeta("hypothesis", "some_new_state")).toEqual({
+    expect(statusMeta("unit", "some_new_state")).toEqual({
       label: "Some new state",
       tone: "neutral",
       icon: "inconclusive",

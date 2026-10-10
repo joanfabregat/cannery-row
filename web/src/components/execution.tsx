@@ -25,9 +25,9 @@ import { usePermissions } from "@/projects/use-permissions";
 
 const MODE_WORDS: Record<string, string> = {
   agent:
-    "An outside agent claims each hypothesis through the API or MCP, runs the experiment and submits the result.",
+    "An outside agent claims each unit through the API or MCP, runs the experiment and submits the result.",
   workflow:
-    "A Cannery Row runner claims each hypothesis with an experimenter service account and runs the workflow below, then submits the result.",
+    "A Cannery Row runner claims each unit with an experimenter service account and runs the workflow below, then submits the result.",
 };
 
 export function WorkflowStepList({ steps }: { steps: WorkflowStep[] }) {
@@ -45,7 +45,7 @@ export function WorkflowStepList({ steps }: { steps: WorkflowStep[] }) {
 export function TrackExecution({ track }: { track: Track }) {
   const steps = workflowSteps(track.workflow);
   return (
-    <Section title="Execution" description="How this track's hypotheses are run.">
+    <Section title="Execution" description="How this track's units are run.">
       <div className="flex flex-col gap-4">
         <dl className="grid gap-4 md:grid-cols-2">
           <Fact term="Mode">

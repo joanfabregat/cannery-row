@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Write-ups: the queue of hypotheses waiting for one, a hypothesis's
+//! Write-ups: the queue of units waiting for one, a unit's
 //! write-up, and a researcher's write-up or skip. A researcher's write-up
 //! claims the document job and completes it in one action; an agent claims
 //! it with `POST /jobs/claims` and completes it like any job.
@@ -26,7 +26,7 @@ use cannery_attempts::repo::Repository;
 use cannery_core::{
     audit::{self, Attribution, Record},
     errors::ErrorCode,
-    ids::{HypothesisId, ProjectId},
+    ids::{ProjectId, UnitId},
     principal::{Principal, Role},
 };
 use cannery_jobs::repo::{self as jobs, Claimant, Job};
@@ -45,11 +45,11 @@ pub(crate) fn routes(app: AppState, context: Arc<JobLifecycleContext>) -> Router
     Router::new()
         .route("/api/projects/{slug}/writeups", get(queue))
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/writeup",
+            "/api/projects/{slug}/units/{number}/writeup",
             get(read).post(write),
         )
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/writeup/skip",
+            "/api/projects/{slug}/units/{number}/writeup/skip",
             post(skip),
         )
         .with_state(RouteState { app, context })
@@ -73,17 +73,17 @@ fn number(paths: &BTreeMap<String, String>) -> Result<i32, Failure> {
         .ok_or_else(|| invalid("path/number", "Input should be a positive integer"))
 }
 
-/// The hypothesis numbered `number`, locked when `lock`.
-async fn hypothesis(
+/// The unit numbered `number`, locked when `lock`.
+async fn unit(
     c: &mut PgConnection,
     project: ProjectId,
     number: i32,
     lock: bool,
     r: &RequestContext,
-) -> Result<(HypothesisId, String), Failure> {
+) -> Result<(UnitId, String), Failure> {
     let row = if lock {
         sqlx::query!(
-            "SELECT id AS \"id: uuid::Uuid\", state FROM hypotheses WHERE project_id=$1 AND number=$2 FOR UPDATE",
+            "SELECT id AS \"id: uuid::Uuid\", state FROM units WHERE project_id=$1 AND number=$2 FOR UPDATE",
             project.0 as _,
             number
         )
@@ -92,7 +92,7 @@ async fn hypothesis(
         .map(|row| row.map(|row| (row.id, row.state)))
     } else {
         sqlx::query!(
-            "SELECT id AS \"id: uuid::Uuid\", state FROM hypotheses WHERE project_id=$1 AND number=$2",
+            "SELECT id AS \"id: uuid::Uuid\", state FROM units WHERE project_id=$1 AND number=$2",
             project.0 as _,
             number
         )
@@ -100,17 +100,12 @@ async fn hypothesis(
         .await
         .map(|row| row.map(|row| (row.id, row.state)))
     }
-    .map_err(|_| internal(r, "write-up hypothesis"))?;
-    row.map(|(id, state)| (HypothesisId(id), state))
-        .ok_or_else(|| {
-            domain(
-                ErrorCode::NotFound,
-                format!("hypothesis #{number} not found"),
-            )
-        })
+    .map_err(|_| internal(r, "write-up unit"))?;
+    row.map(|(id, state)| (UnitId(id), state))
+        .ok_or_else(|| domain(ErrorCode::NotFound, format!("unit #{number} not found")))
 }
 
-/// A hypothesis's write-up as the API shows it.
+/// A unit's write-up as the API shows it.
 async fn model(
     c: &mut PgConnection,
     project: &Project,
@@ -118,7 +113,7 @@ async fn model(
     s: &RouteState,
     r: &RequestContext,
 ) -> Result<WriteupOut, Failure> {
-    let (id, state) = hypothesis(c, project.id, number, false, r).await?;
+    let (id, state) = unit(c, project.id, number, false, r).await?;
     let job = jobs::document_job(c, id, s.context.flow.jobs)
         .await
         .map_err(|_| internal(r, "write-up job"))?;
@@ -128,7 +123,7 @@ async fn model(
                   p.producer_service AS "producer_service?: uuid::Uuid",
                   p.created_at AS "created_at: cannery_core::timestamps::Timestamp", a.sequence
            FROM phase_outputs p JOIN attempts a ON a.id=p.attempt_id
-           WHERE a.hypothesis_id=$1 AND p.stage='writeup' AND p.status='completed'
+           WHERE a.unit_id=$1 AND p.stage='writeup' AND p.status='completed'
            ORDER BY p.created_at DESC, p.id DESC LIMIT 1"#,
         id.0 as _
     )
@@ -154,13 +149,13 @@ async fn model(
         let row = written.ok_or_else(|| {
             domain(
                 ErrorCode::NotFound,
-                format!("hypothesis #{number} has no write-up"),
+                format!("unit #{number} has no write-up"),
             )
         })?;
         return Ok(WriteupOut {
-            hypothesis: i64::from(number),
-            hypothesis_ref: format!("#{number}"),
-            hypothesis_state: state,
+            unit: i64::from(number),
+            unit_ref: format!("#{number}"),
+            unit_state: state,
             status: String::from("written"),
             job_id: None,
             attempt_ref: format!("#{number}.{}", row.sequence),
@@ -188,9 +183,9 @@ async fn model(
         jobs::State::Skipped => "skipped",
     };
     Ok(WriteupOut {
-        hypothesis: i64::from(number),
-        hypothesis_ref: format!("#{number}"),
-        hypothesis_state: state,
+        unit: i64::from(number),
+        unit_ref: format!("#{number}"),
+        unit_state: state,
         status: String::from(status),
         job_id: Some(job.id.to_string()),
         attempt_ref: format!("#{number}.{}", attempt.sequence),
@@ -223,7 +218,7 @@ async fn model(
     path = "/api/projects/{slug}/writeups",
     operation_id = "list_writeups_api_projects__slug__writeups_get",
     summary = "List Write-ups To Do",
-    description = "The hypotheses waiting for their write-up, oldest first, with their\ndocument job: `pending` until an agent or a researcher claims it.",
+    description = "The units waiting for their write-up, oldest first, with their\ndocument job: `pending` until an agent or a researcher claims it.",
     params(("slug" = String, Path),
         ("limit" = Option<i64>, Query, description = "Items to return.", minimum = 1, maximum = 200)),
     responses((status = 200, description = "Successful Response", body = WriteupQueueOut, content_type = "application/json"),
@@ -271,10 +266,10 @@ pub(crate) async fn queue(
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/writeup",
-    operation_id = "get_writeup_api_projects__slug__hypotheses__number__writeup_get",
+    path = "/api/projects/{slug}/units/{number}/writeup",
+    operation_id = "get_writeup_api_projects__slug__units__number__writeup_get",
     summary = "Get Write-up",
-    description = "The hypothesis's write-up: `pending` or `claimed` while its document job\nwaits or is being written, `written` with the write-up, or `skipped` with\nthe researcher's reason. `inputs` is what the write-up covers and cites,\nand `context` the documenter's context bundle.",
+    description = "The unit's write-up: `pending` or `claimed` while its document job\nwaits or is being written, `written` with the write-up, or `skipped` with\nthe researcher's reason. `inputs` is what the write-up covers and cites,\nand `context` the documenter's context bundle.",
     params(("slug" = String, Path), ("number" = i64, Path)),
     responses((status = 200, description = "Successful Response", body = WriteupOut, content_type = "application/json"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
@@ -320,7 +315,7 @@ async fn target(
         .await
         .map_err(|error| failure(r.project_error(error)))?
         .project;
-    let (id, state) = hypothesis(c, project.id, number, false, r).await?;
+    let (id, state) = unit(c, project.id, number, false, r).await?;
     let job = jobs::document_job(c, id, s.context.flow.jobs)
         .await
         .map_err(|_| internal(r, "write-up job"))?
@@ -328,7 +323,7 @@ async fn target(
         .ok_or_else(|| {
             domain(
                 ErrorCode::Conflict,
-                format!("hypothesis #{number} is {state}; it does not wait for a write-up"),
+                format!("unit #{number} is {state}; it does not wait for a write-up"),
             )
         })?;
     let attempt = Repository::new(c, s.context.flow.attempts)
@@ -349,10 +344,10 @@ async fn target(
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/writeup",
-    operation_id = "write_up_api_projects__slug__hypotheses__number__writeup_post",
+    path = "/api/projects/{slug}/units/{number}/writeup",
+    operation_id = "write_up_api_projects__slug__units__number__writeup_post",
     summary = "Write Up",
-    description = "A researcher writes the hypothesis up: the document job is claimed and\ncompleted in one action. The write-up is Markdown with YAML front matter\n(``writeup.schema.json``): a one-sentence `summary`, the `attempts` it\ncovers (every attempt of the hypothesis) and the `verification` report it\ncites (null for a hypothesis stopped after a failure), as the write-up's\n`inputs` name them, and a body. The hypothesis then awaits its decision.\nA job another documenter holds is `409 conflict`.",
+    description = "A researcher writes the unit up: the document job is claimed and\ncompleted in one action. The write-up is Markdown with YAML front matter\n(``writeup.schema.json``): a one-sentence `summary`, the `attempts` it\ncovers (every attempt of the unit) and the `verification` report it\ncites (null for a unit stopped after a failure), as the write-up's\n`inputs` name them, and a body. The unit then awaits its decision.\nA job another documenter holds is `409 conflict`.",
     params(("slug" = String, Path), ("number" = i64, Path)),
     request_body(content = WriteupRequest, content_type = "application/json"),
     responses((status = 201, description = "Successful Response", body = WriteupOut, content_type = "application/json"),
@@ -382,7 +377,7 @@ pub(crate) async fn write(
     let Principal::User(_) = &auth.principal else {
         return Err(domain(
             ErrorCode::Forbidden,
-            "a researcher writes a hypothesis up here; an agent claims the document job",
+            "a researcher writes a unit up here; an agent claims the document job",
         ));
     };
     let principal = auth.principal.clone();
@@ -436,7 +431,7 @@ pub(crate) async fn write(
             _ => {
                 return Err(domain(
                     ErrorCode::Conflict,
-                    format!("another documenter is writing hypothesis #{number} up"),
+                    format!("another documenter is writing unit #{number} up"),
                 ));
             }
         };
@@ -467,10 +462,10 @@ pub(crate) async fn write(
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/writeup/skip",
-    operation_id = "skip_writeup_api_projects__slug__hypotheses__number__writeup_skip_post",
+    path = "/api/projects/{slug}/units/{number}/writeup/skip",
+    operation_id = "skip_writeup_api_projects__slug__units__number__writeup_skip_post",
     summary = "Skip Write-up",
-    description = "A researcher skips the hypothesis's write-up, waiting or being written,\nwith a reason: the hypothesis then awaits its decision without one, and\nits decision shows \"No write-up: <reason>\". Nothing skips a write-up\nautomatically.",
+    description = "A researcher skips the unit's write-up, waiting or being written,\nwith a reason: the unit then awaits its decision without one, and\nits decision shows \"No write-up: <reason>\". Nothing skips a write-up\nautomatically.",
     params(("slug" = String, Path), ("number" = i64, Path)),
     request_body(content = WriteupSkipRequest, content_type = "application/json"),
     responses((status = 200, description = "Successful Response", body = WriteupOut, content_type = "application/json"),

@@ -1,4 +1,4 @@
-//! Attempt claims keep hypothesis-before-track locks and post-commit model construction.
+//! Attempt claims keep unit-before-track locks and post-commit model construction.
 use crate::{
     AppState,
     attempt_lease_routes::{Failure, domain, failure, internal, worker_access},
@@ -132,7 +132,7 @@ fn repr(value: &str, context: &RequestContext) -> Result<String, Failure> {
     path = "/api/projects/{slug}/claims",
     operation_id = "claim_api_projects__slug__claims_post",
     summary = "Claim",
-    description = "Claim a queued hypothesis.\n\n``409 nothing_to_claim`` when none is available. In ``workflow`` mode a\ntrack whose workflow (or producer) cannot be pinned under the current\nscience revision is skipped, so the other tracks' hypotheses still flow;\nwhen only such tracks have queued hypotheses, ``409 workflow_unavailable``\nnames them. While an open concern about a track's plan blocks it, its\nhypotheses are not claimed; when only such tracks have queued hypotheses,\n``409 concern_open`` names them.",
+    description = "Claim a queued unit.\n\n``409 nothing_to_claim`` when none is available. In ``workflow`` mode a\ntrack whose workflow (or producer) cannot be pinned under the current\nscience revision is skipped, so the other tracks' units still flow;\nwhen only such tracks have queued units, ``409 workflow_unavailable``\nnames them. While an open concern about a track's plan blocks it, its\nunits are not claimed; when only such tracks have queued units,\n``409 concern_open`` names them.",
     params(("slug" = String, Path)),
     request_body(content = crate::api_models::ClaimRequest, content_type = "application/json"),
     responses((status = 201, description = "Successful Response", body = crate::api_models::ClaimOut, content_type = "application/json"),
@@ -197,7 +197,7 @@ pub(crate) async fn claim(
                 .transpose()?;
             let skip = unavailable.keys().chain(blocked.iter()).cloned().collect::<Vec<_>>();
             let id = Repository::new(&mut tx, state.profile.repository)
-                .pick_claimable(project.id, body.hypothesis.as_ref(), track.as_deref(), mode.as_str(), &skip)
+                .pick_claimable(project.id, body.unit.as_ref(), track.as_deref(), mode.as_str(), &skip)
                 .await.map_err(|_| internal(&context, "claim pick"))?;
             let Some(id) = id else {
                 if !unavailable.is_empty() {
@@ -208,14 +208,14 @@ pub(crate) async fn claim(
                     }).collect::<Result<Vec<_>, Failure>>()?;
                     let tracks = unavailable.keys().cloned().collect::<Vec<_>>().join(", ");
                     let message = format!(
-                        "queued hypotheses wait in workflow tracks that cannot run under the current science revision: {tracks}"
+                        "queued units wait in workflow tracks that cannot run under the current science revision: {tracks}"
                     );
                     return Err(failure(ApiError::from(
                         DomainError::new(ErrorCode::WorkflowUnavailable, message)
                             .with_details(serde_json::json!(details))
                     )));
                 }
-                let number = body.hypothesis.as_ref().map(|n| i32::try_from(n).unwrap_or(0));
+                let number = body.unit.as_ref().map(|n| i32::try_from(n).unwrap_or(0));
                 let mut waiting = cannery_tracks::concerns::blocked_queued(
                     &mut tx, project.id, mode.as_str(), number, track.as_deref()
                 ).await.map_err(|_| internal(&context, "claim concern lookup"))?;
@@ -225,12 +225,12 @@ pub(crate) async fn claim(
                 if !waiting.is_empty() {
                     let tracks = waiting.join(", ");
                     return Err(domain(ErrorCode::ConcernOpen, format!(
-                        "queued hypotheses wait in tracks with an open concern about their plan: {tracks}; a plan revision that answers it, or a researcher dismissing it, unblocks them"
+                        "queued units wait in tracks with an open concern about their plan: {tracks}; a plan revision that answers it, or a researcher dismissing it, unblocks them"
                     )));
                 }
                 let suffix = if mode.as_str() == "agent" { "" } else { " in workflow mode" };
                 return Err(domain(ErrorCode::NothingToClaim, format!(
-                    "no queued hypothesis in an active track is available to claim{suffix}"
+                    "no queued unit in an active track is available to claim{suffix}"
                 )));
             };
             let revision = config_repo::get_revision(
@@ -244,7 +244,7 @@ pub(crate) async fn claim(
                 .pin_track(id).await.map_err(|_| internal(&context, "claim track lock"))?;
             if track.state.as_str() != "active" {
                 return Err(domain(ErrorCode::Conflict, format!(
-                    "track {} is {}; its hypotheses wait", repr(&track.slug, &context)?, track.state.as_str()
+                    "track {} is {}; its units wait", repr(&track.slug, &context)?, track.state.as_str()
                 )));
             }
             if track.mode.as_str() != mode.as_str() {
@@ -313,7 +313,7 @@ pub(crate) async fn claim(
             ).map_err(|_| internal(&context, "claim control conflict"))? {
                 let message = message.as_utf8().ok_or_else(|| internal(&context, "claim control encoding"))?;
                 return Err(conflict(format!(
-                    "the hypothesis cannot be tested under science revision {}: {message}", science.revision
+                    "the unit cannot be tested under science revision {}: {message}", science.revision
                 ), "/control", &message));
             }
             let producer_ref = producer.reference().map_err(|_| internal(&context, "claim producer reference"))?;
@@ -333,7 +333,7 @@ pub(crate) async fn claim(
             let token_hash = cannery_identity::secrets::digest(secret.expose());
             let attempt_id = Repository::new(&mut tx, state.profile.repository)
                 .create_attempt(CreateAttempt {
-                    hypothesis_id: id, science_revision: &science.revision, producer: &producer_ref,
+                    unit_id: id, science_revision: &science.revision, producer: &producer_ref,
                     token_hash: &token_hash, ttl_seconds: ttl, principal: &auth.principal,
                     workflow: workflow.as_ref(), deadline_seconds: deadline.as_ref(),
                 }).await.map_err(|_| internal(&context, "claim create"))?;
@@ -358,9 +358,9 @@ pub(crate) async fn claim(
             let producer = serde_json::from_str::<serde_json::Value>(&producer_json)
                 .map_err(|_| internal(&context, "claim audit producer"))?;
             let mut new = serde_json::json!({
-                "ref":format!("#{}.{}",attempt.hypothesis_number,attempt.sequence),
-                "hypothesis_state":"active", "lease_generation":attempt.lease_generation,
-                "hypothesis_revision":attempt.hypothesis_revision,
+                "ref":format!("#{}.{}",attempt.unit_number,attempt.sequence),
+                "unit_state":"active", "lease_generation":attempt.lease_generation,
+                "unit_revision":attempt.unit_revision,
                 "science_revision":attempt.science_revision, "producer":producer,
             });
             let pins = crate::context_bundle::pins(&mut tx, &project, attempt.id, &context)
@@ -378,7 +378,7 @@ pub(crate) async fn claim(
                 new["workflow"] = serde_json::from_str(&workflow_json)
                     .map_err(|_| internal(&context, "claim audit workflow"))?;
             }
-            let prior = serde_json::json!({"hypothesis_state":"queued"});
+            let prior = serde_json::json!({"unit_state":"queued"});
             let id = attempt.id.to_string();
             audit::record(&mut tx, Attribution::Principal(&auth.principal), Record {
                 action:"attempt.claimed", subject_type:"attempt", subject_id:&id,

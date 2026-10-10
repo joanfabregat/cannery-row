@@ -186,7 +186,7 @@ fn view(output: &Output, science: &Science<'_>) -> Result<NodeId, ScienceError> 
             })
             .collect(),
     );
-    let facets = science.hypothesis_facets()?;
+    let facets = science.unit_facets()?;
     let candidate = science.code_repositories("candidate")?;
     let trusted = science.code_repositories("trusted")?;
     Ok(output.object(vec![
@@ -199,8 +199,8 @@ fn view(output: &Output, science: &Science<'_>) -> Result<NodeId, ScienceError> 
         ("baselines", pairs(&baselines)),
         ("baseline_ids", output.sorted_texts(science.baseline_ids())),
         (
-            "hypothesis_fields",
-            output.raw(document, science.hypothesis_fields, false),
+            "unit_fields",
+            output.raw(document, science.unit_fields, false),
         ),
         ("datasets", datasets),
         (
@@ -236,7 +236,7 @@ fn view(output: &Output, science: &Science<'_>) -> Result<NodeId, ScienceError> 
         ),
         ("limits", output.raw(document, science.limits, true)),
         ("verify", output.raw(document, science.verify, true)),
-        ("hypothesis_facets", output.sorted_texts(facets)),
+        ("unit_facets", output.sorted_texts(facets)),
         ("candidate_repositories", output.sorted_texts(candidate)),
         ("trusted_repositories", output.sorted_texts(trusted)),
     ]))
@@ -273,8 +273,8 @@ fn observed(case: &Value) -> Result<Document, ScienceError> {
             )?;
             output.push(Node::Null)
         }
-        "hypothesis" => {
-            science::check_hypothesis(
+        "unit" => {
+            science::check_unit(
                 &Science::new(BigInt::from(7), &document, CONTEXT)?,
                 &secondary,
                 CONTEXT,

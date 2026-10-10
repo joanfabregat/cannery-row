@@ -86,8 +86,8 @@ async fn raw_storage(pool: &sqlx::PgPool) -> Result<BTreeMap<String, Vec<String>
     for table in [
         "comments",
         "comment_revisions",
-        "hypotheses",
-        "hypothesis_revisions",
+        "units",
+        "unit_revisions",
         "attempts",
         "mentions",
         "audit_events",
@@ -164,7 +164,7 @@ async fn comment_reads_match_production() -> Result<()> {
     let (app, state) = application_with_comment_context(
         settings,
         Arc::new(CommentContext {
-            hypotheses: cannery_hypotheses::repo::JsonContext {
+            units: cannery_units::repo::JsonContext {
                 encode_nesting_budget: 80,
                 decode_nesting_budget: 80,
             },
@@ -238,8 +238,8 @@ async fn comment_reads_match_production() -> Result<()> {
     let tables = [
         "comments",
         "comment_revisions",
-        "hypotheses",
-        "hypothesis_revisions",
+        "units",
+        "unit_revisions",
         "attempts",
         "mentions",
         "audit_events",

@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.revision, a.decision, a.reason FROM plan_alignments a\n        JOIN plan_revisions p ON p.id = a.plan_revision_id\n        WHERE a.unit_id = $1 AND p.state = 'approved' ORDER BY p.revision",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "decision",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "reason",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bef8a114767801151c22d95dbe1ffc4271e972d203ad82a2baeb5ddc6d8482f4"
+}

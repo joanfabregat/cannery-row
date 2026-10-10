@@ -43,10 +43,6 @@ mod document_jobs;
 mod documentation;
 pub mod errors;
 pub mod health;
-mod hypothesis_idempotency;
-pub mod hypothesis_mutations;
-pub mod hypothesis_routes;
-pub mod hypothesis_wire;
 mod identity_routes;
 mod job_claim_idempotency;
 mod job_claim_request;
@@ -97,6 +93,10 @@ mod track_binding;
 pub mod track_routes;
 pub mod track_wire;
 mod transport;
+mod unit_idempotency;
+pub mod unit_mutations;
+pub mod unit_routes;
+pub mod unit_wire;
 mod upload_audit;
 mod upload_direct;
 mod upload_request;
@@ -111,14 +111,14 @@ pub use application::{
     AppState, ServerError, application, application_with_attempt_claim_context,
     application_with_attempt_lease_context, application_with_attempt_read_context,
     application_with_comment_context, application_with_config_context,
-    application_with_download_context, application_with_hypothesis_context,
-    application_with_job_claim_context, application_with_job_contexts,
-    application_with_job_input_context, application_with_job_lifecycle_and_upload_context,
-    application_with_job_lifecycle_context, application_with_job_read_and_claim_context,
-    application_with_job_read_context, application_with_metric_context, application_with_oidc,
+    application_with_download_context, application_with_job_claim_context,
+    application_with_job_contexts, application_with_job_input_context,
+    application_with_job_lifecycle_and_upload_context, application_with_job_lifecycle_context,
+    application_with_job_read_and_claim_context, application_with_job_read_context,
+    application_with_metric_context, application_with_oidc,
     application_with_predecessor_input_context, application_with_report_context,
     application_with_review_attention_context, application_with_review_decision_context,
-    application_with_search_context, application_with_track_context,
+    application_with_search_context, application_with_track_context, application_with_unit_context,
     application_with_upload_context, serve,
 };
 pub use documentation::OPENAPI;
@@ -156,10 +156,10 @@ pub use documentation::OPENAPI;
         track_routes::update,
         track_routes::transition,
         track_routes::history,
-        hypothesis_routes::list,
-        hypothesis_routes::read,
-        hypothesis_routes::revisions,
-        hypothesis_routes::revision,
+        unit_routes::list,
+        unit_routes::read,
+        unit_routes::revisions,
+        unit_routes::revision,
         plan_routes::list,
         plan_routes::start,
         plan_routes::read,
@@ -174,8 +174,8 @@ pub use documentation::OPENAPI;
         plan_routes::check,
         plan_routes::submit,
         plan_routes::review,
-        plan_routes::list_units,
-        plan_routes::unit,
+        plan_routes::list_track_units,
+        plan_routes::unit_plan,
         plan_routes::unit_history,
         plan_routes::limits,
         plan_routes::set_limits,
@@ -186,7 +186,7 @@ pub use documentation::OPENAPI;
         concern_routes::dismiss,
         context_bundle::route,
         attempt_claim_routes::claim,
-        attempt_read_routes::hypothesis,
+        attempt_read_routes::unit,
         attempt_read_routes::project,
         attempt_read_routes::detail,
         attempt_lease_routes::heartbeat,
@@ -227,8 +227,8 @@ pub use documentation::OPENAPI;
         report_routes::list,
         report_routes::detail,
         artifact_download::download,
-        comment_mutations::rest_comment_on_hypothesis,
-        comment_routes::rest_list_hypothesis_comments,
+        comment_mutations::rest_comment_on_unit,
+        comment_routes::rest_list_unit_comments,
         comment_mutations::rest_comment_on_attempt,
         comment_routes::rest_list_attempt_comments,
         comment_routes::read,

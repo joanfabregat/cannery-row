@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2",
-  "hypothesis_fields": {
+  "unit_fields": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {

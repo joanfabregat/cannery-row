@@ -20,7 +20,7 @@ use std::{collections::BTreeMap, sync::Arc};
 pub struct ReportContext {
     pub reports: reports::JsonContext,
     pub attempts: cannery_attempts::model::JsonContext,
-    pub hypotheses: cannery_hypotheses::repo::JsonContext,
+    pub units: cannery_units::repo::JsonContext,
     pub response: ResponseContext,
 }
 #[derive(Clone)]
@@ -50,7 +50,7 @@ pub fn routes(app: AppState, context: Arc<ReportContext>) -> Router {
     Router::new()
         .route("/api/projects/{slug}/reports", get(list).head(head))
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/report",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/report",
             get(detail).head(head),
         )
         .with_state(RouteState { app, context })
@@ -65,7 +65,7 @@ async fn head() -> impl IntoResponse {
     summary = "List Reports",
     description = "Reports of the project, newest first: run documents, and claimed result\nsheets submitted before them, so never an imported attempt, which has none.",
     params(("slug" = String, Path),
-        ("hypothesis" = Option<i64>, Query, minimum = 1, maximum = 2_147_483_647),
+        ("unit" = Option<i64>, Query, minimum = 1, maximum = 2_147_483_647),
         ("track" = Option<String>, Query),
         ("before" = Option<String>, Query, description = "Continue after this report id.", format = "uuid"),
         ("limit" = Option<i64>, Query, description = "Items per page.", minimum = 1, maximum = 200)),
@@ -88,8 +88,8 @@ pub(crate) async fn list(
 }
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/report",
-    operation_id = "get_report_api_projects__slug__hypotheses__number__attempts__sequence__report_get",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/report",
+    operation_id = "get_report_api_projects__slug__units__number__attempts__sequence__report_get",
     summary = "Get Report",
     description = "The attempt's full report with the evidence and decisions that followed it.",
     params(("slug" = String, Path),
@@ -150,9 +150,8 @@ async fn read(
     let mut before = None;
     let mut limit = 50;
     if !detail {
-        if let Some(raw) = query.get("hypothesis") {
-            match validation::bounded_query_integer(raw, "hypothesis", 1, Some(i64::from(i32::MAX)))
-            {
+        if let Some(raw) = query.get("unit") {
+            match validation::bounded_query_integer(raw, "unit", 1, Some(i64::from(i32::MAX))) {
                 Ok(v) => filter = Some(v),
                 Err(e) => errors.extend(e.problems().iter().cloned()),
             }
@@ -221,10 +220,10 @@ async fn read(
                 )));
             }
         }
-        let hypothesis = cannery_hypotheses::repo::get_hypothesis_by_id(
+        let unit = cannery_units::repo::get_unit_by_id(
             &mut auth.connection,
-            attempt.hypothesis_id,
-            profile.hypotheses,
+            attempt.unit_id,
+            profile.units,
         )
         .await
         .map_err(|_| internal(&context))?
@@ -233,13 +232,10 @@ async fn read(
         let ids = reports::result_case_ids(&mut auth.connection, attempt.id)
             .await
             .map_err(|_| internal(&context))?;
-        let decisions = cannery_hypotheses::repo::list_decisions(
-            &mut auth.connection,
-            &ids,
-            profile.hypotheses,
-        )
-        .await
-        .map_err(|_| internal(&context))?;
+        let decisions =
+            cannery_units::repo::list_decisions(&mut auth.connection, &ids, profile.units)
+                .await
+                .map_err(|_| internal(&context))?;
         let imported = if sheet.is_none() {
             reports::imported_report(&mut auth.connection, attempt.id)
                 .await
@@ -262,10 +258,7 @@ async fn read(
                 .map_err(|_| internal(&context))?;
         let report = report_wire::Detail {
             attempt: &attempt,
-            title: &hypothesis
-                .title
-                .as_utf8()
-                .ok_or_else(|| internal(&context))?,
+            title: &unit.title.as_utf8().ok_or_else(|| internal(&context))?,
             sheet,
             imported: imported.as_ref(),
             verification,

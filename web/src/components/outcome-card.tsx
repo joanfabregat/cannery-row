@@ -3,7 +3,7 @@ import type { OutcomeSummary } from "@/lib/outcome";
 import { Fact } from "./section";
 
 /**
- * The first thing on a hypothesis page: one sentence saying what was tried,
+ * The first thing on a unit page: one sentence saying what was tried,
  * what happened, what was decided and why, then the same four answers apart.
  */
 export function OutcomeCard({ summary }: { summary: OutcomeSummary }) {

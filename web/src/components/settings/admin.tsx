@@ -687,10 +687,10 @@ function NewServiceAccountDialog({
       <DialogContent>
         <DialogTitle>New service account</DialogTitle>
         <DialogDescription>
-          An agent plans and tries hypotheses; an experimenter runs a workflow; a verifier re-runs
+          An agent plans and tries units; an experimenter runs a workflow; a verifier re-runs
           results and applies the project's policy; a decider runs the decider step that decides
-          written-up hypotheses when the science revision registers one. None of them can record a
-          human decision.
+          written-up units when the science revision registers one. None of them can record a human
+          decision.
         </DialogDescription>
         <form
           className="flex flex-col gap-4"

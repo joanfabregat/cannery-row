@@ -329,7 +329,7 @@ fn project_decide(context: &JobContext<'_>) -> Result<Document, JobError> {
             claim.get("attempt_ref")?.render()?,
         ),
         ("track".to_owned(), job.get("track")?.render()?),
-        ("hypothesis".to_owned(), job.get("hypothesis")?.render()?),
+        ("unit".to_owned(), job.get("unit")?.render()?),
         (
             "science_revision".to_owned(),
             job.get("science_revision")?.render()?,

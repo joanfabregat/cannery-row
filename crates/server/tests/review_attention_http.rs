@@ -69,7 +69,7 @@ fn profile() -> ReviewAttentionContext {
         reviews: cannery_reviews::JsonContext {
             decode_nesting_budget: 80,
         },
-        hypotheses: cannery_hypotheses::repo::JsonContext {
+        units: cannery_units::repo::JsonContext {
             encode_nesting_budget: 80,
             decode_nesting_budget: 80,
         },
@@ -199,7 +199,7 @@ fn hex(bytes: &[u8]) -> String {
 }
 async fn storage(pool: &PgPool) -> Result<Value> {
     let tables = [
-        ("hypotheses", "project_id,number"),
+        ("units", "project_id,number"),
         ("attempts", "id"),
         ("attempt_failures", "id"),
         ("phase_outputs", "id"),

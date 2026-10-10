@@ -22,7 +22,7 @@ import { humanize, label } from "@/lib/labels";
 
 /**
  * An attempt's report and its verification, shared by the
- * hypothesis page (its latest attempt) and the attempt page. Verified
+ * unit page (its latest attempt) and the attempt page. Verified
  * measurements come first; the agent's own numbers are labelled "Reported by
  * agent" and never mixed with them.
  */

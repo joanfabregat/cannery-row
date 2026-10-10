@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE units SET state=$1,updated_at=now(),approved_revision=coalesce($2,approved_revision),approved_at=CASE WHEN $2::bigint IS NULL THEN approved_at ELSE now() END WHERE id=$3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "56ee7728c9eba7da1435ec7e58991d4b696fc5fc6342c96ec3a15a7f5a972d9f"
+}

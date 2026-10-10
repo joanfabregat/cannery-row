@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import { isNotFound } from "@/lib/errors";
-import type { HypothesisState } from "@/lib/states";
+import type { UnitState } from "@/lib/states";
 
 import { api, type Schemas, unwrap } from "./client";
 
@@ -12,24 +12,24 @@ import { api, type Schemas, unwrap } from "./client";
 
 export const projectKey = (slug: string) => ["project", slug] as const;
 
-export interface HypothesisFilters {
+export interface UnitFilters {
   track?: string | undefined;
-  state?: HypothesisState | undefined;
+  state?: UnitState | undefined;
   /** `false` hides archived states, `null` shows everything. */
   archived?: boolean | null;
   before?: number | undefined;
   limit?: number;
 }
 
-export function useHypotheses(slug: string, filters: HypothesisFilters) {
+export function useUnits(slug: string, filters: UnitFilters) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypotheses", filters],
+    queryKey: [...projectKey(slug), "units", filters],
     // The previous page stays up while the next loads, never another project's.
     placeholderData: (previous, previousQuery) =>
       previousQuery?.queryKey[1] === slug ? previous : undefined,
     queryFn: async () =>
       unwrap(
-        await api.GET("/api/projects/{slug}/hypotheses", {
+        await api.GET("/api/projects/{slug}/units", {
           params: {
             path: { slug },
             query: {
@@ -45,12 +45,12 @@ export function useHypotheses(slug: string, filters: HypothesisFilters) {
   });
 }
 
-export function useHypothesis(slug: string, number: number) {
+export function useUnit(slug: string, number: number) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypothesis", number],
+    queryKey: [...projectKey(slug), "unit", number],
     queryFn: async () =>
       unwrap(
-        await api.GET("/api/projects/{slug}/hypotheses/{number}", {
+        await api.GET("/api/projects/{slug}/units/{number}", {
           params: { path: { slug, number } },
         }),
       ),
@@ -59,11 +59,11 @@ export function useHypothesis(slug: string, number: number) {
 
 export function useRevisions(slug: string, number: number, enabled = true) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypothesis", number, "revisions"],
+    queryKey: [...projectKey(slug), "unit", number, "revisions"],
     enabled,
     queryFn: async () =>
       unwrap(
-        await api.GET("/api/projects/{slug}/hypotheses/{number}/revisions", {
+        await api.GET("/api/projects/{slug}/units/{number}/revisions", {
           params: { path: { slug, number }, query: { limit: 200 } },
         }),
       ),
@@ -72,10 +72,10 @@ export function useRevisions(slug: string, number: number, enabled = true) {
 
 export function useAttempts(slug: string, number: number) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypothesis", number, "attempts"],
+    queryKey: [...projectKey(slug), "unit", number, "attempts"],
     queryFn: async () =>
       unwrap(
-        await api.GET("/api/projects/{slug}/hypotheses/{number}/attempts", {
+        await api.GET("/api/projects/{slug}/units/{number}/attempts", {
           params: { path: { slug, number }, query: { limit: 200 } },
         }),
       ),
@@ -84,11 +84,11 @@ export function useAttempts(slug: string, number: number) {
 
 export function useAttempt(slug: string, number: number, sequence: number | null) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypothesis", number, "attempt", sequence],
+    queryKey: [...projectKey(slug), "unit", number, "attempt", sequence],
     enabled: sequence !== null,
     queryFn: async () =>
       unwrap(
-        await api.GET("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}", {
+        await api.GET("/api/projects/{slug}/units/{number}/attempts/{sequence}", {
           params: { path: { slug, number, sequence: sequence ?? 0 } },
         }),
       ),
@@ -97,11 +97,11 @@ export function useAttempt(slug: string, number: number, sequence: number | null
 
 export function useAttemptJobs(slug: string, number: number, sequence: number, enabled = true) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypothesis", number, "attempt", sequence, "jobs"],
+    queryKey: [...projectKey(slug), "unit", number, "attempt", sequence, "jobs"],
     enabled,
     queryFn: async () =>
       unwrap(
-        await api.GET("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/jobs", {
+        await api.GET("/api/projects/{slug}/units/{number}/attempts/{sequence}/jobs", {
           params: { path: { slug, number, sequence }, query: { limit: 200 } },
         }),
       ),
@@ -111,11 +111,11 @@ export function useAttemptJobs(slug: string, number: number, sequence: number, e
 /** The attempt's report, or `null` when it has none yet (a 404). */
 export function useReport(slug: string, number: number, sequence: number | null) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypothesis", number, "attempt", sequence, "report"],
+    queryKey: [...projectKey(slug), "unit", number, "attempt", sequence, "report"],
     enabled: sequence !== null,
     queryFn: async () => {
       const result = await api
-        .GET("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/report", {
+        .GET("/api/projects/{slug}/units/{number}/attempts/{sequence}/report", {
           params: { path: { slug, number, sequence: sequence ?? 0 } },
         })
         .catch((error: unknown) => {
@@ -127,14 +127,14 @@ export function useReport(slug: string, number: number, sequence: number | null)
   });
 }
 
-/** The hypothesis's write-up, or `null` when it has none (a 404): it was never written up. */
+/** The unit's write-up, or `null` when it has none (a 404): it was never written up. */
 export function useWriteup(slug: string, number: number, enabled = true) {
   return useQuery({
-    queryKey: [...projectKey(slug), "hypothesis", number, "writeup"],
+    queryKey: [...projectKey(slug), "unit", number, "writeup"],
     enabled,
     queryFn: async () => {
       const result = await api
-        .GET("/api/projects/{slug}/hypotheses/{number}/writeup", {
+        .GET("/api/projects/{slug}/units/{number}/writeup", {
           params: { path: { slug, number } },
         })
         .catch((error: unknown) => {
@@ -314,13 +314,13 @@ export function useComments(slug: string, target: CommentTarget) {
     queryFn: async () => {
       if (target.sequence === undefined) {
         return unwrap(
-          await api.GET("/api/projects/{slug}/hypotheses/{number}/comments", {
+          await api.GET("/api/projects/{slug}/units/{number}/comments", {
             params: { path: { slug, number: target.number }, query: { limit: 200 } },
           }),
         );
       }
       return unwrap(
-        await api.GET("/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/comments", {
+        await api.GET("/api/projects/{slug}/units/{number}/attempts/{sequence}/comments", {
           params: {
             path: { slug, number: target.number, sequence: target.sequence },
             query: { limit: 200 },
@@ -439,7 +439,7 @@ export interface SearchFilters {
   q: string;
   kind?: string[];
   track?: string[];
-  hypothesis_state?: string[];
+  unit_state?: string[];
   verdict?: string[];
   decision?: string[];
   project?: string[];
@@ -460,7 +460,7 @@ export function useSearch(filters: SearchFilters, enabled: boolean) {
               // The API validates each value; the page only offers known ones.
               kind: filters.kind as never,
               track: filters.track,
-              hypothesis_state: filters.hypothesis_state as never,
+              unit_state: filters.unit_state as never,
               verdict: filters.verdict as never,
               decision: filters.decision as never,
               project: filters.project,

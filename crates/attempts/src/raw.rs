@@ -8,7 +8,7 @@ use crate::{
     wire::{self, JsonbText},
 };
 use cannery_core::{
-    ids::{AttemptId, HypothesisId, JobId, ProjectId, ServiceAccountId, TrackId, UserId},
+    ids::{AttemptId, JobId, ProjectId, ServiceAccountId, TrackId, UnitId, UserId},
     timestamps::Timestamp,
 };
 #[derive(sqlx::FromRow)]
@@ -17,16 +17,16 @@ pub(crate) struct RawAttempt {
     pub id: AttemptId,
     #[sqlx(rename = "project_id!: ProjectId")]
     pub project_id: ProjectId,
-    #[sqlx(rename = "hypothesis_id!: HypothesisId")]
-    pub hypothesis_id: HypothesisId,
-    #[sqlx(rename = "hypothesis_number!")]
-    pub hypothesis_number: i32,
+    #[sqlx(rename = "unit_id!: UnitId")]
+    pub unit_id: UnitId,
+    #[sqlx(rename = "unit_number!")]
+    pub unit_number: i32,
     #[sqlx(rename = "sequence!")]
     pub sequence: i32,
     #[sqlx(rename = "state!")]
     pub state: String,
-    #[sqlx(rename = "hypothesis_revision!")]
-    pub hypothesis_revision: i32,
+    #[sqlx(rename = "unit_revision!")]
+    pub unit_revision: i32,
     #[sqlx(rename = "science_revision!")]
     pub science_revision: i32,
     #[sqlx(rename = "track_id!: TrackId")]
@@ -75,11 +75,11 @@ impl RawAttempt {
         Ok(Attempt {
             id: self.id,
             project_id: self.project_id,
-            hypothesis_id: self.hypothesis_id,
-            hypothesis_number: self.hypothesis_number,
+            unit_id: self.unit_id,
+            unit_number: self.unit_number,
             sequence: self.sequence,
             state: State::parse(&self.state)?,
-            hypothesis_revision: self.hypothesis_revision,
+            unit_revision: self.unit_revision,
             science_revision: self.science_revision,
             track_id: self.track_id,
             track_slug: self.track_slug,

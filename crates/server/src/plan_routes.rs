@@ -3,21 +3,21 @@
 //! token, builds a plan revision as a draft one call at a time (approach,
 //! units, alignment entries), checks it and submits it; a researcher then
 //! approves it, sends it back or declines it. Approval creates and revises
-//! the track's hypotheses in one transaction.
+//! the track's units in one transaction.
 use crate::{
     api_models::{
         AlignmentOut, AlignmentSet, AnswerOut, AnswerSet, ContextItem, Page_PlanRevisionOut_int_,
         Page_UnitIndexOut_int_, PlanApproach, PlanCheckOut, PlanOut, PlanProblem, PlanReview,
         PlanRevisionOut, ProjectLimits, UnitAlignmentOut, UnitCreate, UnitHistoryOut, UnitIndexOut,
-        UnitOut, UnitRelation, UnitRevisionOut, UnitUpdate,
+        UnitPlanOut, UnitRelation, UnitRevisionOut, UnitUpdate,
     },
     authentication::{Authenticated, authenticate},
     body::DecodedBody,
     errors::ApiError,
-    hypothesis_mutations::{check_unit, unit_contract},
-    hypothesis_routes::{Failure, RouteState, domain, internal},
     plan_units::{self, UnitFields},
     requests::RequestContext,
+    unit_mutations::{check_unit, unit_contract},
+    unit_routes::{Failure, RouteState, domain, internal},
 };
 use axum::{
     Json, Router,
@@ -29,16 +29,16 @@ use axum::{
 use cannery_core::{
     audit::{self, Attribution, Record},
     errors::{DomainError, ErrorCode},
-    ids::HypothesisId,
+    ids::UnitId,
     principal::{Channel, Principal, Role},
 };
-use cannery_hypotheses::repo::{self as hypotheses, MentionSource};
 use cannery_projects::{authz, briefs, repo as projects};
 use cannery_tracks::{
     concerns,
     plans::{self, Limits, PlanRevision},
     repo::{self as tracks, RowLock, Track, TrackState},
 };
+use cannery_units::repo::{self as units, MentionSource};
 use serde_json::{Value, json};
 use sqlx::{Acquire, PgConnection};
 use std::collections::{BTreeMap, BTreeSet};
@@ -94,16 +94,16 @@ pub(crate) fn routes(state: RouteState) -> Router {
         )
         .route(
             "/api/projects/{slug}/tracks/{track_slug}/units",
-            get(list_units),
+            get(list_track_units),
         )
-        .route("/api/projects/{slug}/units/{number}", get(unit))
+        .route("/api/projects/{slug}/units/{number}/plan", get(unit_plan))
         .route(
             "/api/projects/{slug}/units/{number}/history",
             get(unit_history),
         )
         .route("/api/projects/{slug}/limits", get(limits).put(set_limits))
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/context.md",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/context.md",
             get(crate::context_bundle::route),
         )
         .with_state(state)
@@ -403,12 +403,12 @@ pub(crate) async fn plan_out(
         .await
         .map_err(track_error(context))?;
     let needs_alignment = if plan.state == "draft" {
-        let aligned: BTreeSet<_> = alignments.iter().map(|a| a.hypothesis_id).collect();
+        let aligned: BTreeSet<_> = alignments.iter().map(|a| a.unit_id).collect();
         plans::needing_alignment(conn, track.id)
             .await
             .map_err(track_error(context))?
             .iter()
-            .filter(|unit| !aligned.contains(&unit.hypothesis_id))
+            .filter(|unit| !aligned.contains(&unit.unit_id))
             .map(index_out)
             .collect()
     } else {
@@ -520,7 +520,7 @@ fn json_response(status: StatusCode, value: &impl serde::Serialize) -> Response 
 
 /// Check one unit entry before it is written: its key, its brief and
 /// context against the project's limits, its context references, and the
-/// hypothesis document it becomes. Returns the science revision it was
+/// unit document it becomes. Returns the science revision it was
 /// checked against.
 #[allow(
     clippy::too_many_arguments,
@@ -536,7 +536,7 @@ async fn check_entry(
     key: &str,
     fields: &UnitFields,
     brief: &str,
-    self_id: Option<HypothesisId>,
+    self_id: Option<UnitId>,
     limits: Limits,
     context: &RequestContext,
 ) -> Result<i32, Failure> {
@@ -578,19 +578,19 @@ async fn check_entry(
                 "Input should be 'derived_from', 'supersedes' or 'related_to'",
             ));
         }
-        match (&relation.hypothesis, &relation.unit) {
-            (Some(_), None) => {}
-            (None, Some(unit)) if plan_units::valid_key(unit) && unit != key => {}
-            (None, Some(_)) => {
+        match &relation.unit {
+            Value::String(unit) if plan_units::valid_key(unit) && unit != key => {}
+            Value::String(_) => {
                 return Err(invalid(
                     &format!("{path}/unit"),
-                    "a unit relation names another unit of this plan by its key",
+                    "a relation by key names another unit of this plan",
                 ));
             }
+            Value::Number(_) | Value::Object(_) => {}
             _ => {
                 return Err(invalid(
-                    &path,
-                    "a relation names exactly one of hypothesis and unit",
+                    &format!("{path}/unit"),
+                    "a relation names a unit number, {project, number}, or the key of another unit of this plan",
                 ));
             }
         }
@@ -613,11 +613,7 @@ async fn check_entry(
     let entry =
         plan_units::document(&entry).ok_or_else(|| invalid("body", "the unit is too deep"))?;
     unit_contract(&entry, state, context)?;
-    let value = plan_units::hypothesis_value(
-        &track.slug,
-        fields,
-        &plan_units::hypothesis_relations(fields),
-    );
+    let value = plan_units::unit_value(&track.slug, fields, &plan_units::unit_relations(fields));
     let document =
         plan_units::document(&value).ok_or_else(|| invalid("body", "the unit is too deep"))?;
     match check_unit(conn, principal, project, &document, self_id, state, context).await {
@@ -644,7 +640,7 @@ fn unit_path(path: &str) -> Option<String> {
     })
 }
 
-/// A refusal of the hypothesis document a unit becomes, with its paths
+/// A refusal of the unit document a unit becomes, with its paths
 /// renamed to the unit's request fields.
 async fn unit_paths(failure: Failure) -> Failure {
     let response = *failure.0;
@@ -703,15 +699,12 @@ async fn check_context_item(
                         .await
                         .map_err(track_error(context))?;
                     found.map(|_| ()).ok_or_else(|| {
-                        invalid(
-                            &format!("{path}/unit"),
-                            "no such hypothesis in this project",
-                        )
+                        invalid(&format!("{path}/unit"), "no such unit in this project")
                     })
                 }
                 _ => Err(invalid(
                     &format!("{path}/unit"),
-                    "name a hypothesis number or another unit's key",
+                    "name a unit number or another unit's key",
                 )),
             }
         }
@@ -727,7 +720,7 @@ async fn check_context_item(
             let (Some(unit), Some(attempt)) = (unit, attempt) else {
                 return Err(invalid(
                     path,
-                    "a write-up item names a hypothesis number (`unit`) and an attempt sequence",
+                    "a write-up item names a unit number (`unit`) and an attempt sequence",
                 ));
             };
             plans::attempt_id(conn, project.id, unit, attempt)
@@ -868,7 +861,7 @@ pub(crate) async fn problems(
             );
         }
         for (index, relation) in fields.relations.iter().enumerate() {
-            if let Some(unit) = &relation.unit
+            if let Some(unit) = relation.key()
                 && !keys.contains(unit)
             {
                 problem(
@@ -906,13 +899,13 @@ pub(crate) async fn problems(
         .map_err(track_error(context))?;
     let aligned: BTreeMap<_, _> = alignments
         .iter()
-        .map(|alignment| (alignment.hypothesis_id, alignment.decision.as_str()))
+        .map(|alignment| (alignment.unit_id, alignment.decision.as_str()))
         .collect();
     for unit in plans::needing_alignment(conn, track.id)
         .await
         .map_err(track_error(context))?
     {
-        if !aligned.contains_key(&unit.hypothesis_id) {
+        if !aligned.contains_key(&unit.unit_id) {
             problem(
                 "missing_alignment",
                 format!("alignments/{}", unit.number),
@@ -927,7 +920,7 @@ pub(crate) async fn problems(
         if alignment.decision == "redo"
             && !entries
                 .iter()
-                .any(|entry| entry.redo_of == Some(alignment.hypothesis_id))
+                .any(|entry| entry.redo_of == Some(alignment.unit_id))
         {
             problem(
                 "redo_without_unit",
@@ -948,14 +941,12 @@ pub(crate) async fn problems(
         .map_err(track_error(context))?
     {
         if !answered.contains(&concern.id) {
-            let from = concern
-                .hypothesis_number
-                .map_or_else(String::new, |number| {
-                    concern.attempt_sequence.map_or_else(
-                        || format!(" from #{number}"),
-                        |sequence| format!(" from #{number}.{sequence}"),
-                    )
-                });
+            let from = concern.unit_number.map_or_else(String::new, |number| {
+                concern.attempt_sequence.map_or_else(
+                    || format!(" from #{number}"),
+                    |sequence| format!(" from #{number}.{sequence}"),
+                )
+            });
             problem(
                 "unanswered_concern",
                 format!("answers/{}", concern.id),
@@ -1168,10 +1159,9 @@ pub(crate) fn render_markdown(slug: &str, track: &Track, plan: &PlanOut) -> Stri
             let _ = writeln!(out, "- Control: {}", yaml(control));
         }
         for relation in &unit.relations {
-            let target = relation.unit.as_ref().map_or_else(
-                || yaml(&relation.hypothesis),
-                |unit| format!("unit `{unit}`"),
-            );
+            let target = relation
+                .key()
+                .map_or_else(|| yaml(&relation.unit), |unit| format!("unit `{unit}`"));
             let _ = writeln!(out, "- {}: {target}", relation.kind.replace('_', " "));
         }
         let _ = writeln!(
@@ -1249,11 +1239,11 @@ pub(crate) fn context_label(item: &ContextItem) -> String {
 #[utoipa::path(
     get,
     path = "/api/projects/{slug}/tracks/{track_slug}/units",
-    operation_id = "list_units_api_projects__slug__tracks__track_slug__units_get",
-    summary = "List Units",
-    description = "The units (hypotheses) of a track, newest first: number, plan key, title,\nstate and whether an approved plan made them obsolete.",
+    operation_id = "list_track_units_api_projects__slug__tracks__track_slug__units_get",
+    summary = "List Track Units",
+    description = "The units of a track, newest first: number, plan key, title,\nstate and whether an approved plan made them obsolete.",
     params(("slug" = String, Path), ("track_slug" = String, Path),
-        ("state" = Option<String>, Query, description = "Only units in this hypothesis state."),
+        ("state" = Option<String>, Query, description = "Only units in this unit state."),
         ("before" = Option<i64>, Query, description = "Continue before this number.", minimum = 1, maximum = 2_147_483_647),
         ("limit" = Option<i64>, Query, description = "Items per page.", minimum = 1, maximum = 200)),
     responses((status = 200, description = "Successful Response", body = crate::api_models::Page_UnitIndexOut_int_, content_type = "application/json"),
@@ -1263,7 +1253,7 @@ pub(crate) fn context_label(item: &ContextItem) -> String {
         (status = 404, description = "Resource not found", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
 )]
-pub(crate) async fn list_units(
+pub(crate) async fn list_track_units(
     State(state): State<RouteState>,
     axum::Extension(context): axum::Extension<RequestContext>,
     request: Request,
@@ -1287,7 +1277,7 @@ pub(crate) async fn list_units(
             STATES
                 .contains(&state)
                 .then(|| vec![state.to_owned()])
-                .ok_or_else(|| invalid("query/state", "Input should be a hypothesis state"))
+                .ok_or_else(|| invalid("query/state", "Input should be a unit state"))
         })
         .transpose()?;
     let track = load_track(
@@ -1330,27 +1320,27 @@ pub(crate) async fn unit_out(
     project: &projects::Project,
     number: i32,
     context: &RequestContext,
-) -> Result<UnitOut, Failure> {
+) -> Result<UnitPlanOut, Failure> {
     let (track_id, unit) = plans::project_unit(conn, project.id, number)
         .await
         .map_err(track_error(context))?
         .ok_or_else(|| domain(ErrorCode::NotFound, format!("unit #{number} not found")))?;
     let revision = unit.approved_revision.unwrap_or(unit.revision);
-    let stored = plans::unit_revision(conn, unit.hypothesis_id, revision)
+    let stored = plans::unit_revision(conn, unit.unit_id, revision)
         .await
         .map_err(track_error(context))?
         .ok_or_else(|| internal(context, "unit revision"))?;
     let document: Value =
         serde_json::from_str(&stored.content).map_err(|_| internal(context, "unit content"))?;
-    let entry = plans::latest_entry(conn, unit.hypothesis_id)
+    let entry = plans::latest_entry(conn, unit.unit_id)
         .await
         .map_err(track_error(context))?;
-    let mut fields = plan_units::fields_from_hypothesis(&document);
+    let mut fields = plan_units::fields_from_unit(&document);
     let mut plan_revision = None;
     if let Some((revision, entry)) = &entry {
         let planned: UnitFields = serde_json::from_str(&entry.fields)
             .map_err(|_| internal(context, "unit plan fields"))?;
-        // Relations come from the hypothesis document, where approval
+        // Relations come from the unit document, where approval
         // resolved unit keys to numbers; context only the plan holds.
         fields.context = planned.context;
         plan_revision = Some(i64::from(*revision));
@@ -1366,7 +1356,7 @@ pub(crate) async fn unit_out(
     .await
     .map_err(track_error(context))?
     .ok_or_else(|| internal(context, "unit track"))?;
-    Ok(UnitOut {
+    Ok(UnitPlanOut {
         number: i64::from(unit.number),
         track: track.slug,
         key: unit.key,
@@ -1389,19 +1379,19 @@ pub(crate) async fn unit_out(
 
 #[utoipa::path(
     get,
-    path = "/api/projects/{slug}/units/{number}",
-    operation_id = "get_unit_api_projects__slug__units__number__get",
-    summary = "Get Unit",
-    description = "One unit: its hypothesis with the plan fields, context and brief it was\nlast approved with.",
+    path = "/api/projects/{slug}/units/{number}/plan",
+    operation_id = "get_unit_plan_api_projects__slug__units__number__plan_get",
+    summary = "Get Unit Plan",
+    description = "One unit: its unit with the plan fields, context and brief it was\nlast approved with.",
     params(("slug" = String, Path), ("number" = i64, Path)),
-    responses((status = 200, description = "Successful Response", body = crate::api_models::UnitOut, content_type = "application/json"),
+    responses((status = 200, description = "Successful Response", body = crate::api_models::UnitPlanOut, content_type = "application/json"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 401, description = "Authentication required", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 403, description = "Permission denied or invalid CSRF token", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 404, description = "Resource not found", body = crate::api_models::ErrorResponse, content_type = "application/json"),
         (status = 500, description = "Internal server error", body = String, content_type = "text/plain"))
 )]
-pub(crate) async fn unit(
+pub(crate) async fn unit_plan(
     State(state): State<RouteState>,
     axum::Extension(context): axum::Extension<RequestContext>,
     request: Request,
@@ -1418,7 +1408,7 @@ pub(crate) async fn unit(
     path = "/api/projects/{slug}/units/{number}/history",
     operation_id = "get_unit_history_api_projects__slug__units__number__history_get",
     summary = "Get Unit History",
-    description = "A unit's hypothesis revisions, with the plan revision that wrote each one,\nand the alignment entries approved plans made about it, oldest first.",
+    description = "A unit's revisions, with the plan revision that wrote each one,\nand the alignment entries approved plans made about it, oldest first.",
     params(("slug" = String, Path), ("number" = i64, Path)),
     responses((status = 200, description = "Successful Response", body = crate::api_models::UnitHistoryOut, content_type = "application/json"),
         (status = 422, description = "Validation failed", body = crate::api_models::ErrorResponse, content_type = "application/json"),
@@ -1439,7 +1429,7 @@ pub(crate) async fn unit_history(
         .await
         .map_err(track_error(&context))?
         .ok_or_else(|| domain(ErrorCode::NotFound, format!("unit #{number} not found")))?;
-    let revisions = plans::unit_revisions(&mut auth.connection, unit.hypothesis_id)
+    let revisions = plans::unit_revisions(&mut auth.connection, unit.unit_id)
         .await
         .map_err(track_error(&context))?
         .into_iter()
@@ -1458,7 +1448,7 @@ pub(crate) async fn unit_history(
             }
         })
         .collect();
-    let alignments = plans::unit_alignments(&mut auth.connection, unit.hypothesis_id)
+    let alignments = plans::unit_alignments(&mut auth.connection, unit.unit_id)
         .await
         .map_err(track_error(&context))?
         .into_iter()
@@ -1759,7 +1749,7 @@ pub(crate) async fn start(
                 plans::set_alignment(
                     &mut tx,
                     plan.id,
-                    alignment.hypothesis_id,
+                    alignment.unit_id,
                     &alignment.decision,
                     &alignment.reason,
                 )
@@ -1847,7 +1837,7 @@ fn entry_text(fields: &UnitFields, context: &RequestContext) -> Result<String, F
     path = "/api/projects/{slug}/tracks/{track_slug}/plans/draft/units",
     operation_id = "add_unit_api_projects__slug__tracks__track_slug__plans_draft_units_post",
     summary = "Add Unit",
-    description = "Add a unit to the draft. `acceptance` is checked against the project's\nmetric registry and `parameters` against its hypothesis fields, as for a\nhypothesis; `context` items must exist; the brief and the number of context\nitems are refused over the project's limits.",
+    description = "Add a unit to the draft. `acceptance` is checked against the project's\nmetric registry and `parameters` against its unit fields, as for a\nunit; `context` items must exist; the brief and the number of context\nitems are refused over the project's limits.",
     params(("slug" = String, Path), ("track_slug" = String, Path)),
     request_body(content = crate::api_models::UnitCreate, content_type = "application/json"),
     responses((status = 201, description = "Successful Response", body = crate::api_models::PlanUnitOut, content_type = "application/json"),
@@ -1911,7 +1901,7 @@ pub(crate) async fn add_unit(
         plan.id,
         plans::UnitEntry {
             key: &input.key,
-            hypothesis_id: None,
+            unit_id: None,
             redo_of: None,
             fields: &text,
             brief: &input.brief,
@@ -2033,7 +2023,7 @@ pub(crate) async fn update_unit(
         &key,
         &fields,
         &brief,
-        entry.hypothesis_id,
+        entry.unit_id,
         limits,
         &context,
     )
@@ -2044,7 +2034,7 @@ pub(crate) async fn update_unit(
         plan.id,
         plans::UnitEntry {
             key: &key,
-            hypothesis_id: entry.hypothesis_id,
+            unit_id: entry.unit_id,
             redo_of: entry.redo_of,
             fields: &text,
             brief: &brief,
@@ -2180,7 +2170,7 @@ pub(crate) async fn set_alignment(
     plans::set_alignment(
         &mut tx,
         plan.id,
-        unit.hypothesis_id,
+        unit.unit_id,
         &input.decision,
         &input.reason,
     )
@@ -2190,11 +2180,11 @@ pub(crate) async fn set_alignment(
         .await
         .map_err(track_error(&context))?
         .into_iter()
-        .any(|entry| entry.redo_of == Some(unit.hypothesis_id));
+        .any(|entry| entry.redo_of == Some(unit.unit_id));
     if input.decision == "redo" && !redone {
         let stored = plans::unit_revision(
             &mut tx,
-            unit.hypothesis_id,
+            unit.unit_id,
             unit.approved_revision.unwrap_or(unit.revision),
         )
         .await
@@ -2202,8 +2192,8 @@ pub(crate) async fn set_alignment(
         .ok_or_else(|| internal(&context, "redone revision"))?;
         let document: Value = serde_json::from_str(&stored.content)
             .map_err(|_| internal(&context, "redone content"))?;
-        let mut fields = plan_units::fields_from_hypothesis(&document);
-        if let Some((_, entry)) = plans::latest_entry(&mut tx, unit.hypothesis_id)
+        let mut fields = plan_units::fields_from_unit(&document);
+        if let Some((_, entry)) = plans::latest_entry(&mut tx, unit.unit_id)
             .await
             .map_err(track_error(&context))?
         {
@@ -2213,8 +2203,7 @@ pub(crate) async fn set_alignment(
         }
         fields.relations.push(UnitRelation {
             kind: "derived_from".into(),
-            hypothesis: Some(Value::from(number)),
-            unit: None,
+            unit: Value::from(number),
         });
         let key = redo_key(&mut tx, &plan, number, &context).await?;
         let text = entry_text(&fields, &context)?;
@@ -2223,8 +2212,8 @@ pub(crate) async fn set_alignment(
             plan.id,
             plans::UnitEntry {
                 key: &key,
-                hypothesis_id: None,
-                redo_of: Some(unit.hypothesis_id),
+                unit_id: None,
+                redo_of: Some(unit.unit_id),
                 fields: &text,
                 brief: stored.brief.as_deref().unwrap_or_default(),
                 science_revision: stored.science_revision,
@@ -2233,7 +2222,7 @@ pub(crate) async fn set_alignment(
         .await
         .map_err(track_error(&context))?;
     } else if input.decision != "redo" && redone {
-        plans::delete_redo_units(&mut tx, plan.id, unit.hypothesis_id)
+        plans::delete_redo_units(&mut tx, plan.id, unit.unit_id)
             .await
             .map_err(track_error(&context))?;
     }
@@ -2516,7 +2505,7 @@ pub(crate) async fn submit(
     path = "/api/projects/{slug}/tracks/{track_slug}/plans/{revision}/review",
     operation_id = "review_plan_api_projects__slug__tracks__track_slug__plans__revision__review_post",
     summary = "Review Plan",
-    description = "A researcher's decision on a submitted revision, with a reason: `approve`\nit (in one transaction: create a queued hypothesis per new unit, write a\nnew revision of each changed one, cancel the queued ones it drops, apply\nits alignment entries, and move a planning track to active), `send_back`\nfor another revision, or `decline` it.",
+    description = "A researcher's decision on a submitted revision, with a reason: `approve`\nit (in one transaction: create a queued unit per new unit, write a\nnew revision of each changed one, cancel the queued ones it drops, apply\nits alignment entries, and move a planning track to active), `send_back`\nfor another revision, or `decline` it.",
     params(("slug" = String, Path), ("track_slug" = String, Path), ("revision" = i64, Path)),
     request_body(content = crate::api_models::PlanReview, content_type = "application/json"),
     responses((status = 200, description = "Successful Response", body = crate::api_models::PlanOut, content_type = "application/json"),
@@ -2683,18 +2672,18 @@ pub(crate) async fn review(
     Ok(json_response(StatusCode::OK, &out))
 }
 
-/// The relations and mentions of a written hypothesis revision.
+/// The relations and mentions of a written unit revision.
 pub(crate) async fn replace_links(
     conn: &mut PgConnection,
-    hypothesis: HypothesisId,
-    relations: Vec<(hypotheses::RelationKind, HypothesisId)>,
-    mentions: BTreeSet<HypothesisId>,
+    unit: UnitId,
+    relations: Vec<(units::RelationKind, UnitId)>,
+    mentions: BTreeSet<UnitId>,
     context: &RequestContext,
 ) -> Result<(), Failure> {
-    hypotheses::replace_relations(conn, hypothesis, relations)
+    units::replace_relations(conn, unit, relations)
         .await
         .map_err(|_| internal(context, "unit relations"))?;
-    hypotheses::replace_mentions(conn, MentionSource::Hypothesis(hypothesis), mentions)
+    units::replace_mentions(conn, MentionSource::Unit(unit), mentions)
         .await
         .map_err(|_| internal(context, "unit mentions"))
 }
@@ -2706,9 +2695,9 @@ pub(crate) async fn check_planned(
     principal: &Principal,
     project: &projects::Project,
     value: &Value,
-    self_id: HypothesisId,
+    self_id: UnitId,
     context: &RequestContext,
-) -> Result<crate::hypothesis_mutations::CheckedUnit, Failure> {
+) -> Result<crate::unit_mutations::CheckedUnit, Failure> {
     let document = plan_units::document(value).ok_or_else(|| internal(context, "unit document"))?;
     check_unit(
         conn,

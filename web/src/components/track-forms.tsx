@@ -99,8 +99,8 @@ export function NewTrackDialog({ project }: { project: string }) {
       <DialogContent>
         <DialogTitle>New track</DialogTitle>
         <DialogDescription>
-          A track is one line of research; every hypothesis belongs to one track. It starts active
-          and uses the project's default producer.
+          A track is one line of research; every unit belongs to one track. It starts active and
+          uses the project's default producer.
         </DialogDescription>
         <form
           className="flex flex-col gap-4"
@@ -250,16 +250,16 @@ const TRANSITIONS: Record<string, { label: string; effect: string }> = {
   paused: {
     label: "Pause",
     effect:
-      "Agents stop starting its queued hypotheses. Its plan can still be revised and reviewed, and attempts in progress finish normally.",
+      "Agents stop starting its queued units. Its plan can still be revised and reviewed, and attempts in progress finish normally.",
   },
   active: {
     label: "Resume",
-    effect: "Agents can start its queued hypotheses again.",
+    effect: "Agents can start its queued units again.",
   },
   archived: {
     label: "Archive",
     effect:
-      "The track becomes read-only and takes no new plan. It needs no queued, active or awaiting-review hypothesis. A researcher can reactivate it later.",
+      "The track becomes read-only and takes no new plan. It needs no queued, active or awaiting-review unit. A researcher can reactivate it later.",
   },
 };
 

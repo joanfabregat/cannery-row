@@ -3,7 +3,7 @@ SELECT id AS "id!: _" FROM jobs
               AND performer = 'runner' AND verifier_id = $2
               AND spec -> 'decider' ->> 'revision' = $3::text
               AND EXISTS (SELECT 1 FROM attempts a
-                          JOIN hypotheses h ON h.id = a.hypothesis_id
+                          JOIN units h ON h.id = a.unit_id
                           WHERE a.id = jobs.attempt_id AND h.state = 'deciding')
             ORDER BY created_at, id
             LIMIT 1

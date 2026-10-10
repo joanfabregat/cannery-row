@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import remarkGfm from "remark-gfm";
 
 import { resolveLink } from "@/lib/links";
-import { hypothesisPath } from "@/lib/paths";
+import { unitPath } from "@/lib/paths";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  * addresses in a new tab, anything else is shown as its text), and images are
  * shown as their description, never fetched, so a report cannot make a
  * reader's browser call another site. `#12` and `slug#12` mentions become
- * links to the hypothesis.
+ * links to the unit.
  */
 
 // As the backend's mention pattern: a bare "#N" or "slug#N" not glued to a
@@ -38,7 +38,7 @@ function splitMentions(value: string): MdNode[] {
     if (index > last) parts.push({ type: "text", value: value.slice(last, index) });
     parts.push({
       type: "link",
-      url: hypothesisPath(match[2] ?? "", match[1]),
+      url: unitPath(match[2] ?? "", match[1]),
       children: [{ type: "text", value: match[0] }],
     });
     last = index + match[0].length;

@@ -131,10 +131,10 @@ async fn invoke(
     } else {
         target(recipe, "target", 21)
     }));
-    let hypothesis = HypothesisId(id(if missing {
+    let unit = UnitId(id(if missing {
         0
     } else {
-        target(recipe, "hypothesis", 13)
+        target(recipe, "unit", 13)
     }));
     let project = ProjectId(id(if missing { 0 } else { 2 }));
     let upload = UploadId(id(if missing {
@@ -158,21 +158,21 @@ async fn invoke(
  "pick_claimable"=> {let num=recipe.get("number").map(|_|number(recipe,"number",0));let skip=recipe.get("skip").map(|v|v.as_array().expect("skip").iter().map(|v|v.as_str().expect("skip").to_owned()).collect::<Vec<_>>()).unwrap_or_default();Ok(json!(repository.pick_claimable(project,num.as_ref(),None,text(recipe,"mode","agent"),&skip).await?.map(|id|id.0.to_string())))},
  "create_attempt"=> {
             let workflow=recipe.get("workflow_payload").map_or_else(||Some(document("{\"steps\":[]}")), |value|value.as_str().map(document));
-            let id=repository.create_attempt(CreateAttempt{hypothesis_id:hypothesis,science_revision:&one,producer:&payload,token_hash:&[9;32],ttl_seconds:&ttl,principal:&principal,workflow:workflow.as_ref(),deadline_seconds:Some(&BigInt::from(600))}).await?;
+            let id=repository.create_attempt(CreateAttempt{unit_id:unit,science_revision:&one,producer:&payload,token_hash:&[9;32],ttl_seconds:&ttl,principal:&principal,workflow:workflow.as_ref(),deadline_seconds:Some(&BigInt::from(600))}).await?;
             if flag(recipe,"read_after"){Ok(repository.get_attempt_by_id(id,false).await?.expect("new attempt").project(now))}else{Ok(json!(id.0.to_string()))}
         },
  "get_attempt"=>Ok(repository.get_attempt(project,&BigInt::from(i32::from(!missing)),&one,flag(recipe,"lock")).await?.map_or(Value::Null,|value|value.project(now))),
  "get_attempt_by_id"=>Ok(repository.get_attempt_by_id(attempt,flag(recipe,"lock")).await?.map_or(Value::Null,|value|value.project(now))),
- "list_attempts"=>Ok(Value::Array(repository.list_attempts(HypothesisId(id(if missing{0}else{11})),None,Some(&number(recipe,"limit",50))).await?.iter().map(|value|value.project(now)).collect())),
+ "list_attempts"=>Ok(Value::Array(repository.list_attempts(UnitId(id(if missing{0}else{11})),None,Some(&number(recipe,"limit",50))).await?.iter().map(|value|value.project(now)).collect())),
  "list_project_attempts"=> {let states=recipe.get("states").map(|v|v.as_array().expect("states").iter().map(|v|v.as_str().expect("state").to_owned()).collect::<Vec<_>>());let before=recipe.get("before").map(|_|AttemptId(id(target(recipe,"before",0))));Ok(Value::Array(repository.list_project_attempts(project,states.as_deref(),None,before,&number(recipe,"limit",50)).await?.iter().map(|value|value.project(now)).collect()))},
  "extend_lease"=> {repository.extend_lease(attempt,&ttl).await?;Ok(Value::Null)},
  "mark_running"=> {repository.mark_running(attempt).await?;Ok(Value::Null)},
  "end_lease"=> {repository.end_lease(attempt,"verifying").await?;Ok(Value::Null)},
  "move_attempt"=> {repository.move_attempt(attempt,"verifying","verified").await?;Ok(Value::Null)},
  "reopen_attempt"=> {repository.reopen_attempt(attempt,"verifying").await?;Ok(Value::Null)},
- "pin_track"=>Ok(repository.pin_track(hypothesis).await?.project(now)),
- "approved_project_fields"=>Ok(stored(&repository.approved_project_fields(hypothesis).await?)),
- "approved_control"=>Ok(repository.approved_control(hypothesis,981).await?.map_or(Value::Null,|value|json!({"id":value.id.as_utf8().expect("fixture control"),"revision":value.revision.as_utf8().expect("fixture control")}))),
+ "pin_track"=>Ok(repository.pin_track(unit).await?.project(now)),
+ "approved_project_fields"=>Ok(stored(&repository.approved_project_fields(unit).await?)),
+ "approved_control"=>Ok(repository.approved_control(unit,981).await?.map_or(Value::Null,|value|json!({"id":value.id.as_utf8().expect("fixture control"),"revision":value.revision.as_utf8().expect("fixture control")}))),
  "create_upload"=>Ok(repository.create_upload(CreateUpload{attempt_id:AttemptId(id(21)),lease_generation:&one,token_hash:&[9;32],role:"result",backend:"s3",bucket:"fixture",key:text(recipe,"key","new-upload"),declared_size:&size,declared_sha256:&digest,media_type:"application/json",ttl_minutes:&number(recipe,"ttl",1),max_stream_seconds:&BigInt::from(60),job_id:flag(recipe,"job").then(||JobId(id(41))),interface:flag(recipe,"job").then_some("metrics"),transfer:"stream",multipart_upload_id:None,part_size:None,slot:recipe.get("slot").and_then(Value::as_str)}).await?.map_or(Value::Null,|value|value.project(now))),
  "count_open_uploads"=>Ok(json!(repository.count_open_uploads(attempt,None).await?)),
  "get_upload"=>Ok(repository.get_upload(upload,flag(recipe,"lock")).await?.map_or(Value::Null,|value|value.project(now))),
@@ -194,7 +194,7 @@ async fn invoke(
  "get_evidence_by_id"=>Ok(repository.get_evidence_by_id(AttemptId(id(22)),EvidenceId(id(if missing{0}else{32}))).await?.map_or(Value::Null,|(content,sha)|json!([stored(&content),sha]))),
  "get_evidence"=>Ok(repository.get_evidence(attempt,"verification").await?.map_or(Value::Null,|(id,content,sha)|json!([id.0.to_string(),stored(&content),sha]))),
  "record_failure"|"requeue_failed"|"is_claimant"=> {let attempt=repository.get_attempt_by_id(attempt,false).await?.ok_or(AttemptError::Invariant)?;match text(recipe,"action","") {"is_claimant"=>Ok(json!(is_claimant(&principal,&attempt))),"record_failure"=>Ok(json!(repository.record_failure(RecordFailure{project_id:ProjectId(id(2)),attempt:&attempt,stage:"agent",code:text(recipe,"code","fixture_failure"),reason:text(recipe,"reason","é reason"),details:&payload,log_refs:None,from_state:recipe.get("from_state").and_then(Value::as_str)}).await?.0.to_string())),_=>{repository.requeue_failed(RequeueFailed{attempt:&attempt,code:text(recipe,"code","fixture_failure"),reason:text(recipe,"reason","é reason"),details:&payload,log_refs:None}).await?;Ok(Value::Null)}}},
- "automatic_requeues"=>Ok(json!(repository.automatic_requeues(hypothesis).await?)),
+ "automatic_requeues"=>Ok(json!(repository.automatic_requeues(unit).await?)),
  "list_failures"=> {let ids=if flag(recipe,"empty"){Vec::new()}else{vec![attempt,AttemptId(id(22))]};let mut value=serde_json::Map::new();for (id,failures) in repository.list_failures(&ids).await? {value.insert(id.0.to_string(),Value::Array(failures.iter().map(|value|value.project(now)).collect()));}Ok(Value::Object(value))},
  "last_failure_code"=>Ok(json!(repository.last_failure_code(attempt).await?)),
  _=>panic!("unknown controlled fixture")
@@ -212,8 +212,8 @@ async fn configure(connection: &mut PgConnection, recipe: &Value) {
         };
         let content =
             json!({key:serde_json::from_str::<Value>(value).expect("approved fixture JSON")});
-        sqlx::query("INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel) VALUES($1,2,$2::jsonb,1,$3,'api')").bind(id(13)).bind(content.to_string()).bind(id(1)).execute(&mut *connection).await.expect("fixture revision");
-        sqlx::query("UPDATE hypotheses SET revision=2,approved_revision=2 WHERE id=$1")
+        sqlx::query("INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel) VALUES($1,2,$2::jsonb,1,$3,'api')").bind(id(13)).bind(content.to_string()).bind(id(1)).execute(&mut *connection).await.expect("fixture revision");
+        sqlx::query("UPDATE units SET revision=2,approved_revision=2 WHERE id=$1")
             .bind(id(13))
             .execute(&mut *connection)
             .await
@@ -243,7 +243,7 @@ async fn snapshot(connection: &mut PgConnection) -> Value {
         "completed_at",
     ];
     for table in [
-        "hypotheses",
+        "units",
         "attempts",
         "uploads",
         "artifacts",
@@ -516,11 +516,11 @@ impl Project for Attempt {
         json!({"mode":self.mode().as_str(),
         "id":self.id.0.to_string(),
         "project_id":self.project_id.0.to_string(),
-        "hypothesis_id":self.hypothesis_id.0.to_string(),
-        "hypothesis_number":self.hypothesis_number,
+        "unit_id":self.unit_id.0.to_string(),
+        "unit_number":self.unit_number,
         "sequence":self.sequence,
         "state":self.state.as_str(),
-        "hypothesis_revision":self.hypothesis_revision,
+        "unit_revision":self.unit_revision,
         "science_revision":self.science_revision,
         "track_id":self.track_id.0.to_string(),
         "track_slug":self.track_slug,

@@ -6,9 +6,7 @@ use crate::{
     wire::JsonbText,
 };
 use cannery_core::{
-    ids::{
-        AttemptId, HypothesisId, JobId, ProjectId, ReviewCaseId, ServiceAccountId, TrackId, UserId,
-    },
+    ids::{AttemptId, JobId, ProjectId, ReviewCaseId, ServiceAccountId, TrackId, UnitId, UserId},
     timestamps::Timestamp,
 };
 use sqlx::{

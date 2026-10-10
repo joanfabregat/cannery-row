@@ -251,11 +251,11 @@ impl PointOut<'_> {
             ("id", p.id.to_string().into_bytes()),
             (
                 "attempt_ref",
-                text(&format!("#{}.{}", p.hypothesis_number, p.attempt_sequence))?,
+                text(&format!("#{}.{}", p.unit_number, p.attempt_sequence))?,
             ),
-            ("hypothesis", p.hypothesis_number.to_string().into_bytes()),
-            ("hypothesis_title", text(&p.hypothesis_title)?),
-            ("hypothesis_state", text(&p.hypothesis_state)?),
+            ("unit_number", p.unit_number.to_string().into_bytes()),
+            ("unit_title", text(&p.unit_title)?),
+            ("unit_state", text(&p.unit_state)?),
             ("attempt_state", text(&p.attempt_state)?),
             ("track", text(&p.track_slug)?),
             (

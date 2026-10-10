@@ -84,12 +84,12 @@ fn content_round_trips_json_strings_numbers_arrays_and_nested_objects() -> TestR
     let mut content = science()?;
     // JSON Schema's const is an instance-valued boundary, so arbitrary project
     // JSON is valid here without weakening the fixed configuration envelope.
-    content["hypothesis_fields"] = value!({"const":expected});
+    content["unit_fields"] = value!({"const":expected});
     let row = row(&serde_json::to_string(&content)?)?;
     let actual: ConfigOut = serde_json::from_slice(&config_wire::config_bytes(&row, CONTEXT)?)?;
     let actual = serde_json::to_value(actual.content)?;
     assert_eq!(actual, content);
-    assert_eq!(actual["hypothesis_fields"]["const"], expected);
+    assert_eq!(actual["unit_fields"]["const"], expected);
     Ok(())
 }
 

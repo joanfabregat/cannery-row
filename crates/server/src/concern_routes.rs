@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Plan concerns. Anyone working on a project (a member, a researcher or a
 //! service account) raises a concern about a track's plan: a wrong
-//! assumption, a better idea, a blocker. While one is open no new hypothesis
+//! assumption, a better idea, a blocker. While one is open no new unit
 //! of the track is claimed; work already claimed continues. A plan revision
 //! answers it, or a researcher dismisses it with a reason.
 use crate::{
@@ -10,8 +10,8 @@ use crate::{
     authentication::authenticate,
     body::DecodedBody,
     errors::ApiError,
-    hypothesis_routes::{Failure, domain, internal},
     requests::RequestContext,
+    unit_routes::{Failure, domain, internal},
 };
 use axum::{
     Json, Router,
@@ -178,7 +178,7 @@ pub(crate) fn concern_out(
         id: concern.id.to_string(),
         track: concern.track_slug,
         kind: concern.kind,
-        hypothesis: concern.hypothesis_number.map(i64::from),
+        unit: concern.unit_number.map(i64::from),
         attempt: concern.attempt_sequence.map(i64::from),
         front_matter: front_matter.into_iter().collect(),
         body: concern.body,
@@ -357,7 +357,7 @@ async fn page(
     path = "/api/projects/{slug}/tracks/{track_slug}/concerns",
     operation_id = "raise_concern_api_projects__slug__tracks__track_slug__concerns_post",
     summary = "Raise Concern",
-    description = "Raise a concern about the track's plan: a wrong assumption, a better idea,\na blocker. The document is Markdown with YAML front matter\n(`concern.schema.json`): its `kind` and, when it comes from one, the\n`hypothesis` (number) and `attempt` (sequence) of the track, with the\nargument as its body (at most 16 KiB). Members, researchers and the\nproject's service accounts raise concerns. While one is open, no new\nhypothesis of the track is claimed (`409 concern_open`); work already\nclaimed continues. A plan revision answers it, or a researcher dismisses it.",
+    description = "Raise a concern about the track's plan: a wrong assumption, a better idea,\na blocker. The document is Markdown with YAML front matter\n(`concern.schema.json`): its `kind` and, when it comes from one, the\n`unit` (number) and `attempt` (sequence) of the track, with the\nargument as its body (at most 16 KiB). Members, researchers and the\nproject's service accounts raise concerns. While one is open, no new\nunit of the track is claimed (`409 concern_open`); work already\nclaimed continues. A plan revision answers it, or a researcher dismisses it.",
     params(("slug" = String, Path), ("track_slug" = String, Path)),
     request_body(content = crate::api_models::ConcernRaise, content_type = "application/json"),
     responses((status = 201, description = "Successful Response", body = crate::api_models::ConcernOut, content_type = "application/json"),
@@ -370,7 +370,7 @@ async fn page(
 )]
 #[allow(
     clippy::too_many_lines,
-    reason = "The document, the hypothesis and attempt it names, the write and its audit row, in one transaction"
+    reason = "The document, the unit and attempt it names, the write and its audit row, in one transaction"
 )]
 pub(crate) async fn raise(
     State(state): State<RouteState>,
@@ -426,7 +426,7 @@ pub(crate) async fn raise(
             .and_then(Value::as_i64)
             .map(|value| i32::try_from(value).unwrap_or(i32::MAX))
     };
-    let (number, sequence) = (number("hypothesis"), number("attempt"));
+    let (number, sequence) = (number("unit"), number("attempt"));
     let (user, service, via) = match &auth.principal {
         Principal::User(user) => (Some(user.user_id), None, user.via.clone()),
         Principal::Service(service) => {
@@ -452,7 +452,7 @@ pub(crate) async fn raise(
             format!("track '{}' is archived and takes no concern", track.slug),
         ));
     }
-    let mut hypothesis_id = None;
+    let mut unit_id = None;
     let mut attempt_id = None;
     if let Some(number) = number {
         let (_, unit) = plans::project_unit(&mut tx, project.id, number)
@@ -463,12 +463,12 @@ pub(crate) async fn raise(
                 invalid(
                     "body/document",
                     format!(
-                        "front matter /hypothesis: #{number} is not a hypothesis of track '{}'",
+                        "front matter /unit: #{number} is not a unit of track '{}'",
                         track.slug
                     ),
                 )
             })?;
-        hypothesis_id = Some(unit.hypothesis_id);
+        unit_id = Some(unit.unit_id);
         if let Some(sequence) = sequence {
             attempt_id = Some(
                 plans::attempt_id(&mut tx, project.id, number, sequence)
@@ -494,7 +494,7 @@ pub(crate) async fn raise(
             project_id: project.id,
             track_id: track.id,
             kind: &kind,
-            hypothesis_id,
+            unit_id,
             attempt_id,
             front_matter: &front_matter_text,
             body: &parsed.body,
@@ -508,7 +508,7 @@ pub(crate) async fn raise(
     .await
     .map_err(track_error(&context))?;
     let new_state = json!({
-        "track": track.slug, "kind": kind, "hypothesis": number, "attempt": sequence,
+        "track": track.slug, "kind": kind, "unit": number, "attempt": sequence,
         "state": "open", "sha256": sha256,
     });
     record(
@@ -672,7 +672,7 @@ pub(crate) async fn read(
     path = "/api/projects/{slug}/concerns/{concern_id}/dismissal",
     operation_id = "dismiss_concern_api_projects__slug__concerns__concern_id__dismissal_post",
     summary = "Dismiss Concern",
-    description = "A researcher dismisses an open concern without revising the plan, with a\nreason the raiser and the track see. The track's hypotheses can be claimed\nagain once no concern about its plan is open.",
+    description = "A researcher dismisses an open concern without revising the plan, with a\nreason the raiser and the track see. The track's units can be claimed\nagain once no concern about its plan is open.",
     params(("slug" = String, Path), ("concern_id" = String, Path, format = "uuid")),
     request_body(content = crate::api_models::ConcernDismissal, content_type = "application/json"),
     responses((status = 200, description = "Successful Response", body = crate::api_models::ConcernOut, content_type = "application/json"),

@@ -1,6 +1,6 @@
 //! Track plans over HTTP: drafting through the write routes, the checks that
 //! block a submission, the researcher's review, the approval that writes the
-//! hypotheses, the claim that pins the plan and the context bundle it names.
+//! units, the claim that pins the plan and the context bundle it names.
 #![forbid(unsafe_code)]
 use axum::{
     Router,
@@ -304,7 +304,7 @@ async fn a_track_is_planned_reviewed_and_claimed() -> Result<()> {
     )
     .await?;
     assert_eq!(status, 403, "{value}");
-    // The hypothesis document a unit becomes is checked, under the unit's names.
+    // The unit document a unit becomes is checked, under the unit's names.
     let mut unknown = unit("baseline", "Baseline");
     unknown["acceptance"]["primary_metric"] = json!("accuracy");
     let (status, value) = call(
@@ -475,7 +475,7 @@ async fn a_track_is_planned_reviewed_and_claimed() -> Result<()> {
     assert_eq!(status, 200, "{approved}");
     assert_eq!(approved["state"], "approved");
 
-    // Approval wrote two queued hypotheses and activated the track.
+    // Approval wrote two queued units and activated the track.
     let (status, track) = call(
         &app,
         "viewer",
@@ -512,8 +512,14 @@ async fn a_track_is_planned_reviewed_and_claimed() -> Result<()> {
         index.iter().all(|(_, _, state)| state == "queued"),
         "{units}"
     );
-    let (status, variant) =
-        call(&app, "viewer", "GET", "/api/projects/matrix/units/2", None).await?;
+    let (status, variant) = call(
+        &app,
+        "viewer",
+        "GET",
+        "/api/projects/matrix/units/2/plan",
+        None,
+    )
+    .await?;
     assert_eq!(status, 200, "{variant}");
     assert_eq!(variant["title"], "Variant, seed 7");
     assert_eq!(variant["plan_revision"], 2);
@@ -552,7 +558,7 @@ async fn a_track_is_planned_reviewed_and_claimed() -> Result<()> {
     assert_eq!(claim["plan"]["revision"], 2, "{claim}");
     let number = claim["attempt"]["number"].as_i64().ok_or("number")?;
     let sequence = claim["attempt"]["sequence"].as_i64().ok_or("sequence")?;
-    let bundle = format!("/api/projects/matrix/hypotheses/{number}/attempts/{sequence}/context.md");
+    let bundle = format!("/api/projects/matrix/units/{number}/attempts/{sequence}/context.md");
     assert_eq!(claim["context"]["ref"], bundle);
     let (status, text) = call(&app, "agent", "GET", &bundle, None).await?;
     assert_eq!(status, 200, "{text}");
@@ -636,7 +642,7 @@ async fn a_track_is_planned_reviewed_and_claimed() -> Result<()> {
         &app,
         "viewer",
         "GET",
-        &format!("/api/projects/matrix/units/{number}"),
+        &format!("/api/projects/matrix/units/{number}/plan"),
         None,
     )
     .await?;
@@ -762,7 +768,7 @@ async fn a_track_is_planned_reviewed_and_claimed() -> Result<()> {
     .await?;
     assert_eq!(via, ["api"]);
     let lifecycle: Vec<String> = sqlx::query_scalar(
-        "SELECT state FROM hypotheses WHERE track_id = '00000000-0000-0000-0000-000000000030' ORDER BY number",
+        "SELECT state FROM units WHERE track_id = '00000000-0000-0000-0000-000000000030' ORDER BY number",
     )
     .fetch_all(&state.pool)
     .await?;

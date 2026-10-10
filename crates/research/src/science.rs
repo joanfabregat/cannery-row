@@ -456,7 +456,7 @@ pub struct Science<'a> {
     pub metrics: Vec<(String, Metric)>,
     pub baseline_refs: Vec<(String, String)>,
     pub baselines: Vec<(String, String)>,
-    pub hypothesis_fields: Option<NodeId>,
+    pub unit_fields: Option<NodeId>,
     pub datasets: Vec<(String, Dataset)>,
     pub interfaces: Vec<String>,
     pub interface_specs: Vec<(String, InterfaceSpec)>,
@@ -552,7 +552,7 @@ impl<'a> Science<'a> {
             })
             .collect::<Result<Vec<_>, ScienceError>>()?;
         let baselines = unique(baseline_refs.clone());
-        let hypothesis_fields = field(content, &root, "hypothesis_fields", false)?
+        let unit_fields = field(content, &root, "unit_fields", false)?
             .filter(|id| matches!(content.node(*id), Some(Node::Object(_))));
         let mut datasets = vec![];
         for raw in optional_items(content, &root, "datasets")? {
@@ -607,7 +607,7 @@ impl<'a> Science<'a> {
             metrics,
             baseline_refs,
             baselines,
-            hypothesis_fields,
+            unit_fields,
             datasets,
             interfaces,
             interface_specs,
@@ -661,8 +661,8 @@ impl<'a> Science<'a> {
     }
     /// # Errors
     /// Retains malformed project-field properties' iteration failures.
-    pub fn hypothesis_facets(&self) -> Result<Vec<String>, ScienceError> {
-        let Some(fields) = self.hypothesis_fields else {
+    pub fn unit_facets(&self) -> Result<Vec<String>, ScienceError> {
+        let Some(fields) = self.unit_fields else {
             return Ok(vec![]);
         };
         let Some(properties) = field(self.content, &Value::Node(fields), "properties", false)?
@@ -674,7 +674,7 @@ impl<'a> Science<'a> {
                 .iter()
                 .map(|value| {
                     append(&[
-                        &String::from("hypothesis."),
+                        &String::from("unit."),
                         &text(self.content, value, self.rendering)?,
                     ])
                 })
@@ -835,7 +835,7 @@ pub fn check_dashboard(
         }
         let mut dimensions = metric.dimensions.clone();
         dimensions.push(String::from("track"));
-        dimensions.extend(science.hypothesis_facets()?);
+        dimensions.extend(science.unit_facets()?);
         for (position, name) in optional_items(document, view, "group_by")?
             .iter()
             .enumerate()
@@ -880,7 +880,7 @@ pub fn check_dashboard(
 }
 /// # Errors
 /// Checks the metric, splits and optional exact registered baseline in source order.
-pub fn check_hypothesis(
+pub fn check_unit(
     science: &Science<'_>,
     document: &Document,
     rendering: RenderingContext,

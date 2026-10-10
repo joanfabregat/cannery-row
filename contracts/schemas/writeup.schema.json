@@ -3,28 +3,28 @@
   "$id": "https://cannery-row.invalid/schemas/0.2/writeup.schema.json",
   "$comment": "SPDX-License-Identifier: Apache-2.0",
   "title": "Write-up front matter",
-  "description": "The front matter of a write-up, whose Markdown is the document's body. A hypothesis's write-up covers every attempt, failed ones included, and cites the verification report it reports on: the summary is the one sentence its page opens with. An imported write-up is the retrospective report of an imported attempt, with who wrote it and when.",
+  "description": "The front matter of a write-up, whose Markdown is the document's body. A unit's write-up covers every attempt, failed ones included, and cites the verification report it reports on: the summary is the one sentence its page opens with. An imported write-up is the retrospective report of an imported attempt, with who wrote it and when.",
   "oneOf": [
     {
       "title": "Write-up",
       "type": "object",
       "properties": {
         "summary": {
-          "description": "One sentence: the line the hypothesis page opens with.",
+          "description": "One sentence: the line the unit page opens with.",
           "type": "string",
           "minLength": 1,
           "maxLength": 500,
           "pattern": "^[^\\n\\r]*\\S[^\\n\\r]*$"
         },
         "attempts": {
-          "description": "The sequence numbers of the attempts it covers: every attempt of the hypothesis.",
+          "description": "The sequence numbers of the attempts it covers: every attempt of the unit.",
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
           "items": {"type": "integer", "minimum": 1}
         },
         "verification": {
-          "description": "The verification report it reports on, by id and SHA-256, as the document job names it; null for a hypothesis stopped after a failure, which has none.",
+          "description": "The verification report it reports on, by id and SHA-256, as the document job names it; null for a unit stopped after a failure, which has none.",
           "oneOf": [
             {"$ref": "common.schema.json#/$defs/content_ref"},
             {"type": "null"}

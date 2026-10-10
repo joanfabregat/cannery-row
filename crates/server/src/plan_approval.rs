@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Approving a plan revision: one transaction that creates a queued
-//! hypothesis per new unit, writes a new revision of each changed queued
+//! unit per new unit, writes a new revision of each changed queued
 //! unit, cancels the queued units the plan drops and applies its alignment
 //! entries. The caller holds the track lock, records the review and moves a
 //! planning track to active.
 use crate::{
-    hypothesis_routes::{Failure, RouteState, domain, internal},
     plan_routes::{check_planned, replace_links},
     plan_units::{self, UnitFields},
     requests::RequestContext,
+    unit_routes::{Failure, RouteState, domain, internal},
 };
-use cannery_core::{errors::ErrorCode, ids::HypothesisId, principal::Principal};
-use cannery_hypotheses::repo as hypotheses;
+use cannery_core::{errors::ErrorCode, ids::UnitId, principal::Principal};
 use cannery_projects::repo as projects;
 use cannery_tracks::{
     plans::{self, PlanRevision},
     repo::Track,
 };
+use cannery_units::repo as units;
 use serde_json::{Value, json};
 use sqlx::PgConnection;
 use std::collections::{BTreeMap, BTreeSet};
@@ -44,7 +44,7 @@ pub(crate) async fn apply(
         .map_err(persistence(context))?;
     // Pass 1: every new unit gets its number, so units can name each other.
     // Keys of units earlier approvals wrote stay valid names for them.
-    let mut ids: BTreeMap<String, (HypothesisId, i32)> = plans::known_keys(conn, track.id)
+    let mut ids: BTreeMap<String, (UnitId, i32)> = plans::known_keys(conn, track.id)
         .await
         .map_err(persistence(context))?
         .into_iter()
@@ -54,11 +54,11 @@ pub(crate) async fn apply(
     for entry in &entries {
         let fields: UnitFields = serde_json::from_str(&entry.fields)
             .map_err(|_| internal(context, "approved unit fields"))?;
-        if let (Some(id), Some(number)) = (entry.hypothesis_id, entry.number) {
+        if let (Some(id), Some(number)) = (entry.unit_id, entry.number) {
             ids.insert(entry.key.clone(), (id, number));
             continue;
         }
-        let number = hypotheses::next_number(conn, project.id)
+        let number = units::next_number(conn, project.id)
             .await
             .map_err(|_| internal(context, "unit number"))?;
         let id = plans::create_unit(
@@ -76,13 +76,13 @@ pub(crate) async fn apply(
         ids.insert(entry.key.clone(), (id, number));
         created.push(number);
     }
-    // Pass 2: each unit's hypothesis revision, with its relations resolved.
+    // Pass 2: each unit's revision, with its relations resolved.
     let mut revised = Vec::new();
     for entry in &entries {
         let fields: UnitFields = serde_json::from_str(&entry.fields)
             .map_err(|_| internal(context, "approved unit fields"))?;
         let (id, number) = ids[&entry.key];
-        let is_new = entry.hypothesis_id.is_none();
+        let is_new = entry.unit_id.is_none();
         if !is_new && entry.state.as_deref() != Some("queued") {
             plans::applied(conn, plan.id, &entry.key, id, None)
                 .await
@@ -91,9 +91,9 @@ pub(crate) async fn apply(
         }
         let mut relations = Vec::new();
         for relation in &fields.relations {
-            let target = match (&relation.hypothesis, &relation.unit) {
-                (Some(target), _) => target.clone(),
-                (None, Some(unit)) => {
+            let target = match relation.key() {
+                None => relation.unit.clone(),
+                Some(unit) => {
                     let (_, target) = ids.get(unit).ok_or_else(|| {
                         domain(
                             ErrorCode::Conflict,
@@ -102,11 +102,10 @@ pub(crate) async fn apply(
                     })?;
                     Value::from(*target)
                 }
-                (None, None) => continue,
             };
-            relations.push(json!({"kind": relation.kind, "hypothesis": target}));
+            relations.push(json!({"kind": relation.kind, "unit": target}));
         }
-        let value = plan_units::hypothesis_value(&track.slug, &fields, &relations);
+        let value = plan_units::unit_value(&track.slug, &fields, &relations);
         let checked = check_planned(conn, state, principal, project, &value, id, context).await?;
         let encoded =
             serde_json::to_string(&value).map_err(|_| internal(context, "unit content"))?;
@@ -145,7 +144,7 @@ pub(crate) async fn apply(
             plans::add_unit_revision(
                 conn,
                 plans::NewUnitRevision {
-                    hypothesis_id: id,
+                    unit_id: id,
                     revision,
                     content: &encoded,
                     brief: &entry.brief,
@@ -167,7 +166,7 @@ pub(crate) async fn apply(
             .map_err(persistence(context))?;
     }
     // Queued units of the approved plan that this revision drops.
-    let listed: BTreeSet<HypothesisId> = ids.values().map(|(id, _)| *id).collect();
+    let listed: BTreeSet<UnitId> = ids.values().map(|(id, _)| *id).collect();
     let mut cancelled = Vec::new();
     if let Some(base) = plans::approved_revision(conn, track.id)
         .await
@@ -180,7 +179,7 @@ pub(crate) async fn apply(
             .await
             .map_err(persistence(context))?
         {
-            if let (Some(id), Some(number)) = (entry.hypothesis_id, entry.number)
+            if let (Some(id), Some(number)) = (entry.unit_id, entry.number)
                 && !listed.contains(&id)
                 && plans::cancel_queued(conn, id)
                     .await
@@ -202,7 +201,7 @@ pub(crate) async fn apply(
         }
         obsolete.push(alignment.number);
         if plans::IN_FLIGHT.contains(&alignment.state.as_str()) {
-            plans::cancel_in_flight(conn, alignment.hypothesis_id)
+            plans::cancel_in_flight(conn, alignment.unit_id)
                 .await
                 .map_err(persistence(context))?;
             cancelled.push(alignment.number);

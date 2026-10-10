@@ -2,10 +2,10 @@ import type { Schemas } from "./client";
 
 /** Friendly names for the generated API types the pages use. */
 
-export type HypothesisSummary = Schemas["HypothesisSummary"];
-export type Hypothesis = Schemas["HypothesisOut"];
-export type HypothesisPage = Schemas["HypothesisPage"];
-export type HypothesisReview = Schemas["cannery_row__hypotheses__routes__ReviewCaseOut"];
+export type UnitSummary = Schemas["UnitSummary"];
+export type Unit = Schemas["UnitOut"];
+export type UnitPage = Schemas["UnitPage"];
+export type UnitReview = Schemas["cannery_row__units__routes__ReviewCaseOut"];
 export type Decision = Schemas["DecisionOut"];
 export type Link = Schemas["LinkOut"];
 export type Revision = Schemas["RevisionOut"];

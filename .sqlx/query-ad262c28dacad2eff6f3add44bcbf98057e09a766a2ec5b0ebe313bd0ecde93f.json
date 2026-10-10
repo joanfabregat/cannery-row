@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel,via_client,created_at,origin,source_ref) VALUES($1,1,$2,$3,$4,'cli','cannery import',$5,'imported',$6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb",
+        "Int4",
+        "Uuid",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ad262c28dacad2eff6f3add44bcbf98057e09a766a2ec5b0ebe313bd0ecde93f"
+}

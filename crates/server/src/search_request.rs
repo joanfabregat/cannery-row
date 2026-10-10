@@ -136,7 +136,7 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
         "kind",
         Some(&[
             "track",
-            "hypothesis",
+            "unit",
             "attempt",
             "report",
             "verification",
@@ -147,9 +147,9 @@ pub(crate) fn parse(q: &QueryParams) -> Result<Parameters, ValidationErrors> {
         &mut errors,
     );
     criteria.tracks = list(q, "track", None, &mut errors);
-    criteria.hypothesis_states = list(
+    criteria.unit_states = list(
         q,
-        "hypothesis_state",
+        "unit_state",
         Some(&[
             "queued",
             "active",

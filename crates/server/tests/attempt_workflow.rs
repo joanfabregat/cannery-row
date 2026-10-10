@@ -37,8 +37,8 @@ async fn raw_storage(connection: &mut sqlx::PgConnection) -> Result<Vec<String>,
         "users",
         "projects",
         "tracks",
-        "hypotheses",
-        "hypothesis_revisions",
+        "units",
+        "unit_revisions",
         "attempts",
         "jobs",
         "artifacts",
@@ -112,16 +112,16 @@ async fn actual_attempt_workflow_parity() -> Result<(), TestError> {
             .await?;
         if recipe["parameters_missing"] == true {
             sqlx::query(
-                "UPDATE hypotheses SET state='cancelled', approved_revision=NULL, approved_at=NULL",
+                "UPDATE units SET state='cancelled', approved_revision=NULL, approved_at=NULL",
             )
             .execute(&mut *transaction)
             .await?;
         } else if let Some(value) = recipe["parameters_json"].as_str() {
-            sqlx::query("INSERT INTO hypothesis_revisions(hypothesis_id,revision,content,science_revision,author_user,via_channel,created_at) VALUES('00000000-0000-0000-0000-000000000011',3,$1::jsonb,1,'00000000-0000-0000-0000-000000000001','api','2001-01-01Z')")
+            sqlx::query("INSERT INTO unit_revisions(unit_id,revision,content,science_revision,author_user,via_channel,created_at) VALUES('00000000-0000-0000-0000-000000000011',3,$1::jsonb,1,'00000000-0000-0000-0000-000000000001','api','2001-01-01Z')")
                 .bind(format!("{{\"project_fields\":{value}}}"))
                 .execute(&mut *transaction)
                 .await?;
-            sqlx::query("UPDATE hypotheses SET revision=3, approved_revision=3")
+            sqlx::query("UPDATE units SET revision=3, approved_revision=3")
                 .execute(&mut *transaction)
                 .await?;
         }

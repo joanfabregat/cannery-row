@@ -633,7 +633,7 @@ async fn resolved_view(
     groupable.push(String::from("track"));
     groupable.extend(
         science
-            .hypothesis_facets()
+            .unit_facets()
             .map_err(|_| internal(c, "metric facets"))?,
     );
     for (name, rendered) in &groups {

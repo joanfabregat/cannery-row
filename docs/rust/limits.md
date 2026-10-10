@@ -22,7 +22,7 @@ Some fixed formats:
 | Integers in queries and control fields | Checked integers within PostgreSQL's signed 64-bit range. Booleans, fractional values, Unicode digits and underscores are not integers. Consumed science and setup integer fields must be JSON integers in that range. | Typed DTOs. |
 | Fixed request shapes | Named serde DTOs. Fixed request envelopes must be JSON objects, even when every field is optional. Explicitly nullable optional bodies also accept JSON null. Unknown fields are rejected where the DTO declares it. PATCH keeps the difference between omitted and null. | One set of types generates both validation and OpenAPI. |
 | Validation errors | A sanitized `validation_failed` envelope with ordered paths and static wording. Error codes and paths are the contract; prose is not. | Messages never echo submitted values. |
-| Hypothesis creation and revision over budget | Over-budget bodies are refused before the transaction and write nothing. | Refuse early instead of committing an unrenderable record. |
+| Unit creation and revision over budget | Over-budget bodies are refused before the transaction and write nothing. | Refuse early instead of committing an unrenderable record. |
 | Submissions | Invalid JSON or excessive nesting returns 422 before evidence processing. First acceptance is 201; an idempotent replay is 200 and does not need the consumed lease; the same key with different evidence is 409; semantically invalid evidence under a valid lease durably fails the attempt with `invalid_submission` and returns 422. | Bounded parsing; replay semantics are explicit. |
 
 Artifact byte streams and MCP requests use their own adapters and limits; the REST budgets do not apply to them.
@@ -34,7 +34,7 @@ Artifact byte streams and MCP requests use their own adapters and limits; the RE
 - Frozen job parameters stay dynamic project values, including scalar values.
 - Agent reports, imported reports and absent reports are distinct typed variants.
 - Phase output documents are at most 1 MiB, with front matter nested at most 64 deep and at most 100,000 nodes (`front_matter::Limits`), read by the same strict YAML rules as import bundles. A number that YAML would read as NaN or infinity is never turned into JSON null.
-- Historical imports have explicit read models for normalized hypothesis headers, imported evidence with provenance and measurement authority. These read models do not relax creation or update contracts.
+- Historical imports have explicit read models for normalized unit headers, imported evidence with provenance and measurement authority. These read models do not relax creation or update contracts.
 - Stored artifact MIME values must be strings; malformed values fail before object-store access.
 - Human decision evidence revisions are checked signed 64-bit integers.
 - Model number projections serialize nonfinite results as JSON null. Nonfinite values cannot enter canonical evidence.

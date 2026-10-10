@@ -43,7 +43,7 @@ static FIXTURE: std::sync::LazyLock<&str> =
     std::sync::LazyLock::new(|| runtime_reference!("/tests/fixtures/mcp_reference.json"));
 fn comments() -> Arc<CommentContext> {
     Arc::new(CommentContext {
-        hypotheses: cannery_hypotheses::repo::JsonContext {
+        units: cannery_units::repo::JsonContext {
             encode_nesting_budget: 80,
             decode_nesting_budget: 80,
         },

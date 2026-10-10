@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/core", "crates/identity", "crates/projects", "crates/server", "crates/cannery", "crates/runner", "crates/research", "crates/tracks", "crates/metrics", "crates/jobs", "crates/hypotheses", "crates/search", "crates/reviews", "crates/attention", "crates/comments-reports", "crates/attempts", "crates/storage", "crates/imports", "crates/managed-postgres", "crates/test-launcher"]
+members = ["crates/core", "crates/identity", "crates/projects", "crates/server", "crates/cannery", "crates/runner", "crates/research", "crates/tracks", "crates/metrics", "crates/jobs", "crates/units", "crates/search", "crates/reviews", "crates/attention", "crates/comments-reports", "crates/attempts", "crates/storage", "crates/imports", "crates/managed-postgres", "crates/test-launcher"]
 resolver = "3"
 
 [workspace.package]

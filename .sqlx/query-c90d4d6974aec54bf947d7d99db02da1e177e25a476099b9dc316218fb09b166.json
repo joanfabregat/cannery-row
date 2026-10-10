@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.body_markdown, c.created_at AS \"created_at: cannery_core::timestamps::Timestamp\", a.sequence AS \"sequence?\", coalesce(u.display_name, u.email, 'a researcher') AS \"author!\"\n           FROM comments c JOIN users u ON u.id=c.author_user LEFT JOIN attempts a ON a.id=c.attempt_id\n           WHERE c.unit_id=$1 ORDER BY c.created_at, c.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "body_markdown",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "created_at: cannery_core::timestamps::Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "sequence?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "author!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "c90d4d6974aec54bf947d7d99db02da1e177e25a476099b9dc316218fb09b166"
+}

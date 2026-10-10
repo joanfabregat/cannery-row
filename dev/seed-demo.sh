@@ -36,20 +36,20 @@
 #
 # Each project is created with its first track, then gets its other tracks and
 # its brief, written by the researcher project.yaml names under brief.by.
-# Tracks start in planning. Every hypothesis comes from a plan: each one of
+# Tracks start in planning. Every unit comes from a plan: each one of
 # the scenario is a unit of its track's plan. The track's planner (plan.by,
 # default brief.by) starts a plan revision, sets the approach (plan.approach,
 # default the description) and adds the units, with the rationale as the unit
 # brief and a context item per derived_from relation, then checks and submits
 # it, and the reviewer (plan.review.by, default brief.by) approves it, which
-# creates the hypotheses, queued, and makes the track active. A unit naming a
-# hypothesis that does not exist yet waits for a later revision of the plan.
+# creates the units, queued, and makes the track active. A unit naming a
+# unit that does not exist yet waits for a later revision of the plan.
 # A unit with later: goes into one more revision of the plan once the
 # attempts are done, which keeps every unit in flight or done: the reviewer
 # later.by declines it with later.reason (later: {review: decline}), or it is
 # left for review (later: {review: pending}).
 #
-# The REST part drives each hypothesis of dev/demo-data/projects/*/project.yaml
+# The REST part drives each unit of dev/demo-data/projects/*/project.yaml
 # through the real lifecycle: plans and their reviews, claims, uploads,
 # claimed run documents, verify jobs completed with a verification report,
 # write-ups (an agent's, a researcher's, a skipped one), decision documents,
@@ -62,15 +62,15 @@
 # default), then the sweep fails it with lease_expired and opens a failure
 # review, as for a crashed agent; a verify job left claimed (stop: verifying)
 # goes back to waiting the same way, as for a crashed verifier. A verified or
-# stopped hypothesis whose last attempt has no writeup: is left waiting for its
+# stopped unit whose last attempt has no writeup: is left waiting for its
 # write-up, and one with a writeup: but no decision: waits for its decision.
 # A project whose science revision registers a decider step (decide.performer
 # step) gets a decider service account of that name, and the script plays its
 # runner: a decision by: decider is the decider's, recorded through its decide
-# job; a hypothesis written up without one leaves that job waiting.
+# job; a unit written up without one leaves that job waiting.
 #
 # Once the attempts and the later plans are done, the scenario's concerns:
-# about the plans are raised by their authors (from: names the hypothesis and
+# about the plans are raised by their authors (from: names the unit and
 # attempt), and a dismissed: one is dismissed by a researcher with a reason;
 # an open one holds up its track.
 #
@@ -211,7 +211,7 @@ upload() {
 
 now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 ago() { date -u -d "@$(($(date +%s) - $1))" +%Y-%m-%dT%H:%M:%SZ; }
-# A stable fake commit for a hypothesis key.
+# A stable fake commit for a unit key.
 commit_of() { printf '%s' "$1" | sha256sum | cut -c1-7; }
 
 # ---------------------------------------------------------------- database
@@ -315,21 +315,21 @@ verify_performer() { jq -r '.verify.performer' "$DEMO/projects/$PROJECT/science.
 # decide_performer: who decides them, researcher (the default) or step.
 decide_performer() { jq -r '.decide.performer // "researcher"' "$DEMO/projects/$PROJECT/science.json"; }
 
-# ---------------------------------------------------------------- hypotheses
+# ---------------------------------------------------------------- units
 
 declare -A NUMBER
-# hv INDEX JQ: a value of hypothesis INDEX of the scenario.
-hv() { jq -c ".hypotheses[$1]$2" "$SECRETS/project.json"; }
-hvr() { jq -r ".hypotheses[$1]$2" "$SECRETS/project.json"; }
+# hv INDEX JQ: a value of unit INDEX of the scenario.
+hv() { jq -c ".units[$1]$2" "$SECRETS/project.json"; }
+hvr() { jq -r ".units[$1]$2" "$SECRETS/project.json"; }
 
-# planned INDEX: whether hypothesis INDEX is a unit of its track's approved
+# planned INDEX: whether unit INDEX is a unit of its track's approved
 # plan, rather than of a later revision (later).
 planned() { hv "$1" ' | has("later") | not' | grep -qx true; }
 
-# targets INDEX: the scenario keys hypothesis INDEX's relations name.
-targets() { hvr "$1" '.doc.relations // [] | .[] | .hypothesis | select(type == "string")'; }
+# targets INDEX: the scenario keys unit INDEX's relations name.
+targets() { hvr "$1" '.doc.relations // [] | .[] | .unit | select(type == "string")'; }
 
-# unit INDEX KEYS: the plan entry of hypothesis INDEX; KEYS (a JSON list) are the keys of
+# unit INDEX KEYS: the plan entry of unit INDEX; KEYS (a JSON list) are the keys of
 # the units planned with it, which its relations and context name by key.
 unit() {
   local numbers
@@ -337,10 +337,10 @@ unit() {
     jq -Rn '[inputs | split("\t") | {(.[0]): (.[1] | tonumber)}] | add // {}')
   jq -c --argjson n "$numbers" --argjson keys "$2" '
     def ref: . as $v | if type == "string" and ($keys | index([$v]) | not) then $n[$v] else . end;
-    def link: if type == "string" then {unit: .} else {hypothesis: .} end;
+    def link: if type == "string" then {unit: .} else {unit: .} end;
     {key, title: .doc.title, question: .doc.question, intervention: .doc.intervention,
-     acceptance: .doc.plan, relations: [.doc.relations // [] | .[] | {kind} + (.hypothesis | ref | link)],
-     context: [.doc.relations // [] | .[] | select(.kind == "derived_from") | {kind: "unit", unit: (.hypothesis | ref), note: "the unit this one derives from"}],
+     acceptance: .doc.plan, relations: [.doc.relations // [] | .[] | {kind} + (.unit | ref | link)],
+     context: [.doc.relations // [] | .[] | select(.kind == "derived_from") | {kind: "unit", unit: (.unit | ref), note: "the unit this one derives from"}],
      brief: (.brief // "# Why\n\n\(.doc.rationale)\n")}
     + (if .doc.control then {control: .doc.control} else {} end)
     + (if .doc.project_fields then {parameters: .doc.project_fields} else {} end)' <<<"$(hv "$1" '')"
@@ -370,7 +370,7 @@ write_plan() {
 }
 
 # plan_track TRACK INDEX...: one plan revision of TRACK with these units,
-# approved by the track's reviewer, which creates their hypotheses.
+# approved by the track's reviewer, which creates their units.
 plan_track() {
   local track=$1 spec reviewer reason keys revision item
   shift
@@ -387,8 +387,8 @@ plan_track() {
     jq -c --argjson keys "$keys" '.items[] | select(.key as $k | $keys | index([$k]))')
 }
 
-# plan_all COUNT: every planned hypothesis of the scenario, through its
-# track's plan, in passes: a revision is written once every hypothesis its
+# plan_all COUNT: every planned unit of the scenario, through its
+# track's plan, in passes: a revision is written once every unit its
 # units' relations name exists (or is planned with it).
 plan_all() {
   local count=$1 i track target
@@ -401,7 +401,7 @@ plan_all() {
       for ((i = 0; i < count; i++)); do
         [[ -z "${done[$i]-}" && "$(hvr "$i" .doc.track)" == "$track" ]] && batch[$(hvr "$i" .key)]=$i
       done
-      # Drop the units naming a hypothesis that neither exists nor is planned here.
+      # Drop the units naming a unit that neither exists nor is planned here.
       local changed=1
       while ((changed)); do
         changed=0
@@ -484,10 +484,10 @@ run_attempt() {
   spec=$(hv "$i" ".attempts[$a]")
   by=$(jq -r .by <<<"$spec")
   stop=$(jq -r .stop <<<"$spec")
-  claim=$(api "$by" POST "$BASE/claims" "{\"hypothesis\":$number}")
+  claim=$(api "$by" POST "$BASE/claims" "{\"unit\":$number}")
   attempt_id=$(jq -r .attempt.id <<<"$claim")
   sequence=$(jq -r .attempt.sequence <<<"$claim")
-  path=$BASE/hypotheses/$number/attempts/$sequence
+  path=$BASE/units/$number/attempts/$sequence
   lease_file=$(headers_file "lease" \
     "X-Lease-Token: $(jq -r .lease_token <<<"$claim")" \
     "X-Lease-Generation: $(jq -r .lease_generation <<<"$claim")")
@@ -499,7 +499,7 @@ run_attempt() {
       api "$by" POST "$path/release" "$(jq -c '{reason: .release}' <<<"$spec")" "$lease_file" >/dev/null
       if jq -e .failure_decision <<<"$spec" >/dev/null; then
         decide "$number" failure "$(jq -c .failure_decision <<<"$spec")"
-        # A stopped hypothesis is written up, then decided failed.
+        # A stopped unit is written up, then decided failed.
         [[ "$(jq -r .failure_decision.action <<<"$spec")" != stop ]] || finish "$number" "$spec"
       fi
       return ;;
@@ -511,7 +511,7 @@ run_attempt() {
   jq '.candidate' <<<"$spec" >"$work/candidate.json"
   seconds=$(jq -r '.seconds // 3600' <<<"$spec")
   {
-    printf '%s demo run of hypothesis %s (%s)\n' "$(ago "$seconds")" "$number" "$key"
+    printf '%s demo run of unit %s (%s)\n' "$(ago "$seconds")" "$number" "$key"
     jq -r '.results[] | select(has("claimed")) | "  \(.metric) \(.split) \(.dims // {} | to_entries | map("\(.key)=\(.value)") | join(",")) claimed \(.claimed)"' <<<"$spec"
     printf '%s done\n' "$(now)"
   } >"$work/train.log"
@@ -632,7 +632,7 @@ run_verify_job() {
 decide() {
   local number=$1 kind=$2 decision=$3 case writeup body
   case=$(api "$ADMIN" GET "$BASE/review-cases?kind=$kind&state=pending&limit=200" |
-    jq -c --argjson n "$number" '[.items[] | select(.hypothesis == $n)][0] // empty')
+    jq -c --argjson n "$number" '[.items[] | select(.unit == $n)][0] // empty')
   [[ -n "$case" ]] || die "no pending $kind review case for #$number"
   if [[ "$kind" == decision && "$(jq -r .by <<<"$decision")" == decider ]]; then
     decide_automatically "$number" "$decision"
@@ -641,7 +641,7 @@ decide() {
   if [[ "$kind" == failure ]]; then
     body=$(jq -c --argjson case "$case" '{review_case_id: $case.id, evidence_revision: $case.subject_revision, action, reason}' <<<"$decision")
   else
-    writeup=$(api "$ADMIN" GET "$BASE/hypotheses/$number/writeup")
+    writeup=$(api "$ADMIN" GET "$BASE/units/$number/writeup")
     body=$(jq -c --argjson case "$case" --argjson w "$writeup" '{review_case_id: $case.id, document: (
       "---\noutcome: \(.action)\nverification: \($w.inputs.verification // null | tojson)\nwriteup: \(
         if $w.status == "written" then {ref: $w.writeup.id, sha256: $w.writeup.sha256} else null end | tojson)\n---\n\n\(.reason)\n")}' <<<"$decision")
@@ -651,14 +651,14 @@ decide() {
 
 # decide_automatically NUMBER DECISION_JSON: the decider step's decision, as
 # the runner's decide kind would record it: the decider service account
-# claims the hypothesis's decide job under its step revision and completes it
+# claims the unit's decide job under its step revision and completes it
 # with the decision document, citing what the job names.
 decide_automatically() {
   local number=$1 decision=$2 job lease_file document
   job=$(api decider POST "$BASE/jobs/claims" \
     "$(jq -c '{phase: "decide", revision: .decide.decider.revision}' "$DEMO/projects/$PROJECT/science.json")" | jq -c .job)
-  [[ "$(jq -r .hypothesis <<<"$job")" == "$number" ]] ||
-    die "the decider claimed the decide job of another hypothesis; is something else using this project?"
+  [[ "$(jq -r .unit <<<"$job")" == "$number" ]] ||
+    die "the decider claimed the decide job of another unit; is something else using this project?"
   document=$(jq -r --argjson inputs "$(jq -c .inputs <<<"$job")" \
     '"---\noutcome: \(.action)\nverification: \($inputs.verification // null | tojson)\nwriteup: \($inputs.writeup // null | tojson)\n---\n\n\(.reason)\n"' <<<"$decision")
   lease_file=$(headers_file job-lease \
@@ -670,15 +670,15 @@ decide_automatically() {
 }
 
 # raise_concerns: the scenario's concerns about the plans (concerns:), each
-# raised by its author, naming the hypothesis and attempt it comes from
+# raised by its author, naming the unit and attempt it comes from
 # (from:); a dismissed one is then dismissed by a researcher with a reason.
 raise_concerns() {
   local concern front number raised
   while read -r concern; do
     front="kind: $(jq -r .kind <<<"$concern")"
     if jq -e .from <<<"$concern" >/dev/null; then
-      number=${NUMBER[$(jq -r .from.hypothesis <<<"$concern")]}
-      front+=$'\n'"hypothesis: $number"
+      number=${NUMBER[$(jq -r .from.unit <<<"$concern")]}
+      front+=$'\n'"unit: $number"
       if jq -e .from.attempt <<<"$concern" >/dev/null; then
         front+=$'\n'"attempt: $(jq -r .from.attempt <<<"$concern")"
       fi
@@ -694,24 +694,24 @@ raise_concerns() {
   done < <(pv '.concerns // [] | .[]')
 }
 
-# write_up NUMBER WRITEUP_JSON: the hypothesis's write-up. An agent claims the
+# write_up NUMBER WRITEUP_JSON: the unit's write-up. An agent claims the
 # document job and completes it; a researcher writes it up in one action, or
 # skips it with a reason (skip:). The front matter cites what the job names.
 write_up() {
   local number=$1 writeup=$2 by job lease_file inputs document
   by=$(jq -r .by <<<"$writeup")
   if jq -e .skip <<<"$writeup" >/dev/null; then
-    api "$by" POST "$BASE/hypotheses/$number/writeup/skip" "$(jq -c '{reason: .skip}' <<<"$writeup")" >/dev/null
+    api "$by" POST "$BASE/units/$number/writeup/skip" "$(jq -c '{reason: .skip}' <<<"$writeup")" >/dev/null
     log "  #$number write-up skipped by $by"
     return
   fi
   if [[ "$by" == agent ]]; then
     job=$(api "$by" POST "$BASE/jobs/claims" '{"phase":"document"}' | jq -c .job)
-    [[ "$(jq -r .hypothesis <<<"$job")" == "$number" ]] ||
-      die "$by claimed the document job of another hypothesis; only the first write-up of a project is an agent's"
+    [[ "$(jq -r .unit <<<"$job")" == "$number" ]] ||
+      die "$by claimed the document job of another unit; only the first write-up of a project is an agent's"
     inputs=$(jq -c .inputs <<<"$job")
   else
-    inputs=$(api "$by" GET "$BASE/hypotheses/$number/writeup" | jq -c .inputs)
+    inputs=$(api "$by" GET "$BASE/units/$number/writeup" | jq -c .inputs)
   fi
   document=$(jq -r --argjson inputs "$inputs" '"---\nsummary: \(.summary | tojson)\nattempts: \($inputs.attempts | tojson)\nverification: \($inputs.verification // null | tojson)\n---\n\n\(.body)\n"' <<<"$writeup")
   if [[ "$by" == agent ]]; then
@@ -721,7 +721,7 @@ write_up() {
     api "$by" POST "$BASE/jobs/$(jq -r .job_id <<<"$job")/completion" "$(jq -nc --arg job "$(jq -r .job_id <<<"$job")" \
       --arg document "$document" '{schema_version: "0.2", job_id: $job, document: $document}')" "$lease_file" >/dev/null
   else
-    api "$by" POST "$BASE/hypotheses/$number/writeup" "$(jq -nc --arg document "$document" '{document: $document}')" >/dev/null
+    api "$by" POST "$BASE/units/$number/writeup" "$(jq -nc --arg document "$document" '{document: $document}')" >/dev/null
   fi
   log "  #$number written up by $by"
 }
@@ -744,10 +744,10 @@ comments() {
   [[ -n "$number" ]] || return 0
   while read -r comment; do
     on=$(jq -r .on <<<"$comment")
-    if [[ "$on" == hypothesis ]]; then
-      target=$BASE/hypotheses/$number/comments
+    if [[ "$on" == unit ]]; then
+      target=$BASE/units/$number/comments
     else
-      target=$BASE/hypotheses/$number/attempts/$on/comments
+      target=$BASE/units/$number/attempts/$on/comments
     fi
     created=$(api "$(jq -r .by <<<"$comment")" POST "$target" "$(jq -c '{body_markdown: .body}' <<<"$comment")")
     if jq -e .edit <<<"$comment" >/dev/null; then
@@ -776,14 +776,14 @@ load_project() {
   log "project $PROJECT"
   setup_project
   local count i a attempts order group
-  count=$(pv '.hypotheses | length')
-  # Plans: each hypothesis is a unit of its track's approved plan, written once
+  count=$(pv '.units | length')
+  # Plans: each unit is a unit of its track's approved plan, written once
   # what its relations name exists; later units wait for the end.
   plan_all "$count"
-  # Attempts. A claim of a verify job cannot name its attempt, so hypotheses
+  # Attempts. A claim of a verify job cannot name its attempt, so units
   # that leave a job open go last: verified work first, then the verify jobs
   # left claimed, then those left waiting, then the running attempt.
-  order=$(pv '[.hypotheses | to_entries[] | select(.value.attempts)
+  order=$(pv '[.units | to_entries[] | select(.value.attempts)
     | {i: .key, g: ({"verifying": 1, "submitted": 2, "running": 3}[.value.attempts[-1].stop] // 0)}]
     | sort_by(.g, .i) | .[].i')
   for i in $order; do

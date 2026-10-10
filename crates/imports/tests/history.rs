@@ -14,9 +14,9 @@ async fn snapshot(pool: &PgPool) -> Result<BTreeMap<String, Vec<String>>> {
         "import_entries",
         "historical_policies",
         "tracks",
-        "hypotheses",
-        "hypothesis_revisions",
-        "hypothesis_relations",
+        "units",
+        "unit_revisions",
+        "unit_relations",
         "attempts",
         "artifacts",
         "phase_outputs",
@@ -119,7 +119,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         (
             dry.policies,
             dry.tracks,
-            dry.hypotheses,
+            dry.units,
             dry.attempts,
             dry.decisions,
             dry.reports
@@ -152,7 +152,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         ("projects", 1),
         ("memberships", 2),
         ("import_entries", 9),
-        ("hypotheses", 5),
+        ("units", 5),
         ("attempts", 6),
         ("decisions", 4),
         ("measurements", 10),
@@ -170,10 +170,10 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         13
     );
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM phase_outputs WHERE stage='writeup' AND origin='imported' AND body<>'' AND front_matter->>'kind'='retrospective'").fetch_one(&pool).await?,1);
-    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM hypotheses WHERE origin='imported' AND source_ref IS NOT NULL AND external_id IS NOT NULL").fetch_one(&pool).await?,5);
+    assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM units WHERE origin='imported' AND source_ref IS NOT NULL AND external_id IS NOT NULL").fetch_one(&pool).await?,5);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM measurements WHERE authority IN ('imported_artifact','imported_transcribed')").fetch_one(&pool).await?,10);
     assert_eq!(sqlx::query_scalar::<_,i64>("SELECT count(*) FROM artifacts WHERE backend='external' AND bucket='' AND origin='imported' AND job_id IS NULL").fetch_one(&pool).await?,3);
-    // The hypothesis awaiting its decision is written up first: it has a
+    // The unit awaiting its decision is written up first: it has a
     // document job and no decision case yet.
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
@@ -185,7 +185,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     );
     let stored = snapshot(&pool).await?;
     let mut equivalent_science = science.clone();
-    equivalent_science["hypothesis_fields"]["properties"]["top_k"]["minimum"] =
+    equivalent_science["unit_fields"]["properties"]["top_k"]["minimum"] =
         serde_json::from_str("1e0")?;
     assert!(
         run_import(
@@ -204,12 +204,12 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     assert_eq!(snapshot(&pool).await?, stored);
     let scientific = Directory::new()?;
     support::copy(&directory.0, &scientific.0)?;
-    let hypothesis_path = scientific.0.join("hypotheses/H-001.yaml");
-    let hypothesis = bundle
+    let unit_path = scientific.0.join("units/H-001.yaml");
+    let unit = bundle
         .entries()
         .find(|entry| entry.key() == "H-001")
-        .ok_or("hypothesis")?;
-    let mut input = hypothesis.content().clone();
+        .ok_or("unit")?;
+    let mut input = unit.content().clone();
     for attempt in input["attempts"].as_array_mut().ok_or("attempts array")? {
         if let Some(report) = attempt.get_mut("report").and_then(Value::as_object_mut) {
             report.remove("sha256");
@@ -217,8 +217,8 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     }
     let rendered = serde_json::to_string(&input)?.replace("\"value\":0.71", "\"value\":71e-2");
     assert!(rendered.contains("71e-2"));
-    std::fs::remove_file(&hypothesis_path)?;
-    std::fs::write(hypothesis_path.with_extension("json"), rendered)?;
+    std::fs::remove_file(&unit_path)?;
+    std::fs::write(unit_path.with_extension("json"), rendered)?;
     let scientific = fixture(&scientific, &context)?;
     assert!(
         run_import(&pool, &scientific, options(None, false, false), &context)
@@ -263,7 +263,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     // Existing deciders require a researcher membership, even when history is otherwise unchanged.
     sqlx::query("UPDATE memberships SET role='viewer' WHERE user_id=(SELECT id FROM users WHERE subject='ben')").execute(&pool).await?;
     let membership_snapshot = snapshot(&pool).await?;
-    let extra = directory.0.join("hypotheses/added.json");
+    let extra = directory.0.join("units/added.json");
     std::fs::write(
         &extra,
         r#"{"id":"added","track":"lexical","title":"New historical question","kind":"experiment","claim":"Useful claim","sources":["notebook.md:1@abc"],"created_at":"2025-03-01","state":"failed","attempts":[{"label":"run-1","started_at":"2025-03-01","finished_at":"2025-03-01","status":"failed","failure":{"code":"out_of_memory","reason":"The run ran out of memory."}}],"decision":{"action":"close_failed","reason":"Closed in notebook","decided_by":"ben@example.org","decided_at":"2025-03-02","source":"notebook.md:1@abc"}}"#,
@@ -279,10 +279,7 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
     let semantic_before = snapshot(&pool).await?;
     for (key, value) in [
         ("track", serde_json::json!("missing-track")),
-        (
-            "control",
-            serde_json::json!({"hypothesis":"missing-hypothesis"}),
-        ),
+        ("control", serde_json::json!({"unit":"missing-unit"})),
     ] {
         let mut invalid = normal.clone();
         invalid[key] = value;
@@ -321,8 +318,8 @@ async fn imports_preserve_history_transactions_and_concurrency() -> Result {
         .execute(&pool)
         .await?;
     let appended = run_import(&pool, &added, options(None, false, false), &context).await?;
-    assert_eq!((appended.hypotheses, appended.decisions), (1, 1));
-    assert_eq!(count(&pool, "hypotheses").await?, 6);
+    assert_eq!((appended.units, appended.decisions), (1, 1));
+    assert_eq!(count(&pool, "units").await?, 6);
     // Imported records remain append-only under the real migration triggers.
     let refused = sqlx::query("UPDATE import_entries SET sha256='changed'")
         .execute(&pool)

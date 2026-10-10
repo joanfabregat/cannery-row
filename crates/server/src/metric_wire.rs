@@ -141,7 +141,7 @@ pub(crate) fn catalog(
             });
         }
     }
-    let mut facets = science.hypothesis_facets().map_err(|_| Error::Value)?;
+    let mut facets = science.unit_facets().map_err(|_| Error::Value)?;
     facets.sort_by_key(cannery_core::text::TextExt::codepoints);
     let mut group_by = vec!["track".to_owned()];
     group_by.extend(

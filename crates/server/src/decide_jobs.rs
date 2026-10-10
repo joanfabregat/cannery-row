@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Decide jobs: automatic decisions. When the science revision a hypothesis's
+//! Decide jobs: automatic decisions. When the science revision a unit's
 //! attempt pinned registers a decider step (`decide.performer: step`), the
-//! hypothesis's decision case opens as for a researcher and a decide job is
+//! unit's decision case opens as for a researcher and a decide job is
 //! queued on its last attempt beside it. The registered decider service
 //! account claims it, runs its decider step (`cannery runner`, kind
 //! `decide`) and completes the job with the decision document, recorded on
@@ -35,8 +35,8 @@ use cannery_core::{
     ids::{JobId, ReviewCaseId},
     principal::Principal,
 };
-use cannery_hypotheses::repo::{self as hypotheses, DecisionAction, HypothesisState};
 use cannery_jobs::repo::{self as jobs, Job, Performer, Phase};
+use cannery_units::repo::{self as units, DecisionAction, UnitState};
 use num_bigint::BigInt;
 use serde_json::{Value, json};
 use sqlx::PgConnection;
@@ -74,7 +74,7 @@ pub(crate) async fn decider(
     Ok(Some((text("id")?, text("revision")?, registered)))
 }
 
-/// Queue a decide job for the decision case `case` of the hypothesis of
+/// Queue a decide job for the decision case `case` of the unit of
 /// attempt `a`, its last, when its science revision registers a decider.
 /// The caller holds the attempt lock and has opened the case.
 pub(crate) async fn create(
@@ -101,7 +101,7 @@ pub(crate) async fn create(
     let id = JobId(uuid::Uuid::new_v4());
     let spec = flow::document(
         &json!({"performer":"runner","decider":{"id":name,"revision":revision},
-            "track":a.track_slug,"hypothesis":a.hypothesis_number,
+            "track":a.track_slug,"unit":a.unit_number,
             "review_case_id":case.to_string(),"output_prefix":output_prefix(a, id),
             "limits":{"max_output_bytes":output}}),
         s,
@@ -195,12 +195,12 @@ pub(crate) async fn cited(
     Ok((reference(&verification), reference(&writeup), verdict))
 }
 
-const fn outcome(action: DecisionAction) -> Option<HypothesisState> {
+const fn outcome(action: DecisionAction) -> Option<UnitState> {
     match action {
-        DecisionAction::Promote => Some(HypothesisState::Promoted),
-        DecisionAction::Reject => Some(HypothesisState::Rejected),
-        DecisionAction::Inconclusive => Some(HypothesisState::Inconclusive),
-        DecisionAction::Failed => Some(HypothesisState::Failed),
+        DecisionAction::Promote => Some(UnitState::Promoted),
+        DecisionAction::Reject => Some(UnitState::Rejected),
+        DecisionAction::Inconclusive => Some(UnitState::Inconclusive),
+        DecisionAction::Failed => Some(UnitState::Failed),
         _ => None,
     }
 }
@@ -243,18 +243,18 @@ pub(crate) async fn complete(
         .ok_or_else(|| internal(r, "decision outcome"))?;
     let to = outcome(action).ok_or_else(|| internal(r, "decision outcome state"))?;
     let state = sqlx::query_scalar!(
-        "SELECT state FROM hypotheses WHERE id=$1 FOR UPDATE",
-        a.hypothesis_id.0 as _
+        "SELECT state FROM units WHERE id=$1 FOR UPDATE",
+        a.unit_id.0 as _
     )
     .fetch_one(&mut *c)
     .await
-    .map_err(|_| internal(r, "decide hypothesis lock"))?;
+    .map_err(|_| internal(r, "decide unit lock"))?;
     if state != "deciding" {
         return Err(domain(
             ErrorCode::Conflict,
             format!(
-                "hypothesis #{} is {state}; it no longer awaits a decision",
-                a.hypothesis_number
+                "unit #{} is {state}; it no longer awaits a decision",
+                a.unit_number
             ),
         ));
     }
@@ -275,7 +275,7 @@ pub(crate) async fn complete(
             "/document",
             if verification.is_null() {
                 String::from(
-                    "front matter /verification: null; the hypothesis was stopped after a failure",
+                    "front matter /verification: null; the unit was stopped after a failure",
                 )
             } else {
                 format!(
@@ -305,13 +305,13 @@ pub(crate) async fn complete(
         (None, _) => {
             return Err(invalid(
                 "/document",
-                "front matter /outcome: a hypothesis stopped after a failure is decided failed",
+                "front matter /outcome: a unit stopped after a failure is decided failed",
             ));
         }
         (Some(_), DecisionAction::Failed) => {
             return Err(invalid(
                 "/document",
-                "front matter /outcome: failed is the outcome of a hypothesis stopped after a failure",
+                "front matter /outcome: failed is the outcome of a unit stopped after a failure",
             ));
         }
         (Some(verdict), DecisionAction::Promote) if verdict != "pass" => {
@@ -334,9 +334,9 @@ pub(crate) async fn complete(
         "{:x}",
         <sha2::Sha256 as sha2::Digest>::digest(text.as_bytes())
     );
-    let decision = hypotheses::record_automatic_decision(
+    let decision = units::record_automatic_decision(
         c,
-        hypotheses::RecordAutomaticDecision {
+        units::RecordAutomaticDecision {
             case_id: case.id,
             action,
             subject_revision: &BigInt::from(case.subject_revision),
@@ -347,7 +347,7 @@ pub(crate) async fn complete(
             via_client: decider.via.client.as_deref(),
             document: (&json, &sha256),
         },
-        s.hypotheses,
+        s.units,
     )
     .await
     .map_err(|_| internal(r, "automatic decision"))?;
@@ -374,16 +374,16 @@ pub(crate) async fn complete(
                 "decider":{"id":decider.name,"revision":revision}}),
         ),
         record(
-            "hypothesis.decided",
-            "hypothesis",
-            a.hypothesis_id.to_string(),
+            "unit.decided",
+            "unit",
+            a.unit_id.to_string(),
             json!({"state":"deciding"}),
             json!({"state":to.as_str(),"attempt_id":a.id.to_string(),"decision_id":decision_id}),
         ),
     ];
-    hypotheses::set_state(c, a.hypothesis_id, to, None)
+    units::set_state(c, a.unit_id, to, None)
         .await
-        .map_err(|_| internal(r, "decided hypothesis transition"))?;
+        .map_err(|_| internal(r, "decided unit transition"))?;
     jobs::complete_decide_job(c, j.id, jobs::DecisionId(decision.id.0), s.jobs)
         .await
         .map_err(|_| internal(r, "decide job completion"))?;
@@ -473,14 +473,12 @@ pub(crate) async fn fail(
     let used = jobs::automatic_reruns(c, a.id, Phase::Decide)
         .await
         .map_err(|_| internal(r, "decide rerun count"))?;
-    let still_deciding = sqlx::query_scalar!(
-        "SELECT state FROM hypotheses WHERE id=$1",
-        a.hypothesis_id.0 as _
-    )
-    .fetch_one(&mut *c)
-    .await
-    .map_err(|_| internal(r, "decide hypothesis state"))?
-        == "deciding";
+    let still_deciding =
+        sqlx::query_scalar!("SELECT state FROM units WHERE id=$1", a.unit_id.0 as _)
+            .fetch_one(&mut *c)
+            .await
+            .map_err(|_| internal(r, "decide unit state"))?
+            == "deciding";
     if BigInt::from(used) >= budget || !still_deciding {
         return Ok(None);
     }

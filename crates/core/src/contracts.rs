@@ -18,7 +18,7 @@ pub struct ContractViolation {
 pub enum ContractKind {
     Track,
     TrackTransition,
-    Hypothesis,
+    Unit,
     HumanDecision,
     ArtifactManifest,
     EvidenceEnvelope,
@@ -40,7 +40,7 @@ impl ContractKind {
         Some(match name {
             "track" => Self::Track,
             "track_transition" => Self::TrackTransition,
-            "hypothesis" => Self::Hypothesis,
+            "unit" => Self::Unit,
             "human_decision" => Self::HumanDecision,
             "artifact_manifest" => Self::ArtifactManifest,
             "evidence_envelope" => Self::EvidenceEnvelope,
@@ -278,7 +278,7 @@ fn embedded_schemas(kind: ContractKind, value: &Value, errors: &mut Vec<Contract
             }
         }
         ContractKind::ScienceRevision => {
-            for field in ["hypothesis_fields", "result_extensions"] {
+            for field in ["unit_fields", "result_extensions"] {
                 if let Some(schema) = value.get(field) {
                     validate(schema, format!("/{field}"));
                 }
@@ -304,8 +304,8 @@ const PUBLISHED_SOURCES: [(&str, &str); 23] = [
         include_str!("../../../contracts/schemas/track_transition.schema.json"),
     ),
     (
-        "hypothesis",
-        include_str!("../../../contracts/schemas/hypothesis.schema.json"),
+        "unit",
+        include_str!("../../../contracts/schemas/unit.schema.json"),
     ),
     (
         "human_decision",

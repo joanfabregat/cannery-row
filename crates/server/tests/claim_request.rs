@@ -24,36 +24,36 @@ fn fixture() -> Result<Value, serde_json::Error> {
 }
 #[test]
 fn claim_body_requires_an_object_with_optional_strict_fields() -> TestResult {
-    let document = json::decode_str(r#"{"hypothesis":17,"track":"trial","mode":"workflow"}"#, 64)?;
+    let document = json::decode_str(r#"{"unit":17,"track":"trial","mode":"workflow"}"#, 64)?;
     let actual = ClaimRequest::parse(BodyInput::Json(&document))?;
-    assert_eq!(actual.hypothesis, Some(17.into()));
+    assert_eq!(actual.unit, Some(17.into()));
     assert_eq!(actual.track.as_deref(), Some("trial"));
     assert_eq!(actual.mode, Some(TrackMode::Workflow));
     assert_eq!(
         actual.fields_set,
-        BTreeSet::from(["hypothesis".into(), "track".into(), "mode".into()])
+        BTreeSet::from(["unit".into(), "track".into(), "mode".into()])
     );
     assert_eq!(format!("{actual:?}"), "ClaimRequest([redacted])");
 
     for (raw, present) in [
         ("{}", false),
-        (r#"{"hypothesis":null,"track":null,"mode":null}"#, true),
+        (r#"{"unit":null,"track":null,"mode":null}"#, true),
     ] {
         let document = json::decode_str(raw, 64)?;
         let actual = ClaimRequest::parse(BodyInput::Json(&document))?;
-        assert!(actual.hypothesis.is_none());
+        assert!(actual.unit.is_none());
         assert!(actual.track.is_none());
         assert!(actual.mode.is_none());
         assert_eq!(actual.fields_set.len(), if present { 3 } else { 0 });
     }
-    for hypothesis in [1, i32::MAX] {
-        let document = json::decode_str(&format!(r#"{{"hypothesis":{hypothesis}}}"#), 64)?;
+    for unit in [1, i32::MAX] {
+        let document = json::decode_str(&format!(r#"{{"unit":{unit}}}"#), 64)?;
         assert_eq!(
-            ClaimRequest::parse(BodyInput::Json(&document))?.hypothesis,
-            Some(hypothesis.into())
+            ClaimRequest::parse(BodyInput::Json(&document))?.unit,
+            Some(unit.into())
         );
     }
-    for hypothesis in [
+    for unit in [
         r#""17""#,
         "17.0",
         "true",
@@ -65,10 +65,10 @@ fn claim_body_requires_an_object_with_optional_strict_fields() -> TestResult {
         "[]",
         "{}",
     ] {
-        let document = json::decode_str(&format!(r#"{{"hypothesis":{hypothesis}}}"#), 64)?;
+        let document = json::decode_str(&format!(r#"{{"unit":{unit}}}"#), 64)?;
         assert!(
             ClaimRequest::parse(BodyInput::Json(&document)).is_err(),
-            "hypothesis {hypothesis}"
+            "unit {unit}"
         );
     }
     assert!(ClaimRequest::parse(BodyInput::Missing).is_err());

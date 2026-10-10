@@ -870,19 +870,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cannery-hypotheses"
-version = "0.1.0"
-dependencies = [
- "cannery-core",
- "futures-util",
- "num-bigint",
- "serde_json",
- "sqlx",
- "tokio",
- "uuid",
-]
-
-[[package]]
 name = "cannery-identity"
 version = "0.1.0"
 dependencies = [
@@ -1063,7 +1050,6 @@ dependencies = [
  "cannery-attention",
  "cannery-comments-reports",
  "cannery-core",
- "cannery-hypotheses",
  "cannery-identity",
  "cannery-jobs",
  "cannery-metrics",
@@ -1073,6 +1059,7 @@ dependencies = [
  "cannery-search",
  "cannery-storage",
  "cannery-tracks",
+ "cannery-units",
  "chrono",
  "futures-util",
  "getrandom 0.4.3",
@@ -1141,6 +1128,19 @@ name = "cannery-tracks"
 version = "0.1.0"
 dependencies = [
  "cannery-core",
+ "num-bigint",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "cannery-units"
+version = "0.1.0"
+dependencies = [
+ "cannery-core",
+ "futures-util",
  "num-bigint",
  "serde_json",
  "sqlx",

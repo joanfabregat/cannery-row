@@ -275,10 +275,10 @@ async fn tracks_match_production() -> Result<()> {
             sqlx::raw_sql("CREATE FUNCTION fixture_reject_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='track.updated' THEN RAISE EXCEPTION 'fixture'; END IF; RETURN NEW; END $$; CREATE TRIGGER fixture_reject BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fixture_reject_audit()").execute(&state.pool).await?;
         }
         if id == "archive-open" {
-            sqlx::raw_sql("INSERT INTO hypotheses(project_id,number,track_id,state,title,created_by_user,approved_revision,approved_at) SELECT '00000000-0000-0000-0000-000000000010',100+i,t.id,h.state,h.state,'00000000-0000-0000-0000-000000000001',1,now() FROM tracks t CROSS JOIN (VALUES(1,'queued'),(2,'queued'),(3,'active'),(4,'deciding')) h(i,state) WHERE t.slug='alpha'").execute(&state.pool).await?;
+            sqlx::raw_sql("INSERT INTO units(project_id,number,track_id,state,title,created_by_user,approved_revision,approved_at) SELECT '00000000-0000-0000-0000-000000000010',100+i,t.id,h.state,h.state,'00000000-0000-0000-0000-000000000001',1,now() FROM tracks t CROSS JOIN (VALUES(1,'queued'),(2,'queued'),(3,'active'),(4,'deciding')) h(i,state) WHERE t.slug='alpha'").execute(&state.pool).await?;
         }
         if id == "archive" {
-            sqlx::query("UPDATE hypotheses SET state='cancelled' WHERE number>=100")
+            sqlx::query("UPDATE units SET state='cancelled' WHERE number>=100")
                 .execute(&state.pool)
                 .await?;
         }

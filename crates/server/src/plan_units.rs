@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! Plan units: the fields a plan stores for each unit, the hypothesis
+//! Plan units: the fields a plan stores for each unit, the unit
 //! document each becomes, and the conversions the plan routes share.
 use crate::api_models::{ContextItem, PlanUnitOut, UnitRelation};
 use cannery_core::json::{self, Document};
@@ -24,15 +24,15 @@ pub(crate) struct UnitFields {
     pub(crate) context: Vec<ContextItem>,
 }
 
-/// The rationale of every hypothesis a plan writes: the reasoning lives in
+/// The rationale of every unit a plan writes: the reasoning lives in
 /// the plan's approach and the unit's brief.
 pub(crate) fn rationale(track: &str) -> String {
     format!("Planned in the {track} track plan; see its approach and this unit's brief.")
 }
 
-/// The hypothesis document a unit becomes, with its relations already
-/// resolved to hypothesis references.
-pub(crate) fn hypothesis_value(track: &str, fields: &UnitFields, relations: &[Value]) -> Value {
+/// The unit document a unit becomes, with its relations already
+/// resolved to unit references.
+pub(crate) fn unit_value(track: &str, fields: &UnitFields, relations: &[Value]) -> Value {
     let mut document = Map::new();
     document.insert("schema_version".into(), Value::from("0.2"));
     document.insert("track".into(), Value::from(track));
@@ -65,18 +65,14 @@ fn object(values: &BTreeMap<String, Value>) -> Value {
     )
 }
 
-/// The relations of a unit that name hypotheses, as the hypothesis document
+/// The relations of a unit that name units, as the unit document
 /// writes them; relations to other units of the plan are left out.
-pub(crate) fn hypothesis_relations(fields: &UnitFields) -> Vec<Value> {
+pub(crate) fn unit_relations(fields: &UnitFields) -> Vec<Value> {
     fields
         .relations
         .iter()
-        .filter_map(|relation| {
-            relation
-                .hypothesis
-                .as_ref()
-                .map(|target| serde_json::json!({"kind": relation.kind, "hypothesis": target}))
-        })
+        .filter(|relation| relation.key().is_none())
+        .map(|relation| serde_json::json!({"kind": relation.kind, "unit": relation.unit}))
         .collect()
 }
 
@@ -86,8 +82,8 @@ pub(crate) fn document(value: &Value) -> Option<Document> {
     json::decode(&bytes, crate::body::REST_JSON_NESTING_BUDGET).ok()
 }
 
-/// The fields of a hypothesis that no plan wrote, read back from its document.
-pub(crate) fn fields_from_hypothesis(content: &Value) -> UnitFields {
+/// The fields of a unit that no plan wrote, read back from its document.
+pub(crate) fn fields_from_unit(content: &Value) -> UnitFields {
     let text = |key: &str| {
         content
             .get(key)
@@ -115,8 +111,7 @@ pub(crate) fn fields_from_hypothesis(content: &Value) -> UnitFields {
                         .and_then(Value::as_str)
                         .unwrap_or_default()
                         .to_owned(),
-                    hypothesis: relation.get("hypothesis").cloned(),
-                    unit: None,
+                    unit: relation.get("unit").cloned().unwrap_or_default(),
                 })
                 .collect()
         })
@@ -151,7 +146,7 @@ pub(crate) fn entry_out(entry: &cannery_tracks::plans::PlanUnit) -> Option<PlanU
         context: fields.context,
         brief: entry.brief.clone(),
         science_revision: i64::from(entry.science_revision),
-        hypothesis_revision: entry.hypothesis_revision.map(i64::from),
+        unit_revision: entry.unit_revision.map(i64::from),
     })
 }
 
@@ -203,13 +198,11 @@ mod tests {
             relations: vec![
                 UnitRelation {
                     kind: "derived_from".into(),
-                    hypothesis: Some(Value::from(3)),
-                    unit: None,
+                    unit: Value::from(3),
                 },
                 UnitRelation {
                     kind: "related_to".into(),
-                    hypothesis: None,
-                    unit: Some("other".into()),
+                    unit: Value::from("other"),
                 },
             ],
             context: Vec::new(),
@@ -217,14 +210,14 @@ mod tests {
     }
 
     #[test]
-    fn a_unit_becomes_a_hypothesis_document() {
+    fn a_unit_becomes_a_unit_document() {
         let fields = fields();
-        let relations = hypothesis_relations(&fields);
+        let relations = unit_relations(&fields);
         assert_eq!(
             relations,
-            vec![serde_json::json!({"kind":"derived_from","hypothesis":3})]
+            vec![serde_json::json!({"kind":"derived_from","unit":3})]
         );
-        let value = hypothesis_value("tuning", &fields, &relations);
+        let value = unit_value("tuning", &fields, &relations);
         assert_eq!(value["schema_version"], "0.2");
         assert_eq!(value["track"], "tuning");
         assert_eq!(value["plan"]["primary_metric"], "accuracy");
@@ -235,7 +228,7 @@ mod tests {
                 .is_some_and(|text| text.contains("tuning"))
         );
         assert!(document(&value).is_some());
-        let back = fields_from_hypothesis(&value);
+        let back = fields_from_unit(&value);
         assert_eq!(back.title, fields.title);
         assert_eq!(back.acceptance, fields.acceptance);
         assert_eq!(back.relations.len(), 1);

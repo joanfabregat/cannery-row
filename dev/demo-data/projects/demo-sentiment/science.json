@@ -1,7 +1,7 @@
 {
   "schema_version": "0.2",
   "verify": {"performer": "runner", "verifier": {"id": "demo-verifier", "revision": "sentiment-policy-1"}},
-  "hypothesis_fields": {
+  "unit_fields": {
     "type": "object",
     "properties": {
       "seed": {"type": "integer", "minimum": 0, "description": "Random seed of the training run."},

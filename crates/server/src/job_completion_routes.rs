@@ -217,7 +217,7 @@ fn contract(
     path = "/api/projects/{slug}/jobs/{job_id}/completion",
     operation_id = "complete_job_api_projects__slug__jobs__job_id__completion_post",
     summary = "Complete Job",
-    description = "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the hypothesis waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the hypothesis and cites the\nverification report the job names. The hypothesis then awaits its\ndecision. An invalid write-up is refused and the lease is kept.\n\nA decide job is completed by its decider with the decision document\n(``decision.schema.json``) and no manifest: it is recorded on the\nhypothesis's decision case with the decider as its actor. A promotion\nrequires a `pass` verdict. An invalid decision document is refused and\nthe lease is kept.",
+    description = "Publish a verify job's report with the manifest of its outputs, or a\ndocument job's write-up.\n\nThe report is Markdown with YAML front matter (``verification.schema.json``)\nand an optional body. The attempt is then verified, and the unit waits\nfor its write-up in a document job. Repeating a completion returns the completed job without publishing\nagain. An invalid report from a runner is an infrastructure failure of the\njob: it reruns from the failed step or fails the attempt for human review.\nAn invalid report from an agent or a researcher is refused and the lease\nis kept, so it can be corrected and sent again.\n\nA document job is completed with the write-up (``writeup.schema.json``)\nand no manifest: it covers every attempt of the unit and cites the\nverification report the job names. The unit then awaits its\ndecision. An invalid write-up is refused and the lease is kept.\n\nA decide job is completed by its decider with the decision document\n(``decision.schema.json``) and no manifest: it is recorded on the\nunit's decision case with the decider as its actor. A promotion\nrequires a `pass` verdict. An invalid decision document is refused and\nthe lease is kept.",
     params(("slug" = String, Path),
         ("job_id" = String, Path, format = "uuid"),
         ("X-Lease-Token" = Option<String>, Header),
@@ -271,7 +271,7 @@ pub(crate) async fn fail(
 }
 
 fn sha(d: &Document, s: &JobLifecycleContext, r: &RequestContext) -> Result<String, Failure> {
-    let bytes = crate::hypothesis_idempotency::canonical_hash(d, s.flow.jobs.encode_nesting_budget)
+    let bytes = crate::unit_idempotency::canonical_hash(d, s.flow.jobs.encode_nesting_budget)
         .map_err(|_| internal(r, "job canonical digest"))?;
     let mut result = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -369,14 +369,14 @@ async fn publish(
         .move_attempt(a.id, "verifying", "verified")
         .await
         .map_err(|_| internal(r, "verified attempt transition"))?;
-    cannery_hypotheses::repo::set_state(
+    cannery_units::repo::set_state(
         c,
-        a.hypothesis_id,
-        cannery_hypotheses::repo::HypothesisState::Documenting,
+        a.unit_id,
+        cannery_units::repo::UnitState::Documenting,
         None,
     )
     .await
-    .map_err(|_| internal(r, "verified hypothesis transition"))?;
+    .map_err(|_| internal(r, "verified unit transition"))?;
     let front_matter = flow::value(&report.front_matter, &s.flow, r)?;
     flow::event(
         c,
@@ -385,8 +385,8 @@ async fn publish(
         "attempt.verified",
         "attempt",
         &a.id.to_string(),
-        Some(&json!({"state":"verifying","hypothesis_state":"active"})),
-        &json!({"state":"verified","hypothesis_state":"documenting",
+        Some(&json!({"state":"verifying","unit_state":"active"})),
+        &json!({"state":"verified","unit_state":"documenting",
             "verdict":front_matter["verdict"],"performer":j.performer.as_str(),
             "verifier":j.verifier_id,"evidence_id":id.0.to_string(),
             "evidence_sha256":report.sha256,"evidence_revision":revision,
@@ -421,7 +421,7 @@ async fn publish(
     )
     .await
     .map_err(|_| internal(r, "job completion audit"))?;
-    // The hypothesis is written up next, whatever the verdict.
+    // The unit is written up next, whatever the verdict.
     crate::document_jobs::create(
         c,
         cannery_core::audit::Attribution::Principal(p),
@@ -665,7 +665,7 @@ async fn mutate(
             &s.context.flow,
             &r,
         )?;
-        crate::hypothesis_idempotency::canonical_hash(
+        crate::unit_idempotency::canonical_hash(
             &envelope,
             s.context.flow.jobs.encode_nesting_budget,
         )

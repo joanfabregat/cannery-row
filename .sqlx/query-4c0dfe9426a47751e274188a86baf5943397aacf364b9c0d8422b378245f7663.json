@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT a.id AS \"id!: AttemptId\" FROM attempts a\n        JOIN units h ON h.id = a.unit_id\n        WHERE h.project_id = $1 AND h.number = $2 AND a.sequence = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4c0dfe9426a47751e274188a86baf5943397aacf364b9c0d8422b378245f7663"
+}

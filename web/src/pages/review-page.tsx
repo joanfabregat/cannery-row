@@ -3,14 +3,8 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import { api, unwrap } from "@/api/client";
 import type { components } from "@/api/schema";
-import { projectKey, useHypothesis, useReport, useReviewCase, useWriteup } from "@/api/queries";
-import type {
-  Discrepancy,
-  GateResult,
-  Hypothesis,
-  HypothesisReview,
-  Measurement,
-} from "@/api/types";
+import { projectKey, useUnit, useReport, useReviewCase, useWriteup } from "@/api/queries";
+import type { Discrepancy, GateResult, Unit, UnitReview, Measurement } from "@/api/types";
 import { type DecisionChoice, DecisionForm } from "@/components/decision-form";
 import { Assessment } from "@/components/assessment";
 import { MeasurementsTable } from "@/components/evidence";
@@ -28,12 +22,12 @@ import { formatDateTime } from "@/lib/format";
 import { label } from "@/lib/labels";
 import { parseNumber } from "@/lib/navigation";
 import { pendingReview } from "@/lib/outcome";
-import { hypothesisPath, parseAttemptRef } from "@/lib/paths";
+import { unitPath, parseAttemptRef } from "@/lib/paths";
 import type { Project } from "@/projects/project-context";
 import { usePermissions } from "@/projects/use-permissions";
 
 /**
- * The one-screen review of whatever waits for a researcher on a hypothesis:
+ * The one-screen review of whatever waits for a researcher on a unit:
  * its decision, after the write-up, or its failure. The write-up, the evidence, the
  * verification's verdict, checks and comparisons, the decisions and a required
  * reason.
@@ -45,7 +39,7 @@ export function ReviewPage() {
     return (
       <>
         <PageHeader title="Review" />
-        <EmptyState>This address does not name a hypothesis.</EmptyState>
+        <EmptyState>This address does not name a unit.</EmptyState>
       </>
     );
   }
@@ -54,22 +48,22 @@ export function ReviewPage() {
 
 function ReviewView({ project, number }: { project: Project; number: number }) {
   const { isResearcher } = usePermissions();
-  const hypothesis = useHypothesis(project.slug, number);
+  const unit = useUnit(project.slug, number);
   if (!isResearcher) {
     return (
       <>
         <PageHeader title={`Review #${number}`} />
         <EmptyState>
           Only researchers record decisions.{" "}
-          <Link to={hypothesisPath(number)} className="font-medium underline underline-offset-4">
-            Read hypothesis #{number}
+          <Link to={unitPath(number)} className="font-medium underline underline-offset-4">
+            Read unit #{number}
           </Link>
           .
         </EmptyState>
       </>
     );
   }
-  if (hypothesis.isPending) {
+  if (unit.isPending) {
     return (
       <>
         <PageHeader title={`Review #${number}`} />
@@ -77,15 +71,15 @@ function ReviewView({ project, number }: { project: Project; number: number }) {
       </>
     );
   }
-  if (hypothesis.isError) {
+  if (unit.isError) {
     return (
       <>
         <PageHeader title={`Review #${number}`} />
-        <LoadError error={hypothesis.error} retry={hypothesis.refetch} />
+        <LoadError error={unit.error} retry={unit.refetch} />
       </>
     );
   }
-  const h = hypothesis.data;
+  const h = unit.data;
   const pending = pendingReview(h);
   if (pending === undefined) {
     return (
@@ -93,8 +87,8 @@ function ReviewView({ project, number }: { project: Project; number: number }) {
         <PageHeader title={`Review #${number}`} />
         <EmptyState>
           Nothing on #{number} is waiting for a decision.{" "}
-          <Link to={hypothesisPath(number)} className="font-medium underline underline-offset-4">
-            Go to the hypothesis
+          <Link to={unitPath(number)} className="font-medium underline underline-offset-4">
+            Go to the unit
           </Link>
           .
         </EmptyState>
@@ -107,30 +101,30 @@ function ReviewView({ project, number }: { project: Project; number: number }) {
       <PageHeader
         title={title}
         description={`Track ${h.track} · waiting since ${formatDateTime(pending.opened_at)}`}
-        actions={<StatusChip domain="hypothesis" value={h.state} className="text-sm" />}
+        actions={<StatusChip domain="unit" value={h.state} className="text-sm" />}
       />
       <p className="mb-6 text-sm">
-        <Link to={hypothesisPath(number)} className="font-medium underline underline-offset-4">
-          Open the full hypothesis page
+        <Link to={unitPath(number)} className="font-medium underline underline-offset-4">
+          Open the full unit page
         </Link>
       </p>
       {pending.kind === "decision" ? (
-        <DecisionReview project={project.slug} hypothesis={h} review={pending} />
+        <DecisionReview project={project.slug} unit={h} review={pending} />
       ) : (
-        <FailureReview project={project.slug} hypothesis={h} review={pending} />
+        <FailureReview project={project.slug} unit={h} review={pending} />
       )}
     </>
   );
 }
 
-/** After a decision: refresh the project's pages and go back to the hypothesis. */
+/** After a decision: refresh the project's pages and go back to the unit. */
 function useAfterDecision(project: string, number: number) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   return {
     done: async (choice: DecisionChoice) => {
       await queryClient.invalidateQueries({ queryKey: projectKey(project) });
-      await navigate(hypothesisPath(number), {
+      await navigate(unitPath(number), {
         state: { notice: `Your decision (${choice.label}) was recorded.` },
       });
     },
@@ -190,18 +184,18 @@ function asList<T>(value: unknown): T[] {
 
 function DecisionReview({
   project,
-  hypothesis,
+  unit,
   review,
 }: {
   project: string;
-  hypothesis: Hypothesis;
-  review: HypothesisReview;
+  unit: Unit;
+  review: UnitReview;
 }) {
-  const after = useAfterDecision(project, hypothesis.number);
+  const after = useAfterDecision(project, unit.number);
   const reviewCase = useReviewCase(project, review.id);
   const ref = parseAttemptRef(reviewCase.data?.attempt_ref);
-  const report = useReport(project, hypothesis.number, ref?.[1] ?? null);
-  const writeup = useWriteup(project, hypothesis.number);
+  const report = useReport(project, unit.number, ref?.[1] ?? null);
+  const writeup = useWriteup(project, unit.number);
   return (
     <QueryView query={reviewCase}>
       {(found) => {
@@ -209,7 +203,7 @@ function DecisionReview({
         const verified = found.verification?.front_matter ?? {};
         const published = report.data?.verification ?? null;
         const verdict = text(verified.verdict) ?? "unknown";
-        const subject = found.attempt_ref ?? hypothesis.ref;
+        const subject = found.attempt_ref ?? unit.ref;
         const w = writeup.data ?? null;
         // What the decision cites: the verification report and the write-up, null when there is none.
         const citedVerification = w?.inputs?.verification ?? null;
@@ -224,7 +218,7 @@ function DecisionReview({
                 action: "failed",
                 label: "Close as failed",
                 variant: "destructive",
-                effect: `${hypothesis.ref} will be closed as failed and moves to the archive. This is not a scientific rejection; the failed attempts stay readable.`,
+                effect: `${unit.ref} will be closed as failed and moves to the archive. This is not a scientific rejection; the failed attempts stay readable.`,
               },
             ]
           : [
@@ -234,7 +228,7 @@ function DecisionReview({
                       action: "promote" as const,
                       label: "Accept",
                       variant: "default" as const,
-                      effect: `${hypothesis.ref} will be marked as accepted. This accepts the research result only: it changes no baseline and starts nothing.`,
+                      effect: `${unit.ref} will be marked as accepted. This accepts the research result only: it changes no baseline and starts nothing.`,
                     },
                   ]
                 : []),
@@ -242,12 +236,12 @@ function DecisionReview({
                 action: "reject",
                 label: "Reject",
                 variant: "destructive",
-                effect: `${hypothesis.ref} will be marked as rejected and moves to the archive. The attempt and its evidence stay readable.`,
+                effect: `${unit.ref} will be marked as rejected and moves to the archive. The attempt and its evidence stay readable.`,
               },
               {
                 action: "inconclusive",
                 label: "Inconclusive",
-                effect: `${hypothesis.ref} will be marked as inconclusive and moves to the archive. The attempt and its evidence stay readable.`,
+                effect: `${unit.ref} will be marked as inconclusive and moves to the archive. The attempt and its evidence stay readable.`,
               },
             ];
         const imported = report.data?.origin === "imported";
@@ -325,8 +319,8 @@ function DecisionReview({
             {stopped ? (
               <Section title="Verification verdict">
                 <p className="text-sm text-muted-foreground">
-                  {hypothesis.ref} was stopped after a failure: no verification report was
-                  published, and the only decision is to close it as failed.
+                  {unit.ref} was stopped after a failure: no verification report was published, and
+                  the only decision is to close it as failed.
                 </p>
               </Section>
             ) : (
@@ -378,20 +372,20 @@ function DecisionReview({
 
 function FailureReview({
   project,
-  hypothesis,
+  unit,
   review,
 }: {
   project: string;
-  hypothesis: Hypothesis;
-  review: HypothesisReview;
+  unit: Unit;
+  review: UnitReview;
 }) {
-  const after = useAfterDecision(project, hypothesis.number);
+  const after = useAfterDecision(project, unit.number);
   const reviewCase = useReviewCase(project, review.id);
   return (
     <QueryView query={reviewCase}>
       {(found) => {
         const failure = found.failure;
-        const subject = found.attempt_ref ?? hypothesis.ref;
+        const subject = found.attempt_ref ?? unit.ref;
         const agentSide = failure?.stage === "agent";
         const choices: DecisionChoice<components["schemas"]["HumanDecisionRequestAction"]>[] = [
           {
@@ -399,14 +393,14 @@ function FailureReview({
             label: "Try again",
             variant: "default",
             effect: agentSide
-              ? `${hypothesis.ref} goes back to the queue: an agent can claim it again, which starts a new attempt.`
+              ? `${unit.ref} goes back to the queue: an agent can claim it again, which starts a new attempt.`
               : `The ${label("stage", failure?.stage ?? "verify").toLowerCase()} of attempt ${subject} will run again on the same submission.`,
           },
           {
             action: "stop",
             label: "Stop",
             variant: "destructive",
-            effect: `${hypothesis.ref} stops here: it is written up, then closed as failed. This is not a scientific rejection; the failed attempt stays readable.`,
+            effect: `${unit.ref} stops here: it is written up, then closed as failed. This is not a scientific rejection; the failed attempt stays readable.`,
           },
         ];
         return (

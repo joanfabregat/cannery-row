@@ -1,0 +1,188 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT a.id AS \"id!: AttemptId\", a.project_id AS \"project_id!: ProjectId\", a.unit_id AS \"unit_id!: UnitId\", h.number AS \"unit_number!\", a.sequence AS \"sequence!\", a.state AS \"state!\", a.unit_revision AS \"unit_revision!\", a.science_revision AS \"science_revision!\", a.track_id AS \"track_id!: TrackId\", t.slug AS \"track_slug!\", a.producer AS \"producer?: JsonbText\", a.claimed_by_user AS \"claimed_by_user?: UserId\", a.claimed_by_service AS \"claimed_by_service?: ServiceAccountId\", a.via_channel AS \"via_channel!\", a.via_client AS \"via_client?\", a.predecessor_id AS \"predecessor_id?: AttemptId\", a.lease_generation AS \"lease_generation!\", a.lease_token_hash AS \"lease_token_hash?\", a.lease_expires_at AS \"lease_expires_at?: Timestamp\", a.claimed_at AS \"claimed_at!: Timestamp\", a.started_at AS \"started_at?: Timestamp\", a.submitted_at AS \"submitted_at?: Timestamp\", a.finished_at AS \"finished_at?: Timestamp\", a.origin AS \"origin!\", a.source_ref AS \"source_ref?\", a.imported AS \"imported?: JsonbText\", a.workflow AS \"workflow?: JsonbText\", a.deadline AS \"deadline?: Timestamp\" FROM \n    attempts a JOIN units h ON h.id = a.unit_id JOIN tracks t ON t.id = a.track_id\n\n            WHERE a.project_id = $1\n              AND ($2::text[] IS NULL OR a.state = ANY($2::text[]))\n              AND ($3::text IS NULL OR t.slug = $3)\n              AND ($4::uuid IS NULL OR (a.claimed_at, a.id) < (\n                  SELECT claimed_at, id FROM attempts\n                  WHERE id = $4 AND project_id = $1))\n            ORDER BY a.claimed_at DESC, a.id DESC LIMIT $5\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "project_id!: ProjectId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "unit_id!: UnitId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "unit_number!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "sequence!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "state!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "unit_revision!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "science_revision!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "track_id!: TrackId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "track_slug!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "producer?: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 11,
+        "name": "claimed_by_user?: UserId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "claimed_by_service?: ServiceAccountId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 13,
+        "name": "via_channel!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "via_client?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "predecessor_id?: AttemptId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 16,
+        "name": "lease_generation!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "lease_token_hash?",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 18,
+        "name": "lease_expires_at?: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "claimed_at!: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "started_at?: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 21,
+        "name": "submitted_at?: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 22,
+        "name": "finished_at?: Timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 23,
+        "name": "origin!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 24,
+        "name": "source_ref?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 25,
+        "name": "imported?: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 26,
+        "name": "workflow?: JsonbText",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 27,
+        "name": "deadline?: Timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Text",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e77005c8bbfa87e24da930b32e113a698c06158f16406eb342208345c8781c01"
+}

@@ -26,7 +26,7 @@ function unit(overrides: Partial<Schemas["PlanUnitOut"]> = {}): Schemas["PlanUni
     context: [],
     brief: "# Baseline\n\nKeep the seed fixed.\n",
     science_revision: 1,
-    hypothesis_revision: 1,
+    unit_revision: 1,
     ...overrides,
   };
 }
@@ -78,7 +78,7 @@ function revisions(...plans: Schemas["PlanOut"][]) {
 
 const trackPage = {
   [`GET ${TRACK}/history`]: () => json(page([])),
-  "GET /api/projects/sardines/hypotheses": () => json(page([])),
+  "GET /api/projects/sardines/units": () => json(page([])),
 };
 
 describe("a track's plan", () => {
@@ -142,7 +142,7 @@ describe("a track's plan", () => {
     ).toBeGreaterThan(0);
     expect(within(section).getAllByRole("link", { name: "#4 Baseline" })[0]).toHaveAttribute(
       "href",
-      "/hypotheses/4",
+      "/units/4",
     );
     const review = await within(section).findByRole("region", { name: "Review revision 2" });
     expect(within(review).queryByRole("link", { name: /Variant/ })).not.toBeInTheDocument();

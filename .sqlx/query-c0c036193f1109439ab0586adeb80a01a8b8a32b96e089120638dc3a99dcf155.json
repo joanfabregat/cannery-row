@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT j.error_reason AS \"reason!\" FROM jobs j JOIN attempts a ON a.id=j.attempt_id\n               WHERE a.unit_id=$1 AND j.phase='document' AND j.state='skipped'\n               ORDER BY j.created_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reason!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c0c036193f1109439ab0586adeb80a01a8b8a32b96e089120638dc3a99dcf155"
+}

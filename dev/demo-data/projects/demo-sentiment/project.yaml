@@ -67,15 +67,15 @@ brief:
 
     # Conventions
 
-    - Report macro-F1 overall and per `domain` slice; a hypothesis that helps one domain and hurts the other does not count.
-    - Controls are named baselines (`tfidf-unigram-lr` r1) or earlier promoted hypotheses.
+    - Report macro-F1 overall and per `domain` slice; a unit that helps one domain and hurts the other does not count.
+    - Controls are named baselines (`tfidf-unigram-lr` r1) or earlier promoted units.
 
 # Concerns about the plans, raised once the attempts are done: an open one
 # holds up the small-encoders track, and a member's idea was dismissed.
 concerns:
   - track: small-encoders
     by: agent
-    from: {hypothesis: quantized-encoder, attempt: 1}
+    from: {unit: quantized-encoder, attempt: 1}
     kind: wrong_assumption
     body: |
       The plan measures the 200 reviews a second budget on one CPU core, and the quantized unit assumes that core runs int8 matrix products natively. The benchmark machine has no VNNI instructions: the int8 kernels fall back to a slower path, so quantization cannot halve p95 latency there whatever it does to macro-F1.
@@ -88,7 +88,7 @@ concerns:
       Instead of one feature family at a time, a single run with a feature-selection sweep over unigrams, bigrams and character n-grams would find the best combination in one go.
     dismissed: {by: ben, reason: "The track changes one feature family at a time on purpose, so each gain can be traced to its change; a joint sweep would hide that."}
 
-hypotheses:
+units:
   - key: bigrams
     doc:
       track: linear-baselines
@@ -172,7 +172,7 @@ hypotheses:
             Bigrams capture short negations and product phrases the unigram model misses, for almost no cost.
         decision: {by: ada, action: promote, reason: "Clear gain on both domains with negligible cost. Bigram TF-IDF is now the linear reference for this project."}
     comments:
-      - {by: ben, on: hypothesis, body: "Nice. The top bigram weights are almost all negations, which is exactly the failure mode we saw in the unigram error analysis."}
+      - {by: ben, on: unit, body: "Nice. The top bigram weights are almost all negations, which is exactly the failure mode we saw in the unigram error analysis."}
       - {by: ada, on: 1, body: "Promoted. @ben can you register this as a baseline in the next science revision so the encoder track compares against it?", edit: "Promoted. Ben, can you register this as a baseline in the next science revision so the small-encoders track compares against it?"}
 
   - key: char-ngrams
@@ -193,7 +193,7 @@ hypotheses:
         regression_gates: [domain]
         compute_budget: {cpu_hours_max: 4}
       relations:
-        - {kind: related_to, hypothesis: bigrams}
+        - {kind: related_to, unit: bigrams}
     attempts:
       - by: agent
         stop: verified
@@ -320,7 +320,7 @@ hypotheses:
         compute_budget: {gpu_hours_max: 2}
       project_fields: {seed: 7}
       relations:
-        - {kind: derived_from, hypothesis: bigrams}
+        - {kind: derived_from, unit: bigrams}
     attempts:
       - by: agent
         stop: released
@@ -370,7 +370,7 @@ hypotheses:
             - {metric: macro_f1, split: dev, reference: {value: 0.846, label: "Bigram TF-IDF (#1)", kind: promoted_attempt, ref: "demo-sentiment#1"}}
             - {metric: latency_p95_ms, split: dev, reference: {value: 20, label: "Latency budget", kind: manual}}
     comments:
-      - {by: ben, on: hypothesis, body: "Before promoting I'd like a second seed. 0.90 from one run on 1,200 reviews has a CI of about ±0.012."}
+      - {by: ben, on: unit, body: "Before promoting I'd like a second seed. 0.90 from one run on 1,200 reviews has a CI of about ±0.012."}
       - {by: chloe, on: 2, body: "The 15 ms p95 is on the verifier's CPU. Our serving boxes are a bit faster, so there is some headroom."}
 
   - key: encoder-longer
@@ -392,7 +392,7 @@ hypotheses:
         compute_budget: {gpu_hours_max: 3}
       project_fields: {seed: 7}
       relations:
-        - {kind: derived_from, hypothesis: distilbert-base}
+        - {kind: derived_from, unit: distilbert-base}
     attempts:
       - by: agent
         stop: verifying
@@ -434,7 +434,7 @@ hypotheses:
         regression_gates: []
         compute_budget: {gpu_hours_max: 4}
       relations:
-        - {kind: related_to, hypothesis: distilbert-base}
+        - {kind: related_to, unit: distilbert-base}
     attempts:
       - by: agent
         stop: submitted
@@ -480,7 +480,7 @@ hypotheses:
         regression_gates: [latency-budget]
         compute_budget: {cpu_hours_max: 1}
       relations:
-        - {kind: derived_from, hypothesis: distilbert-base}
+        - {kind: derived_from, unit: distilbert-base}
     attempts:
       - by: agent
         stop: running
@@ -504,7 +504,7 @@ hypotheses:
         regression_gates: [domain]
         compute_budget: {cpu_hours_max: 1}
       relations:
-        - {kind: related_to, hypothesis: bigrams}
+        - {kind: related_to, unit: bigrams}
 
   - key: backtranslation
     doc:
@@ -577,7 +577,7 @@ hypotheses:
         regression_gates: [domain]
         compute_budget: {cpu_hours_max: 1}
       relations:
-        - {kind: derived_from, hypothesis: bigrams}
+        - {kind: derived_from, unit: bigrams}
     later: {review: pending}
 
   - key: stale-vocab
@@ -615,4 +615,4 @@ hypotheses:
             Any result would leak. The idea waits for toy-reviews-v3.
         decision: {by: ada, action: failed, reason: "The work could not produce a result without leaking dev reviews. Re-draft once toy-reviews-v3 removes the overlap."}
     comments:
-      - {by: dev, on: hypothesis, body: "I counted 312 overlapping reviews between the unlabeled pool and dev. Opened a dataset ticket for v3."}
+      - {by: dev, on: unit, body: "I counted 312 overlapping reviews between the unlabeled pool and dev. Opened a dataset ticket for v3."}

@@ -148,7 +148,7 @@ fn group_value(point: &Point, name: &String) -> Result<Scalar, Error> {
     if name == "track" {
         return Ok(text(&point.track_slug));
     }
-    if let Some(name) = name.strip_prefix("hypothesis.") {
+    if let Some(name) = name.strip_prefix("unit.") {
         return point
             .project_fields
             .as_ref()
@@ -171,18 +171,18 @@ fn x_value(point: &Point, field: Option<&String>) -> Result<(Scalar, bool), Erro
         "attempt.sequence" => Scalar::Integer(point.attempt_sequence.into()),
         "attempt.ref" => text(&format!(
             "#{}.{}",
-            point.hypothesis_number, point.attempt_sequence
+            point.unit_number, point.attempt_sequence
         )),
         "attempt.state" => text(&point.attempt_state),
-        "hypothesis.number" => Scalar::Integer(point.hypothesis_number.into()),
-        "hypothesis.title" => text(&point.hypothesis_title),
-        "hypothesis.state" => text(&point.hypothesis_state),
+        "unit.number" => Scalar::Integer(point.unit_number.into()),
+        "unit.title" => text(&point.unit_title),
+        "unit.state" => text(&point.unit_state),
         "track.slug" => text(&point.track_slug),
         "track.title" => text(&point.track_title),
         _ => {
             let (entity, name) = field.split_once('.').unwrap_or((&field, ""));
             return Ok((
-                if entity == "hypothesis" {
+                if entity == "unit" {
                     point
                         .project_fields
                         .as_ref()
@@ -190,7 +190,7 @@ fn x_value(point: &Point, field: Option<&String>) -> Result<(Scalar, bool), Erro
                 } else {
                     Scalar::Null
                 },
-                entity == "hypothesis",
+                entity == "unit",
             ));
         }
     };
@@ -368,7 +368,7 @@ pub fn series<'a>(
             };
             let mut attempt_refs = members
                 .iter()
-                .map(|p| format!("#{}.{}", p.hypothesis_number, p.attempt_sequence))
+                .map(|p| format!("#{}.{}", p.unit_number, p.attempt_sequence))
                 .collect::<Vec<_>>();
             attempt_refs.sort();
             attempt_refs.dedup();

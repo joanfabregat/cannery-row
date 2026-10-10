@@ -1,0 +1,226 @@
+{
+  "reason": "/unit_fields/$schema",
+  "document": {
+    "schema_version": "0.2",
+    "unit_fields": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "architecture": {
+          "enum": [
+            "sparse",
+            "hybrid"
+          ]
+        }
+      },
+      "required": [
+        "architecture"
+      ],
+      "additionalProperties": false
+    },
+    "result_extensions": {
+      "type": "object",
+      "properties": {
+        "gpu_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "metrics": [
+      {
+        "key": "ndcg_at_10",
+        "unit": "ratio",
+        "direction": "higher",
+        "aggregation": "mean",
+        "dimensions": [
+          {
+            "name": "language",
+            "values": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "name": "task"
+          }
+        ],
+        "splits": [
+          "dev",
+          "fresh-held-out"
+        ],
+        "required_slices": [
+          {
+            "dimension": "language",
+            "values": [
+              "fr",
+              "en"
+            ]
+          },
+          {
+            "dimension": "task",
+            "values": [
+              "retrieval"
+            ],
+            "splits": [
+              "fresh-held-out"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "latency_ms",
+        "unit": "ms",
+        "direction": "lower",
+        "aggregation": "median",
+        "dimensions": [],
+        "splits": [
+          "dev"
+        ],
+        "required_slices": []
+      }
+    ],
+    "datasets": [
+      {
+        "id": "queries",
+        "revision": "queries-2026-09",
+        "held_out_labels": false
+      },
+      {
+        "id": "qrels",
+        "revision": "qrels-2026-09",
+        "held_out_labels": true,
+        "description": "Relevance judgments; only the scorer receives them."
+      }
+    ],
+    "baselines": [
+      {
+        "id": "base-camp",
+        "revision": "base-camp-r1"
+      }
+    ],
+    "interfaces": [
+      {
+        "name": "ranked-run",
+        "version": 1,
+        "schema": {
+          "type": "object",
+          "required": [
+            "queries"
+          ],
+          "properties": {
+            "queries": {
+              "type": "array"
+            }
+          }
+        }
+      },
+      {
+        "name": "per-query-results",
+        "version": 1,
+        "format": "jsonl",
+        "media_type": "application/jsonl"
+      }
+    ],
+    "scorer": {
+      "apiVersion": "cannery-row/v1",
+      "kind": "Step",
+      "metadata": {
+        "name": "scorer"
+      },
+      "spec": {
+        "role": "scorer",
+        "container": {
+          "image": "registry.example:5000/pilchards/scorer@sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+          "command": [
+            "/app/score"
+          ],
+          "resources": {
+            "requests": {
+              "cpu": "2",
+              "memory": "4Gi"
+            },
+            "limits": {
+              "cpu": "4",
+              "memory": "8Gi"
+            }
+          }
+        },
+        "activeDeadlineSeconds": 3600,
+        "network": "none",
+        "sandbox": "Runs no candidate code; read-only root filesystem.",
+        "inputs": {
+          "artifacts": [
+            {
+              "name": "run",
+              "from": "step",
+              "interface": "ranked-run/v1",
+              "path": "/cr/inputs/run"
+            },
+            {
+              "name": "qrels",
+              "from": "dataset",
+              "path": "/cr/inputs/qrels"
+            },
+            {
+              "name": "claimed_sheet",
+              "from": "attempt",
+              "path": "/cr/inputs/claimed_sheet"
+            }
+          ]
+        },
+        "outputs": {
+          "artifacts": [
+            {
+              "name": "evidence",
+              "interface": "cr-evidence/v0.2",
+              "path": "/cr/outputs/evidence"
+            },
+            {
+              "name": "per_query_results",
+              "interface": "per-query-results/v1",
+              "path": "/cr/outputs/per_query_results"
+            }
+          ]
+        }
+      }
+    },
+    "default_producer": {
+      "name": "sparse-producer",
+      "revision": 3
+    },
+    "required_artifact_roles": {
+      "attempt": [
+        "candidate_checkpoint"
+      ],
+      "verify": [
+        "raw_results",
+        "step_log"
+      ]
+    },
+    "retention": [
+      {
+        "role": "step_log",
+        "days": 90
+      }
+    ],
+    "limits": {
+      "resource_ceilings": {
+        "cpu": "16",
+        "memory": "64Gi",
+        "nvidia.com/gpu": "1"
+      },
+      "max_deadline_seconds": 21600,
+      "report_max_bytes": 1048576,
+      "max_output_bytes": 10737418240
+    },
+    "max_auto_retries": 1,
+    "verify": {
+      "performer": "runner",
+      "verifier": {
+        "id": "cannery-verifier",
+        "revision": "policy-r1"
+      }
+    }
+  }
+}

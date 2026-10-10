@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE units SET revision = revision + 1, approved_revision = revision + 1,\n        title = $2, approved_at = now(), updated_at = now()\n        WHERE id = $1 AND state = 'queued' RETURNING revision",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "406b413569c4a0eec6f6b76e9f1e1904678481be8e798e9f7537a45d8f1c8905"
+}

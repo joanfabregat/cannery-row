@@ -64,7 +64,7 @@ fn profile() -> Result<ReviewDecisionContext> {
             reviews: cannery_reviews::JsonContext {
                 decode_nesting_budget: 80,
             },
-            hypotheses: cannery_hypotheses::repo::JsonContext {
+            units: cannery_units::repo::JsonContext {
                 encode_nesting_budget: 80,
                 decode_nesting_budget: 80,
             },
@@ -105,7 +105,7 @@ fn profile() -> Result<ReviewDecisionContext> {
                 encode_nesting_budget: 80,
                 decode_nesting_budget: 80,
             },
-            hypotheses: cannery_hypotheses::repo::JsonContext {
+            units: cannery_units::repo::JsonContext {
                 encode_nesting_budget: 80,
                 decode_nesting_budget: 80,
             },
@@ -201,8 +201,8 @@ async fn raw_storage(pool: &PgPool) -> Result<Vec<String>> {
     let mut rows = Vec::new();
     for table in [
         "config_revisions",
-        "hypotheses",
-        "hypothesis_revisions",
+        "units",
+        "unit_revisions",
         "attempts",
         "attempt_failures",
         "phase_outputs",
@@ -233,8 +233,8 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
     let mut rows = json!({});
     for (table, order) in [
         ("config_revisions", "project_id,kind,revision"),
-        ("hypotheses", "project_id,number"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "project_id,number"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("attempt_failures", "id"),
         ("phase_outputs", "id"),
@@ -296,8 +296,8 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
     // Match the explicit source table insertion order, never arbitrary object-key order.
     for table in [
         "config_revisions",
-        "hypotheses",
-        "hypothesis_revisions",
+        "units",
+        "unit_revisions",
         "attempts",
         "attempt_failures",
         "phase_outputs",
@@ -327,7 +327,7 @@ async fn snapshot(pool: &PgPool, requests: &BTreeMap<String, Value>) -> Result<S
             }
         }
     }
-    let relations:Value=sqlx::query_scalar("SELECT coalesce(jsonb_agg(jsonb_build_array(d.review_case_id,d.id,c.resolved_at<=d.decided_at,h.updated_at>=d.decided_at,(SELECT count(*) FROM audit_events a WHERE a.occurred_at=d.decided_at),c.resolved_at=d.decided_at) ORDER BY d.review_case_id,d.decided_at,d.id),'[]') FROM decisions d JOIN review_cases c ON c.id=d.review_case_id JOIN hypotheses h ON h.id=c.hypothesis_id").fetch_one(pool).await?;
+    let relations:Value=sqlx::query_scalar("SELECT coalesce(jsonb_agg(jsonb_build_array(d.review_case_id,d.id,c.resolved_at<=d.decided_at,h.updated_at>=d.decided_at,(SELECT count(*) FROM audit_events a WHERE a.occurred_at=d.decided_at),c.resolved_at=d.decided_at) ORDER BY d.review_case_id,d.decided_at,d.id),'[]') FROM decisions d JOIN review_cases c ON c.id=d.review_case_id JOIN units h ON h.id=c.unit_id").fetch_one(pool).await?;
     for row in relations.as_array().ok_or("relations")? {
         assert_eq!(row[2], true);
         assert_eq!(row[3], true);
@@ -927,7 +927,7 @@ async fn off_type_verdicts_reject_and_replay(app: &Router, pool: &PgPool) -> Res
             serde_json::from_value(created.2.clone())?;
         assert_eq!(model.id, case_id);
         assert_eq!(model.state, "resolved");
-        assert_eq!(model.hypothesis_state, "rejected");
+        assert_eq!(model.unit_state, "rejected");
         assert_eq!(model.attempt_state.as_deref(), Some("verified"));
         assert_eq!(created.2["verification"]["front_matter"], report);
         assert_eq!(model.decisions.len(), 1);

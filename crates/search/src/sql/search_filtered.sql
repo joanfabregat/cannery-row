@@ -4,8 +4,8 @@ WITH q AS (
 ), base AS (
     SELECT d.id, d.kind, d.source_id, d.attempt_id, d.title AS doc_title, d.body,
            d.occurred_at, d.actor_user, d.actor_service, p.slug AS project, t.slug AS track,
-           h.number AS hypothesis_number, h.title AS hypothesis_title,
-           a.sequence AS attempt_sequence, h.state AS hypothesis_state,
+           h.number AS unit_number, h.title AS unit_title,
+           a.sequence AS attempt_sequence, h.state AS unit_state,
            a.state AS attempt_state,
            CASE WHEN d.kind IN ('track', 'comment') THEN 'live'
                 WHEN d.kind = 'decision_reason'
@@ -20,7 +20,7 @@ WITH q AS (
     FROM search_documents d
     CROSS JOIN q
     JOIN projects p ON p.id = d.project_id
-    LEFT JOIN hypotheses h ON h.id = d.hypothesis_id
+    LEFT JOIN units h ON h.id = d.unit_id
     LEFT JOIN attempts a ON a.id = d.attempt_id
     LEFT JOIN tracks t ON t.id = coalesce(d.track_id, a.track_id, h.track_id)
     WHERE ($1::uuid[] IS NULL OR d.project_id = ANY($1::uuid[]))
@@ -37,7 +37,7 @@ WITH q AS (
       AND ($5::bigint IS NULL OR (
            h.number = $5::bigint
            AND ($4::text IS NULL OR p.slug = $4::text)
-           AND CASE WHEN $6::bigint IS NULL THEN d.kind = 'hypothesis'
+           AND CASE WHEN $6::bigint IS NULL THEN d.kind = 'unit'
                     ELSE a.sequence = $6::bigint END))
       AND ($9::text[] IS NULL OR t.slug = ANY($9::text[]))
       AND ($10::text[] IS NULL
@@ -76,15 +76,15 @@ WITH q AS (
     ORDER BY score DESC, id DESC LIMIT $21::bigint
 )
 
-SELECT p.id AS "id!: _", p.kind AS "kind!", p.source_id AS "source_id!: _", p.project AS "project!", p.track AS "track?", p.hypothesis_number AS "hypothesis_number?",
-       p.hypothesis_title AS "hypothesis_title?", p.attempt_sequence AS "attempt_sequence?", p.doc_title AS "doc_title!",
+SELECT p.id AS "id!: _", p.kind AS "kind!", p.source_id AS "source_id!: _", p.project AS "project!", p.track AS "track?", p.unit_number AS "unit_number?",
+       p.unit_title AS "unit_title?", p.attempt_sequence AS "attempt_sequence?", p.doc_title AS "doc_title!",
        CASE WHEN $2::text IS NULL THEN translate(left(p.body, 280), chr(1) || chr(2), '')
             ELSE ts_headline('simple', translate(left(p.body, 20000), chr(1) || chr(2), ''),
                              q.tsq,
                              'MaxWords=35, MinWords=12, MaxFragments=2, '
                              'StartSel=' || chr(1) || ', StopSel=' || chr(2))
        END AS "snippet!",
-       p.hypothesis_state AS "hypothesis_state?", p.attempt_state AS "attempt_state?", p.actor_user AS "actor_user: _", p.actor_service AS "actor_service: _", p.occurred_at AS "occurred_at!: _",
+       p.unit_state AS "unit_state?", p.attempt_state AS "attempt_state?", p.actor_user AS "actor_user: _", p.actor_service AS "actor_service: _", p.occurred_at AS "occurred_at!: _",
        p.origin AS "origin!",
        p.score AS "score!", p.verdict AS "verdict?", p.decision AS "decision?"
 FROM page p CROSS JOIN q

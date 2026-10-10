@@ -43,7 +43,7 @@
       }
     },
     "default_control": {
-      "description": "The control used when the hypothesis names none.",
+      "description": "The control used when the unit names none.",
       "$ref": "common.schema.json#/$defs/pinned_ref"
     }
   },

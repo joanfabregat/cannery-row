@@ -81,7 +81,7 @@ fn float(value: Option<f64>) -> Value {
 }
 fn point(p: &Point) -> Value {
     json!({
-    "id":p.id,"attempt_id":p.attempt_id.to_string(),"hypothesis_number":p.hypothesis_number,"hypothesis_title":p.hypothesis_title,"hypothesis_state":p.hypothesis_state,"attempt_sequence":p.attempt_sequence,"attempt_state":p.attempt_state,"science_revision":p.science_revision,
+    "id":p.id,"attempt_id":p.attempt_id.to_string(),"unit_number":p.unit_number,"unit_title":p.unit_title,"unit_state":p.unit_state,"attempt_sequence":p.attempt_sequence,"attempt_state":p.attempt_state,"science_revision":p.science_revision,
     "claimed_at":datetime(p.claimed_at),"submitted_at":optional_datetime(p.submitted_at),"finished_at":optional_datetime(p.finished_at),"track_slug":p.track_slug,"track_title":p.track_title,"metric":p.metric,"split":p.split,"dimensions":document(&p.dimensions),"value":float(p.value),"missing_reason":p.missing_reason,"unit":p.unit,"direction":p.direction,"sample_count":p.sample_count.as_ref().map(numeric),"control_value":float(p.control_value),"uncertainty_method":p.uncertainty_method,"uncertainty_lower":float(p.uncertainty_lower),"uncertainty_upper":float(p.uncertainty_upper),"authority":p.authority,"source_ref":p.source_ref,"recorded_at":datetime(p.recorded_at),"control":optional_document(p.control.as_ref()),"project_fields":optional_document(p.project_fields.as_ref()),"reference_value":float(p.reference_value),"reference_label":p.reference_label,"reference_kind":p.reference_kind,"reference_ref":p.reference_ref
     })
 }
@@ -178,13 +178,13 @@ async fn queries_match_actual_source() -> Result<(), Box<dyn Error>> {
         (
             include_str!("../src/sql/points.sql"),
             include_str!(
-                "../../../.sqlx/query-484dca16323b85511b72f610e37f807104bef4ca5d8c67ac7d4c08551a309679.json"
+                "../../../.sqlx/query-17c5404bfd1c2185a6dee5e3e3fa77b0ecc5ef9d935118bac0d7fa85df3777e5.json"
             ),
         ),
         (
             include_str!("../src/sql/summary.sql"),
             include_str!(
-                "../../../.sqlx/query-b37b480ef7429dcd630e9c18a33758711411f6c5c1eae7b7c78a947f6a2038b4.json"
+                "../../../.sqlx/query-7e2ebde19081eae54af298dc9aa341b95ca964787902013de347864eb6dcaa43.json"
             ),
         ),
         (

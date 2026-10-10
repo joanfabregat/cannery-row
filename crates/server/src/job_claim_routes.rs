@@ -120,7 +120,7 @@ fn hash(
         fields.push((String::from("revision"), value));
     }
     let root = b.push(Node::Object(fields))?;
-    crate::hypothesis_idempotency::envelope_hash(slug, None, "claim", &b.finish(root)?, budget)
+    crate::unit_idempotency::envelope_hash(slug, None, "claim", &b.finish(root)?, budget)
 }
 async fn claim_document(
     c: &mut PgConnection,
@@ -194,7 +194,7 @@ async fn claim_document(
                 .map_err(|_| internal(context, "job claim model"))?,
         )
         .map_err(|_| internal(context, "job claim model"))?,
-        attempt_ref: format!("#{}.{}", attempt.hypothesis_number, attempt.sequence),
+        attempt_ref: format!("#{}.{}", attempt.unit_number, attempt.sequence),
         heartbeat_seconds,
         brief: pins.brief,
         plan: pins.plan,
@@ -258,7 +258,7 @@ async fn document_job(
                 attempt_id: job.attempt_id.to_string(),
                 performer: crate::api_models::ClaimedDocumentPerformer::Agent,
                 track: text("track")?,
-                hypothesis: i64::from(attempt.hypothesis_number),
+                unit: i64::from(attempt.unit_number),
                 science_revision: job.science_revision.to_string(),
                 inputs: crate::api_models::ClaimedDocumentInputs {
                     attempts: inputs.attempts.clone(),
@@ -278,7 +278,7 @@ async fn document_job(
                 },
             },
         )),
-        attempt_ref: format!("#{}.{}", attempt.hypothesis_number, attempt.sequence),
+        attempt_ref: format!("#{}.{}", attempt.unit_number, attempt.sequence),
         heartbeat_seconds,
         brief: pins.brief,
         plan: pins.plan,
@@ -365,7 +365,7 @@ async fn decide_job(
             "{}?phase=decide",
             crate::context_bundle::bundle_path(
                 &project.slug,
-                attempt.hypothesis_number,
+                attempt.unit_number,
                 attempt.sequence
             )
         ),
@@ -384,7 +384,7 @@ async fn decide_job(
                     revision: text(&spec["decider"]["revision"])?,
                 },
                 track: text(&spec["track"])?,
-                hypothesis: i64::from(attempt.hypothesis_number),
+                unit: i64::from(attempt.unit_number),
                 science_revision: job.science_revision.to_string(),
                 review_case_id: case_id,
                 inputs: crate::api_models::ClaimedDecideInputs {
@@ -405,7 +405,7 @@ async fn decide_job(
                 },
             },
         )),
-        attempt_ref: format!("#{}.{}", attempt.hypothesis_number, attempt.sequence),
+        attempt_ref: format!("#{}.{}", attempt.unit_number, attempt.sequence),
         heartbeat_seconds,
         brief: pins.brief,
         plan: pins.plan,
@@ -489,7 +489,7 @@ mod replay_generation_tests {
     path = "/api/projects/{slug}/jobs/claims",
     operation_id = "claim_job_api_projects__slug__jobs_claims_post",
     summary = "Claim Job",
-    description = "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a hypothesis whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nWith `phase: decide`, the decider service account a science revision\nregisters names the revision of its step and claims the oldest waiting\ndecide job registered to it: it decides a written-up hypothesis on its\ndecision case.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
+    description = "Claim the oldest waiting job of the phase (`verify` by default) the caller\nmay perform.\n\nA verifier service account names the policy revision it applies and claims\nonly the runner jobs its project's science revision registers under its\naccount name and that revision. An agent service account or a researcher\nnames no revision and claims agent jobs, never one of an attempt it ran\nitself.\n\nWith `phase: document`, an agent service account or a researcher claims\nthe oldest waiting document job: it writes up a unit whose last\nattempt was verified, or that a researcher stopped after a failure.\n\nWith `phase: decide`, the decider service account a science revision\nregisters names the revision of its step and claims the oldest waiting\ndecide job registered to it: it decides a written-up unit on its\ndecision case.\n\nReplaying an ``Idempotency-Key`` while its claim still holds the lease\nreissues the lease token under the next lease generation (the first\nresponse may have been lost); the earlier token and every upload grant\nissued under it stop working.",
     params(("slug" = String, Path),
         ("idempotency-key" = Option<String>, Header)),
     request_body(content = crate::api_models::JobClaimRequest, content_type = "application/json"),
@@ -547,7 +547,7 @@ pub(crate) async fn claim(
     if performer == Performer::Runner && phase == Phase::Document {
         return Err(violation(
             "/phase",
-            "a verifier claims verify jobs; an agent or a researcher writes hypotheses up",
+            "a verifier claims verify jobs; an agent or a researcher writes units up",
         ));
     }
     if decider && body.revision.is_none() {

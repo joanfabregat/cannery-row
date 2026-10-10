@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id AS \"id!: UnitId\" FROM units WHERE project_id=$1 AND number=$2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: UnitId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "054ceaf38feda789d330732e050ed73c149a8fc091a85e4efe10380a4fd5c3de"
+}

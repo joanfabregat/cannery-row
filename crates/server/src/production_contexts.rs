@@ -39,8 +39,8 @@ fn attempts() -> cannery_attempts::model::JsonContext {
         decode_nesting_budget: DEPTH,
     }
 }
-fn hypotheses() -> cannery_hypotheses::repo::JsonContext {
-    cannery_hypotheses::repo::JsonContext {
+fn units() -> cannery_units::repo::JsonContext {
+    cannery_units::repo::JsonContext {
         encode_nesting_budget: DEPTH,
         decode_nesting_budget: DEPTH,
     }
@@ -63,7 +63,7 @@ fn review_reads() -> crate::review_attention_routes::ReviewAttentionContext {
         reviews: cannery_reviews::JsonContext {
             decode_nesting_budget: DEPTH,
         },
-        hypotheses: hypotheses(),
+        units: units(),
         attempts: attempts(),
         response: crate::review_attention_wire::ResponseContext {
             inferred_nesting_budget: DEPTH,
@@ -150,7 +150,7 @@ pub(super) fn contexts(
         jobs: jobs(),
         attempts: attempts(),
         config: config(),
-        hypotheses: hypotheses(),
+        units: units(),
         rendering: science(),
     });
     let release = Arc::new(crate::attempt_release_routes::AttemptReleaseContext {
@@ -257,8 +257,8 @@ pub(super) fn contexts(
                 inferred_nesting_budget: DEPTH,
             },
         })),
-        hypotheses: Some(Arc::new(crate::hypothesis_routes::HypothesisContext {
-            mutations: Some(Arc::new(crate::hypothesis_mutations::MutationContext {
+        units: Some(Arc::new(crate::unit_routes::UnitContext {
+            mutations: Some(Arc::new(crate::unit_mutations::MutationContext {
                 science: science(),
                 config: config(),
                 tracks: tracks(),
@@ -268,8 +268,8 @@ pub(super) fn contexts(
             validation_walk_budget: DEPTH,
             repr_budget: DEPTH,
 
-            repository: hypotheses(),
-            response: crate::hypothesis_wire::ResponseContext {
+            repository: units(),
+            response: crate::unit_wire::ResponseContext {
                 inferred_nesting_budget: DEPTH,
             },
             request_hash_budget: DEPTH,
@@ -277,7 +277,7 @@ pub(super) fn contexts(
         attempt_reads: Some(Arc::new(crate::attempt_read_routes::AttemptReadContext {
             repository: attempts(),
             response,
-            hypothesis_lookup: crate::attempt_read_lookup::LookupContext::BorrowedUnnamed,
+            unit_lookup: crate::attempt_read_lookup::LookupContext::BorrowedUnnamed,
         })),
         attempt_leases: Some(Arc::new(crate::attempt_lease_routes::AttemptLeaseContext {
             repository: attempts(),
@@ -337,14 +337,14 @@ pub(super) fn contexts(
                 decode_nesting_budget: DEPTH,
             },
             attempts: attempts(),
-            hypotheses: hypotheses(),
+            units: units(),
             response: crate::report_wire::ResponseContext {
                 inferred_nesting_budget: DEPTH,
                 representation_budget: DEPTH,
             },
         })),
         comments: Some(Arc::new(crate::comment_routes::CommentContext {
-            hypotheses: hypotheses(),
+            units: units(),
             mutations: Some(Arc::new(crate::comment_mutations::CommentMutationContext {
                 mention_walk_budget: DEPTH,
             })),

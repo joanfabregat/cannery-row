@@ -53,12 +53,12 @@ pub(crate) fn domain(code: ErrorCode, message: impl Into<String>) -> Failure {
 
 pub fn routes(app: AppState, context: Arc<AttemptLeaseContext>) -> Router {
     let router = Router::new().route(
-        "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/heartbeat",
+        "/api/projects/{slug}/units/{number}/attempts/{sequence}/heartbeat",
         post(heartbeat),
     );
     let router = if context.release.is_some() {
         router.route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/release",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/release",
             post(crate::attempt_release_routes::release),
         )
     } else {
@@ -235,8 +235,8 @@ pub(crate) async fn leased(
 
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/heartbeat",
-    operation_id = "heartbeat_api_projects__slug__hypotheses__number__attempts__sequence__heartbeat_post",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/heartbeat",
+    operation_id = "heartbeat_api_projects__slug__units__number__attempts__sequence__heartbeat_post",
     summary = "Heartbeat",
     params(("slug" = String, Path),
         ("number" = i64, Path),

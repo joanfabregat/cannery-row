@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://cannery-row.invalid/schemas/0.2/human_decision.schema.json",
   "title": "Human decision",
-  "description": "A researcher's decision on a review case. A decision case takes the decision document: Markdown with YAML front matter (decision.schema.json) whose body is the reason, and `supersedes` for a correction. A failure case takes `retry` or `stop` with the failure revision and a reason. The service allows promote only on a pass verdict, and failed only for a stopped hypothesis.",
+  "description": "A researcher's decision on a review case. A decision case takes the decision document: Markdown with YAML front matter (decision.schema.json) whose body is the reason, and `supersedes` for a correction. A failure case takes `retry` or `stop` with the failure revision and a reason. The service allows promote only on a pass verdict, and failed only for a stopped unit.",
   "type": "object",
   "properties": {
     "review_case_id": {"$ref": "common.schema.json#/$defs/identifier"},
@@ -17,7 +17,7 @@
       "$ref": "common.schema.json#/$defs/revision_number"
     },
     "action": {
-      "description": "`retry` runs the failed phase again; `stop` sends the hypothesis to be written up, and its decision is then `failed`. Failure cases only.",
+      "description": "`retry` runs the failed phase again; `stop` sends the unit to be written up, and its decision is then `failed`. Failure cases only.",
       "enum": ["retry", "stop"]
     },
     "reason": {"$ref": "common.schema.json#/$defs/text"},

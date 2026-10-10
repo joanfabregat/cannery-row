@@ -14,7 +14,7 @@ const origin = window.location.origin;
 
 describe("links in untrusted Markdown", () => {
   it("resolves each kind of address", () => {
-    expect(resolveLink("/hypotheses/1")).toEqual({ kind: "internal", to: "/hypotheses/1" });
+    expect(resolveLink("/units/1")).toEqual({ kind: "internal", to: "/units/1" });
     expect(resolveLink("javascript:alert(1)")).toBeNull();
     expect(resolveLink("data:text/html,x")).toBeNull();
     expect(resolveLink("mailto:a@example.com")).toBeNull();
@@ -37,7 +37,7 @@ describe("links in untrusted Markdown", () => {
   it("opens app paths in the app, other sites in a new tab, and drops other schemes", () => {
     renderMarkdown(
       [
-        "[inside](/hypotheses/1)",
+        "[inside](/units/1)",
         "[script](javascript:alert(1))",
         "[proto](//x.example)",
         "[slash](/\\x.example)",
@@ -47,7 +47,7 @@ describe("links in untrusted Markdown", () => {
       ].join(" "),
     );
     const inside = screen.getByRole("link", { name: "inside" });
-    expect(inside).toHaveAttribute("href", "/hypotheses/1");
+    expect(inside).toHaveAttribute("href", "/units/1");
     expect(inside).not.toHaveAttribute("target");
 
     expect(screen.queryByRole("link", { name: "script" })).not.toBeInTheDocument();

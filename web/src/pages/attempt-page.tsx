@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 
-import { useAttempt, useAttemptJobs, useHypothesis, useReport } from "@/api/queries";
+import { useAttempt, useAttemptJobs, useUnit, useReport } from "@/api/queries";
 import type { AttemptDetail, AttemptFailure, Report } from "@/api/types";
 import { CommentsSection } from "@/components/comments";
 import { ArtifactList, ReportSection, VerificationSection } from "@/components/evidence";
@@ -15,7 +15,7 @@ import { failureLogs, failureStep, runnerLabel } from "@/lib/execution";
 import { formatDateTime } from "@/lib/format";
 import { label } from "@/lib/labels";
 import { parseNumber } from "@/lib/navigation";
-import { hypothesisPath } from "@/lib/paths";
+import { unitPath } from "@/lib/paths";
 import type { Project } from "@/projects/project-context";
 import { usePermissions } from "@/projects/use-permissions";
 
@@ -48,7 +48,7 @@ function AttemptView({
   sequence: number;
 }) {
   const slug = project.slug;
-  const hypothesis = useHypothesis(slug, number);
+  const unit = useUnit(slug, number);
   const attempt = useAttempt(slug, number, sequence);
   const report = useReport(slug, number, sequence);
   const title = `Attempt #${number}.${sequence}`;
@@ -78,9 +78,7 @@ function AttemptView({
     <>
       <PageHeader
         title={title}
-        description={
-          hypothesis.data ? `An attempt of #${number} “${hypothesis.data.title}”` : undefined
-        }
+        description={unit.data ? `An attempt of #${number} “${unit.data.title}”` : undefined}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusChip domain="attempt" value={a.state} className="text-sm" />
@@ -90,8 +88,8 @@ function AttemptView({
       />
       <div className="flex flex-col gap-6">
         <p className="text-sm">
-          <Link to={hypothesisPath(number)} className="font-medium underline underline-offset-4">
-            Back to hypothesis #{number}
+          <Link to={unitPath(number)} className="font-medium underline underline-offset-4">
+            Back to unit #{number}
           </Link>
         </p>
         <AttemptFacts attempt={a} />
@@ -175,7 +173,7 @@ function FailureItem({
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
           {formatDateTime(failure.created_at)} · code {failure.code}
-          {failure.requeued ? " · the hypothesis was queued again automatically" : ""}
+          {failure.requeued ? " · the unit was queued again automatically" : ""}
         </p>
       </div>
       {logs.length > 0 ? (
@@ -236,7 +234,7 @@ function AttemptFacts({ attempt }: { attempt: AttemptDetail }) {
           </Fact>
         ))}
         {attempt.predecessor_id ? (
-          <Fact term="Follows">An earlier failed attempt of the same hypothesis</Fact>
+          <Fact term="Follows">An earlier failed attempt of the same unit</Fact>
         ) : null}
       </dl>
     </Section>
@@ -271,7 +269,7 @@ function AttemptDetails({ attempt }: { attempt: AttemptDetail }) {
     <Collapsible summary="Details">
       <div className="flex flex-col gap-5">
         <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Fact term="Hypothesis revision">{attempt.hypothesis_revision}</Fact>
+          <Fact term="Unit revision">{attempt.unit_revision}</Fact>
           <Fact term="Science revision">{attempt.science_revision}</Fact>
           <Fact term="Brief revision">{attempt.brief?.revision ?? "None"}</Fact>
           <Fact term="Lease generation">{attempt.lease_generation}</Fact>

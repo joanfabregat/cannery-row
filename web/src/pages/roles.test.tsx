@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 
 import type { Schemas } from "@/api/client";
-import { attention, hypothesis, hypothesisApi, page, review, track } from "@/test/fixtures";
+import { attention, unit, unitApi, page, review, track } from "@/test/fixtures";
 import { json, project, renderApp, signedIn } from "@/test/render";
 
 /**
@@ -45,7 +45,7 @@ const CASES: Case[] = [
 ];
 
 function pendingResult() {
-  return hypothesis({
+  return unit({
     state: "deciding",
     reviews: [review({ kind: "decision", state: "pending" })],
   });
@@ -57,9 +57,9 @@ function present(shown: boolean, element: HTMLElement | null) {
 }
 
 describe.each(CASES)("as a $name", ({ projects, admin, comment, research }) => {
-  it("sees the review and comment actions a role allows on a hypothesis", async () => {
-    signedIn({ projects, admin: admin ?? false }, hypothesisApi(pendingResult()));
-    renderApp("/hypotheses/12");
+  it("sees the review and comment actions a role allows on a unit", async () => {
+    signedIn({ projects, admin: admin ?? false }, unitApi(pendingResult()));
+    renderApp("/units/12");
     await screen.findByTestId("outcome-sentence");
     await screen.findByRole("heading", { level: 2, name: "Comments" });
     present(research, screen.queryByRole("link", { name: "Decide" }));
@@ -83,7 +83,7 @@ describe.each(CASES)("as a $name", ({ projects, admin, comment, research }) => {
         "GET /api/projects/sardines/tracks": () => json(page([track()])),
         "GET /api/projects/sardines/tracks/tokenizer": () => json(track()),
         "GET /api/projects/sardines/tracks/tokenizer/history": () => json(page([])),
-        "GET /api/projects/sardines/hypotheses": () => json(page([])),
+        "GET /api/projects/sardines/units": () => json(page([])),
       },
     );
     renderApp("/tracks");
@@ -97,7 +97,7 @@ describe.each(CASES)("as a $name", ({ projects, admin, comment, research }) => {
       {
         "GET /api/projects/sardines/tracks/tokenizer": () => json(track()),
         "GET /api/projects/sardines/tracks/tokenizer/history": () => json(page([])),
-        "GET /api/projects/sardines/hypotheses": () => json(page([])),
+        "GET /api/projects/sardines/units": () => json(page([])),
       },
     );
     renderApp("/tracks/tokenizer");

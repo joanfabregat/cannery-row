@@ -21,7 +21,7 @@ One Cargo workspace (`Cargo.toml`, edition 2024, minimum Rust 1.94.1, built with
 | `crates/identity` | Users, sessions, personal and service tokens, login requests, opaque credential minting. |
 | `crates/projects` | Projects, memberships and project-scoped authorization. |
 | `crates/research` | Science and dashboard revisions, step manifests and their checks, interfaces, job baselines, deadlines and job documents. |
-| `crates/tracks`, `crates/hypotheses`, `crates/attempts`, `crates/jobs`, `crates/metrics`, `crates/search`, `crates/reviews`, `crates/attention`, `crates/comments-reports` | Persistence for one domain each. They take a caller-owned `PgConnection`; transactions, authorization and audit belong to the caller. |
+| `crates/tracks`, `crates/units`, `crates/attempts`, `crates/jobs`, `crates/metrics`, `crates/search`, `crates/reviews`, `crates/attention`, `crates/comments-reports` | Persistence for one domain each. They take a caller-owned `PgConnection`; transactions, authorization and audit belong to the caller. |
 | `crates/storage` | The object store: local filesystem and S3 (official AWS SDK), presigning and multipart. |
 | `crates/runner` | The runner and the stock policy: worker scheduler, HTTP client, code and setup caches, archive extraction, output checking, local/Docker/Kubernetes launchers, gate arithmetic. |
 | `crates/managed-postgres` | The managed database (`[database] provider = "managed"`): a private PostgreSQL supervised as a child process, and the unpacking of the bundled PostgreSQL distribution. |
@@ -42,7 +42,7 @@ Test-only code (the storage observation route, `POST /__conformance/sweep`, fixt
 
 Domain failures use the JSON error envelope `{"error": {"code", "message", "details"}}`. Unhandled failures return HTTP 500 with the plain-text body `Internal Server Error`; their detail goes only to the log with the request identifier.
 
-Idempotent routes (hypothesis creation and revision, job claims, review decisions, submissions) take `pg_advisory_xact_lock(hashtextextended('<scope>\n<actor>\n<key>', 0))` inside the request transaction before checking the stored request hash.
+Idempotent routes (unit creation and revision, job claims, review decisions, submissions) take `pg_advisory_xact_lock(hashtextextended('<scope>\n<actor>\n<key>', 0))` inside the request transaction before checking the stored request hash.
 
 Artifact downloads release the database connection before any object-store I/O. Local objects stream lazily; S3 objects return an SDK-signed redirect.
 

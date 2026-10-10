@@ -52,7 +52,7 @@ pub(crate) struct RouteState {
 pub fn routes(app: AppState, profile: Arc<UploadContext>) -> Router {
     Router::new()
         .route(
-            "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/uploads",
+            "/api/projects/{slug}/units/{number}/attempts/{sequence}/uploads",
             post(create),
         )
         .route("/api/uploads/{upload_id}", put(rest_put_upload))
@@ -200,8 +200,8 @@ fn response(status: StatusCode, bytes: Vec<u8>) -> Response {
 )]
 #[utoipa::path(
     post,
-    path = "/api/projects/{slug}/hypotheses/{number}/attempts/{sequence}/uploads",
-    operation_id = "create_upload_api_projects__slug__hypotheses__number__attempts__sequence__uploads_post",
+    path = "/api/projects/{slug}/units/{number}/attempts/{sequence}/uploads",
+    operation_id = "create_upload_api_projects__slug__units__number__attempts__sequence__uploads_post",
     summary = "Create Upload",
     description = "Grant a one-time, create-only upload of one file of the attempt.\n\nWith an object store that presigns, the grant also carries ``direct``:\nthe presigned request(s) that send the bytes straight to the bucket, then\na finish request (see ``docs/contracts.md``).",
     params(("slug" = String, Path),

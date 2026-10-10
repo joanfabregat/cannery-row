@@ -223,8 +223,8 @@ async fn storage(pool: &PgPool) -> Result<Value> {
     for (table, order) in [
         ("config_revisions", "project_id,kind,revision"),
         ("tracks", "project_id,slug"),
-        ("hypotheses", "project_id,number"),
-        ("hypothesis_revisions", "hypothesis_id,revision"),
+        ("units", "project_id,number"),
+        ("unit_revisions", "unit_id,revision"),
         ("attempts", "id"),
         ("phase_outputs", "id"),
         ("measurements", "id"),

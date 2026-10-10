@@ -27,7 +27,7 @@ cannery-identity = { path = "../identity", version = "=0.1.0" }
 cannery-projects = { path = "../projects", version = "=0.1.0" }
 cannery-research = { path = "../research", version = "=0.1.0" }
 cannery-tracks = { path = "../tracks", version = "=0.1.0" }
-cannery-hypotheses = { path = "../hypotheses", version = "=0.1.0" }
+cannery-units = { path = "../units", version = "=0.1.0" }
 cannery-reviews = { path = "../reviews", version = "=0.1.0" }
 cannery-attention = { path = "../attention", version = "=0.1.0" }
 cannery-attempts = { path = "../attempts", version = "=0.1.0" }
