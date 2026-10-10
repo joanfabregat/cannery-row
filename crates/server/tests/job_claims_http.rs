@@ -63,6 +63,31 @@ fn with_protocol(mut value: Value) -> Value {
     }
     value
 }
+/// A recorded job claim response with the protocol and the claim's
+/// `output`, which the frozen corpus also predates: the actual claim's,
+/// once checked against the job's phase.
+fn with_output(value: Value, actual: &Value) -> Result<Value> {
+    let mut value = with_protocol(value);
+    if value.get("heartbeat_seconds").is_some() {
+        let output = &actual["output"];
+        let phase = actual["job"]["phase"].as_str().ok_or("claimed phase")?;
+        let document = match phase {
+            "verify" => "verification",
+            "document" => "writeup",
+            "decide" => "decision",
+            _ => return Err("unknown claimed phase".into()),
+        };
+        assert_eq!(output["document"], json!(document), "{output}");
+        assert_eq!(output["manifest"], json!(phase == "verify"), "{output}");
+        assert!(output["required_roles"].is_array(), "{output}");
+        if phase != "verify" {
+            assert_eq!(output["required_roles"], json!([]), "{output}");
+            assert!(output.get("expected").is_none(), "{output}");
+        }
+        value["output"] = output.clone();
+    }
+    Ok(value)
+}
 fn output(value: Value) -> Value {
     if value
         .get("error")
@@ -500,9 +525,11 @@ async fn job_claims_match_production() -> Result<()> {
                 r["name"]
             );
         }
+        let claimed_output = response["output"].clone();
+        let expected_response = with_output(r["response"].clone(), &response)?;
         assert_eq!(
             output(response),
-            with_protocol(r["response"].clone()),
+            expected_response,
             "response {}",
             r["name"]
         );
@@ -512,12 +539,15 @@ async fn job_claims_match_production() -> Result<()> {
                     .step_by(2)
                     .map(|i| u8::from_str_radix(&expected[i..i + 2], 16))
                     .collect::<std::result::Result<Vec<_>, _>>()?;
-                // The recorded bytes predate the protocol reference: append
-                // it to the object, keeping the bytes' own numbers exact.
+                // The recorded bytes predate the output guide and the
+                // protocol reference: append them to the object, keeping the
+                // bytes' own numbers exact.
                 let mut bytes = bytes;
                 if bytes.pop() != Some(b'}') {
                     return Err("recorded claim is not an object".into());
                 }
+                bytes.extend_from_slice(b",\"output\":");
+                bytes.extend(serde_json::to_vec(&claimed_output)?);
                 bytes.extend_from_slice(b",\"protocol\":");
                 bytes.extend(serde_json::to_vec(&cannery_server::protocol::reference())?);
                 bytes.push(b'}');
@@ -617,8 +647,9 @@ async fn job_claims_match_production() -> Result<()> {
         .as_array()
         .ok_or("race responses")?
         .iter()
-        .map(|response| with_protocol(response.clone()))
-        .collect();
+        .zip(&responses)
+        .map(|(recorded, actual)| with_output(recorded.clone(), actual))
+        .collect::<Result<_>>()?;
     assert_eq!(json!(responses), json!(recorded));
     assert_eq!(storage(&state.pool, true).await?, f["race"]["storage"]);
     let heartbeat = f["cases"]

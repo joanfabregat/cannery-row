@@ -42,7 +42,7 @@
   {
     "name": "get_protocol",
     "title": "Get the working protocol",
-    "description": "The whole working protocol, docs/agents.md, as Markdown, with its version, sha256 and size (GET /api/protocol). Read it before you start: the server's instructions are only its opening. Every claim and job claim names it as protocol with its sha256; read it again when the digest differs from the copy you read.",
+    "description": "The whole working protocol, docs/agents.md, as Markdown, with its version, sha256 and size (GET /api/protocol), and base_url, the server's base URL its REST paths start at: every REST request, a download_url included, carries the same Authorization: Bearer header as MCP. Read it before you start: the server's instructions are only its opening. Every claim and job claim names it as protocol with its sha256; read it again when the digest differs from the copy you read.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {},
@@ -78,7 +78,7 @@
   {
     "name": "get_schema",
     "title": "Get a contract schema",
-    "description": "A published contract schema by name, as one self-contained JSON Schema (GET /api/schemas/{name}): required keys, types, patterns, enums and descriptions. unit holds a plan unit's fields and its acceptance; artifact_manifest what post_manifest records; run, verification, writeup, decision, concern and brief the front matter of those documents; transcript one transcript event. Validate a document against it before you send it.",
+    "description": "A published contract schema by name, as one self-contained JSON Schema (GET /api/schemas/{name}): required keys, types, patterns, enums and descriptions. unit holds a plan unit's fields and its acceptance; artifact_manifest what post_manifest records; run, verification, writeup, decision, concern and brief the front matter of those documents (a write-up you write is writeup's first variant, \"Write-up\"; \"Imported write-up\" is for imports only); transcript one transcript event. Validate a document against it before you send it.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -623,7 +623,7 @@
   {
     "name": "get_plan",
     "title": "Get a track's plan",
-    "description": "One revision of a track's plan: its approach, its units with their acceptance, parameters, relations, context and brief, its alignment entries and its review. revision is a number, \"draft\" (the open revision) or \"current\" (the approved plan, else the newest revision; the default). A unit the plan adds has number null until the plan is approved; approval assigns the numbers, and list_track_units then lists them.",
+    "description": "One revision of a track's plan: its approach, its units with their acceptance, parameters, relations, context and brief, its alignment entries and its review. revision is a number, \"draft\" (the open revision) or \"current\" (the approved plan, else the newest revision; the default). A track with no plan revision yet answers not_found: start its first revision with start_plan_revision. A unit the plan adds has number null until the plan is approved; approval assigns the numbers, and list_track_units then lists them.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -784,7 +784,7 @@
   {
     "name": "add_unit",
     "title": "Add a unit to the plan",
-    "description": "Add a unit of work to the draft. acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a number named <resource>_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}), all required, checked against the project's metric registry. parameters are the project's unit fields. relations name another unit with a kind: derived_from, supersedes or related_to. context lists what its performer should read: {kind: unit, unit: number or key}, {kind: writeup, unit: number, attempt: sequence} or {kind: artifact, artifact: id}, each with an optional note. brief is the unit's own Markdown for whoever runs it. The unit has no number until a researcher approves the plan: get_plan shows it with number null until then, and other units of the plan name it by its key. Refused over the project's limits (unit brief 32 KiB, 64 context items by default); a refusal names each failing field and what it expected.",
+    "description": "Add a unit of work to the draft. acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a non-negative number named <resource>_max; the conventional names are gpu_hours_max, cpu_hours_max, wall_clock_hours_max and cost_usd_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}, and any other snake-case <resource>_max is accepted), all required, checked against the project's metric registry. parameters are the project's unit fields. relations name another unit with a kind: derived_from, supersedes or related_to. context lists what its performer should read: {kind: unit, unit: number or key}, {kind: writeup, unit: number, attempt: sequence} or {kind: artifact, artifact: id}, each with an optional note. brief is the unit's own Markdown for whoever runs it. The unit has no number until a researcher approves the plan: get_plan shows it with number null until then, and other units of the plan name it by its key. Refused over the project's limits (unit brief 32 KiB, 64 context items by default); a refusal names each failing field and what it expected.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -841,7 +841,7 @@
         "acceptance": {
           "x-cannery-contract": "unit#/properties/acceptance",
           "title": "Acceptance",
-          "description": "acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a number named <resource>_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}), all required, checked against the project's metric registry."
+          "description": "acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a non-negative number named <resource>_max; the conventional names are gpu_hours_max, cpu_hours_max, wall_clock_hours_max and cost_usd_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}, and any other snake-case <resource>_max is accepted), all required, checked against the project's metric registry."
         },
         "parameters": {
           "anyOf": [
@@ -961,7 +961,7 @@
         "acceptance": {
           "x-cannery-contract": "unit#/properties/acceptance",
           "title": "Acceptance",
-          "description": "acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a number named <resource>_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}), all required, checked against the project's metric registry."
+          "description": "acceptance is how the result is judged (get_schema unit gives the whole shape): selection_splits and confirmation_splits (split slugs, as metric_catalog lists them), primary_metric (a metric key), required_slices (dimension names only, such as [\"language\"]: every value of each named dimension must be reported; metric_catalog lists each metric's dimensions and their values), success_criteria and falsification_criteria (text), regression_gates (dimension names or policy gate ids) and compute_budget (an object of upper bounds, each a non-negative number named <resource>_max; the conventional names are gpu_hours_max, cpu_hours_max, wall_clock_hours_max and cost_usd_max, such as {\"gpu_hours_max\": 4, \"wall_clock_hours_max\": 2}, and any other snake-case <resource>_max is accepted), all required, checked against the project's metric registry."
         },
         "parameters": {
           "anyOf": [
@@ -1666,7 +1666,7 @@
   {
     "name": "list_units",
     "title": "List units",
-    "description": "A project's units, newest first, filtered by state or track.",
+    "description": "A project's units, newest first, filtered by state or track. Each says whether claim_unit could claim it now (claimable: queued, its track active, no concern open on the track) and, when not, why (claimable_reason).",
     "inputSchema": {
       "$defs": {
         "UnitState": {
@@ -1775,7 +1775,7 @@
   {
     "name": "get_unit",
     "title": "Get a unit",
-    "description": "One unit: its current document, relations, backlinks and reviews.",
+    "description": "One unit: its current document, relations, backlinks and reviews, and whether claim_unit could claim it now (claimable: queued, its track active, no concern open on the track) with, when not, why (claimable_reason).",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1948,7 +1948,7 @@
   {
     "name": "get_context",
     "title": "Get an attempt's context bundle",
-    "description": "The context bundle of an attempt, as Markdown (GET /api/projects/{slug}/units/{number}/attempts/{sequence}/context.md). Read it first: the brief, the plan's approach, the unit's fields, acceptance and brief, a section Submitting that says what the run must submit (the required artifact roles, the metrics with their keys, directions and slices, the datasets and splits, the interfaces, how to build the manifest, with an example, and the run document's front matter), the track's other units, the context items, and what earlier attempts asked, were told and why they failed. A claim (claim_unit) names the exact call as context.tool and context.arguments; so does a job claim (claim_job), whose bundle is the attempt's with phase document or decide for a document or decide job, and the plain bundle for a verify job. detail compact keeps the brief's goal, the unit, Submitting and the index, under 16 KiB.",
+    "description": "The context bundle of an attempt, as Markdown (GET /api/projects/{slug}/units/{number}/attempts/{sequence}/context.md). Read it first: the brief, the plan's approach, the unit's fields, acceptance and brief, a section Submitting that says what the run must submit (the required artifact roles, the metrics with their keys, directions and slices, the datasets and splits, the interfaces, how to build the manifest, with an example, and the run document's front matter), the track's other units, the context items, and what earlier attempts asked, were told and why they failed. A claim (claim_unit) names the exact call as context.tool and context.arguments; so does a job claim (claim_job), whose bundle is the attempt's with phase verify, document or decide for a verify, document or decide job. detail compact keeps the brief's goal, the unit, Submitting and the index, under 16 KiB.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -1983,8 +1983,9 @@
           "type": "string"
         },
         "phase": {
-          "description": "document: the documenter's bundle, which adds every attempt's run document and notes, failures and their logs, verification reports and comments; decide: the decider's, which adds the write-up. Omitted: the performer's bundle, which a verifier reads too.",
+          "description": "verify: the verifier's bundle, which replaces Submitting with what the verifier produces (its steps, the required output roles and each field of the verification report with the values it must name, and an example completion); document: the documenter's bundle, which adds every attempt's run document and notes, failures and their logs, verification reports and comments; decide: the decider's, which adds the write-up and the exact verification and writeup a decision cites. Omitted: the performer's bundle.",
           "enum": [
+            "verify",
             "document",
             "decide"
           ],
@@ -2606,7 +2607,7 @@
   {
     "name": "claim_job",
     "title": "Claim a job",
-    "description": "Claim the oldest waiting job of a phase the caller may perform. verify (the default): a verifier service account receives jobs whose science revision has the runner perform verify and names it; an agent service account or a researcher receives jobs whose verify performer is agent, never of an attempt it ran itself. document: an agent service account or a researcher receives the oldest unit waiting for its write-up. decide: the decider service account a science revision registers receives the oldest unit waiting for its automatic decision. The job document carries its lease token once. Its context names the job's context bundle: call context.tool (get_context) with context.arguments. A verify job's inputs are read with get_job_input: run, manifest and artifacts.",
+    "description": "Claim the oldest waiting job of a phase the caller may perform. verify (the default): a verifier service account receives jobs whose science revision has the runner perform verify and names it; an agent service account or a researcher receives jobs whose verify performer is agent, never of an attempt it ran itself. document: an agent service account or a researcher receives the oldest unit waiting for its write-up. decide: the decider service account a science revision registers receives the oldest unit waiting for its automatic decision. The job document carries its lease token once. Its context names the job's context bundle: call context.tool (get_context) with context.arguments (phase verify, document or decide). Its output says what complete_job takes: the document's contract (verification, writeup or decision), whether a manifest goes with it, the artifact roles the manifest must list with what each holds, and for a verify job the values the report must name (policy, science, source and control revisions and the dataset revisions it may name). A verify job's inputs are read with get_job_input: run, manifest and artifacts.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2734,7 +2735,7 @@
   {
     "name": "get_job_input",
     "title": "Read a claimed job's input",
-    "description": "Read one input of the claimed job, under its lease. run: the front matter of the run document, with its claims and provenance; its manifest.ref is the manifest's id, read with input manifest (it is not an artifact id). manifest: the run's verified artifact manifest, with each object's storage key. artifacts: each input artifact's artifact_id, role, attempt, size, digest and download_url, which the job's holder may GET with its bearer token while the lease runs (get_artifact gives the same URL): a verify job's are the manifest's objects, a document or decide job's every artifact of the unit's attempts. The run notes are not an input.",
+    "description": "Read one input of the claimed job, under its lease. run: the front matter of the run document, with its claims and provenance; its manifest.ref is the manifest's id, read with input manifest (it is not an artifact id). manifest: the run's verified artifact manifest, with each object's storage key. artifacts: each input artifact's artifact_id, role, attempt, size, digest and download_url, which the job's holder may GET while the lease runs with the same Authorization: Bearer header as MCP (get_artifact gives the same URL; an S3-backed API redirects to a presigned URL, followed without the header): a verify job's are the manifest's objects, a document or decide job's every artifact of the unit's attempts. The run notes are not an input.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2894,7 +2895,7 @@
   {
     "name": "complete_job",
     "title": "Complete a job",
-    "description": "Complete the claimed job. A verify job: its verification report, Markdown with YAML front matter (GET /api/schemas/verification), and the manifest of the files the job uploaded, if any. A document job: the write-up, Markdown with YAML front matter (GET /api/schemas/writeup) covering the attempts and citing the verification report the job inputs name, and no manifest. A decide job: the decision document (GET /api/schemas/decision) citing the verification report and write-up the job inputs name, and no manifest; it promotes only on a pass verdict. An invalid document from an agent, a researcher or a decider is refused with the details and the lease is kept; a verifier runner's invalid report fails the job run.",
+    "description": "Complete the claimed job. document is {\"schema_version\": \"0.2\", \"job_id\": \"<the job's id>\", \"document\": \"<Markdown with YAML front matter>\"}, plus \"manifest\" for a verify job; the job claim's output says which contract the document follows, whether a manifest goes with it, the artifact roles that manifest must list (output.required_roles) and, for a verify job, the values the report must name (output.expected). A verify job: the verification report (get_schema verification) and the manifest of what the job uploaded (get_schema artifact_manifest), listing every required output role; only the uploads the manifest lists are the job's outputs. Its policy_revision is output.expected.policy_revision (an agent verifier's is the pinned science revision), its provenance names output.expected's science, source and control revisions (the control's bare revision, such as \"r1\") and one of its dataset_revisions; the verifier's context bundle (get_context with phase verify) has a worked example. A document job: the write-up (get_schema writeup), in the schema's first variant, \"Write-up\" (never \"Imported write-up\", which only imports use), and no manifest, for example \"---\\nsummary: One sentence the unit page opens with.\\nattempts: [1, 2]\\nverification:\\n  ref: <the job's inputs.verification.ref>\\n  sha256: <its sha256>\\n---\\nWhat was tried, what was found and what it means.\\n\": attempts lists every attempt of the unit, and verification is the job's inputs.verification, null for a stopped unit. A decide job: the decision document (get_schema decision) citing the verification report and write-up the job inputs name, and no manifest; it promotes only on a pass verdict. An invalid document from an agent, a researcher or a decider is refused with the details (a manifest without a required role names missing_roles and required_roles) and the lease is kept; a verifier runner's invalid report fails the job run.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -2966,7 +2967,7 @@
   {
     "name": "fail_job",
     "title": "Report a job failure",
-    "description": "Report that the claimed job failed, with a failure code and a reason. A failed document job is queued again.",
+    "description": "Report that the claimed job failed, with a failure code and a reason. A failed verify job is rerun automatically while the science revision's max_auto_retries allows (1 by default); after that its attempt fails with a verify failure and a failure review case opens for a researcher to retry or stop the unit. A failed document job is queued again.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -3617,7 +3618,7 @@
   {
     "name": "write_up",
     "title": "Write a unit up",
-    "description": "A researcher writes a unit up in one action, claiming and completing its document job: Markdown with YAML front matter (GET /api/schemas/writeup) with a one-sentence summary, the attempts it covers and the verification report it cites, as get_writeup names them, and a body. An agent claims the document job instead (claim_job with phase document).",
+    "description": "A researcher writes a unit up in one action, claiming and completing its document job: Markdown with YAML front matter (GET /api/schemas/writeup) with a one-sentence summary, the attempts it covers and the verification report it cites, as get_writeup names them, and a body. An agent claims the document job instead (claim_job with phase document). document is the write-up itself, a string, in the writeup schema's first variant, \"Write-up\" (never \"Imported write-up\", which only imports use), for example \"---\\nsummary: One sentence the unit page opens with.\\nattempts: [1, 2]\\nverification:\\n  ref: <get_writeup's inputs.verification.ref>\\n  sha256: <its sha256>\\n---\\nWhat was tried, what was found and what it means.\\n\": attempts lists every attempt of the unit, verification is null for a unit stopped after a failure, and the body is not empty.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4862,7 +4863,7 @@
   {
     "name": "list_questions",
     "title": "List questions",
-    "description": "The questions performers asked about the project's units, newest first, with their answers: of one track when track is given, in one state when state is given (open ones wait for a researcher). Each question's text is its body and its answer is answer; the question field is set only on answer messages.",
+    "description": "The questions performers asked about the project's units, newest first, with their answers: of one track when track is given, in one state when state is given (open ones wait for a researcher). A question's text is its body, and its answer, once given, is answer (null until then), whose text is answer.body. The question field is always null on a question: it is set only on the answer messages list_messages returns, where it names the question answered.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {
@@ -4944,7 +4945,7 @@
   {
     "name": "get_question",
     "title": "Read a question",
-    "description": "One question: who asked it, under which attempt or job, whether it blocks, the default it proceeds on, and its answer once given. body holds the question's text; answer holds the answer once given. A message's question field is set only on an answer and names the question it answers.",
+    "description": "One question: who asked it, under which attempt or job, whether it blocks, the default it proceeds on, and its answer once given. A question's text is its body, and its answer, once given, is answer (null until then), whose text is answer.body. The question field is always null on a question: it is set only on the answer messages list_messages returns, where it names the question answered.",
     "inputSchema": {
       "additionalProperties": false,
       "properties": {

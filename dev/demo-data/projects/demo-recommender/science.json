@@ -94,7 +94,14 @@
     }
   },
   "default_producer": {"name": "recsys-producer", "revision": 1},
-  "required_artifact_roles": {"attempt": ["candidate"], "verify": ["step_log"]},
+  "required_artifact_roles": {
+    "attempt": [
+      {"role": "candidate", "description": "The candidate the run proposes, which the producer step reads at /cr/inputs/candidate: in this demo, its configuration as one JSON file."}
+    ],
+    "verify": [
+      {"role": "step_log", "description": "The log of the verifier's steps, as plain text: what each staged, ran and scored."}
+    ]
+  },
   "limits": {
     "resource_ceilings": {"cpu": "4", "memory": "8Gi"},
     "max_deadline_seconds": 3600,

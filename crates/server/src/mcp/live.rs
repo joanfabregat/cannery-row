@@ -258,7 +258,10 @@ async fn mcp_stateless_http() -> Result<()> {
         // The instructions are the opening of docs/agents.md; the
         // reference names it rather than freezing its text.
         if let Some(instructions) = projected.pointer_mut("/result/instructions") {
-            assert_eq!(instructions.as_str(), Some(crate::protocol::instructions()));
+            assert_eq!(
+                instructions.as_str(),
+                Some(super::instructions(&settings.server.public_base_url).as_str())
+            );
             *instructions = json!("@protocol");
         }
         assert_eq!(projected, recipe["output"], "{}", recipe["name"]);

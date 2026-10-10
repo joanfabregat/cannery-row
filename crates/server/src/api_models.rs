@@ -1489,6 +1489,13 @@ pub struct UnitOut {
     pub external_id: Option<String>,
     #[schema(required = true)]
     pub imported: Option<BTreeMap<String, serde_json::Value>>,
+    /// Whether `claim_unit` could claim the unit now: it is queued, its
+    /// track is active and no concern is open on the track. A claim also
+    /// needs the caller's mode to match the track's.
+    pub claimable: bool,
+    /// Why the unit cannot be claimed now; null when it can.
+    #[schema(required = true)]
+    pub claimable_reason: Option<String>,
     #[schema(format = "uuid")]
     pub id: String,
     pub project: String,
@@ -1555,6 +1562,13 @@ pub struct UnitSummary {
     pub external_id: Option<String>,
     #[schema(required = true)]
     pub imported: Option<BTreeMap<String, serde_json::Value>>,
+    /// Whether `claim_unit` could claim the unit now: it is queued, its
+    /// track is active and no concern is open on the track. A claim also
+    /// needs the caller's mode to match the track's.
+    pub claimable: bool,
+    /// Why the unit cannot be claimed now; null when it can.
+    #[schema(required = true)]
+    pub claimable_reason: Option<String>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -1574,9 +1588,69 @@ pub struct JobClaimOut {
     /// with `plan`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<ContextBundleRef>,
+    /// What `complete_job` takes for this job: its document's contract, the
+    /// roles its manifest needs and, for a verify job, the values its
+    /// report must name, all from the job's pinned science revision.
+    pub output: JobOutputGuide,
     /// The working protocol every performer follows: when to ask, when to
     /// raise a concern, steering and transcripts.
     pub protocol: ProtocolRef,
+}
+
+/// What `complete_job` takes for a claimed job.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct JobOutputGuide {
+    /// The contract of the completion's `document` (`get_schema` name):
+    /// `verification` for a verify job, `writeup` for a document job,
+    /// `decision` for a decide job.
+    #[schema(pattern = "^(verification|writeup|decision)$")]
+    pub document: String,
+    /// Whether the completion carries a `manifest` of the job's uploads: a
+    /// verify job's does (only the uploads it lists count as the job's
+    /// outputs); a document or decide job's never.
+    pub manifest: bool,
+    /// The roles the completion's manifest needs an object of, from the
+    /// science revision's `required_artifact_roles.verify`; empty when it
+    /// needs none.
+    pub required_roles: Vec<ArtifactRoleOut>,
+    /// The values a verify job's report must name; absent for other jobs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expected: Option<VerificationExpected>,
+}
+
+/// An artifact role a science revision requires, with what goes in it.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactRoleOut {
+    pub role: String,
+    /// What an object of this role holds, when the science revision says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// The values a verify job's verification report must name.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct VerificationExpected {
+    /// `policy_revision`: a runner's registered policy revision (the job's
+    /// `verifier.revision`); for an agent verify job, the pinned science
+    /// revision, which registers agent verification.
+    pub policy_revision: String,
+    /// `provenance.science_revision`: the job's pinned science revision.
+    pub science_revision: String,
+    /// `provenance.source_revision`: the run's own.
+    #[schema(required = true)]
+    pub source_revision: Option<String>,
+    /// `provenance.control_revision`: the revision of the unit's pinned
+    /// control, bare (`r1`, not `popularity@r1`); null when the unit has
+    /// no control, and the report then leaves it out.
+    #[schema(required = true)]
+    pub control_revision: Option<String>,
+    /// `provenance.dataset_revision` names one of these; empty when the
+    /// scorer reads no registered dataset, and the report then leaves it
+    /// out.
+    pub dataset_revisions: Vec<String>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -2727,7 +2801,23 @@ pub struct cannery_row__reviews__routes__ReviewCaseOut {
     /// The verification report a result case is about.
     #[schema(required = true)]
     pub verification: Option<VerificationDocument>,
+    /// On a decision case, what a decision cites. Absent on a failure case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cites: Option<ReviewCaseCites>,
     pub decisions: Vec<DecisionOut>,
+}
+
+/// The documents a decision on a decision case cites, each by id and
+/// SHA-256, as `make_decision` takes them in `verification` and `writeup`.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewCaseCites {
+    /// The verification report the case is about; null when it has none.
+    #[schema(required = true)]
+    pub verification: Option<RequestCommonContentRef>,
+    /// The write-up; null when the document phase was skipped.
+    #[schema(required = true)]
+    pub writeup: Option<RequestCommonContentRef>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
@@ -3426,6 +3516,9 @@ pub struct UnitDocumentPlan {
     pub success_criteria: String,
     pub falsification_criteria: String,
     pub regression_gates: Vec<String>,
+    /// Upper bounds named `<resource>_max`: conventionally `gpu_hours_max`,
+    /// `cpu_hours_max`, `wall_clock_hours_max` and `cost_usd_max`; any
+    /// other snake-case `<resource>_max` is accepted.
     #[schema(value_type = BTreeMap<String, f64>)]
     pub compute_budget: BTreeMap<String, serde_json::Number>,
 }
@@ -4169,8 +4262,24 @@ pub struct ScienceRevisionRequestCodeRepositories {
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ScienceRevisionRequestRequiredArtifactRoles {
-    pub attempt: Vec<String>,
-    pub verify: Vec<String>,
+    pub attempt: Vec<ScienceRevisionRequestRequiredRole>,
+    pub verify: Vec<ScienceRevisionRequestRequiredRole>,
+}
+
+/// A required artifact role: its name, or the role with a description of
+/// what an object of that role holds.
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(untagged)]
+pub enum ScienceRevisionRequestRequiredRole {
+    Name(String),
+    Described(ScienceRevisionRequestDescribedRole),
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ScienceRevisionRequestDescribedRole {
+    pub role: String,
+    pub description: String,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]

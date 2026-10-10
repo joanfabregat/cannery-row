@@ -36,6 +36,8 @@ export function summary(overrides: Partial<Schemas["UnitSummary"]> = {}): Schema
     source_ref: null,
     external_id: null,
     imported: null,
+    claimable: false,
+    claimable_reason: "the unit is promoted: only a queued unit is claimed",
     ...overrides,
   };
 }

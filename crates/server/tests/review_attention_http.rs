@@ -369,7 +369,7 @@ async fn review_attention_match_production() -> Result<()> {
         assert_eq!(json!(status), r["status"], "status {i} {}", r["name"]);
         assert_eq!(json!(allow), r["allow"], "allow {i}");
         assert_eq!(
-            canonical(output, &BTreeMap::new()),
+            canonical(without_cites(output)?, &BTreeMap::new()),
             canonical(r["response"].clone(), &BTreeMap::new()),
             "body {i}"
         );
@@ -388,10 +388,77 @@ async fn review_attention_match_production() -> Result<()> {
                     "native typed bytes {i}"
                 );
             } else {
-                assert_eq!(wire, expected, "fixed model bytes {i}");
+                assert_eq!(
+                    hex(&bytes_without_cites(&raw(&wire)?)?),
+                    expected,
+                    "fixed model bytes {i}"
+                );
             }
         }
     }
     state.pool.close().await;
     Ok(())
+}
+/// A review case response without `cites`, which the frozen corpus
+/// predates, after checking it: only a decision case states it, and each
+/// citation is null or a `{ref, sha256}`.
+fn without_cites(mut value: Value) -> Result<Value> {
+    match &mut value {
+        Value::Object(fields) => {
+            if let Some(cites) = fields.remove("cites") {
+                assert_eq!(fields.get("kind"), Some(&json!("decision")), "{cites}");
+                let cites = cites.as_object().ok_or("cites object")?;
+                assert_eq!(cites.len(), 2, "{cites:?}");
+                for key in ["verification", "writeup"] {
+                    let document = cites.get(key).ok_or("cited document")?;
+                    if !document.is_null() {
+                        assert!(document["ref"].is_string(), "{document}");
+                        // The fixture's stored digests are placeholders.
+                        assert!(document["sha256"].is_string(), "{document}");
+                    }
+                }
+            }
+            for field in fields.values_mut() {
+                *field = without_cites(field.take())?;
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                *item = without_cites(item.take())?;
+            }
+        }
+        _ => {}
+    }
+    Ok(value)
+}
+/// The response bytes without the `,"cites":{…}` members `without_cites`
+/// drops; the object holds no braces inside its strings.
+fn bytes_without_cites(bytes: &[u8]) -> Result<Vec<u8>> {
+    let marker = b",\"cites\":{";
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i..].starts_with(marker) {
+            let mut depth = 0_usize;
+            let mut j = i + marker.len() - 1;
+            loop {
+                match bytes.get(j).ok_or("unterminated cites")? {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                j += 1;
+            }
+            i = j + 1;
+            continue;
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    Ok(out)
 }

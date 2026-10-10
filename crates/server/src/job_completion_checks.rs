@@ -79,7 +79,7 @@ pub(crate) fn manifest_objects(
             if obj[field] != expected {
                 return Err(invalid(
                     &format!("{path}/{field}"),
-                    "does not match the verified object",
+                    format!("must be the verified object's {field}, {expected}"),
                 ));
             }
         }
@@ -113,6 +113,26 @@ fn extensions(
         Err(_) => Err(internal(r, "result extension schema")),
     }
 }
+/// The values of a JSON array, or each item's `key` field, as a readable
+/// list of alternatives (`"a", "b" or "c"`).
+fn listed(values: &Value, key: &str) -> String {
+    let texts: Vec<String> = values
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|value| if key.is_empty() { value } else { &value[key] })
+        .map(|value| {
+            value
+                .as_str()
+                .map_or_else(|| value.to_string(), str::to_owned)
+        })
+        .collect();
+    crate::job_outputs::quoted_list(&texts.iter().map(String::as_str).collect::<Vec<_>>())
+}
+#[allow(
+    clippy::too_many_lines,
+    reason = "Each measurement check names what it expected"
+)]
 fn measurements(science: &Value, report: &Value, r: &RequestContext) -> Result<(), Failure> {
     for (i, m) in report["measurements"]
         .as_array()
@@ -124,18 +144,30 @@ fn measurements(science: &Value, report: &Value, r: &RequestContext) -> Result<(
         let metric = array(science, "metrics", r)?
             .iter()
             .find(|v| v["key"] == m["metric"])
-            .ok_or_else(|| invalid(&format!("{path}/metric"), "unknown metric"))?;
+            .ok_or_else(|| {
+                invalid(
+                    &format!("{path}/metric"),
+                    format!(
+                        "unknown metric: the registered metrics are {}",
+                        listed(&science["metrics"], "key")
+                    ),
+                )
+            })?;
         if !array(metric, "splits", r)?.contains(&m["split"]) {
             return Err(invalid(
                 &format!("{path}/split"),
-                "unregistered metric split",
+                format!(
+                    "unregistered metric split: {} has {}",
+                    m["metric"],
+                    listed(&metric["splits"], "")
+                ),
             ));
         }
         for field in ["unit", "direction"] {
             if m[field] != metric[field] {
                 return Err(invalid(
                     &format!("{path}/{field}"),
-                    "does not match the registered metric",
+                    format!("must be the registered metric's {field}, {}", metric[field]),
                 ));
             }
         }
@@ -148,20 +180,76 @@ fn measurements(science: &Value, report: &Value, r: &RequestContext) -> Result<(
                 .ok_or_else(|| {
                     invalid(
                         &format!("{path}/dimensions/{name}"),
-                        "unregistered metric dimension",
+                        format!(
+                            "unregistered metric dimension: {} has {}",
+                            m["metric"],
+                            listed(&metric["dimensions"], "name")
+                        ),
                     )
                 })?;
-            if let Some(allowed) = registered.get("values").and_then(Value::as_array)
-                && !allowed.contains(value)
+            if let Some(allowed) = registered.get("values")
+                && allowed
+                    .as_array()
+                    .is_some_and(|allowed| !allowed.contains(value))
             {
                 return Err(invalid(
                     &format!("{path}/dimensions/{name}"),
-                    "unregistered dimension value",
+                    format!(
+                        "unregistered dimension value: {name} takes {}",
+                        listed(allowed, "")
+                    ),
                 ));
             }
         }
     }
     // Each explicitly required dimension slice must appear in the report.
+    for slice in required_slices(science) {
+        if !report["measurements"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|m| slice.matches(m))
+        {
+            return Err(invalid(
+                "/measurements",
+                format!(
+                    "required slices are missing: no measurement of {} on split {} with only {} = {}",
+                    slice.metric["key"], slice.split, slice.dimension, slice.value
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// A slice a report must measure: `metric` on `split`, with `dimension` =
+/// `value` as its only dimension.
+pub(crate) struct RequiredSlice<'a> {
+    pub(crate) metric: &'a Value,
+    pub(crate) split: &'a Value,
+    pub(crate) dimension: &'a Value,
+    pub(crate) value: &'a Value,
+}
+
+impl RequiredSlice<'_> {
+    /// Whether the measurement covers this slice.
+    pub(crate) fn matches(&self, m: &Value) -> bool {
+        m["metric"] == self.metric["key"]
+            && m["split"] == *self.split
+            && m["dimensions"].as_object().is_some_and(|dimensions| {
+                dimensions.len() == 1
+                    && self
+                        .dimension
+                        .as_str()
+                        .is_some_and(|name| dimensions.get(name) == Some(self.value))
+            })
+    }
+}
+
+/// Every required slice of the science revision's metrics, in registry
+/// order: a slice without its own splits applies to each of the metric's.
+pub(crate) fn required_slices(science: &Value) -> Vec<RequiredSlice<'_>> {
+    let mut slices = Vec::new();
     for metric in science["metrics"].as_array().into_iter().flatten() {
         for slice in metric["required_slices"].as_array().into_iter().flatten() {
             let splits = slice
@@ -169,30 +257,19 @@ fn measurements(science: &Value, report: &Value, r: &RequestContext) -> Result<(
                 .and_then(Value::as_array)
                 .filter(|v| !v.is_empty())
                 .or_else(|| metric["splits"].as_array());
-            for required in slice["values"].as_array().into_iter().flatten() {
+            for value in slice["values"].as_array().into_iter().flatten() {
                 for split in splits.into_iter().flatten() {
-                    if !report["measurements"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .any(|m| {
-                            m["metric"] == metric["key"]
-                                && m["split"] == *split
-                                && m["dimensions"].as_object().is_some_and(|dimensions| {
-                                    dimensions.len() == 1
-                                        && slice["dimension"].as_str().is_some_and(|name| {
-                                            dimensions.get(name) == Some(required)
-                                        })
-                                })
-                        })
-                    {
-                        return Err(invalid("/measurements", "required slices are missing"));
-                    }
+                    slices.push(RequiredSlice {
+                        metric,
+                        split,
+                        dimension: &slice["dimension"],
+                        value,
+                    });
                 }
             }
         }
     }
-    Ok(())
+    slices
 }
 
 fn comparisons(science: &Value, report: &Value, r: &RequestContext) -> Result<(), Failure> {
@@ -213,51 +290,6 @@ pub(crate) struct Report {
     pub manifest: Option<Document>,
     /// The SHA-256 of the report text, as sent.
     pub sha256: String,
-}
-
-/// The dataset revisions the job's scorer reads; held-out label datasets alone when it reads any.
-fn scored_datasets(
-    spec: &Value,
-    science: &Value,
-    r: &RequestContext,
-) -> Result<BTreeSet<String>, Failure> {
-    let inputs = &spec["inputs"];
-    let scorer = array(spec, "steps", r)?
-        .iter()
-        .map(|v| &v["manifest"])
-        .find(|v| v["spec"]["role"] == "scorer")
-        .ok_or_else(|| internal(r, "job scorer missing"))?;
-    let mut read = BTreeSet::new();
-    let mut held = BTreeSet::new();
-    for artifact in scorer["spec"]["inputs"]["artifacts"]
-        .as_array()
-        .into_iter()
-        .flatten()
-    {
-        if artifact["from"] == "dataset" {
-            let name = artifact
-                .get("id")
-                .or_else(|| artifact.get("name"))
-                .and_then(Value::as_str)
-                .ok_or_else(|| internal(r, "scorer dataset input"))?;
-            if let Some(pinned) = array(inputs, "datasets", r)?
-                .iter()
-                .find(|v| v["id"] == name)
-            {
-                let revision = string(pinned, "revision", r)?.to_owned();
-                read.insert(revision.clone());
-                if science["datasets"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .any(|v| v["id"] == name && v["held_out_labels"] == true)
-                {
-                    held.insert(revision);
-                }
-            }
-        }
-    }
-    Ok(if held.is_empty() { read } else { held })
 }
 
 #[allow(
@@ -321,46 +353,74 @@ pub(crate) async fn completion(
         ));
     }
     let provenance = &report["provenance"];
-    let pinned_revision = j.science_revision.to_string();
-    if provenance["science_revision"].as_str() != Some(pinned_revision.as_str()) {
-        return Err(invalid(
-            "/provenance/science_revision",
-            "must match the job's pinned science revision",
-        ));
-    }
-    if provenance["source_revision"] != run["provenance"]["source_revision"] {
-        return Err(invalid(
-            "/provenance/source_revision",
-            "must match the run's source revision",
-        ));
-    }
     let control = cannery_research::job_baselines::pinned_control(&j.spec, s.flow.rendering)
         .map_err(|_| internal(r, "job control"))?
         .map(|control| flow::value(&control, &s.flow, r))
         .transpose()?;
-    if let Some(control) = &control
-        && provenance["control_revision"] != control["revision"]
+    let expected =
+        crate::job_outputs::VerifyExpectations::new(j, &spec, &science, &run, control.as_ref())
+            .ok_or_else(|| internal(r, "job pinned expectations"))?;
+    if provenance["science_revision"].as_str() != Some(expected.science_revision.as_str()) {
+        return Err(invalid(
+            "/provenance/science_revision",
+            format!(
+                "must be the job's pinned science revision, \"{}\"",
+                expected.science_revision
+            ),
+        ));
+    }
+    if provenance["source_revision"] != expected.source_revision {
+        return Err(invalid(
+            "/provenance/source_revision",
+            format!(
+                "must be the run's source revision, {}",
+                expected.source_revision
+            ),
+        ));
+    }
+    // One form everywhere: the control's bare revision, as the job pins it.
+    if let Some((id, revision)) = &expected.control
+        && provenance["control_revision"].as_str() != Some(revision.as_str())
     {
         return Err(invalid(
             "/provenance/control_revision",
-            "must match the job's pinned control",
+            format!(
+                "must be \"{revision}\", the revision of the unit's pinned control {id} (the bare revision, not \"{id}@{revision}\")"
+            ),
         ));
     }
-    let scored = scored_datasets(&spec, &science, r)?;
+    let scored = expected.dataset_list();
     let dataset = provenance.get("dataset_revision").and_then(Value::as_str);
-    if dataset.map_or(!scored.is_empty(), |revision| !scored.contains(revision)) {
+    if dataset.map_or(!scored.is_empty(), |revision| !scored.contains(&revision)) {
         return Err(invalid(
             "/provenance/dataset_revision",
-            "must match a scored dataset revision",
+            if scored.is_empty() {
+                String::from(
+                    "the job's scorer reads no registered dataset: leave dataset_revision out",
+                )
+            } else {
+                format!(
+                    "must be a dataset revision the job's scorer reads: {}",
+                    crate::job_outputs::quoted_list(&scored)
+                )
+            },
         ));
     }
     measurements(&science, &report, r)?;
     extensions(&science, &report, s, r)?;
-    if j.performer == Performer::Runner && report["policy_revision"] != spec["verifier"]["revision"]
-    {
+    if report["policy_revision"].as_str() != Some(expected.policy_revision.as_str()) {
         return Err(invalid(
             "/policy_revision",
-            "must match the registered verifier's policy revision",
+            match j.performer {
+                Performer::Runner => format!(
+                    "must be the registered verifier's policy revision, \"{}\"",
+                    expected.policy_revision
+                ),
+                Performer::Agent => format!(
+                    "must be \"{}\": an agent verify job's policy revision is its pinned science revision, which registers agent verification",
+                    expected.policy_revision
+                ),
+            },
         ));
     }
     let mut gates = BTreeSet::new();
@@ -396,21 +456,34 @@ pub(crate) async fn completion(
         if manifest["attempt_id"] != a.id.to_string() {
             return Err(invalid(
                 "/manifest/attempt_id",
-                "does not match this attempt",
+                format!("must be the job's attempt, \"{}\"", a.id),
             ));
         }
         manifest_objects(manifest, &artifacts)?
     } else {
         BTreeSet::new()
     };
-    for role in science["required_artifact_roles"]["verify"]
-        .as_array()
-        .into_iter()
-        .flatten()
-    {
-        if !role.as_str().is_some_and(|v| roles.contains(v)) {
-            return Err(invalid("/manifest", "the manifest lacks required roles"));
-        }
+    let required = crate::job_outputs::names(&expected.roles);
+    let missing: Vec<&str> = required
+        .iter()
+        .copied()
+        .filter(|role| !roles.contains(*role))
+        .collect();
+    if !missing.is_empty() {
+        let message = format!(
+            "the manifest lacks the required artifact role{} {}: a verify job's completion must list an upload of each role the science revision requires ({})",
+            if missing.len() == 1 { "" } else { "s" },
+            missing.join(", "),
+            required.join(", ")
+        );
+        return Err(failure(ApiError::from(
+            DomainError::new(ErrorCode::ValidationFailed, message.clone()).with_details(json!([{
+                "path": "/manifest",
+                "message": message,
+                "missing_roles": missing,
+                "required_roles": required,
+            }])),
+        )));
     }
     for (i, role) in report["artifact_roles"]
         .as_array()

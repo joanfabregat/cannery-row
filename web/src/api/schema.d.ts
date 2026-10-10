@@ -1597,7 +1597,8 @@ export interface paths {
          * Get Plan
          * @description One revision of a track's plan with its units and alignment entries.
          *     `revision` is a number, `draft` (the open revision) or `current` (the
-         *     approved plan, else the newest revision).
+         *     approved plan, else the newest revision). A track with no plan revision
+         *     yet answers 404: start its first revision with `start_plan_revision`.
          */
         get: operations["get_plan_api_projects__slug__tracks__track_slug__plans__revision__get"];
         put?: never;
@@ -1802,7 +1803,11 @@ export interface paths {
          *     steering notes, questions and answers. The front matter states its size in
          *     bytes. `detail=compact` keeps the brief's goal, the unit, what to submit,
          *     the index and the earlier attempts, capped at 16 KiB. Over MCP:
-         *     `get_context`. `phase=document` is the
+         *     `get_context`. `phase=verify` is the
+         *     verifier's bundle: the full bundle with, instead of what to submit, what
+         *     the attempt's verify job must produce (who runs which steps, the inputs,
+         *     the roles its manifest needs, each field of the verification report
+         *     with the values it must name, and an example completion). `phase=document` is the
          *     documenter's bundle: the full bundle and the unit's record, every
          *     attempt's run document and notes, failures and their logs, verification
          *     reports and the comments. `phase=decide` adds the write-up, or why there
@@ -2594,6 +2599,12 @@ export interface components {
             uri?: string | null;
             /** Format: date-time */
             verified_at: string;
+        };
+        /** @description An artifact role a science revision requires, with what goes in it. */
+        ArtifactRoleOut: {
+            /** @description What an object of this role holds, when the science revision says. */
+            description?: string | null;
+            role: string;
         };
         AttemptDetail: {
             artifacts: components["schemas"]["ArtifactOut"][];
@@ -3512,6 +3523,12 @@ export interface components {
             /** Format: int64 */
             heartbeat_seconds: number;
             job: components["schemas"]["ClaimedJobDocument"];
+            /**
+             * @description What `complete_job` takes for this job: its document's contract, the
+             *     roles its manifest needs and, for a verify job, the values its
+             *     report must name, all from the job's pinned science revision.
+             */
+            output: components["schemas"]["JobOutputGuide"];
             plan?: components["schemas"]["PlanRef"] | null;
             /**
              * @description The working protocol every performer follows: when to ask, when to
@@ -3643,6 +3660,28 @@ export interface components {
             verifier: string | null;
             via_client: string | null;
             writeup?: components["schemas"]["WriteupDocument"] | null;
+        };
+        /** @description What `complete_job` takes for a claimed job. */
+        JobOutputGuide: {
+            /**
+             * @description The contract of the completion's `document` (`get_schema` name):
+             *     `verification` for a verify job, `writeup` for a document job,
+             *     `decision` for a decide job.
+             */
+            document: string;
+            expected?: components["schemas"]["VerificationExpected"] | null;
+            /**
+             * @description Whether the completion carries a `manifest` of the job's uploads: a
+             *     verify job's does (only the uploads it lists count as the job's
+             *     outputs); a document or decide job's never.
+             */
+            manifest: boolean;
+            /**
+             * @description The roles the completion's manifest needs an object of, from the
+             *     science revision's `required_artifact_roles.verify`; empty when it
+             *     needs none.
+             */
+            required_roles: components["schemas"]["ArtifactRoleOut"][];
         };
         JobUploadRequest: {
             interface?: string | null;
@@ -4440,6 +4479,14 @@ export interface components {
         };
         /** @enum {string} */
         ResultDecision: "promote" | "reject" | "inconclusive";
+        /**
+         * @description The documents a decision on a decision case cites, each by id and
+         *     SHA-256, as `make_decision` takes them in `verification` and `writeup`.
+         */
+        ReviewCaseCites: {
+            verification: components["schemas"]["RequestCommonContentRef"] | null;
+            writeup: components["schemas"]["RequestCommonContentRef"] | null;
+        };
         ReviewCasePage: {
             items: components["schemas"]["cannery_row__reviews__routes__ReviewCaseOut"][];
             /** Format: uuid */
@@ -4556,6 +4603,10 @@ export interface components {
             id: string;
             revision: string;
         };
+        ScienceRevisionRequestDescribedRole: {
+            description: string;
+            role: string;
+        };
         ScienceRevisionRequestLimits: {
             /** Format: int64 */
             max_deadline_seconds?: number;
@@ -4568,9 +4619,14 @@ export interface components {
             };
         };
         ScienceRevisionRequestRequiredArtifactRoles: {
-            attempt: string[];
-            verify: string[];
+            attempt: components["schemas"]["ScienceRevisionRequestRequiredRole"][];
+            verify: components["schemas"]["ScienceRevisionRequestRequiredRole"][];
         };
+        /**
+         * @description A required artifact role: its name, or the role with a description of
+         *     what an object of that role holds.
+         */
+        ScienceRevisionRequestRequiredRole: string | components["schemas"]["ScienceRevisionRequestDescribedRole"];
         ScienceRevisionRequestRetentionItem: {
             /** Format: int64 */
             days: number;
@@ -4974,6 +5030,11 @@ export interface components {
         /** @enum {string} */
         UnitDocumentControlKind: "baseline";
         UnitDocumentPlan: {
+            /**
+             * @description Upper bounds named `<resource>_max`: conventionally `gpu_hours_max`,
+             *     `cpu_hours_max`, `wall_clock_hours_max` and `cost_usd_max`; any
+             *     other snake-case `<resource>_max` is accepted.
+             */
             compute_budget: {
                 [key: string]: number;
             };
@@ -5020,6 +5081,14 @@ export interface components {
             /** Format: int64 */
             approved_revision: number | null;
             backlinks: components["schemas"]["LinkOut"][];
+            /**
+             * @description Whether `claim_unit` could claim the unit now: it is queued, its
+             *     track is active and no concern is open on the track. A claim also
+             *     needs the caller's mode to match the track's.
+             */
+            claimable: boolean;
+            /** @description Why the unit cannot be claimed now; null when it can. */
+            claimable_reason: string | null;
             /** Format: date-time */
             created_at: string;
             created_by: components["schemas"]["Author"];
@@ -5117,6 +5186,14 @@ export interface components {
             approved_at: string | null;
             /** Format: int64 */
             approved_revision: number | null;
+            /**
+             * @description Whether `claim_unit` could claim the unit now: it is queued, its
+             *     track is active and no concern is open on the track. A claim also
+             *     needs the caller's mode to match the track's.
+             */
+            claimable: boolean;
+            /** @description Why the unit cannot be claimed now; null when it can. */
+            claimable_reason: string | null;
             /** Format: date-time */
             created_at: string;
             created_by: components["schemas"]["Author"];
@@ -5203,6 +5280,31 @@ export interface components {
             front_matter: {
                 [key: string]: unknown;
             };
+        };
+        /** @description The values a verify job's verification report must name. */
+        VerificationExpected: {
+            /**
+             * @description `provenance.control_revision`: the revision of the unit's pinned
+             *     control, bare (`r1`, not `popularity@r1`); null when the unit has
+             *     no control, and the report then leaves it out.
+             */
+            control_revision: string | null;
+            /**
+             * @description `provenance.dataset_revision` names one of these; empty when the
+             *     scorer reads no registered dataset, and the report then leaves it
+             *     out.
+             */
+            dataset_revisions: string[];
+            /**
+             * @description `policy_revision`: a runner's registered policy revision (the job's
+             *     `verifier.revision`); for an agent verify job, the pinned science
+             *     revision, which registers agent verification.
+             */
+            policy_revision: string;
+            /** @description `provenance.science_revision`: the job's pinned science revision. */
+            science_revision: string;
+            /** @description `provenance.source_revision`: the run's own. */
+            source_revision: string | null;
         };
         /** @description One gate of a verification report. */
         VerificationGate: {
@@ -5343,6 +5445,7 @@ export interface components {
         cannery_row__reviews__routes__ReviewCaseOut: {
             attempt_ref: string | null;
             attempt_state: string | null;
+            cites?: components["schemas"]["ReviewCaseCites"] | null;
             decisions: components["schemas"]["DecisionOut"][];
             failure: components["schemas"]["cannery_row__reviews__routes__FailureOut"] | null;
             /** Format: uuid */
@@ -14161,7 +14264,7 @@ export interface operations {
             query?: {
                 /** @description `full` (the default) or `compact`. */
                 detail?: string;
-                /** @description `document` or `decide`: the documenter's or the decider's bundle. */
+                /** @description `verify`, `document` or `decide`: the verifier's, the documenter's or the decider's bundle. */
                 phase?: string;
             };
             header?: never;

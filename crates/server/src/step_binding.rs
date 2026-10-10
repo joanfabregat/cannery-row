@@ -597,7 +597,13 @@ async fn workflow_resolution(
     let required = field(science.content, required, "attempt")?;
     let mut needed = BTreeMap::new();
     for role in iterable(science.content, required)? {
-        let role = role.text(science.content, c)?;
+        // A role is its name, or `{role, description}`.
+        let role = match role {
+            Item::Node(id) if matches!(science.content.node(id), Some(Node::Object(_))) => {
+                text(science.content, field(science.content, id, "role")?, c)?
+            }
+            other => other.text(science.content, c)?,
+        };
         needed.insert(
             role.codepoints().clone(),
             (role, "the science revision requires it"),

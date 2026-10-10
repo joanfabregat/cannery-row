@@ -14,6 +14,8 @@ pub struct ResponseContext {
     pub inferred_nesting_budget: usize,
 }
 pub(crate) struct Detail {
+    /// Why the unit cannot be claimed now; none when it can.
+    pub unclaimable: Option<String>,
     pub unit: Unit,
     pub revision: Revision,
     pub project: String,
@@ -95,9 +97,11 @@ fn author(
         })
     }
 }
-fn summary(h: &Unit, p: ResponseContext) -> Result<UnitSummary> {
+fn summary(h: &Unit, unclaimable: Option<&str>, p: ResponseContext) -> Result<UnitSummary> {
     validate_summary(h)?;
     Ok(UnitSummary {
+        claimable: unclaimable.is_none(),
+        claimable_reason: unclaimable.map(str::to_owned),
         number: i64::from(h.number),
         r#ref: format!("#{}", h.number),
         title: h.title.as_utf8().ok_or(ModelEncodeError::Encoding)?,
@@ -181,7 +185,7 @@ pub(crate) fn decision(d: &Decision) -> Result<Vec<u8>> {
 }
 pub(crate) fn detail(d: &Detail, p: ResponseContext) -> Result<Vec<u8>> {
     d.validate()?;
-    let h = summary(&d.unit, p)?;
+    let h = summary(&d.unit, d.unclaimable.as_deref(), p)?;
     let reviews = d
         .cases
         .iter()
@@ -225,6 +229,8 @@ pub(crate) fn detail(d: &Detail, p: ResponseContext) -> Result<Vec<u8>> {
         source_ref: h.source_ref,
         external_id: h.external_id,
         imported: h.imported,
+        claimable: h.claimable,
+        claimable_reason: h.claimable_reason,
         id: d.unit.id.to_string(),
         project: d.project.clone(),
         document: document(&d.revision.content, p)?,
@@ -258,9 +264,22 @@ fn revision_model(r: &Revision, p: ResponseContext) -> Result<RevisionOut> {
 pub(crate) fn revision(r: &Revision, p: ResponseContext) -> Result<Vec<u8>> {
     encode(&revision_model(r, p)?)
 }
-pub(crate) fn summaries(rows: &[Unit], next: Option<i32>, p: ResponseContext) -> Result<Vec<u8>> {
+pub(crate) fn summaries(
+    rows: &[Unit],
+    unclaimable: &std::collections::BTreeMap<cannery_core::ids::UnitId, Option<String>>,
+    next: Option<i32>,
+    p: ResponseContext,
+) -> Result<Vec<u8>> {
     encode(&UnitPage {
-        items: rows.iter().map(|h| summary(h, p)).collect::<Result<_>>()?,
+        items: rows
+            .iter()
+            .map(|h| {
+                let reason = unclaimable
+                    .get(&h.id)
+                    .ok_or(ModelEncodeError::InvalidNode)?;
+                summary(h, reason.as_deref(), p)
+            })
+            .collect::<Result<_>>()?,
         next_before: next.map(i64::from),
     })
 }

@@ -628,7 +628,7 @@ run_verify_job() {
 
   local work=$SECRETS/work
   scorer=$(jq -r '.scorer.metadata.name' "$science")
-  for role in $(jq -r '.required_artifact_roles.verify[]' "$science"); do
+  for role in $(jq -r '.required_artifact_roles.verify[] | if type == "object" then .role else . end' "$science"); do
     case "$role" in
       evidence)
         measurements "$spec" verified tester_verified | jq '{measurements: .}' >"$work/evidence.json"
@@ -641,12 +641,13 @@ run_verify_job() {
       *) die "no demo output for the verify role $role" ;;
     esac
   done
-  # A runner applies its registered policy revision; a person or an agent names its own.
-  policy=$(jq -r '.verify.verifier.revision // "demo-review-checklist-1"' "$science")
+  # The claim names the policy revision the report must carry: a runner's
+  # registered revision, or for a person or an agent the pinned science revision.
+  policy=$(jq -r '.output.expected.policy_revision' <<<"$claimed")
   # The front matter, one JSON value per key (JSON is YAML), and the notes.
   front=$(jq -r --argjson job "$job" --arg policy "$policy" \
     --argjson measurements "$(measurements "$spec" verified tester_verified)" \
-    --argjson roles "$(jq -c '.required_artifact_roles.verify' "$science")" \
+    --argjson roles "$(jq -c '[.required_artifact_roles.verify[] | if type == "object" then .role else . end]' "$science")" \
     --arg commit "$(commit_of "$key")" --arg dataset "$(pvr .dataset_revision)" '
     . as $spec
     | {

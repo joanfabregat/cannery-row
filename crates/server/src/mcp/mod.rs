@@ -28,9 +28,22 @@ use tower::ServiceExt;
 
 pub const PROTOCOL_VERSION: &str = "2025-06-18";
 
-/// The protocol's opening; `get_protocol` returns the whole of it.
-fn instructions() -> &'static str {
-    crate::protocol::instructions()
+/// The protocol's opening, then the server's base URL; `get_protocol`
+/// returns the whole protocol.
+fn instructions(base_url: &str) -> String {
+    format!(
+        "{}\n\n{}",
+        crate::protocol::instructions(),
+        base_url_line(base_url)
+    )
+}
+
+/// Where REST paths and download URLs start, and how to authenticate them.
+fn base_url_line(base_url: &str) -> String {
+    format!(
+        "This server's base URL is {}: REST paths start there, and every request to it, a `download_url` included, carries the same `Authorization: Bearer <token>` header as MCP.",
+        base_url.trim_end_matches('/')
+    )
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -370,7 +383,7 @@ async fn endpoint(State(state): State<McpState>, request: Request) -> Response {
             }
             rpc_result(
                 reply_id,
-                json!({"protocolVersion":PROTOCOL_VERSION,"capabilities":{"tools":{"listChanged":false},"resources":{"listChanged":false}},"serverInfo":{"name":"cannery-row","title":"Cannery Row","version":env!("CARGO_PKG_VERSION")},"instructions":instructions()}),
+                json!({"protocolVersion":PROTOCOL_VERSION,"capabilities":{"tools":{"listChanged":false},"resources":{"listChanged":false}},"serverInfo":{"name":"cannery-row","title":"Cannery Row","version":env!("CARGO_PKG_VERSION")},"instructions":instructions(&state.app.settings.server.public_base_url)}),
             )
         }
         "ping" => rpc_result(reply_id, json!({})),
@@ -429,14 +442,16 @@ fn markdown_result(text: &str, limit: usize) -> Value {
     json!({"content":[{"type":"text","text":text}],"structuredContent":{"markdown":text},"isError":false})
 }
 /// `get_protocol`: the whole of `docs/agents.md`, as `GET /api/protocol`
-/// serves it, with the reference claims name it by.
-fn protocol_result(limit: usize) -> Value {
+/// serves it, with the reference claims name it by and the server's base
+/// URL, which the protocol's REST paths are relative to.
+fn protocol_result(limit: usize, base_url: &str) -> Value {
     let reference = crate::protocol::reference();
     let text = crate::protocol::TEXT;
     if text.len() > limit {
         return tool_result(result_too_large(limit), true, false, usize::MAX);
     }
-    json!({"content":[{"type":"text","text":text}],"structuredContent":{"ref":reference.r#ref,"version":reference.version,"sha256":reference.sha256,"bytes":reference.bytes,"markdown":text},"isError":false})
+    let base_url = base_url.trim_end_matches('/');
+    json!({"content":[{"type":"text","text":text},{"type":"text","text":base_url_line(base_url)}],"structuredContent":{"ref":reference.r#ref,"version":reference.version,"sha256":reference.sha256,"bytes":reference.bytes,"base_url":base_url,"markdown":text},"isError":false})
 }
 async fn tool_call(
     state: &McpState,
@@ -475,7 +490,13 @@ async fn tool_call(
         );
     };
     if name == "get_protocol" {
-        return rpc_result(id, protocol_result(state.result_limit));
+        return rpc_result(
+            id,
+            protocol_result(
+                state.result_limit,
+                &state.app.settings.server.public_base_url,
+            ),
+        );
     }
     if name == "get_artifact" {
         return match artifact(state, &context, authentication, args).await {

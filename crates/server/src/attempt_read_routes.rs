@@ -253,10 +253,31 @@ async fn read(
                 .map_or(StoredJson::SqlNull, |(_, v, _)| v);
             attempt_read_wire::validate_attempt(&attempt)
                 .map_err(|_| internal(&context, "attempt base model"))?;
-            let artifacts = repository
+            let mut artifacts = repository
                 .list_artifacts(attempt.id)
                 .await
                 .map_err(|_| internal(&context, "attempt artifacts"))?;
+            // Once the run is submitted, the attempt's artifacts are those
+            // its run's manifest lists, besides the transcript the server
+            // seals and imported records; other uploads are not its outputs.
+            let cited = match &sheet {
+                StoredJson::Value(document) => {
+                    cannery_core::json::to_value(document).ok().and_then(|run| {
+                        run["manifest"]["ref"]
+                            .as_str()
+                            .and_then(|id| uuid::Uuid::parse_str(id).ok())
+                    })
+                }
+                StoredJson::SqlNull => None,
+            };
+            if let Some(id) = cited
+                && let Some(manifest) = repository
+                    .get_manifest(attempt.id, cannery_attempts::model::ManifestId(id))
+                    .await
+                    .map_err(|_| internal(&context, "attempt run manifest"))?
+            {
+                crate::job_outputs::keep_listed(&manifest.content, &mut artifacts);
+            }
             let pins =
                 crate::context_bundle::pins(&mut auth.connection, &project, attempt.id, &context)
                     .await

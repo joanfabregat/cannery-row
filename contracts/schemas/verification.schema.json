@@ -12,7 +12,7 @@
     },
     "reason": {"$ref": "common.schema.json#/$defs/text"},
     "policy_revision": {
-      "description": "The revision of the policy that produced the verdict. A runner's report names the revision the science revision registers.",
+      "description": "The revision of the policy that produced the verdict. A runner's report names the revision the science revision registers for its verifier; an agent's or a researcher's names the pinned science revision. The job claim states it as output.expected.policy_revision.",
       "$ref": "common.schema.json#/$defs/identifier"
     },
     "gates": {
@@ -55,7 +55,7 @@
       "properties": {
         "source_revision": {"$ref": "common.schema.json#/$defs/identifier"},
         "dataset_revision": {"$ref": "common.schema.json#/$defs/identifier"},
-        "control_revision": {"$ref": "common.schema.json#/$defs/identifier"},
+        "control_revision": {"description": "The bare revision of the unit's pinned control, such as \"r1\" (not \"popularity@r1\"); left out when the unit names no control.", "$ref": "common.schema.json#/$defs/identifier"},
         "science_revision": {"$ref": "common.schema.json#/$defs/identifier"},
         "seed": {"type": "integer", "minimum": 0}
       },

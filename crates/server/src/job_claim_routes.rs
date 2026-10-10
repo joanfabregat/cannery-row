@@ -170,6 +170,31 @@ async fn claim_document(
         )
         .await;
     }
+    // A verify job's context is the verifier's bundle: what the job must
+    // produce instead of what the attempt had to submit.
+    let mut pins = pins;
+    if let Some(bundle) = pins.context.as_mut() {
+        let pinned = cannery_tracks::plans::attempt_pins_by_id(c, attempt.id)
+            .await
+            .map_err(|_| internal(context, "verify job pins"))?
+            .ok_or_else(|| internal(context, "verify job pins invariant"))?;
+        let built = crate::context_bundle::build_for(
+            c,
+            project,
+            &pinned,
+            crate::context_bundle::Detail::Verify,
+            context,
+        )
+        .await
+        .map_err(failure)?;
+        *bundle = crate::context_bundle::bundle_ref(
+            &project.slug,
+            attempt.unit_number,
+            attempt.sequence,
+            Some("verify"),
+            built.len(),
+        );
+    }
     let phase = String::from(job.phase.as_str());
     let science_revision = BigInt::from(job.science_revision);
     let generation = BigInt::from(job.lease_generation);
@@ -199,6 +224,7 @@ async fn claim_document(
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
+        output: crate::job_outputs::guide(c, job).await,
         protocol: crate::protocol::reference(),
     })
 }
@@ -289,6 +315,7 @@ async fn document_job(
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
+        output: crate::job_outputs::guide(c, job).await,
         protocol: crate::protocol::reference(),
     })
 }
@@ -413,6 +440,7 @@ async fn decide_job(
         brief: pins.brief,
         plan: pins.plan,
         context: pins.context,
+        output: crate::job_outputs::guide(c, job).await,
         protocol: crate::protocol::reference(),
     })
 }
