@@ -47,7 +47,7 @@ jobs:
         with:
           persist-credentials: false
       - &setup-node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
           cache: npm
@@ -283,7 +283,7 @@ jobs:
             ${{ runner.temp }}/pg/out/*.sizes.txt
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         if: runner.os == 'Linux'
         with:
           node-version: "22"
