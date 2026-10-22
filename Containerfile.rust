@@ -1,6 +1,6 @@
 # Build with the small context prepared by rust-release.yml: cannery, licenses/
 # and empty-data/objects/. Cargo and Node never run during image assembly.
-FROM gcr.io/distroless/static-debian13:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:d62067879de890a1def9da0e7766b7d20810a5e5555cef8506b752437d7a3e88
 
 LABEL org.opencontainers.image.source="https://github.com/joanfabregat/cannery-row" \
       org.opencontainers.image.title="Cannery Row Rust" \
