@@ -1,3 +1,15 @@
+# Dependabot opens NO pull requests in this repo, deliberately.
+#
+# Version updates are disabled per ecosystem below with
+# `open-pull-requests-limit: 0`. Security updates are not governed by this
+# file and are disabled at repo level (Settings -> Advanced Security ->
+# Dependabot security updates; API: DELETE
+# /repos/{owner}/{repo}/automated-security-fixes).
+#
+# Dependabot alerts stay enabled. Vulnerabilities are fixed by hand.
+#
+# This file is kept so the ecosystems and their ignore rules stay recorded
+# for whenever PRs are turned back on.
 version: 2
 updates:
   # The runtime base of Containerfile.rust, pinned by digest. Only the
@@ -6,6 +18,7 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
     ignore:
       - dependency-name: "*"
         update-types:
@@ -16,3 +29,4 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 0
